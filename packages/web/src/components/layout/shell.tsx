@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useLocation } from 'wouter';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { MessageSquare, X, Menu, Maximize2, Sparkles, ChevronLeft } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav, drawerWidth } from './mobile-nav';
 import { hapticLight } from '../../lib/haptics';
+import { isScrollLocked } from '../../lib/hooks/use-body-scroll-lock';
 import { MobileTabBar } from './mobile-tab-bar';
 import { AppHeader } from './app-header';
 import { PullToRefresh } from './pull-to-refresh';
@@ -23,9 +24,13 @@ interface ShellProps {
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Live edge-swipe offset, so the drawer opens under the finger. See MobileNav.
-  const [drawerDragX, setDrawerDragX] = useState<number | null>(null);
-  // Live back-swipe offset for the routed page, 0 when no gesture is running.
-  const [backSwipeX, setBackSwipeX] = useState(0);
+  // Gesture offsets ride MotionValues, not state: a touchmove at 60Hz would
+  // otherwise re-render the whole Shell every frame, which is exactly what makes
+  // a drag feel steppy. Only the mount/commit flags stay in state.
+  const drawerDragMV = useMotionValue(0);
+  const backSwipeMV = useMotionValue(0);
+  const [drawerDragging, setDrawerDragging] = useState(false);
+  const [swiping, setSwiping] = useState(false);
 
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
   // Bumped by pull-to-refresh to remount (and so refetch) the current page.
@@ -82,7 +87,9 @@ export function Shell({ children }: ShellProps) {
     let startY = 0;
     let engaged = false;
     let lastDx = 0;
+    let draggingFlag = false;
     const onStart = (e: TouchEvent) => {
+      if (isScrollLocked()) return;   // the drawer, or a sheet, is already up
       const t = e.touches[0];
       startX = t.clientX <= 24 ? t.clientX : null;
       startY = t.clientY;
@@ -99,7 +106,8 @@ export function Shell({ children }: ShellProps) {
       // Feed the live offset to the drawer so it tracks the finger, rather than
       // flipping a boolean and letting a spring run on its own clock.
       lastDx = Math.max(0, Math.min(drawerWidth(), dx));
-      setDrawerDragX(lastDx);
+      drawerDragMV.set(lastDx);
+      if (!draggingFlag) { draggingFlag = true; setDrawerDragging(true); }
     };
     const onEnd = () => {
       if (engaged) {
@@ -107,7 +115,9 @@ export function Shell({ children }: ShellProps) {
         const w = drawerWidth();
         setMobileMenuOpen(lastDx > w * 0.4);
       }
-      setDrawerDragX(null);
+      setDrawerDragging(false);
+      draggingFlag = false;
+      drawerDragMV.set(0);
       startX = null; engaged = false; lastDx = 0;
     };
     document.addEventListener('touchstart', onStart, { passive: true });
@@ -134,7 +144,9 @@ export function Shell({ children }: ShellProps) {
     let lastDx = 0;
     let lastT = 0;
     let velocity = 0;
+    let swipeFlag = false;
     const onStart = (e: TouchEvent) => {
+      if (isScrollLocked()) return;   // a sheet or drawer already owns the screen
       const t = e.touches[0];
       startX = t.clientX <= 24 ? t.clientX : null;
       startY = t.clientY;
@@ -154,14 +166,16 @@ export function Shell({ children }: ShellProps) {
       // The page follows the finger, so the gesture is reversible: let go short
       // of the commit point and it springs back instead of navigating.
       lastDx = Math.max(0, dx);
-      setBackSwipeX(lastDx);
+      backSwipeMV.set(lastDx);
+      if (!swipeFlag) { swipeFlag = true; setSwiping(true); }
     };
     const onEnd = () => {
       if (engaged) {
         const commit = lastDx > window.innerWidth * 0.35 || velocity > 0.5;
         if (commit) { hapticLight(); handleBack(); }
       }
-      setBackSwipeX(0);
+      backSwipeMV.set(0);
+      if (swipeFlag) { swipeFlag = false; setSwiping(false); }
       startX = null; engaged = false; lastDx = 0; velocity = 0;
     };
     document.addEventListener('touchstart', onStart, { passive: true });
@@ -249,7 +263,8 @@ export function Shell({ children }: ShellProps) {
             }
           />
           <MobileNav
-            dragX={drawerDragX}
+            dragging={drawerDragging}
+            dragX={drawerDragMV}
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
           />
@@ -267,22 +282,23 @@ export function Shell({ children }: ShellProps) {
           >
             {/* key remounts just the routed page — every page refetches its
                 data on mount, while the shell (header/tab bar) stays put. */}
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.main
-                key={`${location}:${refreshKey}`}
-                initial={animateRoutes ? { x: navDir * 26, opacity: 0 } : false}
-                animate={{ x: backSwipeX, opacity: 1 }}
-                exit={animateRoutes ? { x: navDir * -26, opacity: 0 } : undefined}
-                transition={
-                  backSwipeX > 0
-                    ? { duration: 0 }                       // follow the finger
-                    : { duration: 0.19, ease: [0.22, 1, 0.36, 1] }
-                }
-                className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
-              >
-                {children}
-              </motion.main>
-            </AnimatePresence>
+            {/* Two layers on purpose: the outer one owns the route enter/exit,
+                the inner one carries the live swipe transform. Sharing a single
+                `x` would make the gesture and the transition fight each other. */}
+            <motion.div style={{ x: backSwipeMV }} className="w-full max-w-full">
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.main
+                  key={`${location}:${refreshKey}`}
+                  initial={animateRoutes ? { x: navDir * 28, opacity: 0 } : false}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={animateRoutes ? { x: navDir * -28, opacity: 0 } : undefined}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
+                >
+                  {children}
+                </motion.main>
+              </AnimatePresence>
+            </motion.div>
           </PullToRefresh>
         ) : (
           /* Mobile /chat: height-constrained shell so the thread + composer

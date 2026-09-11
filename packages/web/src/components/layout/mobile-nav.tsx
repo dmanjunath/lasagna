@@ -1,6 +1,6 @@
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { useLocation } from 'wouter';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useTransform, useMotionValue, type MotionValue } from 'framer-motion';
 import {
   X, Wallet, LogOut,
   LayoutDashboard, Zap, Layers,
@@ -67,12 +67,13 @@ interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
   /**
-   * Live edge-swipe offset in px, 0 at the closed edge and PANEL_W when fully
-   * pulled open. Null when no drag is in flight. While it is a number the panel
-   * follows the finger with no transition, so opening tracks 1:1 instead of
-   * springing on its own clock.
+   * Live edge-swipe offset in px, 0 at the closed edge and the panel width when
+   * fully pulled open. A MotionValue rather than state, so a 60Hz drag writes
+   * the transform without re-rendering anything.
    */
-  dragX?: number | null;
+  dragX?: MotionValue<number>;
+  /** True while an edge drag is in flight, which is what mounts the panel. */
+  dragging?: boolean;
 }
 
 /** Mirrors w-[88%] max-w-[360px] below, for the drag maths. */
@@ -81,12 +82,15 @@ export function drawerWidth(): number {
   return Math.min(window.innerWidth * 0.88, 360);
 }
 
-export function MobileNav({ isOpen, onClose, dragX = null }: MobileNavProps) {
+export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNavProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout, user } = useAuth();
 
-  const dragging = dragX !== null;
   const width = drawerWidth();
+  const fallback = useMotionValue(0);
+  const offset = dragX ?? fallback;
+  const panelX = useTransform(offset, (v) => v - width);
+  const scrimOpacity = useTransform(offset, (v) => Math.min(1, v / width));
 
   useBodyScrollLock(isOpen || dragging);
 
@@ -108,7 +112,8 @@ export function MobileNav({ isOpen, onClose, dragX = null }: MobileNavProps) {
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: dragging ? Math.min(1, (dragX as number) / width) : 1 }}
+            animate={dragging ? undefined : { opacity: 1 }}
+            style={dragging ? { opacity: scrimOpacity } : undefined}
             exit={{ opacity: 0 }}
             transition={dragging ? { duration: 0 } : undefined}
             onClick={onClose}
@@ -118,7 +123,8 @@ export function MobileNav({ isOpen, onClose, dragX = null }: MobileNavProps) {
           {/* Drawer */}
           <motion.div
             initial={{ x: '-100%' }}
-            animate={{ x: dragging ? (dragX as number) - width : 0 }}
+            animate={dragging ? undefined : { x: 0 }}
+            style={dragging ? { x: panelX } : undefined}
             exit={{ x: '-100%' }}
             transition={dragging ? { duration: 0 } : { type: 'spring', damping: 28, stiffness: 320 }}
             drag={dragging ? false : 'x'}
@@ -127,7 +133,7 @@ export function MobileNav({ isOpen, onClose, dragX = null }: MobileNavProps) {
             onDragEnd={(_e, info) => {
               if (info.offset.x < -64 || info.velocity.x < -400) onClose();
             }}
-            className="fixed top-0 left-0 bottom-0 w-[88%] max-w-[360px] z-50 overflow-y-auto
+            className="fixed top-0 left-0 bottom-0 w-[88%] max-w-[360px] z-50 overflow-y-auto overscroll-contain
                        bg-canvas border-r border-line shadow-2xl md:hidden scrollbar-thin"
           >
             <nav

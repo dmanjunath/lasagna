@@ -18,6 +18,16 @@ let locks = 0;
 let restoreOverflow = '';
 let restorePadding = '';
 
+/**
+ * True while any overlay holds the lock. Document-level gesture handlers
+ * (pull-to-refresh, the edge swipes in shell.tsx) must stand down when it is:
+ * their events still fire from inside an open sheet, and acting on them drives
+ * the page behind the overlay.
+ */
+export function isScrollLocked(): boolean {
+  return locks > 0;
+}
+
 export function useBodyScrollLock(active: boolean): void {
   useEffect(() => {
     if (!active) return;

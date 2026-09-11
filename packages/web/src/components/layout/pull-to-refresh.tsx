@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { hapticLight, hapticMedium } from '../../lib/haptics';
 import { setPullState } from '../../lib/pull-store';
+import { isScrollLocked } from '../../lib/hooks/use-body-scroll-lock';
 
 const THRESHOLD = 64; // px of (dampened) pull that arms a refresh
 const MAX_PULL = 110;
@@ -43,13 +44,21 @@ export function PullToRefresh({
 
   useEffect(() => {
     const onStart = (e: TouchEvent) => {
-      if (refreshing || window.scrollY > 0) return;
+      // An open drawer or sheet pins scrollY at 0, which otherwise looks exactly
+      // like sitting at the top of the page and arms a refresh behind the overlay.
+      if (refreshing || isScrollLocked() || window.scrollY > 0) return;
       startY.current = e.touches[0].clientY;
       startX.current = e.touches[0].clientX;
       engaged.current = false;
     };
     const onMove = (e: TouchEvent) => {
       if (startY.current === null || refreshing) return;
+      if (isScrollLocked()) {           // an overlay opened mid-gesture
+        startY.current = null;
+        engaged.current = false;
+        setPull(0);
+        return;
+      }
       const dy = e.touches[0].clientY - startY.current;
       const dx = Math.abs(e.touches[0].clientX - startX.current);
       if (!engaged.current) {
