@@ -1033,3 +1033,65 @@ export const financialPathSteps = pgTable(
   },
   (t) => [unique("financial_path_steps_path_position_uniq").on(t.pathId, t.position)],
 );
+
+// ── Journey v2 (trial) ────────────────────────────────────────────────────────
+//
+// A second, deliberately simpler path engine, run beside the one above rather
+// than in place of it. It has its own table for one reason: the trial must not
+// be able to break the engine every household is already on. Nothing here
+// writes to `financial_paths`, so toggling between the two costs a generation
+// and never a path.
+//
+// The whole answer is ONE json document, where v1 stores a list of keys. That
+// is not laziness about the shape: v1 can store keys alone because every step
+// it has is rebuilt from a candidate on the next read, and v2 has steps that
+// were written for this household and exist nowhere else. A step the model
+// invented has no candidate to rebuild it from, so its words are the record.
+//
+// Figures are NOT in here, with one exception. Balances, progress and dates are
+// recomputed on every read exactly as v1 recomputes them, because a stored
+// balance is a page frozen against the accounts behind it. The exception is
+// `target`, which the model chose and which nothing else can derive.
+/**
+ * Operator switches that apply to the whole deployment.
+ *
+ * One row per flag, keyed by name, with nothing tenant scoped about it: a flag
+ * here is on for everybody or off for everybody. That is the point of the
+ * table. The journey engine started as a per household column and became this,
+ * because "let me try the new engine on my own account" and "turn the new
+ * engine on" are different questions, and only the second one ships.
+ *
+ * A flag that has never been set has no row, which reads as off. So a new flag
+ * costs a name and nothing else, and removing one is a delete.
+ */
+export const featureFlags = pgTable("feature_flags", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  enabled: boolean("enabled").notNull().default(false),
+  // Who flipped it last, for a switch that changes the app for every user.
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const financialJourneys = pgTable("financial_journeys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" })
+    .unique(),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  // Digest of the figures this was generated against, compared on every read to
+  // decide whether to regenerate. Same job as `financial_paths.inputs_fingerprint`.
+  inputsFingerprint: varchar("inputs_fingerprint", { length: 64 }).notNull(),
+  model: text("model"),
+  // The ordered steps and what was left out, as the model returned them and the
+  // server validated them.
+  payload: jsonb("payload").notNull(),
+  // Where the person stands on each step, keyed by step key, carried across
+  // regenerations so a step they ticked stays ticked. Separate from `payload`
+  // because a regeneration replaces the answer and must never replace this.
+  marks: jsonb("marks").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull().defaultNow().$onUpdate(() => new Date()),
+});

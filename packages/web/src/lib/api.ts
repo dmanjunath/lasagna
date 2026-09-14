@@ -132,6 +132,15 @@ export interface FinancialPath {
   };
 }
 
+export interface FeatureFlag {
+  key: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  /** ISO timestamp of the last flip, or null if it has never been set. */
+  updatedAt: string | null;
+}
+
 export const api = {
   // Auth
   signup: (data: { email: string; password?: string; name?: string; acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }): Promise<{ needsVerification: true; email: string }> =>
@@ -1085,6 +1094,16 @@ export const api = {
     request<FinancialPath>(`/financial-path/steps/${encodeURIComponent(stepId)}`, {
       method: 'PATCH',
       body: JSON.stringify(note === undefined ? { status } : { status, note }),
+    }),
+
+  // Deployment-wide operator switches. Flipping one changes the app for every
+  // user, so both endpoints sit behind the admin gate.
+  adminGetFeatureFlags: () => request<{ flags: FeatureFlag[] }>('/admin/feature-flags'),
+
+  adminSetFeatureFlag: (key: string, enabled: boolean) =>
+    request<{ flags: FeatureFlag[] }>(`/admin/feature-flags/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
     }),
 
   // Manual Accounts

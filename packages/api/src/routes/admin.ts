@@ -10,6 +10,7 @@ import * as workos from "../lib/auth/workos.js";
 import { authMode } from "../lib/auth/mode.js";
 import { env } from "../lib/env.js";
 import { monthlyPlaidCostForAccountTypes } from "../lib/plaid-pricing.js";
+import { FEATURE_FLAGS, readAllFlags, setFeatureFlag, type FeatureFlagKey } from "../lib/feature-flags.js";
 
 export const adminRoutes = new Hono<AuthEnv>();
 
@@ -31,6 +32,30 @@ adminRoutes.use("*", async (c, next) => {
     return c.json({ error: "Forbidden" }, 403);
   }
   return next();
+});
+
+// ── Feature flags ────────────────────────────────────────────────────────────
+//
+// Deployment-wide switches, so they live behind the operator gate above rather
+// than in a user's own settings. Flipping one changes the app for every user,
+// which is exactly why only an operator can reach it.
+
+adminRoutes.get("/feature-flags", async (c) => {
+  return c.json({ flags: await readAllFlags() });
+});
+
+adminRoutes.put("/feature-flags/:key", async (c) => {
+  const session = c.get("session");
+  const key = c.req.param("key");
+  // Only a flag this build knows about. An unknown key would write a row
+  // nothing ever reads and read back as a switch that does nothing.
+  if (!Object.hasOwn(FEATURE_FLAGS, key)) return c.json({ error: "Unknown flag" }, 404);
+
+  const body = await c.req.json<{ enabled?: unknown }>().catch(() => null);
+  if (typeof body?.enabled !== "boolean") return c.json({ error: "Invalid request" }, 400);
+
+  await setFeatureFlag(key as FeatureFlagKey, body.enabled, session.userId);
+  return c.json({ flags: await readAllFlags() });
 });
 
 // Malformed ids would otherwise 500 on the postgres uuid cast.
@@ -238,6 +263,43 @@ adminRoutes.post("/tenants/:tenantId/disable", async (c) => {
   const disabledAt = body.disabled ? new Date() : null;
   await db.update(tenants).set({ disabledAt }).where(eq(tenants.id, tenantId));
   return c.json({ ok: true, tenantId, disabledAt });
+});
+
+// ── Force a full transaction replay for one tenant ──────────────────────────
+// Clears the Plaid cursors so the next sync re-delivers the tenant's whole
+// history. That is what repairs a ledger showing a pending row beside the
+// posted one that replaced it: on the replay, the posted transaction arrives
+// carrying `pending_transaction_id`, and sync drops the pending row it names.
+// Re-delivered rows that are already stored collide on the unique index and
+// are skipped, so the replay adds nothing and is safe to run repeatedly.
+//
+// `/sync/resync` does the same thing but only ever for the caller's OWN
+// session, so support had no way to repair someone else's ledger.
+adminRoutes.post("/tenants/:tenantId/resync", async (c) => {
+  const tenantId = c.req.param("tenantId");
+  if (!UUID_RE.test(tenantId)) return c.json({ error: "Tenant not found" }, 404);
+  const tenant = await db.query.tenants.findFirst({
+    where: eq(tenants.id, tenantId),
+    columns: { id: true },
+  });
+  if (!tenant) return c.json({ error: "Tenant not found" }, 404);
+
+  const reset = await db
+    .update(plaidItems)
+    .set({ transactionCursor: null })
+    .where(eq(plaidItems.tenantId, tenantId))
+    .returning({ id: plaidItems.id });
+
+  // Imported here, not at the top: `lib/sync.js` pulls in the Plaid client,
+  // which builds itself from env at module load. Admin deliberately stays off
+  // that graph (see the plaid-pricing.ts split), and this one route should not
+  // drag it back on for every other admin request.
+  const { syncAllForTenant } = await import("../lib/sync.js");
+  // Background, like every other sync trigger — a full replay outlives the
+  // request. A disabled tenant is skipped inside syncItem, which logs it.
+  syncAllForTenant(tenantId).catch(console.error);
+
+  return c.json({ ok: true, tenantId, itemsReset: reset.length });
 });
 
 // ── Edit a user (name / email / admin status) ───────────────────────────────

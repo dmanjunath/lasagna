@@ -214,6 +214,73 @@ function towardTarget(current: number, target: number): Pick<Measure, 'status' |
   return { status: 'in_progress', progress: Math.min(99, Math.round((current / target) * 100)) };
 }
 
+/**
+ * A target chosen outside the sizing rules, folded back in.
+ *
+ * Only the TARGET is the model's. What is there NOW stays whatever `measure`
+ * read off the real accounts, and the status, the progress and what is left to
+ * find are all recomputed against the new target, so the four can never
+ * disagree with one another on the card.
+ *
+ * Three kinds refuse it. A payoff step is aiming at zero and always was. A goal
+ * carries the target the PERSON set, and theirs is the more specific number. A
+ * step nothing measures has no balance behind it, so a dollar target would
+ * invent one.
+ */
+function applyTargetOverride(m: Measure, step: PathCandidate): Measure {
+  const target = step.targetOverride;
+  if (target === undefined || target <= 0) return m;
+  // A payoff step and the debt-free milestone are both aiming at zero and always
+  // were. Handed a target of what is still owed, `towardTarget` reads current as
+  // having MET it and the milestone renders complete beside its own sentence
+  // saying $1,349,209 is outstanding.
+  if (
+    step.kind === 'debt' ||
+    step.kind === 'debt-free' ||
+    step.kind === 'goal' ||
+    step.kind === 'custom' ||
+    // Nothing about these is a pot you fill. Asked for "the dollar amount this
+    // step is aiming at", a model reads term life as its COVERAGE and answers a
+    // million: the card then says "Put $1,000,000 toward this", the step takes
+    // the whole monthly surplus, and every step below it is dated twenty years
+    // late. A large enough figure trips the projection ceiling and leaves every
+    // step below with no funding and no date at all.
+    step.kind === 'term-life' ||
+    step.kind === 'will-trust' ||
+    step.kind === 'match'
+  ) {
+    return m;
+  }
+
+  // A step with nothing to read as "what you have toward it" starts at zero
+  // rather than refusing the target. Bailing here threw away the one figure the
+  // model had actually added: it sized the HSA step at the year's contribution
+  // limit and the card rendered no target at all, because a tax-advantaged
+  // balance is not a fraction of anything and measures `current` as null.
+  const current = m.current ?? 0;
+  const { status, progress } = towardTarget(current, target);
+  const remaining = Math.max(target - current, 0);
+  return {
+    ...m,
+    target,
+    current,
+    status,
+    progress,
+    remaining,
+    // "Save $3,917 more to reach $3,917" is what the general sentence says when
+    // nothing is saved yet, and it reads as a rounding error rather than an
+    // instruction. With none of it found, the target IS the instruction.
+    action:
+      remaining <= 0
+        ? ''
+        : current > 0
+        ? `Save ${usd(remaining)} more to reach ${usd(target)}.`
+        : step.kind === 'savings-rate'
+        ? `Cut ${usd(target)} a month from your spending.`
+        : `Put ${usd(target)} toward this.`,
+  };
+}
+
 function measure(step: PathCandidate, ctx: PathContext): Measure {
   const base = { notes: [] as string[], monthlyCap: null, recurring: false };
 
@@ -443,7 +510,15 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
         current: goal.currentAmount,
         target: goal.targetAmount,
         remaining: short,
-        action: short > 0 ? `Save ${usd(short)} more to reach ${usd(goal.targetAmount)}.` : '',
+        // With nothing saved yet the short fall IS the target, and the general
+        // sentence reads "Save $25,000 more to reach $25,000", which sounds
+        // like a rounding error rather than an instruction.
+        action:
+          short <= 0
+            ? ''
+            : goal.currentAmount > 0
+            ? `Save ${usd(short)} more to reach ${usd(goal.targetAmount)}.`
+            : `Put ${usd(goal.targetAmount)} toward this to reach the goal.`,
       };
     }
 
@@ -467,6 +542,57 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
         action: hasSpendHistory(ctx)
           ? `Build the portfolio to ${usd(target)}, 25 times the ${usd(annual)} a year you spend.`
           : `Build the portfolio to ${usd(target)}, 25 times ${usd(annual)} a year.`,
+      };
+    }
+
+    case 'debt-free': {
+      // Every balance, mortgages included. A milestone that quietly excluded
+      // the largest debt somebody carries would read as a lie the day they
+      // noticed. `remaining` is null on purpose: it is what puts a step into
+      // the funding branch of the waterfall, and this step must not take a
+      // share, because the per-account steps below it are already spending it.
+      // Only the balances this journey is actually working through. A debt the
+      // plan left off is not part of the finish line it draws.
+      // `?.length`, not `?`. An empty array is truthy, so a journey that left
+      // every payoff step off counted nothing and rendered this milestone 100%
+      // complete for a household owing $770,000, which is the exact inverse of
+      // the bug the scoping was added to fix. No scope means count everything.
+      const counted = step.debtScopeIds?.length
+        ? ctx.debtAccounts.filter((a) => step.debtScopeIds!.includes(a.id))
+        : ctx.debtAccounts;
+      const owed = counted.reduce((sum, a) => sum + Math.max(a.balance, 0), 0);
+      const clear = Math.round(owed) <= 0;
+      return {
+        ...base,
+        status: clear ? 'complete' : 'in_progress',
+        progress: clear ? 100 : 0,
+        current: owed,
+        target: 0,
+        remaining: null,
+        action: clear ? '' : `Clear the ${usd(owed)} you owe, one balance at a time.`,
+      };
+    }
+
+    case 'custom': {
+      // A step the model wrote itself, on journey v2 only. Nothing in the
+      // household measures it, so there is no "what you have toward it" to
+      // read: the only figure it can carry is the one the model set for it.
+      //
+      // With no target it is a step you TICK rather than fill, exactly like the
+      // will and the cover steps above, and `sizePath` will honour a tick on it
+      // for the same reason it honours one on those.
+      const target = step.targetOverride ?? null;
+      if (target === null) {
+        return { ...base, status: 'not_started', progress: 0, current: null, target: null, remaining: null, action: '' };
+      }
+      return {
+        ...base,
+        status: 'not_started',
+        progress: 0,
+        current: 0,
+        target,
+        remaining: target,
+        action: `Put ${usd(target)} toward this.`,
       };
     }
   }
@@ -498,6 +624,11 @@ function factFor(step: PathCandidate, m: Measure): string {
   // user has not reached as well as the one they are standing on.
   if (step.kind === 'debt') {
     return `Minimum payment ${usd(step.debt!.minimumPayment)} a month.`;
+  }
+  // A payoff milestone is aiming at zero, so the sentence below would read
+  // "$1,349,209 saved of the $0 target" about money the reader OWES.
+  if (step.kind === 'debt-free') {
+    return m.current && m.current > 0 ? `${usd(m.current)} still owed.` : '';
   }
   // Nothing measures the step, so there is no position to state.
   if (m.target === null || m.current === null) return '';
@@ -531,14 +662,21 @@ export function sizePath(
   let blocked = available <= 0;
 
   return candidates.map((candidate) => {
-    const m = measure(candidate, ctx);
+    // Measured twice on purpose. `base` is what the household's own figures say
+    // about the step; `m` is that with the model's target folded in. Whether a
+    // step is one you TICK is a property of the step, not of a figure a model
+    // supplied for it, so it is read off `base`. Read off `m`, a target on a
+    // step nothing measures took the tick away and left `current` at zero
+    // forever: the step could never complete, and marking it done did nothing.
+    const base = measure(candidate, ctx);
+    const m = applyTargetOverride(base, candidate);
     // A stored tick is a note about a step nothing measures — an insurance
     // policy, a will. Where the figures DO measure the step, the figures win,
     // in both directions: an emergency fund that gets spent drops back to
     // in_progress on its own, and a tick can never pin a step complete against
     // the balance behind it.
     const marked = marks.get(candidate.key);
-    const manual = m.target === null && marked?.mark === 'done';
+    const manual = base.target === null && marked?.mark === 'done';
 
     let status = m.status;
     let progress = m.progress;

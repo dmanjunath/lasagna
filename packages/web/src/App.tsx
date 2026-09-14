@@ -44,6 +44,7 @@ const QuickImport = lazy(() => import('./pages/quick-import').then(m => ({ defau
 const AccountDetail = lazy(() => import('./pages/account-detail').then(m => ({ default: m.AccountDetail })));
 const Admin = lazy(() => import('./pages/admin').then(m => ({ default: m.Admin })));
 const AdminSpend = lazy(() => import('./pages/admin-spend').then(m => ({ default: m.AdminSpend })));
+const AdminFlags = lazy(() => import('./pages/admin-flags').then(m => ({ default: m.AdminFlags })));
 const AdminUser = lazy(() => import('./pages/admin-user').then(m => ({ default: m.AdminUser })));
 
 // Design system styleguide — renders OUTSIDE the auth shell (no login required).
@@ -196,6 +197,7 @@ function AppRoutes() {
                     {/* Operator-only; the pages themselves redirect non-admins */}
                     <Route path="/admin" component={Admin} />
                     <Route path="/admin/spend" component={AdminSpend} />
+                    <Route path="/admin/flags" component={AdminFlags} />
                     <Route path="/admin/users/:tenantId" component={AdminUser} />
 
                     {/* Legacy /s/* redirects */}

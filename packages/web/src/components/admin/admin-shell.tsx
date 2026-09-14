@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 const TABS = [
   { label: 'Users', path: '/admin' },
   { label: 'Spend', path: '/admin/spend' },
+  { label: 'Flags', path: '/admin/flags' },
 ];
 
 /**

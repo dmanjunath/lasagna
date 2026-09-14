@@ -17,6 +17,8 @@ import {
   type StoredPath,
 } from "../lib/path-generator.js";
 import { buildPathReadiness, type PathReadiness } from "../services/retirement-readiness.js";
+import { readJourney, markJourneyStep } from "../lib/journey-v2-store.js";
+import { isFeatureEnabled } from "../lib/feature-flags.js";
 
 export const financialPathRoutes = new Hono<AuthEnv>();
 
@@ -411,9 +413,67 @@ function serializePath(
   };
 }
 
+/**
+ * Which engine builds journeys.
+ *
+ * One switch for the whole deployment, not a setting a household owns. It began
+ * as a per tenant column so the engine could be tried on one account, which is
+ * a different question from shipping it: a release is on for everyone or it is
+ * not on. Off, and every household stays on the engine they are already on.
+ */
+async function journeyEngine(): Promise<'v1' | 'v2'> {
+  return (await isFeatureEnabled('journey_v2')) ? 'v2' : 'v1';
+}
+
+/**
+ * A v2 journey in the wire shape v1 already speaks.
+ *
+ * Identical on purpose. The page, the chat agent and the report all read this
+ * endpoint, and a trial that changed the shape would need every one of them
+ * changed with it, which is how a trial stops being cheap enough to throw away.
+ *
+ * `orderSource` is 'model' whenever a model chose the sequence, which in this
+ * engine is always: there is no deterministic rail underneath it to fall back
+ * to. Where there is no journey at all the steps are empty, and the page's own
+ * empty state answers for it.
+ */
+function serializeJourney(view: Awaited<ReturnType<typeof readJourney>>) {
+  const { ctx, readiness, steps, notApplicable, leftOut, generatedAt, reason } = view;
+  return {
+    // No placement clause. v1 pays a model to say where a step sits relative to
+    // the others; this engine spends that sentence on `why` instead, which is
+    // already on the step.
+    steps: steps.map((step, index) => serializeStep(step, index)),
+    offPath: [
+      ...notApplicable.map((c) => ({ id: c.key, title: c.title, reason: '', byYou: true })),
+      ...leftOut.map((o) => ({
+        id: o.candidate.key,
+        title: o.candidate.title,
+        reason: o.reason,
+        byYou: false,
+      })),
+    ],
+    currentStepId: currentStepKey(steps),
+    updatedAt: generatedAt.toISOString(),
+    updatedReason: reason,
+    orderSource: 'model' as const,
+    summary: pathSummary(ctx, steps, readiness),
+  };
+}
+
 // GET / — this person's path: the steps that apply to them, in order, sized.
 financialPathRoutes.get("/", async (c) => {
   const session = c.get("session");
+  if ((await journeyEngine()) === 'v2') {
+    const view = await readJourney(session.tenantId, session.userId);
+    // Nothing to show and nothing stored to fall back on. A 200 with no steps
+    // renders as a finished journey, so this fails instead and the page shows
+    // the error state it already has.
+    if (view.reason === 'generation_failed') {
+      return c.json({ error: "We could not build your journey" }, 503);
+    }
+    return c.json(serializeJourney(view));
+  }
   return c.json(serializePath(await readFinancialPath(session.tenantId, session.userId)));
 });
 
@@ -485,6 +545,20 @@ financialPathRoutes.patch("/steps/:key", async (c) => {
   const session = c.get("session");
   const parsed = markSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid request" }, 400);
+
+  if ((await journeyEngine()) === 'v2') {
+    const marked = await markJourneyStep(
+      session.tenantId,
+      c.req.param("key"),
+      parsed.data.status,
+      parsed.data.note,
+    );
+    if (!marked) return c.json({ error: "That step is not on your path" }, 404);
+    // `generate: false` — a tick must never buy a new journey.
+    return c.json(
+      serializeJourney(await readJourney(session.tenantId, session.userId, { generate: false })),
+    );
+  }
 
   const path = await markAndReadPath(
     session.tenantId,

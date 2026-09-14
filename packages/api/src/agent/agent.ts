@@ -24,14 +24,19 @@ export const MODEL_LEVELS = [
 ] as const;
 export type ModelLevel = (typeof MODEL_LEVELS)[number];
 
+// The two Anthropic tiers track whatever Anthropic ships rather than pinning a
+// version, so a new Sonnet or Opus reaches this app without a deploy. OpenRouter
+// spells an alias with a LEADING TILDE and has no ":latest" suffix at all, so
+// "~anthropic/claude-sonnet-latest" is the real slug and not a typo. They
+// currently resolve to Sonnet 5 and Opus 5.
 const modelMappings: Record<ModelLevel, string> = {
   "free": "google/gemini-3.5-flash",
   "fast": "google/gemini-3.1-flash-lite",
   "fast-claude": "anthropic/claude-haiku-4.5",
   "medium-google": "google/gemini-3.5-flash",
-  "medium": "anthropic/claude-sonnet-4.5",
+  "medium": "~anthropic/claude-sonnet-latest",
   "quality": "moonshotai/kimi-k2.6",
-  "frontier": "anthropic/claude-opus-4.7",
+  "frontier": "~anthropic/claude-opus-latest",
 };
 
 // sailresearch.com model catalog is open-weights only, so there's no 1:1 match
@@ -61,9 +66,9 @@ export const CHAT_MODEL_CATALOG: Record<Provider, { id: string; label: string }[
     { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash" },
     { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
     { id: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5" },
-    { id: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
+    { id: "~anthropic/claude-sonnet-latest", label: "Claude Sonnet (latest)" },
     { id: "moonshotai/kimi-k2.6", label: "Kimi K2.6" },
-    { id: "anthropic/claude-opus-4.7", label: "Claude Opus 4.7" },
+    { id: "~anthropic/claude-opus-latest", label: "Claude Opus (latest)" },
   ],
   sail: [
     { id: "google/gemma-4-31B-it", label: "Gemma 4 31B" },

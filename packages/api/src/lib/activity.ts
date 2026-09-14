@@ -14,8 +14,10 @@ const LLM_PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
   "google/gemini-3.1-flash-lite": { in: 0.1, out: 0.4 },
   "anthropic/claude-haiku-4.5": { in: 1.0, out: 5.0 },
   "google/gemini-3.5-flash": { in: 0.3, out: 2.5 },
+  "~anthropic/claude-sonnet-latest": { in: 2.0, out: 10.0 },
   "anthropic/claude-sonnet-4.5": { in: 3.0, out: 15.0 },
   "moonshotai/kimi-k2.6": { in: 0.55, out: 2.2 },
+  "~anthropic/claude-opus-latest": { in: 5.0, out: 25.0 },
   "anthropic/claude-opus-4.7": { in: 5.0, out: 25.0 },
   "google/gemma-4-26b-a4b-it": { in: 0.1, out: 0.3 },
   "google/gemma-4-31B-it": { in: 0.1, out: 0.3 },
@@ -29,7 +31,7 @@ const DEFAULT_LLM_PRICE = { in: 1.0, out: 3.0 };
 // individual events. logPlaidEvent still records events as an audit trail and
 // for the dashboard's event counts, but writes costUsd = 0.
 
-export type LlmSource = "chat" | "chat-title" | "insights" | "recurring" | "tax-vision" | "security-classify" | "suggestions" | "narrative" | "strategy" | "freeform" | "quick-import" | "financial-path" | "tax-summary";
+export type LlmSource = "chat" | "chat-title" | "insights" | "recurring" | "tax-vision" | "security-classify" | "suggestions" | "narrative" | "strategy" | "freeform" | "quick-import" | "financial-path" | "financial-journey-v2" | "tax-summary";
 export type PlaidSource = "sync" | "link";
 
 /** Pure + unit-testable: estimated USD for a call. */

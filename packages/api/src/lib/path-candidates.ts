@@ -30,7 +30,15 @@ export type PathStepKind =
   | 'contribution-limits'
   | 'brokerage'
   | 'goal'
-  | 'independence';
+  | 'independence'
+  // Journey v2 only. A step the model wrote itself, so nothing derives its
+  // figures: it is priced from the target the model set and from nothing else.
+  | 'custom'
+  // Journey v2 only. The milestone across every balance they owe, as opposed to
+  // `debt`, which is one named account. It is a scoreboard and not a job: the
+  // per-account steps do the paying, so this one draws nothing from the monthly
+  // surplus and carries no date of its own.
+  | 'debt-free';
 
 /** What a debt account is, from its type and name alone. No rate involved. */
 export type DebtKind =
@@ -138,6 +146,23 @@ export interface PathCandidate {
    * `validateOrder` reads this and refuses to leave such a candidate out.
    */
   coversStep?: string;
+  /**
+   * A target set by something other than the sizing rules, which `measure`
+   * prefers over the one it would compute. Journey v2 only: the model chooses
+   * what a step is aiming at, and the server still works out what is there now,
+   * how much a month reaches it and when it lands.
+   */
+  targetOverride?: number;
+  /**
+   * The account ids the `debt-free` milestone counts.
+   *
+   * Journey v2 only, and it exists because the milestone is the ONLY step whose
+   * figure is about other steps. Left to read every balance on file it counted
+   * one the plan had deliberately left off: a 2.5% mortgage was excluded with
+   * "keep paying it on schedule and leave the money invested", and the
+   * milestone below it still told the reader to clear it.
+   */
+  debtScopeIds?: string[];
 }
 
 // ── Debt kinds ────────────────────────────────────────────────────────────────
@@ -231,8 +256,15 @@ const TIER = {
   independence: 110,
 } as const;
 
-const DEBT_URGENT_ABOVE = 15;
-const DEBT_PATIENT_AT_OR_BELOW = 8;
+/**
+ * The two rates that divide a balance worth clearing from one worth carrying.
+ *
+ * Exported because journey v2 sends them to the model. Asked to weigh a rate
+ * against "what you would expect to earn" with no figure for it, it guessed,
+ * and guessed differently about the same mortgage on two consecutive runs.
+ */
+export const DEBT_URGENT_ABOVE = 15;
+export const DEBT_PATIENT_AT_OR_BELOW = 8;
 
 /**
  * The share of income a savings-rate step aims at. The same 20% the insights
