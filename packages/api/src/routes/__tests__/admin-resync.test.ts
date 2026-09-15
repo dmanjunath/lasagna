@@ -26,6 +26,7 @@ vi.mock("@lasagna/core", () => ({
 
 const gateUser = vi.fn(async () => ({ isAdmin: true, isDemo: false }) as unknown);
 const tenantsFindFirst = vi.fn(async (..._a: unknown[]) => ({ id: "t" }) as unknown);
+const plaidItemsFindFirst = vi.fn(async (..._a: unknown[]) => ({ id: "i", tenantId: "t" }) as unknown);
 const updateSet = vi.fn();
 const updateWhere = vi.fn();
 const itemRows = vi.fn(async () => [{ id: "item-1" }, { id: "item-2" }] as unknown[]);
@@ -35,6 +36,7 @@ vi.mock("../../lib/db.js", () => ({
     query: {
       users: { findFirst: () => gateUser() },
       tenants: { findFirst: (...a: unknown[]) => tenantsFindFirst(...a) },
+      plaidItems: { findFirst: (...a: unknown[]) => plaidItemsFindFirst(...a) },
     },
     update: (table: unknown) => ({
       set: (vals: Record<string, unknown>) => {
@@ -48,7 +50,8 @@ vi.mock("../../lib/db.js", () => ({
 }));
 
 const syncAllForTenant = vi.fn(async () => {});
-vi.mock("../../lib/sync.js", () => ({ syncAllForTenant }));
+const syncItem = vi.fn(async () => {});
+vi.mock("../../lib/sync.js", () => ({ syncAllForTenant, syncItem }));
 vi.mock("../../lib/auth/workos.js", () => ({
   deleteWorkosUser: vi.fn(), sendPasswordReset: vi.fn(), friendlyError: (_e: unknown, m: string) => m,
 }));
@@ -67,6 +70,7 @@ function appWithSession(session: SessionPayload) {
 const admin: SessionPayload = { userId: "admin-1", tenantId: "tenant-admin", role: "owner", isDemo: false, isAdmin: true };
 const nonAdmin: SessionPayload = { userId: "user-1", tenantId: "tenant-1", role: "owner", isDemo: false, isAdmin: false };
 const TENANT_A = "11111111-1111-1111-1111-111111111111";
+const ITEM_A = "44444444-4444-4444-4444-444444444444";
 
 const post = (session: SessionPayload, id: string) =>
   appWithSession(session).request(`/api/admin/tenants/${id}/resync`, { method: "POST" });
@@ -75,6 +79,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   gateUser.mockResolvedValue({ isAdmin: true, isDemo: false });
   tenantsFindFirst.mockResolvedValue({ id: TENANT_A });
+  plaidItemsFindFirst.mockResolvedValue({ id: ITEM_A, tenantId: TENANT_A });
   itemRows.mockResolvedValue([{ id: "item-1" }, { id: "item-2" }]);
 });
 
@@ -118,5 +123,54 @@ describe("POST /api/admin/tenants/:tenantId/resync", () => {
     expect(res.status).toBe(404);
     expect(tenantsFindFirst).not.toHaveBeenCalled();
     expect(syncAllForTenant).not.toHaveBeenCalled();
+  });
+});
+
+const postItem = (session: SessionPayload, id: string) =>
+  appWithSession(session).request(`/api/admin/items/${id}/resync`, { method: "POST" });
+
+// The item is the narrowest a replay can be: Plaid's cursor belongs to the
+// access token, so one card cannot be replayed without its siblings. What this
+// MUST not do is widen back out to the whole household.
+describe("POST /api/admin/items/:itemId/resync", () => {
+  it("clears the cursor for that one connection and replays only it", async () => {
+    const res = await postItem(admin, ITEM_A);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, itemId: ITEM_A, tenantId: TENANT_A });
+    expect(updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "plaidItems.id" }),
+      { transactionCursor: null },
+    );
+    // Scoped by item id, NOT by tenant — the whole point of this route.
+    expect(updateWhere).toHaveBeenCalledWith(["eq", "plaidItems.id", ITEM_A]);
+    expect(syncItem).toHaveBeenCalledWith(ITEM_A);
+    expect(syncAllForTenant).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-admin before touching anything", async () => {
+    gateUser.mockResolvedValue({ isAdmin: false, isDemo: false });
+    const res = await postItem(nonAdmin, ITEM_A);
+
+    expect(res.status).toBe(403);
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(syncItem).not.toHaveBeenCalled();
+  });
+
+  it("404s an unknown connection without replaying", async () => {
+    plaidItemsFindFirst.mockResolvedValue(undefined);
+    const res = await postItem(admin, ITEM_A);
+
+    expect(res.status).toBe(404);
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(syncItem).not.toHaveBeenCalled();
+  });
+
+  it("404s a malformed id before it reaches the uuid cast", async () => {
+    const res = await postItem(admin, "not-a-uuid");
+
+    expect(res.status).toBe(404);
+    expect(plaidItemsFindFirst).not.toHaveBeenCalled();
+    expect(syncItem).not.toHaveBeenCalled();
   });
 });

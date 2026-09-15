@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useRoute } from 'wouter';
-import { ArrowLeft, PauseCircle, PlayCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, PauseCircle, PlayCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Button, Modal, Skeleton } from '../components/uikit';
@@ -34,6 +34,12 @@ export function AdminUser() {
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pauseConfirm, setPauseConfirm] = useState(false);
+  // Which connection the confirm dialog is asking about, which one is mid-request,
+  // and which ones have been kicked off this visit. The replay itself runs in the
+  // background, so "started" is the honest end state to show here.
+  const [replayTarget, setReplayTarget] = useState<{ id: string; name: string } | null>(null);
+  const [replaying, setReplaying] = useState<string | null>(null);
+  const [replayed, setReplayed] = useState<string[]>([]);
 
   const load = () =>
     api.adminGetTenantDetail(tenantId).then((d) => { setDetail(d); setError(''); }).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
@@ -66,6 +72,23 @@ export function AdminUser() {
       setError(e instanceof Error ? e.message : 'Failed');
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Kicks off a replay for ONE connection. The request returns as soon as the
+  // cursor is cleared and the sync is queued, so this can only honestly report
+  // that it started. Reloads the detail so lastSyncedAt updates once it lands.
+  const runReplay = async (itemId: string) => {
+    setReplaying(itemId);
+    setError('');
+    try {
+      await api.adminResyncItem(itemId);
+      setReplayed((ids) => (ids.includes(itemId) ? ids : [...ids, itemId]));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the replay');
+    } finally {
+      setReplaying(null);
     }
   };
 
@@ -226,7 +249,34 @@ export function AdminUser() {
                 {detail.plaidItems.map((i) => (
                   <div key={i.id} className="flex items-center justify-between gap-3 text-[13px]">
                     <span className="truncate" title={i.institutionName || 'Unknown institution'}>{i.institutionName || 'Unknown institution'}<span className="text-content-muted">, {i.status}</span></span>
-                    <span className="text-content-muted ui-tnum shrink-0">synced {fmtDate(i.lastSyncedAt)}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {replayed.includes(i.id) ? (
+                        <span className="text-positive">replay started</span>
+                      ) : (
+                        <span className="text-content-muted ui-tnum">synced {fmtDate(i.lastSyncedAt)}</span>
+                      )}
+                      {/* A manual entry has no Plaid connection behind it, so a replay
+                          would silently do nothing. It gets no button, but it still
+                          holds the button's width so every synced date lines up. */}
+                      {i.isManual ? (
+                        <span className="invisible" aria-hidden>
+                          <Button variant="ghost" size="sm" tabIndex={-1} leadingIcon={<RefreshCw className="h-3.5 w-3.5" />}>
+                            Replay
+                          </Button>
+                        </span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={replaying === i.id}
+                          disabled={busy || replaying !== null}
+                          leadingIcon={<RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+                          onClick={() => setReplayTarget({ id: i.id, name: i.institutionName || 'this connection' })}
+                        >
+                          Replay
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -284,6 +334,30 @@ export function AdminUser() {
               <Trash2 size={14} className="mr-1.5" /> {userCount > 1 ? `Delete ${userCount} users & data` : 'Delete user & data'}
             </Button>
           </div>
+
+          <Modal open={!!replayTarget} onClose={() => setReplayTarget(null)} title="Replay this connection?">
+            <p className="text-[13.5px] text-content-secondary leading-[1.55]">
+              Re-fetches the full transaction history for <b className="text-content">{replayTarget?.name}</b>.
+              Use it when the ledger still shows a pending charge next to the posted one that replaced it.
+            </p>
+            <p className="mt-2 text-[13px] text-content-muted leading-[1.55]">
+              No other connection is touched. Transactions already stored are not duplicated, and manual
+              categories, renames and notes are kept. The replay runs in the background and can take a minute.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setReplayTarget(null)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const target = replayTarget;
+                  setReplayTarget(null);
+                  if (target) void runReplay(target.id);
+                }}
+              >
+                Replay transactions
+              </Button>
+            </div>
+          </Modal>
 
           <Modal open={pauseConfirm} onClose={() => setPauseConfirm(false)} title="Pause this account?">
             <p className="text-[13.5px] text-content-secondary leading-[1.55]">

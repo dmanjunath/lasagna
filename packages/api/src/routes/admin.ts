@@ -302,6 +302,34 @@ adminRoutes.post("/tenants/:tenantId/resync", async (c) => {
   return c.json({ ok: true, tenantId, itemsReset: reset.length });
 });
 
+// ── Replay ONE connection ───────────────────────────────────────────────────
+// The same repair as above, scoped to a single Plaid item. The item is the
+// floor and not an arbitrary choice: the cursor belongs to the access token,
+// not to an account, so no route can replay one card and leave its siblings
+// alone. Narrowing this far still matters, because repairing one bank should
+// not refetch every other institution the household has connected.
+adminRoutes.post("/items/:itemId/resync", async (c) => {
+  const itemId = c.req.param("itemId");
+  if (!UUID_RE.test(itemId)) return c.json({ error: "Connection not found" }, 404);
+  const item = await db.query.plaidItems.findFirst({
+    where: eq(plaidItems.id, itemId),
+    columns: { id: true, tenantId: true },
+  });
+  if (!item) return c.json({ error: "Connection not found" }, 404);
+
+  await db
+    .update(plaidItems)
+    .set({ transactionCursor: null })
+    .where(eq(plaidItems.id, itemId));
+
+  // Imported here for the same reason as the tenant route above: admin stays
+  // off the Plaid client's import graph.
+  const { syncItem } = await import("../lib/sync.js");
+  syncItem(itemId).catch(console.error);
+
+  return c.json({ ok: true, itemId, tenantId: item.tenantId });
+});
+
 // ── Edit a user (name / email / admin status) ───────────────────────────────
 adminRoutes.patch("/users/:userId", async (c) => {
   const session = c.get("session");
@@ -681,7 +709,16 @@ adminRoutes.get("/tenants/:tenantId/detail", async (c) => {
     .where(eq(users.tenantId, tenantId));
 
   const items = await db
-    .select({ id: plaidItems.id, institutionName: plaidItems.institutionName, status: plaidItems.status, lastSyncedAt: plaidItems.lastSyncedAt })
+    // isManual mirrors the exact test syncItem uses to skip an item. A manual
+    // entry has no Plaid connection behind it, so offering to replay one would
+    // be a button that silently does nothing.
+    .select({
+      id: plaidItems.id,
+      institutionName: plaidItems.institutionName,
+      status: plaidItems.status,
+      lastSyncedAt: plaidItems.lastSyncedAt,
+      isManual: sql<boolean>`${plaidItems.accessToken} like 'manual-%'`,
+    })
     .from(plaidItems)
     .where(eq(plaidItems.tenantId, tenantId));
 

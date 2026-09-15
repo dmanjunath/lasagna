@@ -806,7 +806,7 @@ export const api = {
       stripe: { customerId: string; subscriptionId: string | null; dashboardUrl: string } | null;
       authMode: "workos" | "local";
       users: Array<{ id: string; email: string; name: string | null; isAdmin: boolean; isDemo: boolean; lastLoginAt: string | null; createdAt: string; hasWorkosIdentity: boolean }>;
-      plaidItems: Array<{ id: string; institutionName: string | null; status: string; lastSyncedAt: string | null }>;
+      plaidItems: Array<{ id: string; institutionName: string | null; status: string; lastSyncedAt: string | null; isManual: boolean }>;
       accounts: Array<{ id: string; name: string; type: string; subtype: string | null; frozen: boolean; balance: string | null }>;
       recentActivity: Array<{ kind: "llm" | "plaid"; source: string; model: string | null; costUsd: string; createdAt: string }>;
       spend30d: { llmCost: string; plaidCost: string };
@@ -832,6 +832,12 @@ export const api = {
 
   adminRevokeSessions: (userId: string) =>
     request<{ ok: true; sessionsRevokedAt: string }>(`/admin/users/${userId}/revoke-sessions`, { method: "POST" }),
+
+  // Clears one connection's Plaid cursor so the next sync re-delivers its whole
+  // history. Repairs a ledger still showing a pending row beside the posted one
+  // that replaced it. Returns as soon as the replay is queued, not when it ends.
+  adminResyncItem: (itemId: string) =>
+    request<{ ok: true; itemId: string; tenantId: string }>(`/admin/items/${itemId}/resync`, { method: "POST" }),
 
   // Insights
   getInsights: () =>
