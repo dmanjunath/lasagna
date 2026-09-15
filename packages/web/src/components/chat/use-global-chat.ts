@@ -2,13 +2,16 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { usePageContext } from '../../lib/page-context';
 import { useChatStore, getPreferredModelLevel } from '../../lib/chat-store';
-import type { ChatMessage } from '../../lib/chat-store';
+import type { ChatMessage, ThreadData } from '../../lib/chat-store';
 import { getCategoryFromRoute } from '../../lib/route-categories';
 import { useConfirm } from '../ds/Confirm';
 import { api } from '../../lib/api';
 
-// Shown in place of an assistant reply when the request fails.
-const ERROR_TEXT = "Couldn't reach Lasagna. Check your connection and retry.";
+// Shown in place of an assistant reply when the request fails. The catch that
+// produces it cannot tell a dropped connection from a server error, so the copy
+// states only what is observable: this client did not get the reply. The server
+// finishes and stores the turn either way, which is why checking is worthwhile.
+const ERROR_TEXT = 'This device did not get a reply. It may already be saved.';
 
 // Module-level guards so the one-shot effects (initial thread load, pending
 // message) run exactly once even if both the sidebar and the full page mount
@@ -46,6 +49,13 @@ function makeAssistantMessage(threadId: string, response: string, error?: boolea
     createdAt: new Date().toISOString(),
     isError: error || undefined,
   };
+}
+
+// A pending turn is ours to finish only while the user message we added
+// optimistically is still last. Once a refetch has pulled the server's copy of
+// that turn, appending our own result would show the answer twice.
+function turnAlreadyResolved(t: ThreadData): boolean {
+  return t.messages[t.messages.length - 1]?.role === 'assistant';
 }
 
 export function useGlobalChat() {
@@ -127,6 +137,46 @@ export function useGlobalChat() {
     };
   }, [currentPage]);
 
+  // Pull the server's copy of a thread. A request the client lost (the app was
+  // backgrounded, the connection dropped) still runs to completion server-side,
+  // so the real answer is usually already stored. Returns true when it was.
+  const refreshThread = useCallback(async (t: ThreadData) => {
+    if (!t.apiThreadId) return false;
+    try {
+      const { messages: apiMessages } = await api.getThread(t.apiThreadId);
+      // The stored copy is a recovery only if it answers the turn this client is
+      // waiting on. A request that never reached the server leaves the thread
+      // ending in the PREVIOUS answer, and adopting that would silently delete
+      // the question the user just asked. Count user turns to tell them apart.
+      const askedHere = t.messages.filter((m) => m.role === 'user').length;
+      const askedOnServer = apiMessages.filter((m) => m.role === 'user').length;
+      if (askedOnServer < askedHere) return false;
+      // Mid-flight there is no assistant turn yet. Leave the local thread alone
+      // rather than replacing a pending question with a half-written one.
+      if (apiMessages[apiMessages.length - 1]?.role !== 'assistant') return false;
+
+      const firstUser = apiMessages.find((m) => m.role === 'user');
+      const firstAssistant = apiMessages.find((m) => m.role === 'assistant');
+      setThreads(prev => prev.map(row =>
+        row.thread.id === t.thread.id
+          ? {
+              ...row,
+              messages: apiMessages,
+              thread: {
+                ...row.thread,
+                question: firstUser?.content || row.thread.question,
+                answerPreview: firstAssistant ? stripMarkdown(firstAssistant.content).slice(0, 200) : row.thread.answerPreview,
+              },
+            }
+          : row
+      ));
+      setThreadLoading(t.thread.id, false);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [setThreads, setThreadLoading]);
+
   const handleNewMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
@@ -172,7 +222,7 @@ export function useGlobalChat() {
 
     const isViewing = (chatOpen || onChatPage) && activeThreadIdRef.current === localId;
     setThreads(prev => prev.map(t =>
-      t.thread.id === localId
+      t.thread.id === localId && !turnAlreadyResolved(t)
         ? {
             ...t,
             thread: {
@@ -224,7 +274,7 @@ export function useGlobalChat() {
       const idx = prev.findIndex(t => t.thread.id === threadLocalId);
       if (idx === -1) return prev;
       const target = prev[idx];
-      const updatedTarget = {
+      const updatedTarget = turnAlreadyResolved(target) ? target : {
         ...target,
         messages: [...target.messages, assistantMsg],
         apiThreadId: threadId || target.apiThreadId,
@@ -240,8 +290,10 @@ export function useGlobalChat() {
     setThreadLoading(threadLocalId, false);
   }, [activeThreadIndex, threads, loadingThreads, sendMessage, chatOpen, setThreads, setActiveThread, setThreadLoading, incrementUnread]);
 
-  // Retry the last user turn for a thread after a failed assistant response:
-  // drop the trailing error message and re-send without adding a new user bubble.
+  // Recover the last user turn for a thread after a failed assistant response.
+  // Look for the stored answer first, because the server completes the turn even
+  // when the client loses it, and re-asking would pay for a second copy. Only a
+  // thread with nothing stored falls back to re-sending the question.
   const handleRetry = useCallback(async (threadLocalId: string) => {
     if (loadingThreads.has(threadLocalId)) return;
     const target = threads.find(t => t.thread.id === threadLocalId);
@@ -249,7 +301,10 @@ export function useGlobalChat() {
     const lastUser = [...target.messages].reverse().find(m => m.role === 'user');
     if (!lastUser) return;
 
-    // Remove a trailing error assistant message before retrying.
+    setThreadLoading(threadLocalId, true);
+    if (await refreshThread(target)) return;
+
+    // Remove a trailing error assistant message before re-sending.
     setThreads(prev => prev.map(t => {
       if (t.thread.id !== threadLocalId) return t;
       const msgs = t.messages.length && t.messages[t.messages.length - 1].isError
@@ -257,14 +312,13 @@ export function useGlobalChat() {
         : t.messages;
       return { ...t, messages: msgs };
     }));
-    setThreadLoading(threadLocalId, true);
 
     const { response, threadId, error } = await sendMessage(lastUser.content, target.apiThreadId || null, '', null, undefined, target.modelLevel);
 
     const assistantMsg = makeAssistantMessage(threadId, response, error);
     const isViewing = (chatOpen || onChatPage) && activeThreadIdRef.current === threadLocalId;
     setThreads(prev => prev.map(t =>
-      t.thread.id === threadLocalId
+      t.thread.id === threadLocalId && !turnAlreadyResolved(t)
         ? {
             ...t,
             messages: [...t.messages, assistantMsg],
@@ -275,7 +329,7 @@ export function useGlobalChat() {
     ));
     if (!isViewing) incrementUnread();
     setThreadLoading(threadLocalId, false);
-  }, [threads, loadingThreads, sendMessage, chatOpen, setThreads, setThreadLoading, incrementUnread]);
+  }, [threads, loadingThreads, sendMessage, chatOpen, setThreads, setThreadLoading, incrementUnread, refreshThread]);
 
   // Handle pending message from "Walk me through this", peek bar, etc.
   useEffect(() => {
@@ -317,7 +371,7 @@ export function useGlobalChat() {
       const assistantMsg = makeAssistantMessage(threadId, response, error);
       const isViewing = (chatOpen || onChatPage) && activeThreadIdRef.current === localId;
       setThreads(prev => prev.map(t =>
-        t.thread.id === localId
+        t.thread.id === localId && !turnAlreadyResolved(t)
           ? {
               ...t,
               thread: {
@@ -362,7 +416,8 @@ export function useGlobalChat() {
       .catch(() => {});
   }, [setThreads]);
 
-  // Load messages for a thread when selected (lazy)
+  // Load messages for a thread when selected (lazy). A thread whose last turn
+  // errored refetches too, because the answer the client missed is on the server.
   const handleSelectThread = useCallback(async (index: number) => {
     // Clear unread flag on selected thread
     setThreads(prev => {
@@ -375,30 +430,26 @@ export function useGlobalChat() {
     });
 
     const t = threads[index];
-    if (t && t.messages.length === 0 && t.apiThreadId) {
-      try {
-        const { messages: apiMessages } = await api.getThread(t.apiThreadId);
-        const firstUser = apiMessages.find((m) => m.role === 'user');
-        const firstAssistant = apiMessages.find((m) => m.role === 'assistant');
-        setThreads((prev) => {
-          const updated = [...prev];
-          if (updated[index]) {
-            updated[index] = {
-              ...updated[index],
-              messages: apiMessages,
-              thread: {
-                ...updated[index].thread,
-                question: firstUser?.content || updated[index].thread.question,
-                answerPreview: firstAssistant ? stripMarkdown(firstAssistant.content).slice(0, 200) : updated[index].thread.answerPreview,
-              },
-            };
-          }
-          return updated;
-        });
-      } catch { /* ignore */ }
+    const lastFailed = t?.messages[t.messages.length - 1]?.isError;
+    if (t && (t.messages.length === 0 || lastFailed)) {
+      await refreshThread(t);
     }
     setActiveThread(index);
-  }, [threads, setThreads, setActiveThread]);
+  }, [threads, setThreads, setActiveThread, refreshThread]);
+
+  // iOS suspends the WebView when the app goes to the background, so an in-flight
+  // chat request dies while the server finishes the turn anyway. On resume, pull
+  // the answer the client missed instead of leaving an error or a spinner up.
+  useEffect(() => {
+    const onResume = () => {
+      const t = activeThreadIndex !== null ? threads[activeThreadIndex] : null;
+      if (!t) return;
+      const stalled = loadingThreads.has(t.thread.id) || t.messages[t.messages.length - 1]?.isError;
+      if (stalled) void refreshThread(t);
+    };
+    window.addEventListener('native:resume', onResume);
+    return () => window.removeEventListener('native:resume', onResume);
+  }, [threads, activeThreadIndex, loadingThreads, refreshThread]);
 
   const handleDeleteThread = useCallback(async (indexOverride?: number) => {
     const idx = indexOverride ?? activeThreadIndex;

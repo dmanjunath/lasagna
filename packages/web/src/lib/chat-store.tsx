@@ -135,8 +135,11 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     tags?: string[],
     modelLevel?: ModelLevel,
   ) => {
+    // Hoisted so a failure after the thread exists still reports its real id.
+    // The server finishes and persists the turn even when the client's request
+    // dies (a backgrounded app), so the id is how the UI finds that answer.
+    let threadId = existingThreadId;
     try {
-      let threadId = existingThreadId;
       if (!threadId) {
         const { thread } = await api.createThread(undefined, undefined, tags);
         threadId = thread.id;
@@ -169,7 +172,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     } catch {
       // Signal failure instead of fabricating a successful-looking reply, so
       // the caller can render an error state with a retry affordance.
-      return { response: '', threadId: existingThreadId || '', contextMeta: null, threadTitle: null, error: true };
+      return { response: '', threadId: threadId || '', contextMeta: null, threadTitle: null, error: true };
     }
   }, []);
 

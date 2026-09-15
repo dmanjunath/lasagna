@@ -41,13 +41,13 @@ function formatToolName(name: string): string {
   return TOOL_DISPLAY[name] || name.replace(/_/g, ' ').replace(/\bget\b/i, 'Fetched');
 }
 
-export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRetry?: () => void }) {
+export function MessageBubble({ message, onRetry, retrying }: { message: ChatMessage; onRetry?: () => void; retrying?: boolean }) {
   const isUser = message.role === "user";
   const [contextOpen, setContextOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
 
-  // Failed assistant turn — render a distinct error bubble with a retry action
-  // instead of a normal-looking reply.
+  // Failed assistant turn — render a distinct error bubble whose action re-checks
+  // the thread for the stored reply, instead of a normal-looking reply.
   if (message.isError) {
     return (
       <div className="flex gap-3 items-start animate-fade-in">
@@ -55,15 +55,25 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
         <div className="rounded-ui-lg rounded-tl-md px-4 py-3 bg-negative-soft border border-negative/25 text-content min-w-0">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-negative flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-content-secondary leading-relaxed">{message.content}</p>
+            {/* The alert is the sentence only. Wrapping the button too would
+                re-announce the whole bubble every time its label changes. */}
+            <p role="alert" className="text-sm text-content-secondary leading-relaxed">{message.content}</p>
           </div>
           {onRetry && (
             <button
-              onClick={onRetry}
-              className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-ui-sm bg-panel border border-line-strong text-[12px] font-medium text-content-secondary hover:text-content hover:border-negative/40 transition-colors"
+              onClick={() => { if (!retrying) onRetry(); }}
+              aria-disabled={retrying || undefined}
+              aria-busy={retrying || undefined}
+              className={cn(
+                'ui-focus touch-target mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-ui-sm bg-panel border border-line-strong text-[12px] font-medium text-content-secondary transition-colors',
+                // While the check is running the control is inert, so it drops the
+                // hover affordance. No dimming: the label is status text the user
+                // has to read (see the contrast note in the review history).
+                retrying ? 'cursor-default' : 'hover:text-content hover:border-negative/40',
+              )}
             >
-              <RotateCw className="w-3 h-3" />
-              Retry
+              <RotateCw className={cn('w-3 h-3', retrying && 'animate-spin')} />
+              {retrying ? 'Checking…' : 'Get the reply'}
             </button>
           )}
         </div>

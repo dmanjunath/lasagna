@@ -147,10 +147,26 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className={cn(measure, bodyPad)}>
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} onRetry={onRetry} />
-          ))}
-          {loading && <ThinkingIndicator />}
+          {/* Recovery always acts on the newest turn, so only the newest message
+              may offer it. An older error bubble keeping a live button would
+              re-send a different question than the one it sits under, and would
+              spin "Checking…" for work that belongs to another turn. */}
+          {messages.map((msg, i) => {
+            const isLast = i === messages.length - 1;
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                onRetry={isLast ? onRetry : undefined}
+                retrying={isLast && loading}
+              />
+            );
+          })}
+          {/* While a failed turn is being re-checked its own button reports the
+              progress, so a second spinner here would say the same thing twice.
+              Once the retry falls back to re-asking, the error bubble is gone
+              and this takes over. */}
+          {loading && !messages[messages.length - 1]?.isError && <ThinkingIndicator />}
           <div ref={messagesEndRef} />
         </div>
       </div>

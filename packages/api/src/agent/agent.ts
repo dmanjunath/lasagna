@@ -149,12 +149,20 @@ export function getModel(
   // usage.include makes OpenRouter return the actual per-generation cost at
   // result.providerMetadata.openrouter.usage.cost, which we store as the real
   // spend (the token-based estimate is now only a fallback).
+  //
+  // reasoning bounds how much thinking a reasoning model may do. Thinking spends
+  // the SAME maxOutputTokens budget as the visible answer, so leaving it unset
+  // let a model burn the whole cap reasoning and return a truncated answer, or
+  // none at all. Keep this constant: the cache key above does not include it, so
+  // a per-call value would hand back a model built for a different setting.
+  const reasoning = { effort: "low" } as const;
   const model = webSearch
     ? openrouter(slug, {
         plugins: [{ id: "web", max_results: env.WEB_SEARCH_MAX_RESULTS }],
         usage: { include: true },
+        reasoning,
       })
-    : openrouter(slug, { usage: { include: true } });
+    : openrouter(slug, { usage: { include: true }, reasoning });
   _models.set(cacheKey, model);
   console.log(
     `Initialized OpenRouter model: ${slug} (${label})${webSearch ? " [web search]" : ""}`

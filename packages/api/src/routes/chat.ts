@@ -150,6 +150,7 @@ chatRouter.post("/", async (c) => {
   console.log("[Chat] Starting agentic loop with", Object.keys(tools).length, "tools");
 
   let finalText = "";
+  let lastFinishReason: string | undefined;
   let allToolCalls: any[] = [];
   const MAX_TOOL_ROUNDS = 5;
 
@@ -174,19 +175,29 @@ chatRouter.post("/", async (c) => {
       tools,
       // Cap output so the request fits provider credit/token budgets. Without
       // this the provider defaults to the model max (64k), which can exceed the
-      // OpenRouter key's affordable budget and 402 → surfaced as a 500. A chat
-      // turn never needs anywhere near this much.
-      maxOutputTokens: 4096,
+      // OpenRouter key's affordable budget and 402 → surfaced as a 500.
+      //
+      // This budget is SHARED with reasoning. On a thinking model every
+      // reasoning token comes out of it, so a cap that looks generous for prose
+      // alone can still leave nothing for the answer — that is how a turn ends
+      // up stored mid-sentence. getModel bounds the reasoning side; this is the
+      // ceiling for reasoning plus the visible answer together.
+      maxOutputTokens: 8192,
       // Force at least one tool call on step 1 so the model fetches real data
       // before answering. Subsequent steps use "auto" so it can respond freely.
       toolChoice: step === 0 ? "required" : "auto",
     });
 
     const toolCallCount = stepResult.toolCalls?.length || 0;
-    console.log(`[Chat] Step ${step + 1}: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}`);
+    // reasoningTokens is the number that makes a truncated turn diagnosable: it
+    // says how much of maxOutputTokens the model spent thinking instead of
+    // answering. Without it, "4096 output tokens, 150 chars stored" looks
+    // impossible.
+    console.log(`[Chat] Step ${step + 1}: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}, outputTokens=${stepResult.usage?.outputTokens}, reasoningTokens=${stepResult.usage?.outputTokenDetails?.reasoningTokens}`);
     logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: stepResult.usage?.inputTokens, outputTokens: stepResult.usage?.outputTokens, costUsd: stepResult.costUsd });
 
     finalText = stepResult.text;
+    lastFinishReason = stepResult.finishReason;
 
     if (!stepResult.toolCalls?.length || stepResult.finishReason !== 'tool-calls') {
       console.log("[Chat] Agentic loop complete");
@@ -258,12 +269,44 @@ chatRouter.post("/", async (c) => {
       model: getModel(agentLevel, { webSearch: true, override: modelOverride }),
       system: systemPrompt,
       messages: conversationMessages,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
       // No tools this turn — the model must answer from the results it gathered.
     });
     finalText = synthResult.text;
+    lastFinishReason = synthResult.finishReason;
     logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: synthResult.usage?.inputTokens, outputTokens: synthResult.usage?.outputTokens, costUsd: synthResult.costUsd });
-    console.log(`[Chat] Synthesis: text=${finalText.length} chars, finishReason=${synthResult.finishReason}`);
+    console.log(`[Chat] Synthesis: text=${finalText.length} chars, finishReason=${synthResult.finishReason}, outputTokens=${synthResult.usage?.outputTokens}, reasoningTokens=${synthResult.usage?.outputTokenDetails?.reasoningTokens}`);
+  }
+
+  // A 'length' finish means the model ran out of output budget mid-answer. That
+  // partial used to be persisted as if it were the whole response, so the user
+  // read a reply that stopped mid-sentence and stayed that way after a refresh.
+  // Make ONE tool-free continuation call that resumes from exactly where it
+  // stopped, and append it. Exactly one retry: if the continuation is cut off
+  // too we keep what we have rather than looping or throwing the text away.
+  if (lastFinishReason === "length" && finalText.trim()) {
+    console.log("[Chat] Hit the output cap mid-answer — continuing once");
+    const contResult = await llmGenerateText({ tenantId, aliasMap }, {
+      model: getModel(agentLevel, { webSearch: true, override: modelOverride }),
+      system: systemPrompt,
+      messages: [
+        ...conversationMessages,
+        { role: "assistant" as const, content: finalText },
+        {
+          role: "user" as const,
+          content:
+            "Your previous reply was cut off by the output limit. Write only the rest of it, starting from the exact point it stopped. Your text is appended directly to what you already wrote, so do not repeat any of it, do not restate the question, and do not open with a greeting, a recap, or a heading you already used.",
+        },
+      ],
+      maxOutputTokens: 8192,
+      // No tools this turn — everything it needs is already in the transcript.
+    });
+    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: contResult.usage?.inputTokens, outputTokens: contResult.usage?.outputTokens, costUsd: contResult.costUsd });
+    console.log(`[Chat] Continuation: text=${contResult.text.length} chars, finishReason=${contResult.finishReason}, outputTokens=${contResult.usage?.outputTokens}, reasoningTokens=${contResult.usage?.outputTokenDetails?.reasoningTokens}`);
+    // Join flush so a continuation opening with punctuation, a newline or a
+    // table row lands clean; a space only when both sides are mid-word.
+    const joiner = /\w$/.test(finalText) && /^\w/.test(contResult.text) ? " " : "";
+    finalText = finalText + joiner + contResult.text;
   }
   } catch (err) {
     // The AI provider call failed (e.g. OpenRouter 402 out-of-credits, rate
