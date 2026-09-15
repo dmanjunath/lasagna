@@ -1,0 +1,124 @@
+{
+  "source": "chat",
+  "kind": "text",
+  "model": "google/gemini-3.5-flash",
+  "recordedAt": "2026-09-15T21:54:41.176Z",
+  "promptExcerpt": "You are a financial planning assistant for LasagnaFi, a personal finance app. You have access to the user's real financial data through tools.\n\n## Response Format\n\nRespond in **clean markdown**. No JSON, no special blocks, no structured payloads — just well-formatted text that renders beautifully.\n\n**Structure your responses like a financial advisor's written analysis:**\n- Lead with the key insigh",
+  "response": {
+    "text": "",
+    "toolCalls": [
+      {
+        "type": "tool-call",
+        "toolCallId": "call_3790745",
+        "toolName": "get_financial_profile",
+        "input": {},
+        "providerMetadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "**Assessing Retirement Readiness**\n\nMy current focus is on synthesizing the information required to answer your retirement savings query. I'm working on gathering and structuring all the relevant financial data.\n\n",
+                "format": "google-gemini-v1",
+                "index": 0
+              },
+              {
+                "type": "reasoning.encrypted",
+                "data": "AY89a1+Oca2X5bPrpl1IB3EQbu+nB25nOcyNqbgZBk9R1TfDQtMYpXe2BlNMmIMkHIBH9x16ZaJmTPJ74lkpcPfo7xu+jjTCAcsC39gm6LrJrPSpreEk0vW5V7ANUmxYjTQqNIIDdzp9T/kP66kmKxt8prOH4fFhre4tfqBhqwWLc5+ZoF2W066YCxL86Eu4HWr8yiINddFIMQhX5Xf3FS6JEzbxk+3mylPn5V+c51aF3TMpGmecnKzt9jZI6LIjxeorGJwIUAItKFU2x+mGTeLci5sdKB/nUQu9hndSE1GXwDfjVMfgntiaH+d9bFzGXbigGu0eEAX5ef9Sg5oWGbN0xvU8wggXcT6TA/P2Nm29zUQQT9rvI9XBa2ErrK0PM5vMOPQgaZZu6Vs7joVog2uGMDQPUCdGrz4bG4vdsevoqc5wkKFefsfeZOAnS+AVsoKIJv1iUhwpHpYsdjXD+fkGXW9TZ+Vpmn2l1XirPTqOlZe/l57o0teE/2Xwe2s9kcBHmYgn8kQ0kq1tEUUvzRH/9xh3jO0gJ8Rzbm0foGNIHMcY0n+IxWv2+89TJFDhY7JHx81dGWZtMl/Iyr0U/blRQjlp1YRY8dBoy9ki4Q8ZJSR6VsSV3Bx5N0b4LIZJRVRDIz5JQfAGTPIfKszuUIYlfDCqtgbME3+u41qZzCukg0bjlDNTKZsAdtTJAUktYDziWMn9UBrot1dzcJT/2EeyksoOyoxbGskxtp9sdoeb2wP/WC4Y6QiiCwVv7sKFq5CFDAveWbbxcDmBDAPLykY0/QLFZMhuSjGuX86yH/I/P4OBSG0pl/pZuK2xQC2RhgUXbZRrrLthpE3+pJkCKxEpBGHdxeiFlRQFJBy0FIy85S33jjtiEYc1bY1bVBR67tvmm3t6UfFT2mMMFyaLjQ9hO8yTgjpLSXQV6lkloEQSdrnZK3yqFc4MOeahAbe1T32wsFspSB6EEXRLmJKk1wxiReFnb6eXcWiIPTnK5FEqugwWTfGol3KzIj/wOCo+QRW/KRAntIHBfxfy48/9fUZO993Lv1Cje3lm9wirPMe1QiVnbkmFtmVTk0MGLpCTKXlSts4rM0G6lqsQmkC8vuO5PtSDXjqCHSo21NlCYe1UoR36weOmxjN3yBmNaDUTMk84gSU0i95GoVmJYZM7RMU4Yfa+bc8agDA99VuXOiQl5HACfcyIHSOrwJM/4p11DPA4b/J3FTFI7DNHjSaMBvwpI68ylZK6vj3JR+BNdN5yDtzg2Vu+KfeLNAdA5FfeIR7XANOEiseev2xxhssALASC0UYZaJdicN8UiF6aX2ybOzVuq07Y7ym2EG00SFI5QdH2Unc1oM9Xq41m83h2kqVkyoB09xp+0+UYhcfxCjc+4GQDM0pGqNLRbVmxf8lyE1+PYXF9eR7DZ1d+UVND5OaLuZVw/A==",
+                "id": "call_3790745",
+                "format": "google-gemini-v1",
+                "index": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "tool-call",
+        "toolCallId": "call_3790746",
+        "toolName": "get_portfolio_summary",
+        "input": {}
+      },
+      {
+        "type": "tool-call",
+        "toolCallId": "call_3790750",
+        "toolName": "get_financial_path",
+        "input": {}
+      }
+    ],
+    "finishReason": "tool-calls"
+  },
+  "usage": {
+    "inputTokens": 4172,
+    "inputTokenDetails": {
+      "noCacheTokens": 4172,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "outputTokens": 250,
+    "outputTokenDetails": {
+      "textTokens": 36,
+      "reasoningTokens": 214
+    },
+    "totalTokens": 4422,
+    "raw": {
+      "prompt_tokens": 4172,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "completion_tokens": 250,
+      "completion_tokens_details": {
+        "reasoning_tokens": 214,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      },
+      "total_tokens": 4422,
+      "cost": 0.008508,
+      "cost_details": {
+        "upstream_inference_cost": 0.008508,
+        "upstream_inference_prompt_cost": 0.006258,
+        "upstream_inference_completions_cost": 0.00225
+      },
+      "is_byok": false
+    },
+    "reasoningTokens": 214,
+    "cachedInputTokens": 0
+  },
+  "providerMetadata": {
+    "openrouter": {
+      "provider": "Google",
+      "reasoning_details": [
+        {
+          "type": "reasoning.text",
+          "text": "**Assessing Retirement Readiness**\n\nMy current focus is on synthesizing the information required to answer your retirement savings query. I'm working on gathering and structuring all the relevant financial data.\n\n",
+          "format": "google-gemini-v1",
+          "index": 0
+        },
+        {
+          "type": "reasoning.encrypted",
+          "data": "AY89a1+Oca2X5bPrpl1IB3EQbu+nB25nOcyNqbgZBk9R1TfDQtMYpXe2BlNMmIMkHIBH9x16ZaJmTPJ74lkpcPfo7xu+jjTCAcsC39gm6LrJrPSpreEk0vW5V7ANUmxYjTQqNIIDdzp9T/kP66kmKxt8prOH4fFhre4tfqBhqwWLc5+ZoF2W066YCxL86Eu4HWr8yiINddFIMQhX5Xf3FS6JEzbxk+3mylPn5V+c51aF3TMpGmecnKzt9jZI6LIjxeorGJwIUAItKFU2x+mGTeLci5sdKB/nUQu9hndSE1GXwDfjVMfgntiaH+d9bFzGXbigGu0eEAX5ef9Sg5oWGbN0xvU8wggXcT6TA/P2Nm29zUQQT9rvI9XBa2ErrK0PM5vMOPQgaZZu6Vs7joVog2uGMDQPUCdGrz4bG4vdsevoqc5wkKFefsfeZOAnS+AVsoKIJv1iUhwpHpYsdjXD+fkGXW9TZ+Vpmn2l1XirPTqOlZe/l57o0teE/2Xwe2s9kcBHmYgn8kQ0kq1tEUUvzRH/9xh3jO0gJ8Rzbm0foGNIHMcY0n+IxWv2+89TJFDhY7JHx81dGWZtMl/Iyr0U/blRQjlp1YRY8dBoy9ki4Q8ZJSR6VsSV3Bx5N0b4LIZJRVRDIz5JQfAGTPIfKszuUIYlfDCqtgbME3+u41qZzCukg0bjlDNTKZsAdtTJAUktYDziWMn9UBrot1dzcJT/2EeyksoOyoxbGskxtp9sdoeb2wP/WC4Y6QiiCwVv7sKFq5CFDAveWbbxcDmBDAPLykY0/QLFZMhuSjGuX86yH/I/P4OBSG0pl/pZuK2xQC2RhgUXbZRrrLthpE3+pJkCKxEpBGHdxeiFlRQFJBy0FIy85S33jjtiEYc1bY1bVBR67tvmm3t6UfFT2mMMFyaLjQ9hO8yTgjpLSXQV6lkloEQSdrnZK3yqFc4MOeahAbe1T32wsFspSB6EEXRLmJKk1wxiReFnb6eXcWiIPTnK5FEqugwWTfGol3KzIj/wOCo+QRW/KRAntIHBfxfy48/9fUZO993Lv1Cje3lm9wirPMe1QiVnbkmFtmVTk0MGLpCTKXlSts4rM0G6lqsQmkC8vuO5PtSDXjqCHSo21NlCYe1UoR36weOmxjN3yBmNaDUTMk84gSU0i95GoVmJYZM7RMU4Yfa+bc8agDA99VuXOiQl5HACfcyIHSOrwJM/4p11DPA4b/J3FTFI7DNHjSaMBvwpI68ylZK6vj3JR+BNdN5yDtzg2Vu+KfeLNAdA5FfeIR7XANOEiseev2xxhssALASC0UYZaJdicN8UiF6aX2ybOzVuq07Y7ym2EG00SFI5QdH2Unc1oM9Xq41m83h2kqVkyoB09xp+0+UYhcfxCjc+4GQDM0pGqNLRbVmxf8lyE1+PYXF9eR7DZ1d+UVND5OaLuZVw/A==",
+          "id": "call_3790745",
+          "format": "google-gemini-v1",
+          "index": 1
+        }
+      ],
+      "usage": {
+        "promptTokens": 4172,
+        "promptTokensDetails": {
+          "cachedTokens": 0
+        },
+        "completionTokens": 250,
+        "completionTokensDetails": {
+          "reasoningTokens": 214
+        },
+        "totalTokens": 4422,
+        "cost": 0.008508,
+        "costDetails": {
+          "upstreamInferenceCost": 0.008508
+        }
+      }
+    }
+  }
+}

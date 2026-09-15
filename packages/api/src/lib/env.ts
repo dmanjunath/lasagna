@@ -52,6 +52,22 @@ export const env = {
   get WEB_SEARCH_MAX_RESULTS() {
     return parseInt(optional("WEB_SEARCH_MAX_RESULTS", "3"), 10);
   },
+  // Record/replay layer for model calls (lib/llm-fixtures.ts), so ordinary
+  // local work costs nothing and returns the same answer every time.
+  //   off     real provider call. The ONLY mode production may run.
+  //   record  real provider call, saved as a fixture. Spends money, once per
+  //           distinct prompt, and prints what the call cost.
+  //   replay  served from the stored fixture, never the network. A miss throws.
+  // Defaults to "off" so a deployment, a CI run and the unit suite are all
+  // unaffected; docker-compose.yml turns it on for local development.
+  get LLM_FIXTURES() {
+    return optional("LLM_FIXTURES", "off") as "off" | "record" | "replay";
+  },
+  // Where fixtures live. Empty means packages/api/fixtures/llm, which is what
+  // every real run uses; tests point it at a temp directory.
+  get LLM_FIXTURE_DIR() {
+    return optional("LLM_FIXTURE_DIR", "");
+  },
   get ENCRYPTION_KEY() {
     return required("ENCRYPTION_KEY");
   },

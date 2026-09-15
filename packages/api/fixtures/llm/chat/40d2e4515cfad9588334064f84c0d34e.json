@@ -1,0 +1,118 @@
+{
+  "source": "chat",
+  "kind": "text",
+  "model": "google/gemini-3.5-flash",
+  "recordedAt": "2026-09-15T21:54:44.171Z",
+  "promptExcerpt": "You are a financial planning assistant for LasagnaFi, a personal finance app. You have access to the user's real financial data through tools.\n\n## Response Format\n\nRespond in **clean markdown**. No JSON, no special blocks, no structured payloads — just well-formatted text that renders beautifully.\n\n**Structure your responses like a financial advisor's written analysis:**\n- Lead with the key insigh",
+  "response": {
+    "text": "",
+    "toolCalls": [
+      {
+        "type": "tool-call",
+        "toolCallId": "call_1663868",
+        "toolName": "run_monte_carlo",
+        "input": {},
+        "providerMetadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "**Assessing Retirement Progress**\n\nMy current retirement savings stand at $1,477,135.41. The portfolio is predominantly allocated to US Stocks (61.87%), with significant portions in Bonds (13.23%) and Cash (13.08%). International Stocks, REITs, and Other categories represent smaller allocations.\n\n",
+                "format": "google-gemini-v1",
+                "index": 0
+              },
+              {
+                "type": "reasoning.encrypted",
+                "data": "AY89a19Y3u3v+6jIdsGUer9Gl/1JJQDtMBNs0rndzZB1drxEbf8l4weJZc7tqwg5KZ5gfnP9LRvoxhzut80tTrAMO2wfwEvlYgyfmcU/NsWA/EGbDKae7kVw2LmixQrdKt9Htv7weFAinodGsinJqej0sIXjz/fevGh32d1SlZ08jmd602v9LrdqpsSYxxTlMuFRMhO0to55WMo+8aPCU7po6uaSBxq3za2CCa+DxUgedOBvWOwh+KnGZyuSb2kLcES1MBxMMnp8LxuB25dkJu4P1D5DrJ7SFWBoqZbVB50KDz8x3PdfF8i12tuh/QiefChSzD3qi5hVzKB2BldW/K0Y2NjualhRlzXDNvOaNr3LBo4dyixAHLd5+04/IXxP0Vy5erHW1tuYItPKpwguHPvxiGp+JeFo7gOBl6yD8pZ9rjQaYo9bmqCNN8pMI1nHcPtCp4zCHaXGILEw5jCrj8VxlQWeC/DFfdWpa1cmD/ZJoNNJVtmO7GyW+3vcLnp4FpzrbHU0zGR2aaa1QlrTVt3YQ8xxJpSiv//wBY75fiDcmFz2mueMKghI6uUpcbiDr3jntJRudXFbvTU/0l/4H+/k/CTF1b7NdFYYyS6UqM/2rMi+icbS4zjN9stuB6Hnlz1X5CFAPXlVMONVm1v+D8GM7rzEAvP63hEixGMVbE+qzGO7vMPp+LI5n+DoXZv/s3Ev13WY/xWlB1LIWuiUJ8Xv1X7cBiYBROlOvZRIMYXuKmZGAxL8xfN/nWhiMrvc7cbGavZq1VxJH9xSKNMfyCniPd5O8geK3e+VibyIhgzGLzpe3xco1U2tDwKmbwT92GjJZkl7/R74gvzDlkFDWCahULvPCuHDlsvyLjB+yxBWV5V6VzGT6+CTqk0ss6y0q/Mf1Br3g9jGvqlbU6F4MEX7sKllowz7Dqwll9bjDLkO7wXFzxUV4phyQdXRANnD4w/HW65ufM+3mjtluTkJBw1W6oD17rhsUQEUlnY5XkGmO+WvNBaIEkObd9GKVrULH6Tmo6MuXR6oMeEeRyErqW/vWYLyLfN20h1gNjw5fnGk0w8O7Sqxn0m1nsd+Bvn3N4thFvTm86hzYY04rb5bl91UJo9pb7AeOGY4ptFkGOGFImlogB2UYRZ20EW0AFUItSsoitXtsY+palrMxxYkeot2LMuObFeYi93Y9On7ITvNzfn2UrD29pMted8xb1ZZROB9LUd34+bb0r3rmG7tA3j8+1PHfXp9Q8HKEV1fmY4a4UTOiBn2tw06GCgsKS/+9I7m0ENL99NiHI7pknYgOBvwgtRqQkIBgkyL1/1DvAoesnhaubSS42gVliaZ0q3oCcG6g59GpvU/FsEeAyk+kLpYWkZiTRf+3oOAoDeHunlK6FyIA6aA313b/2p9SBvYg/cvajKMTweH9GMdJ8AVbDkA2F+0N9SFIDYotk/iUyePzL9h2a6a3LG/NUFjhMRfIN1SML82IbCuSCKnsTGupx5BqoY3UHISBhMjJYuok6DInQG6OW+gto6tBqEqlew24q30BlJK2F/XfoILsJr1+c3phsDhOaGP138fmSqt4fmJwMYDqndHNA4whHeYdYvPXZXn7ID4jA+udgX4B4CsfuhmTX6VcDroVPanTR+mY6YsXHiiIX2MGAxUki6attKgCQqetpU0/IE5StnDNb+5Uol5Pxl4O0f0Pv5u+pzUxqAHKXJ7RUN+5I/PzXDcUjc=",
+                "id": "call_1663868",
+                "format": "google-gemini-v1",
+                "index": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "tool-call",
+        "toolCallId": "call_1663872",
+        "toolName": "run_backtest",
+        "input": {}
+      }
+    ],
+    "finishReason": "tool-calls"
+  },
+  "usage": {
+    "inputTokens": 6292,
+    "inputTokenDetails": {
+      "noCacheTokens": 3085,
+      "cacheReadTokens": 3207,
+      "cacheWriteTokens": 0
+    },
+    "outputTokens": 330,
+    "outputTokenDetails": {
+      "textTokens": 23,
+      "reasoningTokens": 307
+    },
+    "totalTokens": 6622,
+    "raw": {
+      "prompt_tokens": 6292,
+      "prompt_tokens_details": {
+        "cached_tokens": 3207,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "completion_tokens": 330,
+      "completion_tokens_details": {
+        "reasoning_tokens": 307,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      },
+      "total_tokens": 6622,
+      "cost": 0.00807855,
+      "cost_details": {
+        "upstream_inference_cost": 0.00807855,
+        "upstream_inference_prompt_cost": 0.00510855,
+        "upstream_inference_completions_cost": 0.00297
+      },
+      "is_byok": false
+    },
+    "reasoningTokens": 307,
+    "cachedInputTokens": 3207
+  },
+  "providerMetadata": {
+    "openrouter": {
+      "provider": "Google",
+      "reasoning_details": [
+        {
+          "type": "reasoning.text",
+          "text": "**Assessing Retirement Progress**\n\nMy current retirement savings stand at $1,477,135.41. The portfolio is predominantly allocated to US Stocks (61.87%), with significant portions in Bonds (13.23%) and Cash (13.08%). International Stocks, REITs, and Other categories represent smaller allocations.\n\n",
+          "format": "google-gemini-v1",
+          "index": 0
+        },
+        {
+          "type": "reasoning.encrypted",
+          "data": "AY89a19Y3u3v+6jIdsGUer9Gl/1JJQDtMBNs0rndzZB1drxEbf8l4weJZc7tqwg5KZ5gfnP9LRvoxhzut80tTrAMO2wfwEvlYgyfmcU/NsWA/EGbDKae7kVw2LmixQrdKt9Htv7weFAinodGsinJqej0sIXjz/fevGh32d1SlZ08jmd602v9LrdqpsSYxxTlMuFRMhO0to55WMo+8aPCU7po6uaSBxq3za2CCa+DxUgedOBvWOwh+KnGZyuSb2kLcES1MBxMMnp8LxuB25dkJu4P1D5DrJ7SFWBoqZbVB50KDz8x3PdfF8i12tuh/QiefChSzD3qi5hVzKB2BldW/K0Y2NjualhRlzXDNvOaNr3LBo4dyixAHLd5+04/IXxP0Vy5erHW1tuYItPKpwguHPvxiGp+JeFo7gOBl6yD8pZ9rjQaYo9bmqCNN8pMI1nHcPtCp4zCHaXGILEw5jCrj8VxlQWeC/DFfdWpa1cmD/ZJoNNJVtmO7GyW+3vcLnp4FpzrbHU0zGR2aaa1QlrTVt3YQ8xxJpSiv//wBY75fiDcmFz2mueMKghI6uUpcbiDr3jntJRudXFbvTU/0l/4H+/k/CTF1b7NdFYYyS6UqM/2rMi+icbS4zjN9stuB6Hnlz1X5CFAPXlVMONVm1v+D8GM7rzEAvP63hEixGMVbE+qzGO7vMPp+LI5n+DoXZv/s3Ev13WY/xWlB1LIWuiUJ8Xv1X7cBiYBROlOvZRIMYXuKmZGAxL8xfN/nWhiMrvc7cbGavZq1VxJH9xSKNMfyCniPd5O8geK3e+VibyIhgzGLzpe3xco1U2tDwKmbwT92GjJZkl7/R74gvzDlkFDWCahULvPCuHDlsvyLjB+yxBWV5V6VzGT6+CTqk0ss6y0q/Mf1Br3g9jGvqlbU6F4MEX7sKllowz7Dqwll9bjDLkO7wXFzxUV4phyQdXRANnD4w/HW65ufM+3mjtluTkJBw1W6oD17rhsUQEUlnY5XkGmO+WvNBaIEkObd9GKVrULH6Tmo6MuXR6oMeEeRyErqW/vWYLyLfN20h1gNjw5fnGk0w8O7Sqxn0m1nsd+Bvn3N4thFvTm86hzYY04rb5bl91UJo9pb7AeOGY4ptFkGOGFImlogB2UYRZ20EW0AFUItSsoitXtsY+palrMxxYkeot2LMuObFeYi93Y9On7ITvNzfn2UrD29pMted8xb1ZZROB9LUd34+bb0r3rmG7tA3j8+1PHfXp9Q8HKEV1fmY4a4UTOiBn2tw06GCgsKS/+9I7m0ENL99NiHI7pknYgOBvwgtRqQkIBgkyL1/1DvAoesnhaubSS42gVliaZ0q3oCcG6g59GpvU/FsEeAyk+kLpYWkZiTRf+3oOAoDeHunlK6FyIA6aA313b/2p9SBvYg/cvajKMTweH9GMdJ8AVbDkA2F+0N9SFIDYotk/iUyePzL9h2a6a3LG/NUFjhMRfIN1SML82IbCuSCKnsTGupx5BqoY3UHISBhMjJYuok6DInQG6OW+gto6tBqEqlew24q30BlJK2F/XfoILsJr1+c3phsDhOaGP138fmSqt4fmJwMYDqndHNA4whHeYdYvPXZXn7ID4jA+udgX4B4CsfuhmTX6VcDroVPanTR+mY6YsXHiiIX2MGAxUki6attKgCQqetpU0/IE5StnDNb+5Uol5Pxl4O0f0Pv5u+pzUxqAHKXJ7RUN+5I/PzXDcUjc=",
+          "id": "call_1663868",
+          "format": "google-gemini-v1",
+          "index": 1
+        }
+      ],
+      "usage": {
+        "promptTokens": 6292,
+        "promptTokensDetails": {
+          "cachedTokens": 3207
+        },
+        "completionTokens": 330,
+        "completionTokensDetails": {
+          "reasoningTokens": 307
+        },
+        "totalTokens": 6622,
+        "cost": 0.00807855,
+        "costDetails": {
+          "upstreamInferenceCost": 0.00807855
+        }
+      }
+    }
+  }
+}

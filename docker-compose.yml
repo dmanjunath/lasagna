@@ -27,9 +27,19 @@ services:
     env_file: .env
     environment:
       NO_COLOR: "1"
+      # Local development replays recorded model responses instead of paying for
+      # them: zero provider spend, same answer every time. Override from the
+      # shell for the two cases that need a real call:
+      #   LLM_FIXTURES=record docker compose up   (capture a new fixture)
+      #   LLM_FIXTURES=off    docker compose up   (normal, billed, behaviour)
+      # A replay with no fixture throws and names the command to record it.
+      LLM_FIXTURES: "${LLM_FIXTURES:-replay}"
     volumes:
       - ./packages/core/src:/app/packages/core/src
       - ./packages/api/src:/app/packages/api/src
+      # Recorded model responses. Mounted, not baked in, so recording inside the
+      # container lands the fixture in the repo.
+      - ./packages/api/fixtures:/app/packages/api/fixtures
       - ./.env:/app/.env
     tty: true
 
