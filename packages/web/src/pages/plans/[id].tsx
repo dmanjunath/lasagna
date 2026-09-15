@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { PlanType, PlanStatus } from "../../lib/types.js";
-import { api, API_BASE } from "../../lib/api.js";
+import { api, API_BASE, authHeaders } from "../../lib/api.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { Badge, Button, PageMeta, PageMetaItem, type BadgeProps } from "../../components/uikit";
 import { EditableTitle } from "../../components/ui/editable-title.js";
@@ -83,7 +83,7 @@ export function PlanDetailPage() {
         try {
           const res = await fetch(`${API_BASE}/api/chat`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...authHeaders() },
             credentials: "include",
             body: JSON.stringify({ threadId: activeThread.id, message: prompt }),
           });
@@ -176,7 +176,7 @@ export function PlanDetailPage() {
     try {
       await fetch(`${API_BASE}/api/plans/${id}/restore`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         credentials: "include",
         body: JSON.stringify({ editId }),
       });

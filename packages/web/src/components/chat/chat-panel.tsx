@@ -5,7 +5,7 @@ import { ToolStatus } from "./tool-status.js";
 import { Button } from "../ui/button.js";
 import type { Message } from "../../lib/types.js";
 import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
-import { API_BASE } from "../../lib/api.js";
+import { API_BASE, authHeaders } from "../../lib/api.js";
 import { LegalDisclaimer } from "../common/legal-disclaimer.js";
 
 type ChatPanelProps = {
@@ -72,7 +72,7 @@ export function ChatPanel({
     try {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         credentials: "include",
         body: JSON.stringify({ threadId, message: content }),
       });

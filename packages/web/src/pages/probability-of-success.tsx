@@ -10,7 +10,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { cn, formatMoney } from "../lib/utils";
-import { api, API_BASE } from "../lib/api";
+import { api, API_BASE, authHeaders } from "../lib/api";
 import { usePageContext } from "../lib/page-context";
 import { Button, EmptyState, Skeleton } from "../components/uikit";
 
@@ -862,7 +862,7 @@ export function ProbabilityOfSuccess() {
       const mcResponse = await fetch(`${API_BASE}/api/simulations/monte-carlo`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           allocation,
           initialValue: totalValue,
@@ -904,7 +904,7 @@ export function ProbabilityOfSuccess() {
       const btResponse = await fetch(`${API_BASE}/api/simulations/backtest`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           allocation,
           initialValue: totalValue,

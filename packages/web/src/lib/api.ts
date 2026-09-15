@@ -4,20 +4,33 @@ import type { GoalDetails } from "@lasagna/core/goal-target";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
+/**
+ * Credential headers every API call needs.
+ *
+ * Native shell (capacitor://localhost): cookies don't survive cross-origin, so
+ * identify as native and authenticate with the stored Bearer token. On the web
+ * this is empty and the session cookie carries the request as before.
+ *
+ * Exported because the calls that bypass `request()` — chat, the simulations,
+ * the FormData uploads — still need it, and on native they 401 without it.
+ */
+export function authHeaders(): Record<string, string> {
+  const token = getNativeToken();
+  return {
+    ...(isNativeApp() ? { "x-lasagna-client": "native" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   let res: Response;
-  // Native shell (capacitor://localhost): cookies don't survive cross-origin,
-  // so identify as native and authenticate with the stored Bearer token.
-  const native = isNativeApp();
-  const nativeToken = getNativeToken();
   try {
     res = await fetch(`${API_BASE}/api${path}`, {
       credentials: "include",
       ...options,
       headers: {
         "Content-Type": "application/json",
-        ...(native ? { "x-lasagna-client": "native" } : {}),
-        ...(nativeToken ? { Authorization: `Bearer ${nativeToken}` } : {}),
+        ...authHeaders(),
         ...((options?.headers as Record<string, string> | undefined) ?? {}),
       },
     });
@@ -545,6 +558,8 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/tax/documents/extract`, {
       method: "POST",
       credentials: "include",
+      // No Content-Type: the browser sets the multipart boundary itself.
+      headers: authHeaders(),
       body: formData,
     });
     if (!res.ok) {
@@ -566,6 +581,8 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/tax/documents/upload`, {
       method: "POST",
       credentials: "include",
+      // No Content-Type: the browser sets the multipart boundary itself.
+      headers: authHeaders(),
       body: formData,
     });
     if (!res.ok) {
@@ -586,6 +603,8 @@ export const api = {
     const res = await fetch(`${API_BASE}/api/tax/documents`, {
       method: "POST",
       credentials: "include",
+      // No Content-Type: the browser sets the multipart boundary itself.
+      headers: authHeaders(),
       body: formData,
     });
 

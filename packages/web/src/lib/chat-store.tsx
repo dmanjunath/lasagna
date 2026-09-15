@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { api, API_BASE } from './api';
+import { api, API_BASE, authHeaders } from './api';
 import type { Message } from './types';
 
 export type ModelLevel = 'free' | 'fast' | 'medium' | 'quality' | 'frontier';
@@ -147,7 +147,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
       const override = getPreferredModel();
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         credentials: 'include',
         body: JSON.stringify({
           threadId,
