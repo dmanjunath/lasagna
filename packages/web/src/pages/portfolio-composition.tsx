@@ -9,6 +9,7 @@ import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
 import { Button, Surface, SegmentedControl, EmptyState, MaskedText, PageMeta, PageMetaItem, Skeleton } from '../components/uikit';
 import { faviconUrl, tickerToIssuer } from '../components/ds/institutions';
+import { PageTitle } from '../components/ds/PageTitle';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -930,11 +931,16 @@ export default function PortfolioComposition() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
-        <Skeleton className="h-9 w-40" />
-        <Skeleton className="mt-3 h-4 w-64" />
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 md:pt-10 pb-6 sm:pb-28 text-content">
+        {/* Both header placeholders follow what they stand for: below 768px the
+            bar carries the page name and `PageHead` renders no meta line here,
+            so the hero is the first thing on the page in the loaded state and
+            has to be the first thing here too. `hidden` rather than `sr-only`
+            because a Skeleton is already `aria-hidden` and has no text. */}
+        <Skeleton className="hidden md:block h-9 w-40" />
+        <Skeleton className="hidden md:block mt-3 h-4 w-64" />
         {/* Allocation hero */}
-        <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8">
+        <div className="mt-0 md:mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8">
           <div className="flex items-start justify-between gap-4">
             <div>
               <Skeleton className="h-3 w-24" />
@@ -978,7 +984,7 @@ export default function PortfolioComposition() {
     }));
 
     return (
-      <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 md:pt-10 pb-6 sm:pb-28 text-content">
         <PageHead
           tags={
             <>
@@ -1040,9 +1046,9 @@ export default function PortfolioComposition() {
 
   if (assetClasses.length === 0) {
     return (
-      <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 md:pt-10 pb-6 sm:pb-28 text-content">
         <PageHead />
-        <div className="mt-8">
+        <div className="mt-0 md:mt-8">
           <EmptyState
             icon={<Building2 size={24} />}
             title="No holdings found"
@@ -1070,13 +1076,13 @@ export default function PortfolioComposition() {
 
   return (
     <div
-      className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content"
+      className="mx-auto max-w-[1180px] px-3 sm:px-12 pt-4 md:pt-10 pb-6 sm:pb-28 text-content"
       onMouseLeave={() => setHoveredSlice(null)}
     >
       <PageHead />
 
       {/* ════════ ALLOCATION HERO — one full-width chart + a legible breakdown ════════ */}
-      <section className="mt-6">
+      <section className="mt-0 md:mt-6">
         <Surface pad="lg" className="relative overflow-hidden">
           {/* atmospheric wash — matches the primary-nav hero cards */}
           <div
@@ -1237,10 +1243,8 @@ export default function PortfolioComposition() {
 function PageHead({ tags }: { tags?: React.ReactNode }) {
   return (
     <header className="animate-fade-in">
-      <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-        Portfolio
-      </h1>
-      {tags && <PageMeta>{tags}</PageMeta>}
+      <PageTitle>Portfolio</PageTitle>
+      {tags && <PageMeta className="mt-0 md:mt-1.5">{tags}</PageMeta>}
     </header>
   );
 }

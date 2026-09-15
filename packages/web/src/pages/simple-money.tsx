@@ -17,6 +17,7 @@ import { TxnRow } from '../components/transactions/TransactionList';
 import { NetWorthTrendCard } from '../components/common/NetWorthTrendCard';
 import { type TrendPoint } from '../components/ds';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
+import { PageTitle } from '../components/ds/PageTitle';
 
 interface Item {
   id: string;
@@ -194,14 +195,12 @@ export function SimpleMoney() {
   const hasMoney = !loading && totalAccountCount > 0;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ── Page header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
-            Money
-          </h1>
-          <PageMeta>
+          <PageTitle>Money</PageTitle>
+          <PageMeta className="mt-0 md:mt-1.5">
             {loading ? (
               <PageMetaSkeleton widths={['w-20', 'w-[109px]']} />
             ) : (

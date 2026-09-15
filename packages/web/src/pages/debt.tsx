@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { cn, formatMoney } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
+import { PageTitle } from '../components/ds/PageTitle';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
@@ -208,7 +209,7 @@ export function Debt() {
   const apr = blendedApr(debts);
 
   return (
-    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {loading ? null : !hasAccounts ? (
         <NoAccountsView />
       ) : hasDebt ? (
@@ -252,10 +253,8 @@ function DebtHeader({ tags }: { tags?: React.ReactNode }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-          Debt
-        </h1>
-        {tags && <PageMeta>{tags}</PageMeta>}
+        <PageTitle className="sm:text-[36px]">Debt</PageTitle>
+        {tags && <PageMeta className="mt-0 md:mt-1.5">{tags}</PageMeta>}
       </div>
     </header>
   );
@@ -267,7 +266,7 @@ function NoAccountsView() {
   return (
     <>
       <DebtHeader />
-      <div className="mt-8">
+      <div className="mt-0 md:mt-8">
         <EmptyState
           icon={<CreditCard size={24} />}
           title="No accounts linked"

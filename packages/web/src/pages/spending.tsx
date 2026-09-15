@@ -20,6 +20,7 @@ import { usePageContext } from '../lib/page-context';
 import { useTaxonomy, taxonomyIcon } from '../lib/taxonomy';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
+import { PageTitle } from '../components/ds/PageTitle';
 import { CashflowBars, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { RulesPanel } from '../components/rules/RulesPanel';
@@ -661,14 +662,12 @@ export function Spending() {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header — title/lede row, then a single non-wrapping controls
            row (desktop-only Sync keeps it to one line at 390px). */}
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-0 md:gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-            Spending
-          </h1>
+          <PageTitle>Spending</PageTitle>
         </div>
 
         {/* Granularity toggle + month stepper (+ sync when admin). Wraps so the

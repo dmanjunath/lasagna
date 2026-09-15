@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { Button, PageMeta, PageMetaItem, Skeleton } from "../../components/uikit";
 import { useConfirm } from "../../components/ds";
+import { PageTitle } from "../../components/ds/PageTitle";
 import { useToast } from "../../components/uikit";
 import type { Plan, PlanType } from "../../lib/types.js";
 
@@ -137,14 +138,12 @@ export function PlansPage() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
-      <header className="flex flex-wrap items-end justify-between gap-4 animate-fade-in">
+      <header className="flex flex-wrap items-start md:items-end justify-between gap-4 animate-fade-in">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-            Plans
-          </h1>
-          <PageMeta>
+          <PageTitle className="sm:text-[36px]">Plans</PageTitle>
+          <PageMeta className="mt-0 max-md:min-h-0 md:mt-1.5">
             {/* No bars while loading: the demo of this page for a new user
                 resolves to zero plans, and a placeholder that flashes and then
                 resolves to nothing promises data that never arrives. The
@@ -161,7 +160,7 @@ export function PlansPage() {
 
       {/* ════════ Loading skeleton ════════ */}
       {loading && (
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="mt-0 md:mt-8 grid grid-cols-1 lg:grid-cols-2 gap-5">
           {[0, 1, 2].map((i) => (
             <div key={i} className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
               <div className="flex items-center gap-3">
@@ -177,7 +176,7 @@ export function PlansPage() {
 
       {/* ════════ Empty state — plan-type chooser ════════ */}
       {!loading && plans.length === 0 && (
-        <section className="mt-8">
+        <section className="mt-0 md:mt-8">
           <div className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8">
             <div
               className="pointer-events-none absolute inset-0"

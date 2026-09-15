@@ -23,6 +23,7 @@ import { actionArea, areaKey, groupByArea, TONE_STYLE, type AreaTone } from '../
 import { formatRelativeTime } from '../lib/utils';
 import { maskCurrencyInText } from '../lib/hide-amounts';
 import { Badge, Button, MaskedText, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
+import { PageTitle } from '../components/ds/PageTitle';
 
 // ---------------------------------------------------------------------------
 // Urgency → display group mapping (faithful to the API's urgency field)
@@ -566,14 +567,12 @@ export function Insights() {
     );
 
   return (
-    <div className="mx-auto max-w-[1160px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1160px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="flex items-start justify-between gap-6 flex-wrap animate-fade-in">
         <div>
-          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.03em] text-content">
-            Actions
-          </h1>
-          <PageMeta>
+          <PageTitle className="tracking-[-0.03em]">Actions</PageTitle>
+          <PageMeta className="mt-0 md:mt-1.5">
             {/* The per-band counts used to be listed here, word for word the
                 same as the three headings a few hundred pixels below. They sit
                 on those headings now, where the rows they count are. */}

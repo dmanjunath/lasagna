@@ -8,6 +8,7 @@ import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount } from '../components/uikit';
 import { usePageContext } from '../lib/page-context';
 import { Alert, Button, EmptyState, Skeleton, useToast } from '../components/uikit';
+import { PageTitle } from '../components/ds/PageTitle';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import {
   TxnRow,
@@ -411,7 +412,7 @@ export function Transactions() {
   let lastDayKey: string | null = null;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ── Back — desktop only; mobile gets the shell's top-bar back ── */}
       <button
         type="button"
@@ -424,15 +425,13 @@ export function Transactions() {
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-            Transactions
-          </h1>
+          <PageTitle>Transactions</PageTitle>
         </div>
       </header>
 
       {/* ════════ Toolbar — search + Filters popover; the desktop sort select
            trails the row. Active-filter chips render beneath. ════════ */}
-      <div className="mt-5">
+      <div className="mt-0 md:mt-5">
         <TransactionFilters
           filters={filters}
           onChange={setFilters}

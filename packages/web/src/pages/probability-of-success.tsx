@@ -14,6 +14,7 @@ import { HIDDEN_AMOUNT, isAmountsHidden } from "../lib/hide-amounts";
 import { api, API_BASE, authHeaders } from "../lib/api";
 import { usePageContext } from "../lib/page-context";
 import { Button, EmptyState, MASK_TEXT_STYLE, MaskedText, Skeleton, useRevealOnFocus } from "../components/uikit";
+import { PageTitle } from "../components/ds/PageTitle";
 
 // ── Chart palette (resolves via CSS vars, so light/dark swap automatically) ──
 const VIZ = "var(--ui-viz-2)"; // periwinkle — the MC value channel
@@ -1019,9 +1020,9 @@ export function ProbabilityOfSuccess() {
   // Empty state - no accounts
   if (!hasAccounts) {
     return (
-      <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
-        <header className="mb-8">
-          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">Probability of success</h1>
+      <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
+        <header className="mb-0 md:mb-8">
+          <PageTitle className="sm:text-[36px]">Probability of success</PageTitle>
         </header>
         <EmptyState
           icon={<Building2 size={24} />}
@@ -1042,13 +1043,11 @@ export function ProbabilityOfSuccess() {
   const projectionYears = lifeExpectancy - retirementAge;
 
   return (
-    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-            Probability of success
-          </h1>
+          <PageTitle className="sm:text-[36px]">Probability of success</PageTitle>
         </div>
       </header>
 
@@ -1057,7 +1056,7 @@ export function ProbabilityOfSuccess() {
         <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8"
+          className="relative mt-0 md:mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8"
         >
           <div
             aria-hidden

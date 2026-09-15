@@ -12,6 +12,7 @@ import { PullToRefresh } from './pull-to-refresh';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { isNativeApp } from '../../lib/native';
 import { useChatStore, getChatExpanded, setChatExpanded } from '../../lib/chat-store';
+import { titleForPath } from '../../lib/page-titles';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 
 // Native-only, lazy so the Capacitor plugins stay out of the web bundle.
@@ -191,6 +192,16 @@ export function Shell({ children }: ShellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile, isSubPage]);
 
+  // The tab, the window and the iOS app switcher all read document.title, and
+  // it used to say "LasagnaFi" on every route. It lives here rather than in
+  // AppHeader because the bar only mounts below 768px, and a desktop tab needs
+  // the route name just as much. Routes the bar leaves unnamed fall back to the
+  // bare brand, so going home restores it.
+  useEffect(() => {
+    const name = titleForPath(location);
+    document.title = name ? `${name} - LasagnaFi` : 'LasagnaFi';
+  }, [location]);
+
   // The document scroller persists across routes, so reset it per navigation.
   useEffect(() => {
     if (mobileDocScroll) window.scrollTo(0, 0);
@@ -241,7 +252,6 @@ export function Shell({ children }: ShellProps) {
       {isMobile && !chatOpen && (
         <>
           <AppHeader
-            variant="advanced"
             leadingSlot={
               isSubPage ? (
                 <button
@@ -293,7 +303,7 @@ export function Shell({ children }: ShellProps) {
                   animate={{ x: 0, opacity: 1 }}
                   exit={animateRoutes ? { x: navDir * -28, opacity: 0 } : undefined}
                   transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                  className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+48px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
+                  className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+49px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
                 >
                   {children}
                 </motion.main>
@@ -304,7 +314,7 @@ export function Shell({ children }: ShellProps) {
           /* Mobile /chat: height-constrained shell so the thread + composer
              own the viewport. pt offset = notch + 44px header. */
           <div className="flex-1 flex overflow-hidden relative">
-            <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+48px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
+            <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+49px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
               <div className="flex-1 overflow-y-auto">
                 {children}
               </div>

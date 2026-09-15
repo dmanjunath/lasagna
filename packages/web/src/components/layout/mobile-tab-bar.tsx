@@ -10,7 +10,7 @@ interface TabItem {
 }
 
 const tabs: TabItem[] = [
-  { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
+  { name: 'Home', icon: LayoutDashboard, path: '/' },
   { name: 'Money',     icon: Wallet,          path: '/money' },
   { name: 'Spending',  icon: CreditCard,      path: '/spending' },
   { name: 'Goals',     icon: Target,          path: '/goals' },

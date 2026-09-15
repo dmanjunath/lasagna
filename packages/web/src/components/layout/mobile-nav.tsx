@@ -35,14 +35,14 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Home',    icon: LayoutDashboard, path: '/' },
       { label: 'Money',   icon: Wallet,          path: '/money' },
       { label: 'Goals',   icon: Target,          path: '/goals' },
-      { label: 'AI Chat', icon: MessageSquare,   path: '/chat' },
+      { label: 'Chat', icon: MessageSquare,   path: '/chat' },
     ],
   },
   {
     section: 'Financial insights',
     items: [
       { label: 'Actions',         icon: Zap,    path: '/insights' },
-      { label: 'Financial Journey', icon: Layers, path: '/financial-level' },
+      { label: 'Financial journey', icon: Layers, path: '/financial-level' },
     ],
   },
   {
@@ -55,7 +55,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     section: 'Advanced',
     items: [
-      { label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
+      { label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
       { label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
       { label: 'Tax',                 icon: Receipt,     path: '/tax' },
       { label: 'Debt',                icon: AlertCircle, path: '/debt' },

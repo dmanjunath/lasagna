@@ -22,6 +22,7 @@ import { usePageContext } from "../lib/page-context.js";
 import { ActionItem } from "../components/common/action-item.js";
 import { Button, Badge, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SkeletonText, Alert, Select, Tooltip, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
+import { PageTitle } from "../components/ds/PageTitle";
 import { useIsMobile } from "../lib/hooks/use-mobile.js";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -914,7 +915,7 @@ export function TaxStrategy() {
   const showStrategyZone = heroState !== "first-run";
 
   return (
-    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1120px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
         @media (max-width: 640px) {
           .tax-input-wrap input[type="text"],
@@ -930,9 +931,7 @@ export function TaxStrategy() {
 
       {/* ── Header ── */}
       <header>
-        <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
-          Tax
-        </h1>
+        <PageTitle className="text-[26px] leading-[1.04]">Tax</PageTitle>
       </header>
 
       {/* ══════════ ZONE 1 — Where do I stand? ══════════ */}
@@ -940,7 +939,7 @@ export function TaxStrategy() {
       {/* ── HERO — what the documents on file actually say ── */}
       <section
         data-hero
-        className="relative mt-6 sm:mt-7 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8"
+        className="relative mt-0 md:mt-7 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8"
       >
         {/* The wash is rounded to the card instead of the card clipping it, so
             the upload area's popover can open past the hero's edge. */}

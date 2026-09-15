@@ -1,6 +1,7 @@
 import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../../lib/auth';
 import { cn } from '../../lib/utils';
+import { PageTitle } from '../ds/PageTitle';
 
 const TABS = [
   { label: 'Users', path: '/admin' },
@@ -20,10 +21,10 @@ export function AdminShell({ subtitle, children }: { subtitle: string; children:
   if (!user?.isAdmin) return <Redirect to="/" />;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 sm:pt-9 pb-24 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-[18px] sm:px-11 pt-5 md:pt-9 pb-24 sm:pb-28 text-content">
       <header>
-        <h1 className="font-editorial text-[30px] sm:text-[34px] font-bold tracking-[-0.02em]">Operator dashboard</h1>
-        <p className="mt-1 text-[14px] font-medium text-content-muted">{subtitle}</p>
+        <PageTitle className="text-[30px] leading-[1.5] tracking-[-0.02em]">Operator dashboard</PageTitle>
+        <p className="mt-0 md:mt-1 text-[14px] font-medium text-content-muted">{subtitle}</p>
       </header>
 
       {/* Tab nav */}

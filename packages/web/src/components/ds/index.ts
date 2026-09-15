@@ -1,5 +1,6 @@
 export { Page } from './Page';
 export { PageHeader } from './PageHeader';
+export { PageTitle } from './PageTitle';
 export { Section } from './Section';
 export { Card } from './Card';
 export { KPIGrid, KPI } from './KPI';

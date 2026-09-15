@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, EmptyState, Field, Input, Label, MaskedText, MoneyInput, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from '../components/uikit';
+import { PageTitle } from '../components/ds/PageTitle';
 import { formatCurrency, iconFor, toggleId, AccountPicker, IconKey } from './goal-shared';
 import {
   isTypedGoalCategory, emptyDraft, resolveDraft, useGoalFormContext,
@@ -327,7 +328,7 @@ export function Goals() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
         .g-shine::after {
           content: ""; position: absolute; inset: 0; border-radius: 999px;
@@ -342,12 +343,10 @@ export function Goals() {
       `}</style>
 
       {/* ════════ Header ════════ */}
-      <header className="flex flex-wrap items-end justify-between gap-4 animate-fade-in">
+      <header className="flex flex-wrap items-start md:items-end justify-between gap-4 animate-fade-in">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-            Goals
-          </h1>
-          <PageMeta>
+          <PageTitle className="sm:text-[36px]">Goals</PageTitle>
+          <PageMeta className="mt-0 md:mt-1.5">
             {loading ? <PageMetaSkeleton widths={['w-[51px]', 'w-[74px]']} /> : summaryLine}
           </PageMeta>
         </div>

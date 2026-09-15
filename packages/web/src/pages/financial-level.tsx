@@ -16,6 +16,7 @@ import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import type { LucideIcon } from 'lucide-react';
 import { Button, EmptyState, MaskedText, Skeleton, Textarea, useToast } from '../components/uikit';
+import { PageTitle } from '../components/ds/PageTitle';
 import { type LevelState, levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 import { ActionItem } from '../components/common/action-item';
 
@@ -949,9 +950,13 @@ export function FinancialLevel() {
 
   // ── Loading ──
   if (loading) return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
-      <Skeleton className="h-9 w-64" />
-      <Skeleton className="mt-3 h-4 w-72" />
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
+      {/* The title placeholder follows the title: the bar carries the page
+          name below 768px, so a title-shaped bar here would resolve into
+          nothing and drop the page. `hidden` rather than `sr-only` because a
+          Skeleton is already `aria-hidden` and has no text to read. */}
+      <Skeleton className="hidden md:block h-9 w-64" />
+      <Skeleton className="mt-0 md:mt-3 h-4 w-72" />
       <div className="mt-7 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
         <div className="grid gap-7 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] items-center">
           <div>
@@ -982,14 +987,12 @@ export function FinancialLevel() {
   // upstream service name and a request id. The mark-a-step handler two hundred
   // lines up already refuses to echo the server for the same reason.
   if (failed) return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       <header className="animate-fade-in">
-        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
-          Personalized Financial Journey
-        </h1>
+        <PageTitle className="sm:text-[36px]">Financial journey</PageTitle>
       </header>
       <EmptyState
-        className="mt-8"
+        className="mt-0 md:mt-8"
         tone="negative"
         icon={<AlertCircle className="h-7 w-7" />}
         title="We couldn't load your path"
@@ -1006,12 +1009,12 @@ export function FinancialLevel() {
   // ── No-data empty state ──
   const hasNoData = summary.monthlyIncome === 0 && summary.totalCash === 0 && summary.totalInvested === 0;
   if (hasNoData) return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       <header className="animate-fade-in">
-        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">Personalized Financial Journey</h1>
+        <PageTitle className="sm:text-[36px]">Financial journey</PageTitle>
       </header>
       <EmptyState
-        className="mt-8"
+        className="mt-0 md:mt-8"
         icon={<Rocket className="h-8 w-8" />}
         title="Let's build your plan"
         description="Add your income and accounts and we'll build the steps that apply to you."
@@ -1062,16 +1065,14 @@ export function FinancialLevel() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header ════════ */}
       <header className="animate-fade-in">
-        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em]">
-          Personalized Financial Journey
-        </h1>
+        <PageTitle className="sm:text-[36px]">Financial journey</PageTitle>
         {/* The order below was settled once and only changes on an event. A
             page that showed a sequence without saying when it was settled
             leaves the reader guessing whether it answers to today. */}
-        <p className="mt-2 text-[13px] font-medium text-content-muted">
+        <p className="mt-0 md:mt-2 text-[13px] font-medium text-content-muted">
           {updatedLine(data.updatedAt, data.updatedReason)}
         </p>
         {/* Taking a step off the path, or putting it back, silently changes the

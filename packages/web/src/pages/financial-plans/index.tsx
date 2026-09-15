@@ -7,6 +7,7 @@ import { PlanFreshnessBanner } from "../../components/common/plan-freshness-bann
 import { planFreshness } from "../../lib/plan-freshness.js";
 import { formatRelativeTime } from "../../lib/utils.js";
 import { useConfirm } from "../../components/ds";
+import { PageTitle } from "../../components/ds/PageTitle";
 import type { FinancialPlanSummary } from "../../lib/types.js";
 
 // Default report name, versioned against the existing list so each new report
@@ -377,13 +378,11 @@ export function FinancialPlansList({
 
 export function FinancialPlansPage() {
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       <header className="animate-fade-in">
-        <h1 className="font-editorial text-[28px] sm:text-[36px] font-bold leading-[1.02] tracking-[-0.028em] text-content">
-          Retirement Plans
-        </h1>
+        <PageTitle className="sm:text-[36px]">Retirement plans</PageTitle>
       </header>
-      <div className="mt-8">
+      <div className="mt-0 md:mt-8">
         <FinancialPlansList />
       </div>
     </div>

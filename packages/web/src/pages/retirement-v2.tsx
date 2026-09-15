@@ -14,6 +14,7 @@ import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Chec
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Badge, Button, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
+import { PageTitle } from '../components/ds/PageTitle';
 import {
   computeWithdrawal,
   type WithdrawalStrategy, type StrategyParams,
@@ -1842,12 +1843,10 @@ export function RetirementV2() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
         <header>
-          <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
-            Retirement
-          </h1>
-          <Skeleton className="mt-2.5 h-3 w-52" />
+          <PageTitle className="text-[26px] leading-[1.04]">Retirement</PageTitle>
+          <Skeleton className="mt-0 md:mt-2.5 h-3 w-52" />
         </header>
         <Skeleton className="mt-8 h-[180px] w-full rounded-ui-xl" />
         <Skeleton className="mt-6 h-[300px] w-full rounded-ui-xl" />
@@ -1860,7 +1859,7 @@ export function RetirementV2() {
   const planFresh = planList ? planFreshness(planList) : null;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       <style>{`
         .rv2-fan-outer { fill: var(--ui-viz-2); fill-opacity: 0.18; }
         .rv2-fan-inner { fill: var(--ui-viz-2); fill-opacity: 0.34; }
@@ -2071,10 +2070,8 @@ export function RetirementV2() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[26px] sm:text-[34px] font-bold leading-[1.04] tracking-[-0.028em] text-content">
-            Retirement
-          </h1>
-          <PageMeta>
+          <PageTitle className="text-[26px] leading-[1.04]">Retirement</PageTitle>
+          <PageMeta className="mt-0 md:mt-1.5">
             <PageMetaItem className="ui-tnum">{formatMoney(portfolioValue, true)} in liquid savings</PageMetaItem>
           </PageMeta>
         </div>

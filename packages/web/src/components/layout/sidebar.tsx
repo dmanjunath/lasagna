@@ -35,14 +35,14 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'goals', label: 'Goals',   icon: Target,          path: '/goals' },
       // Chat's path only marks it active on the full-screen /chat route —
       // clicking opens the chat panel instead of navigating.
-      { id: 'chat',  label: 'AI Chat', icon: MessageSquare,   path: '/chat' },
+      { id: 'chat',  label: 'Chat', icon: MessageSquare,   path: '/chat' },
     ],
   },
   {
     label: 'Financial insights',
     items: [
       { id: 'actions',         label: 'Actions',         icon: Zap,    path: '/insights' },
-      { id: 'financial-level', label: 'Financial Journey', icon: Layers, path: '/financial-level' },
+      { id: 'financial-level', label: 'Financial journey', icon: Layers, path: '/financial-level' },
     ],
   },
   {
@@ -56,7 +56,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Advanced',
     defaultOpen: false,
     items: [
-      { id: 'retirement',    label: 'Retirement Planning', icon: TrendingUp,  path: '/retirement' },
+      { id: 'retirement',    label: 'Retirement', icon: TrendingUp,  path: '/retirement' },
       { id: 'portfolio',  label: 'Portfolio',           icon: PieChart,    path: '/portfolio' },
       { id: 'tax',        label: 'Tax',                 icon: Receipt,     path: '/tax' },
       { id: 'debt',       label: 'Debt',                icon: AlertCircle, path: '/debt' },

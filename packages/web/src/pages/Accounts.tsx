@@ -25,6 +25,7 @@ import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
 import { Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from "../components/uikit";
 import { useConfirm } from "../components/ds";
+import { PageTitle } from "../components/ds/PageTitle";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
 import { AccountLinkPicker, type AccountPickerOption } from "../components/common/AccountLinkPicker";
 import { AddressAutocomplete } from "../components/common/AddressAutocomplete";
@@ -849,14 +850,12 @@ export function Accounts() {
     : 0;
 
   return (
-    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 md:pt-10 pb-6 sm:pb-28 text-content">
       {/* ── Page header — mirrors /money: title, live caption, action cluster ── */}
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
-            Accounts
-          </h1>
-          <PageMeta>
+          <PageTitle>Accounts</PageTitle>
+          <PageMeta className="mt-0 md:mt-1.5">
             {loading ? (
               // Widths of the four runs below, so the placeholder wraps where
               // they wrap and the header holds still on load.
