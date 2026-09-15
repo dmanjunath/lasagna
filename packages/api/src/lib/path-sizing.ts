@@ -4,6 +4,7 @@ import type { PathStepMark } from './path-generator.js';
 import {
   ASSUMED_SPEND_SHARE_OF_INCOME,
   CONTRIBUTION_TAX_YEAR,
+  type DebtFacts,
   type PathCandidate,
   type PathStepKind,
   type RetirementCurve,
@@ -206,6 +207,56 @@ function assumedSpendNotes(ctx: PathContext): string[] {
   return [
     `We have no spending history for you yet, so this is priced at ${Math.round(ASSUMED_SPEND_SHARE_OF_INCOME * 100)}% of your income. Link a spending account and it is priced from what you actually spend.`,
   ];
+}
+
+/**
+ * How many months of `payment` clear `balance` at `aprPercent`.
+ *
+ * Infinity when the payment does not cover the interest, because that balance
+ * genuinely never clears and a date would be a lie. Null APR means no rate is
+ * on file, and the only honest read of a payment against a balance is then the
+ * plain division, which is what the caller was doing for EVERY debt: the
+ * reported minimum on a mortgage IS its amortising payment, so dividing the
+ * balance back out by it returned the interest-free term. A $770,000 loan at
+ * 4.875% paying its own $4,075 came back at 189 months against a real 360, and
+ * the page told somebody planning to stop working that the mortgage went away
+ * fourteen years before it does.
+ */
+/** A mortgage that names no term is a thirty year one until the user says otherwise. */
+const ASSUMED_MORTGAGE_TERM_MONTHS = 360;
+
+/**
+ * The date this loan's own schedule runs out.
+ *
+ * Origination plus term, which is the whole of it. Amortising from today
+ * instead put a loan taken out in 2022 thirty years from NOW rather than thirty
+ * years from when it started, so a mortgage already four years down its
+ * schedule was dated 2056 instead of 2052.
+ *
+ * Null when there is no origination date to count from, or when the loan is not
+ * the kind that runs to a term. Only a mortgage gets the assumed term: thirty
+ * years is a fair default for a home loan and a nonsense one for a car.
+ */
+function scheduledPayoff(facts: DebtFacts): string | null {
+  if (!facts.originationDate) return null;
+  const months = facts.termMonths ?? (facts.debtKind === 'mortgage' ? ASSUMED_MORTGAGE_TERM_MONTHS : null);
+  if (months === null || months <= 0) return null;
+  const started = new Date(facts.originationDate);
+  if (Number.isNaN(started.getTime())) return null;
+  const end = new Date(Date.UTC(started.getUTCFullYear(), started.getUTCMonth() + months, 1));
+  // A schedule that has already run out dates nothing; the balance left on it
+  // is worked out from the rate instead.
+  return end.getTime() > Date.now() ? end.toISOString().slice(0, 10) : null;
+}
+
+export function monthsToPayOff(balance: number, payment: number, aprPercent: number | null): number {
+  if (balance <= 0) return 0;
+  if (payment <= 0) return Infinity;
+  const r = (aprPercent ?? 0) / 100 / 12;
+  if (r <= 0) return Math.ceil(balance / payment);
+  // Anything at or below the monthly interest never touches the principal.
+  if (payment <= balance * r) return Infinity;
+  return Math.ceil(-Math.log(1 - (balance * r) / payment) / Math.log(1 + r));
 }
 
 function towardTarget(current: number, target: number): Pick<Measure, 'status' | 'progress'> {
@@ -713,21 +764,41 @@ export function sizePath(
       // reaches this step there is less of it left to clear.
       const leftWhenReached = facts.balance - minimum * cursor;
 
+      const extraAvailable = blocked ? 0 : available;
+
       if (leftWhenReached <= 0 && minimum > 0) {
-        // Cleared by its minimums before the waterfall ever gets here.
+        // Cleared by its minimums before the waterfall ever gets here, so the
+        // lender's own schedule is the answer and nothing here has to model it.
+        // Plaid reports this as a mortgage's maturity date and a student loan's
+        // expected payoff date; `DebtAccount` already resolves both.
         monthlyFunding = minimum;
-        const months = Math.ceil(facts.balance / minimum);
-        projectedDate = months <= MAX_PROJECTION_MONTHS ? monthsFromNow(months) : null;
+        const scheduled = facts.payoffDate ?? scheduledPayoff(facts);
+        if (scheduled) {
+          projectedDate = scheduled;
+        } else {
+          const months = monthsToPayOff(facts.balance, minimum, facts.apr);
+          projectedDate = months <= MAX_PROJECTION_MONTHS ? monthsFromNow(months) : null;
+        }
       } else {
-        const extra = blocked ? 0 : available;
+        const extra = extraAvailable;
         monthlyFunding = minimum + extra;
         if (monthlyFunding > 0) {
-          const months = cursor + Math.ceil(leftWhenReached / monthlyFunding);
-          if (months <= MAX_PROJECTION_MONTHS) {
-            projectedDate = monthsFromNow(months);
-            if (extra > 0) cursor = Math.max(cursor, months);
+          // Paying only the minimum leaves the lender's schedule intact, so its
+          // date still stands. Paying MORE breaks that schedule, and only then
+          // is there anything to work out.
+          // Paying only the minimum leaves the schedule intact, so the lender's
+          // date, or failing that the loan's own term, still stands.
+          const scheduled = extra <= 0 ? (facts.payoffDate ?? scheduledPayoff(facts)) : null;
+          if (scheduled) {
+            projectedDate = scheduled;
           } else {
-            blocked = true;
+            const months = cursor + monthsToPayOff(leftWhenReached, monthlyFunding, facts.apr);
+            if (months <= MAX_PROJECTION_MONTHS) {
+              projectedDate = monthsFromNow(months);
+              if (extra > 0) cursor = Math.max(cursor, months);
+            } else {
+              blocked = true;
+            }
           }
         }
       }

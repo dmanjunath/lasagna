@@ -149,10 +149,40 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
       // Legacy raw fallback (for seed/legacy data without a type discriminant)
       let termMonths: number | null = null;
       let originationDate: string | null = null;
-      if (!typedMeta && acct.metadata) {
+      // Typed metadata FIRST. The raw block below was written as a legacy
+      // fallback and guarded on `!typedMeta`, so every Plaid-synced loan, which
+      // always carries a type discriminant, skipped it and reported no
+      // origination date and no term at all. `MortgageMetadata` has declared
+      // both fields the whole time. The effect was that a mortgage taken out in
+      // 2022 had no schedule to date, and was dated thirty years from today.
+      if (typedMeta) {
+        if ("originationDate" in typedMeta && typeof typedMeta.originationDate === "string") {
+          originationDate = typedMeta.originationDate;
+        }
+        if ("loanTermYears" in typedMeta && typeof typedMeta.loanTermYears === "number") {
+          termMonths = Math.round(typedMeta.loanTermYears * 12);
+        } else if (
+          typedMeta.type === "mortgage" &&
+          typeof typedMeta.loanTerm === "string" &&
+          /^\s*(\d+)\s*year/i.test(typedMeta.loanTerm)
+        ) {
+          termMonths = Number(/^\s*(\d+)\s*year/i.exec(typedMeta.loanTerm)![1]) * 12;
+        }
+      } else if (acct.metadata) {
         try {
           const raw = JSON.parse(acct.metadata);
-          termMonths = typeof raw.termMonths === "number" ? raw.termMonths : null;
+          // The metadata never carries `termMonths`: Plaid reports a mortgage's
+          // term as `loanTerm` ("30 year") and the manual form writes
+          // `loanTermYears`, so reading only the first key left every loan with
+          // no term and no schedule to date it from.
+          termMonths =
+            typeof raw.termMonths === "number"
+              ? raw.termMonths
+              : typeof raw.loanTermYears === "number"
+                ? Math.round(raw.loanTermYears * 12)
+                : typeof raw.loanTerm === "string" && /^\s*(\d+)\s*year/i.test(raw.loanTerm)
+                  ? Number(/^\s*(\d+)\s*year/i.exec(raw.loanTerm)![1]) * 12
+                  : null;
           originationDate = typeof raw.originationDate === "string" ? raw.originationDate : null;
         } catch {
           // malformed — leave null
@@ -203,9 +233,19 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
           r > 0 ? (balance * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1) : balance / n;
       } else if (termMonths && originationDate) {
         const originated = new Date(originationDate);
-        const monthsElapsed = Math.floor(
-          (Date.now() - originated.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
-        );
+        // Counted in calendar months, not in average-length ones. Dividing by
+        // 30.44 days makes the answer depend on which day of the month it is
+        // run: a loan originated exactly twelve months ago measured 11.99 and
+        // floored to 11, so its payment moved as the calendar rolled past the
+        // day of the month it started on.
+        // UTC on BOTH sides. An origination date is a bare "YYYY-MM-DD", which
+        // parses as midnight UTC, so comparing it against local calendar parts
+        // makes the answer depend on the machine's timezone as well as the day.
+        const now = new Date();
+        const monthsElapsed =
+          (now.getUTCFullYear() - originated.getUTCFullYear()) * 12 +
+          (now.getUTCMonth() - originated.getUTCMonth()) -
+          (now.getUTCDate() < originated.getUTCDate() ? 1 : 0);
         const remaining = termMonths - monthsElapsed;
         // A loan past its own term has no schedule left to spread the balance
         // over. Clamping the months remaining to 1 asked for the entire balance

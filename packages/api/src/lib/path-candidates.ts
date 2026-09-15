@@ -66,6 +66,9 @@ export interface DebtFacts {
   minimumPaymentAssumedApr: number | null;
   /** A payoff date the lender reports, when there is one. */
   payoffDate: string | null;
+  /** The loan's own schedule, when it has one. Dates a payoff without modelling it. */
+  termMonths: number | null;
+  originationDate: string | null;
 }
 
 export interface GoalFacts {
@@ -692,6 +695,8 @@ export function buildPathCandidates(
       minimumPaymentEstimated: account.minimumPaymentEstimated,
       minimumPaymentAssumedApr: account.minimumPaymentAssumedApr,
       payoffDate: account.payoffDate,
+      termMonths: account.termMonths,
+      originationDate: account.originationDate,
     };
     const rate = orderingApr(facts);
     const named = account.mask ? `${account.name} ••${account.mask}` : account.name;

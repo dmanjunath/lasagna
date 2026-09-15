@@ -264,3 +264,38 @@ describe("a rate we do not hold is never reported as a rate of zero", () => {
     ).toBe(22.49);
   });
 });
+
+// The raw-metadata block that reads these was guarded on `!typedMeta`, so every
+// Plaid-synced loan — which always carries a type discriminant — skipped it and
+// reported no origination date and no term, despite MortgageMetadata declaring
+// both. A 2022 mortgage then had no schedule to date and was dated from today.
+describe("a loan's schedule is read from typed metadata too", () => {
+  it("reads the origination date off a Plaid-synced mortgage", () =>
+    resolveOne(
+      { subtype: "mortgage", metadata: JSON.stringify({
+        type: "mortgage", source: "plaid",
+        originationDate: "2022-06-01", interestRatePercentage: 4.875,
+        nextMonthlyPayment: 4075,
+      }) },
+      "770000",
+    ).then((loan) => {
+      expect(loan.originationDate).toBe("2022-06-01");
+      expect(loan.minimumPayment).toBe(4075);
+    }));
+
+  it("takes the term from loanTerm when the lender words it", () =>
+    resolveOne(
+      { subtype: "mortgage", metadata: JSON.stringify({
+        type: "mortgage", source: "plaid", originationDate: "2022-06-01", loanTerm: "15 year",
+      }) },
+      "300000",
+    ).then((loan) => expect(loan.termMonths).toBe(180)));
+
+  it("takes the term from loanTermYears when the user typed it", () =>
+    resolveOne(
+      { subtype: "mortgage", metadata: JSON.stringify({
+        type: "mortgage", source: "manual", originationDate: "2022-06-01", loanTermYears: 20,
+      }) },
+      "300000",
+    ).then((loan) => expect(loan.termMonths).toBe(240)));
+});

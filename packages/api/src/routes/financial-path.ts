@@ -344,10 +344,58 @@ export interface PathView {
  * available reads as a confident one: chat placed a just-added goal at step 8
  * and the next read of the page placed it at step 4.
  */
+/**
+ * The v2 journey in the shape every non-rendering reader already speaks.
+ *
+ * `generate: false` because this is the reader that must not spend: chat asking
+ * what comes next is not a reason to buy a household a new plan, and a question
+ * must never reshuffle the sequence the page is showing.
+ */
+async function readStoredJourney(tenantId: string, userId: string): Promise<PathView | null> {
+  const view = await readJourney(tenantId, userId, { generate: false });
+  if (!view.steps.length) return null;
+
+  const current = currentStepKey(view.steps);
+  return {
+    steps: view.steps.map((step, index) => ({
+      step: index + 1,
+      title: step.title,
+      why: step.why,
+      // v1 spends a sentence on where a step sits relative to the others. This
+      // engine spends it on `why` instead, so there is no second line to give.
+      reason: '',
+      status: step.status,
+      rateShaped: isRateShaped(step.kind),
+      current: step.current,
+      target: step.target,
+      monthlyFunding: step.monthlyFunding,
+      projectedDate: step.projectedDate,
+      action: step.action,
+      fact: step.fact,
+    })),
+    notApplicable: view.notApplicable.map((c) => ({ title: c.title })),
+    leftOut: view.leftOut.map((o) => ({ title: o.candidate.title, reason: o.reason })),
+    currentStep: view.steps.length > 0 ? view.steps.findIndex((s) => s.key === current) + 1 : null,
+    // Never pending: this engine rebuilds the whole journey when the household
+    // moves, so a stored one is either current or it is being replaced. There is
+    // no state where the steps are right and their positions are not.
+    rebuildPending: false,
+    orderSource: 'model',
+    updatedAt: view.generatedAt.toISOString(),
+  };
+}
+
 export async function readStoredPath(
   tenantId: string,
   userId: string,
 ): Promise<PathView | null> {
+  // Whichever engine is building journeys is the one every reader has to read.
+  // The chat agent and the plan report both come through here, and while this
+  // answered only from v1 the assistant described a path the page was no longer
+  // showing: a different order, different steps, and steps the journey had left
+  // out. Two answers to "what should I do next" is worse than either.
+  if ((await journeyEngine()) === 'v2') return readStoredJourney(tenantId, userId);
+
   const stored = await readActivePath(tenantId);
   if (!stored) return null;
 

@@ -278,6 +278,8 @@ export function buildJourneyCatalog(ctx: PathContext): PathCandidate[] {
       minimumPaymentEstimated: account.minimumPaymentEstimated,
       minimumPaymentAssumedApr: account.minimumPaymentAssumedApr,
       payoffDate: account.payoffDate,
+      termMonths: account.termMonths,
+      originationDate: account.originationDate,
     };
     const named = account.mask ? `${account.name} ••${account.mask}` : account.name;
     out.push({
