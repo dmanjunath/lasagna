@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { eq, and, ne, sql, desc, inArray, users, tenants, accounts, activityEvents, plaidItems, balanceSnapshots, userProfiles, chatThreads, messages, financialProfiles } from "@lasagna/core";
 import { db } from "../lib/db.js";
-import { resolveTenantPlan, classifyPlanSource, type PlanSource } from "../lib/billing.js";
+import { resolveTenantPlan, classifyPlanSource, isTenantDisabled, type PlanSource } from "../lib/billing.js";
 import { recomputeFrozenAccounts } from "../lib/account-limits.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { removeUserRow } from "../lib/auth/remove-user.js";
@@ -284,6 +284,14 @@ adminRoutes.post("/tenants/:tenantId/resync", async (c) => {
   });
   if (!tenant) return c.json({ error: "Tenant not found" }, 404);
 
+  // A paused tenant syncs nothing: syncItem returns before it reaches Plaid.
+  // Without this the cursor would be cleared, nothing would replay, and the
+  // caller would be told the replay started. Refuse instead of lying, and
+  // refuse BEFORE the write so a paused tenant is left exactly as it was.
+  if (await isTenantDisabled(tenantId)) {
+    return c.json({ error: "This account is paused, so it will not sync. Resume it first.", code: "account_paused" }, 403);
+  }
+
   const reset = await db
     .update(plaidItems)
     .set({ transactionCursor: null })
@@ -316,6 +324,11 @@ adminRoutes.post("/items/:itemId/resync", async (c) => {
     columns: { id: true, tenantId: true },
   });
   if (!item) return c.json({ error: "Connection not found" }, 404);
+
+  // Same reason as the tenant route above.
+  if (await isTenantDisabled(item.tenantId)) {
+    return c.json({ error: "This account is paused, so it will not sync. Resume it first.", code: "account_paused" }, 403);
+  }
 
   await db
     .update(plaidItems)

@@ -51,9 +51,15 @@ vi.mock("../../lib/db.js", () => ({
 
 const syncAllForTenant = vi.fn(async () => {});
 const syncItem = vi.fn(async () => {});
+const tenantDisabled = vi.fn(async () => false);
 vi.mock("../../lib/sync.js", () => ({ syncAllForTenant, syncItem }));
 vi.mock("../../lib/auth/workos.js", () => ({
   deleteWorkosUser: vi.fn(), sendPasswordReset: vi.fn(), friendlyError: (_e: unknown, m: string) => m,
+}));
+vi.mock("../../lib/billing.js", () => ({
+  resolveTenantPlan: vi.fn(async () => "free"),
+  classifyPlanSource: vi.fn(() => "free"),
+  isTenantDisabled: (...a: unknown[]) => tenantDisabled(...(a as [])),
 }));
 
 import type { AuthEnv } from "../../middleware/auth.js";
@@ -81,6 +87,7 @@ beforeEach(() => {
   tenantsFindFirst.mockResolvedValue({ id: TENANT_A });
   plaidItemsFindFirst.mockResolvedValue({ id: ITEM_A, tenantId: TENANT_A });
   itemRows.mockResolvedValue([{ id: "item-1" }, { id: "item-2" }]);
+  tenantDisabled.mockResolvedValue(false);
 });
 
 describe("POST /api/admin/tenants/:tenantId/resync", () => {
@@ -171,6 +178,31 @@ describe("POST /api/admin/items/:itemId/resync", () => {
 
     expect(res.status).toBe(404);
     expect(plaidItemsFindFirst).not.toHaveBeenCalled();
+    expect(syncItem).not.toHaveBeenCalled();
+  });
+});
+
+// A paused tenant returns from syncItem before it reaches Plaid. Clearing the
+// cursor and reporting success would tell an admin a repair ran when none did,
+// and would leave the cursor null for whenever the account is resumed.
+describe("resync refuses a paused tenant", () => {
+  it("tenant route: 403s and writes nothing", async () => {
+    tenantDisabled.mockResolvedValue(true);
+    const res = await post(admin, TENANT_A);
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "account_paused" });
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(syncAllForTenant).not.toHaveBeenCalled();
+  });
+
+  it("item route: 403s and writes nothing", async () => {
+    tenantDisabled.mockResolvedValue(true);
+    const res = await postItem(admin, ITEM_A);
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "account_paused" });
+    expect(updateSet).not.toHaveBeenCalled();
     expect(syncItem).not.toHaveBeenCalled();
   });
 });

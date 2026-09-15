@@ -255,10 +255,12 @@ export function AdminUser() {
                       ) : (
                         <span className="text-content-muted ui-tnum">synced {fmtDate(i.lastSyncedAt)}</span>
                       )}
-                      {/* A manual entry has no Plaid connection behind it, so a replay
-                          would silently do nothing. It gets no button, but it still
-                          holds the button's width so every synced date lines up. */}
-                      {i.isManual ? (
+                      {/* Two cases get no button, because neither can actually replay:
+                          a manual entry has no Plaid connection behind it, and a paused
+                          account does not sync at all. Both still hold the button's
+                          width so every synced date stays in one column. The paused
+                          reason is already stated by the chip at the top of the page. */}
+                      {i.isManual || disabled ? (
                         <span className="invisible" aria-hidden>
                           <Button variant="ghost" size="sm" tabIndex={-1} leadingIcon={<RefreshCw className="h-3.5 w-3.5" />}>
                             Replay
