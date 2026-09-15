@@ -21,25 +21,30 @@ import { createOauthState, statesMatch, OAUTH_STATE_COOKIE } from "../lib/auth/s
 
 export const authRoutes = new Hono<AuthEnv>();
 
-// Browsers (Chrome, Safari) refuse to STORE a `Secure; SameSite=None` cookie that
-// arrives over plain HTTP. In local dev the Vite proxy serves over http://localhost,
-// so we have to fall back to Lax + non-Secure or the session never sticks. In prod
-// (HTTPS origin) we keep None+Secure so it works across subdomains / oauth bounces.
+// SameSite=Lax, never None. `None` tells the browser to attach the session cookie
+// to cross-site requests, which is what made every POST forgeable from any page
+// the user happened to be visiting. Lax still works for us: app.lasagnafi.com and
+// api.lasagnafi.com share a registrable domain, so app→api calls are same-site;
+// the native shells authenticate with a Bearer token, not this cookie; and the
+// OAuth bounce comes back as a top-level GET navigation, which Lax permits.
+//
+// Secure still tracks the scheme — browsers refuse to STORE a Secure cookie that
+// arrives over plain HTTP, and local dev serves the Vite proxy over http://localhost.
 export function cookieFlagsFor(c: Context) {
   const origin = c.req.header("origin") || c.req.header("referer") || "";
   const isHttps = origin.startsWith("https://");
   return {
     secure: isHttps,
-    sameSite: (isHttps ? "None" : "Lax") as "None" | "Lax",
+    sameSite: "Lax" as const,
   };
 }
 
 // The OAuth callback's Referer is the WorkOS/Google IdP, not our app, so cookieFlagsFor(c)
-// would wrongly pick Secure/None on the http://localhost dev callback (browser refuses to
+// would wrongly pick Secure on the http://localhost dev callback (browser refuses to
 // store it → session silently lost). Derive flags from APP_URL instead for OAuth responses.
 function appUrlCookieFlags() {
   const isHttps = env.APP_URL.startsWith("https://");
-  return { secure: isHttps, sameSite: (isHttps ? "None" : "Lax") as "None" | "Lax" };
+  return { secure: isHttps, sameSite: "Lax" as const };
 }
 export async function issueSession(
   c: Context,

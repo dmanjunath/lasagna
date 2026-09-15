@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { getCookie } from "hono/cookie";
 import { resolveCorsOrigin } from "./lib/cors.js";
+import { blocksAsCsrf } from "./lib/csrf.js";
+import { COOKIE_NAME } from "./lib/session.js";
 import type { MiddlewareHandler } from "hono";
 import { requireAuth, AuthEnv } from "./middleware/auth.js";
 import { authRoutes } from "./routes/auth.js";
@@ -66,6 +69,24 @@ app.use(
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   })
 );
+
+// ── CSRF: reject cross-site writes that ride on the session cookie ──
+// Runs before auth so a forged request never reaches a handler. Cookie-less
+// requests (webhooks, Bearer clients) are untouched — see lib/csrf.ts.
+app.use("/api/*", async (ctx, next) => {
+  if (
+    blocksAsCsrf({
+      method: ctx.req.method,
+      origin: ctx.req.header("origin"),
+      hasSessionCookie: getCookie(ctx, COOKIE_NAME) !== undefined,
+      allowedOrigins,
+      isDev: corsIsDev,
+    })
+  ) {
+    return ctx.json({ error: "Cross-site request blocked" }, 403);
+  }
+  return next();
+});
 
 app.get("/api/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
