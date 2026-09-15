@@ -159,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string, name?: string, agreements?: { acceptedTos: boolean; acceptedPrivacy: boolean; acceptedNotRia: boolean }): Promise<NeedsVerification | null> => {
       const data = (await api.signup({ email, password, name, acceptedTos: agreements?.acceptedTos ?? false, acceptedPrivacy: agreements?.acceptedPrivacy ?? false, acceptedNotRia: agreements?.acceptedNotRia ?? false })) as any;
       if (data.needsVerification) return data as NeedsVerification;
+      if (data.token) setNativeToken(data.token); // native shell: Bearer auth
       commitAuth({ user: data.user, tenant: data.tenant });
       return null;
     },
