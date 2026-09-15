@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import { cn } from "../../../lib/utils.js";
 import type { SectionCardBlock } from "../../../lib/types.js";
+import { maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 const variantStyles = {
   default: {
@@ -40,7 +41,7 @@ export function SectionCardRenderer({ block }: { block: SectionCardBlock }) {
         styles.labelBg
       )}>
         <span className={cn("text-[13px] font-semibold", styles.label)}>
-          {block.label}
+          {maskCurrencyInText(block.label)}
         </span>
       </div>
 
@@ -55,7 +56,7 @@ export function SectionCardRenderer({ block }: { block: SectionCardBlock }) {
           "[&_ul]:my-2 [&_ol]:my-2 [&_ul]:space-y-1.5 [&_ol]:space-y-1.5",
           "[&_:is(h1,h2,h3,h4)]:text-content [&_:is(h1,h2,h3,h4)]:font-semibold [&_:is(h1,h2,h3,h4)]:mb-2"
         )}>
-          <ReactMarkdown>{block.content}</ReactMarkdown>
+          <ReactMarkdown>{maskCurrencyInText(block.content)}</ReactMarkdown>
         </div>
       </div>
     </div>

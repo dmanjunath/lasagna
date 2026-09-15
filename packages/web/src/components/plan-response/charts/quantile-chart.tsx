@@ -10,6 +10,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { cn } from '../../../lib/utils.js';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface QuantileData {
   year: number;
@@ -31,6 +32,7 @@ interface QuantileChartProps {
 }
 
 const formatCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   if (value < 0) return `-$${Math.abs(value / 1000).toFixed(0)}K`;
@@ -38,6 +40,7 @@ const formatCurrency = (value: number) => {
 };
 
 const formatFullCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -61,6 +64,17 @@ function CustomTooltip({
   // Find the data point
   const dataPoint = payload[0]?.payload;
   if (!dataPoint) return null;
+
+  // Every row here is a percentile label plus a dollar figure, so with amounts
+  // hidden the list collapses to five identical masks. The year alone is the
+  // only thing left that carries information, so that is all we render.
+  if (isAmountsHidden()) {
+    return (
+      <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl">
+        <div className="text-text font-semibold">Year {label}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl min-w-[200px]">
@@ -101,6 +115,7 @@ export function QuantileChart({
   showAllQuantiles = false,
 }: QuantileChartProps) {
   const [hoveredYear, setHoveredYear] = useState<number | null>(null);
+  const hideAmounts = isAmountsHidden();
 
   const { finalStats, yearsShown } = useMemo(() => {
     if (!data || data.length === 0) return { finalStats: null, yearsShown: 0 };
@@ -140,7 +155,7 @@ export function QuantileChart({
           <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Worst 5%</div>
           <div className={cn(
             "text-sm font-semibold tabular-nums",
-            finalStats.p5 <= 0 ? "text-red-400" : "text-text"
+            finalStats.p5 <= 0 && !hideAmounts ? "text-red-400" : "text-text"
           )}>
             {formatCurrency(finalStats.p5)}
           </div>
@@ -204,6 +219,9 @@ export function QuantileChart({
                 axisLine={false}
                 dy={8}
               />
+              {/* Money tick labels go away entirely while amounts are hidden,
+                  and the 60px they reserved with them. The band geometry is
+                  untouched: the domain is fit to the data. */}
               <YAxis
                 stroke="#57534e"
                 fontSize={11}
@@ -212,6 +230,7 @@ export function QuantileChart({
                 tickFormatter={formatCurrency}
                 dx={-8}
                 width={60}
+                hide={hideAmounts}
               />
               <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }} />
 

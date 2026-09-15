@@ -21,6 +21,8 @@ import {
   Trash2,
   SlidersHorizontal,
   ScanFace,
+  Moon,
+  EyeOff,
   Mail,
   UserPlus,
   Clock,
@@ -29,6 +31,7 @@ import { useConfirm } from "../components/ds";
 import { isNativeApp, setNativeToken } from "../lib/native";
 import { hapticLight, hapticWarning } from "../lib/haptics";
 import { isLockEnabled, setLockEnabled } from "../lib/biometric-lock";
+import { isAmountsHidden, setAmountsHidden } from "../lib/hide-amounts";
 import { setPasskeyRegistered } from "../lib/passkey-hint";
 import { CategoryManager } from "../components/settings/CategoryManager";
 import { RulesPanel } from "../components/rules/RulesPanel";
@@ -37,10 +40,12 @@ import {
   Surface,
   Field,
   Input,
+  MoneyInput,
   Select,
   Badge,
   Alert,
   Skeleton,
+  useUiMode,
 } from "../components/uikit";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -319,6 +324,16 @@ export function Settings() {
             sub="Banks, brokerages, manual balances"
             onClick={() => navigate("/accounts")}
           />
+        </div>
+      </section>
+
+      {/* ════════ Display ════════ */}
+      {/* Above the financial profile deliberately: the profile runs ~1,400px on
+          a phone, and these two are the only home the chrome toggles have. */}
+      <section className="mt-10">
+        <GroupHeader title="Display" hint="How the app looks on this device" />
+        <div className="mt-4">
+          <DisplayCard />
         </div>
       </section>
 
@@ -1055,6 +1070,65 @@ function FaceIdLockCard() {
   );
 }
 
+// ─── Display — the device-local look settings ────────────────────────────────
+
+/**
+ * The only place either toggle can be reached on a phone: the mobile header
+ * carries one chrome button and the drawer carries none.
+ */
+function DisplayCard() {
+  const { mode, toggle: toggleMode } = useUiMode();
+  const hidden = isAmountsHidden();
+
+  return (
+    <Surface className="p-5">
+      <SettingRow
+        icon={<Moon className="h-5 w-5" />}
+        title="Dark mode"
+        checked={mode === "dark"}
+        onChange={() => toggleMode()}
+      />
+      <div className="my-4 h-px bg-line" />
+      <SettingRow
+        icon={<EyeOff className="h-5 w-5" />}
+        title="Hide amounts"
+        description="Replace dollar amounts with dots so nothing shows on a shared screen."
+        checked={hidden}
+        onChange={setAmountsHidden}
+      />
+    </Surface>
+  );
+}
+
+function SettingRow({ icon, title, description, checked, onChange }: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      {/* The icon pairs with the TITLE, so it tops out with it once there is a
+          description to wrap: on a phone "Hide amounts" runs to three lines and
+          centring dropped the icon a line and a half below its own heading. A
+          title on its own has nothing to top-align to, so that row centres. */}
+      <div className={cn("flex min-w-0 gap-3", description ? "items-start" : "items-center")}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold text-content">{title}</h3>
+          {description && <p className="mt-0.5 text-[13px] font-medium text-content-muted">{description}</p>}
+        </div>
+      </div>
+      <div className="shrink-0">
+        <Switch checked={checked} onChange={onChange} label="" aria-label={title} title={title} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Group header — a section heading over a band of cards ───────────────────
 
 function GroupHeader({ title, hint }: { title: string; hint?: string }) {
@@ -1594,7 +1668,9 @@ function Switch({
           )}
         />
       </span>
-      <span className="text-[13.5px] font-medium text-content-secondary">{label}</span>
+      {/* No span when there is no label: an empty one still takes the gap, and
+          those 12px pushed every unlabelled track off the card's right edge. */}
+      {label && <span className="text-[13.5px] font-medium text-content-secondary">{label}</span>}
     </button>
   );
 }
@@ -1751,7 +1827,7 @@ function IncomeEditPanel({ formData, setFormData, saving, saveError, onCancel, o
         </Field>
 
         <Field label="Annual gross income">
-          <Input
+          <MoneyInput
             type="number"
             min={0}
             step={1000}

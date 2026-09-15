@@ -12,6 +12,8 @@ import {
 } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { HIDDEN_AMOUNT } from '../../lib/hide-amounts';
+import { MASK_TEXT_STYLE, useRevealOnFocus } from './HiddenAmount';
 
 export function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
   return (
@@ -69,6 +71,64 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       )}
       {...props}
     />
+  );
+});
+
+/**
+ * An Input holding a real dollar amount. Identical to Input, except that while
+ * hide-amounts is on it shows the mask instead of its value and reveals the
+ * real one on focus (see useRevealOnFocus). A resting money field is a number
+ * on a masked screen, which is the leak the mode exists to prevent; a focused
+ * one is the field you are editing, which you have to be able to read.
+ *
+ * A field that already paints a `$` leadingIcon shows only the bullets, so the
+ * two together read as the one mask and not as "$ $•••••". The icon itself
+ * STAYS: Input renders a different element tree with and without it, so
+ * dropping it on focus remounts the input and throws away the focus that was
+ * meant to reveal the value.
+ *
+ * An EMPTY field is never masked: there is no amount to hide, and a mask over
+ * an empty field hides its placeholder and reads as a filled one.
+ *
+ * A masked field also SAYS it is masked. The bullets are one picture to the eye
+ * but five separate characters to assistive tech, so browsing the form
+ * announced "Annual gross income, read only, bullet bullet bullet bullet
+ * bullet" with nothing to explain the state or the way out of it. The sr-only
+ * line below is APPENDED to whatever the field is already described by (the
+ * Field hint or error), never substituted for it, so the field reads as
+ * "Annual gross income, read only, ..., Amount hidden, focus to reveal". It is
+ * the counterpart of the `role="img" aria-label="Amount hidden"` the span
+ * primitive already carries, plus the way out, because unlike the span this
+ * mask can be opened.
+ */
+export const MoneyInput = forwardRef<HTMLInputElement, InputProps>(function MoneyInput(
+  { type = 'number', value, readOnly, leadingIcon, style, onFocus, onBlur, 'aria-describedby': describedBy, ...props },
+  ref,
+) {
+  const reveal = useRevealOnFocus();
+  const maskDescId = useId();
+  const masked = reveal.masked && value != null && String(value) !== '';
+  const mask = leadingIcon ? HIDDEN_AMOUNT.slice(1) : HIDDEN_AMOUNT;
+  const input = (
+    <Input
+      ref={ref}
+      type={masked ? 'text' : type}
+      value={masked ? mask : value}
+      readOnly={masked || readOnly}
+      leadingIcon={leadingIcon}
+      style={masked ? { ...style, ...MASK_TEXT_STYLE } : style}
+      onFocus={(e) => { reveal.onFocus(); onFocus?.(e); }}
+      onBlur={(e) => { reveal.onBlur(); onBlur?.(e); }}
+      aria-describedby={masked ? [describedBy, maskDescId].filter(Boolean).join(' ') : describedBy}
+      {...props}
+    />
+  );
+  if (!masked) return input;
+  return (
+    <>
+      {input}
+      <span id={maskDescId} className="sr-only">Amount hidden, focus to reveal</span>
+    </>
   );
 });
 

@@ -1,5 +1,6 @@
 import { PieChart as RechartsPieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { colors } from '../../styles/theme';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface PieDataPoint {
   name: string;
@@ -192,6 +193,9 @@ export function DonutChart({
             }}
             formatter={(value, name, props) => {
               const item = props.payload;
+              // The slice name stays: it is what the tooltip is for, and the
+              // wedge angles are shares, which carry no magnitude either way.
+              if (isAmountsHidden()) return [HIDDEN_AMOUNT, item.name];
               return [`$${Number(value).toLocaleString()}`, item.name];
             }}
           />

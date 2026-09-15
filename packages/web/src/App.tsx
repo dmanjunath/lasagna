@@ -13,6 +13,7 @@ import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
 import { ConfirmProvider } from './components/ds';
 import { ToastProvider, TooltipProvider } from './components/uikit';
+import { useAmountsHidden } from './lib/hide-amounts';
 import { ReportWatcher } from './lib/report-watcher';
 
 // Shell pulls framer-motion + mobile/desktop chat panels. Lazy so the initial
@@ -75,6 +76,19 @@ const ChatFullPage = lazy(() => import('./components/chat/chat-full-page').then(
 function AppRoutes() {
   const { user, loading } = useAuth();
   const [location, navigate] = useLocation();
+
+  // Money is masked inside plain module-level formatters, which React cannot
+  // see. This single subscription is what repaints the app when the privacy
+  // toggle flips: AppRoutes builds every route element inline, so re-rendering
+  // HERE re-creates the whole authenticated tree without remounting it — no
+  // refetch, no skeleton flash, no lost scroll or filter state. Subscribing in
+  // Shell instead does NOT work: `children` arrives as a stable prop reference
+  // and React bails out of the subtree.
+  //
+  // INVARIANT: there is no React.memo anywhere in packages/web/src, which is
+  // what lets the re-render reach every money render. A memo introduced between
+  // here and a formatter would silently stop masking that subtree.
+  const amountsHidden = useAmountsHidden();
 
   // Capacitor shell bootstrap — dynamic import so none of it ships in the web
   // bundle; initNativeShell's own `initialized` flag makes StrictMode
@@ -148,6 +162,12 @@ function AppRoutes() {
   }
 
   return (
+    <>
+      {/* Toggling is a whole-screen change with no toast, so this is the only
+          confirmation a screen reader gets. */}
+      <span role="status" className="sr-only">
+        {amountsHidden ? 'Amounts hidden' : 'Amounts shown'}
+      </span>
     <Switch>
       <Route path="/onboarding">
         <Redirect to="/" />
@@ -232,6 +252,7 @@ function AppRoutes() {
         )}
       </Route>
     </Switch>
+    </>
   );
 }
 

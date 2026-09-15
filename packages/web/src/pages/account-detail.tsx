@@ -4,6 +4,8 @@ import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp, Lock }
 import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
 import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
+import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
 import { Badge, Button, Field, Input, PageMeta, PageMetaItem, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
@@ -49,7 +51,9 @@ const TYPE_OPTIONS: TypeOption[] = [
 const LIABILITY_TYPES = new Set(['credit', 'loan']);
 const keyFor = (type: string, subtype: string | null) => `${type}:${subtype ?? ''}`;
 const fmtUsd = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 // getItems' account type doesn't declare the per-account overrides, but the
 // API returns them — widen it locally so we can read them without a `any`.
@@ -751,7 +755,7 @@ export function AccountDetail() {
               {valueSource && <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />}
             </div>
             <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
-              {fmtUsd(heroValue)}
+              <MaskedText text={fmtUsd(heroValue)} />
             </div>
             <div className="mt-3 flex min-h-7 items-center gap-2.5 flex-wrap">
               {hoveredPoint ? (
@@ -913,7 +917,7 @@ export function AccountDetail() {
                     value-source control), so skip the plain Value field here. */}
                 {isManual && !isPropertyAcct && (
                   <Field label="Value">
-                    <Input
+                    <MoneyInput
                       type="number"
                       inputMode="decimal"
                       value={editValue}
@@ -996,7 +1000,7 @@ export function AccountDetail() {
                   )}
                   {(loanType === 'student_loan' || loanType === 'credit_card' || loanType === 'other_loan') && (
                     <Field label="Minimum payment ($)">
-                      <Input type="number" step="1" min="0" value={minPayment} onChange={(e) => setMinPayment(e.target.value)} className="ui-tnum" />
+                      <MoneyInput type="number" step="1" min="0" value={minPayment} onChange={(e) => setMinPayment(e.target.value)} className="ui-tnum" />
                     </Field>
                   )}
                   {loanType === 'student_loan' && (
@@ -1091,13 +1095,13 @@ export function AccountDetail() {
               <SettingsGroup title="Rental economics" className="mt-6">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Monthly rent ($)">
-                    <Input type="number" step="1" min="0" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} className="ui-tnum" />
+                    <MoneyInput type="number" step="1" min="0" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} className="ui-tnum" />
                   </Field>
                   <Field label="Annual insurance ($)">
-                    <Input type="number" step="1" min="0" value={annualInsurance} onChange={(e) => setAnnualInsurance(e.target.value)} className="ui-tnum" />
+                    <MoneyInput type="number" step="1" min="0" value={annualInsurance} onChange={(e) => setAnnualInsurance(e.target.value)} className="ui-tnum" />
                   </Field>
                   <Field label="Annual maintenance ($)">
-                    <Input type="number" step="1" min="0" value={annualMaintenance} onChange={(e) => setAnnualMaintenance(e.target.value)} className="ui-tnum" />
+                    <MoneyInput type="number" step="1" min="0" value={annualMaintenance} onChange={(e) => setAnnualMaintenance(e.target.value)} className="ui-tnum" />
                   </Field>
                 </div>
               </SettingsGroup>
@@ -1268,18 +1272,32 @@ function relativeTime(iso: string): string {
 
 function DeltaChip({ delta }: { delta: number }) {
   const positive = delta >= 0;
+  // The chip is sign, arrow and tint around one number. Masked, all three go:
+  // the arrow and the sign are siblings of the value, so the mask span's own
+  // color cannot neutralise them.
+  const hidden = isAmountsHidden();
   return (
     <span
       className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
-      style={{
-        background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
-        color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
-      }}
+      style={
+        hidden
+          ? { background: 'rgb(var(--ui-canvas-sunken))', color: 'rgb(var(--ui-content-secondary))' }
+          : {
+              background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
+              color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
+            }
+      }
     >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
-      </svg>
-      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}
+      {hidden ? (
+        <HiddenAmount />
+      ) : (
+        <>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
+          </svg>
+          {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}
+        </>
+      )}
     </span>
   );
 }
@@ -1294,6 +1312,13 @@ const CHART_M = { top: 16, right: 12, bottom: 34, left: 56 };
 
 function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Money y-axis labels are removed while amounts are hidden rather than
+  // replaced by five identical masks, and the left margin they reserved
+  // collapses with them. The plotted geometry is untouched: the domain is fit
+  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
+  const hideAmounts = isAmountsHidden();
+  const chartLeft = hideAmounts ? 12 : CHART_M.left;
+
   const [chartW, setChartW] = useState(680);
   const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
   const setHoverIdx = (i: number | null) => { setHoverIdxRaw(i); onHoverChange?.(i); };
@@ -1308,7 +1333,7 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
     return () => ro.disconnect();
   }, []);
 
-  const innerW = chartW - CHART_M.left - CHART_M.right;
+  const innerW = chartW - chartLeft - CHART_M.right;
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
 
   const { yMin, yMax, yTicks } = useMemo(() => {
@@ -1339,13 +1364,13 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
     };
   }, [yTicks]);
 
-  const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const xAt = (i: number) => chartLeft + (i / Math.max(1, points.length - 1)) * innerW;
   const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
 
   const xy = useMemo<Array<[number, number]>>(
     () => points.map((p, i) => [xAt(i), yAt(p.value)]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, chartW, yMin, yMax],
+    [points, chartW, yMin, yMax, chartLeft],
   );
   const linePath = useMemo(() => smoothLinePath(xy), [xy]);
   const baseY = (CHART_M.top + innerH).toFixed(2);
@@ -1363,7 +1388,7 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
     if (rect.width <= 0) return null;
     const scale = chartW / rect.width;
     const localX = (clientX - rect.left) * scale;
-    const ratio = (localX - CHART_M.left) / Math.max(1, innerW);
+    const ratio = (localX - chartLeft) / Math.max(1, innerW);
     return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
   };
 
@@ -1391,16 +1416,18 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
         {yTicks.map((t) => (
           <g key={t}>
             <line
-              x1={CHART_M.left} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
+              x1={chartLeft} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
               stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
             />
-            <text
-              x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
-              fill="rgb(var(--ui-content-faint))"
-              style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
-            >
-              {formatYTick(t)}
-            </text>
+            {!hideAmounts && (
+              <text
+                x={chartLeft - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
+                fill="rgb(var(--ui-content-faint))"
+                style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {formatYTick(t)}
+              </text>
+            )}
           </g>
         ))}
 
@@ -1424,8 +1451,12 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
           </g>
         )}
 
+        {/* The first and last labels sit ON the plot edges, so a centred anchor
+            hangs half of each outside the viewBox and the SVG clips it ("Sep 12"
+            renders as "Sep 1"). Anchoring the ends inward keeps the whole label
+            on canvas. */}
         {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 10} textAnchor="middle" fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 10} textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'} fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
         ))}
       </svg>
 

@@ -8,7 +8,7 @@ import {
 } from '@lasagna/core/goal-target';
 import { api } from '../lib/api';
 import { AlertCircle } from 'lucide-react';
-import { Button, Field, Input, Label, SegmentedControl, Skeleton, type InputProps } from '../components/uikit';
+import { Button, Field, Input, Label, MaskedText, MoneyInput as UiMoneyInput, SegmentedControl, Skeleton, type InputProps } from '../components/uikit';
 import { cn } from '../lib/utils';
 import { formatCurrency } from './goal-shared';
 
@@ -616,7 +616,7 @@ const PACE_ID = 'goal-target-pace';
 /** Money field — mirrors the account editor's amount input exactly. */
 function MoneyInput({ value, onChange, ...rest }: TextFieldProps) {
   return (
-    <Input
+    <UiMoneyInput
       {...rest}
       type="text"
       inputMode="decimal"
@@ -1025,7 +1025,7 @@ export function GoalTargetReadout({
         ) : (
           <>
             <div className="mt-1 font-editorial text-[28px] font-extrabold tracking-[-0.02em] ui-tnum">
-              {formatCurrency(resolved.target)}
+              <MaskedText text={formatCurrency(resolved.target)} />
             </div>
             {resolved.derivation && (
               <p className="mt-1 text-[12.5px] text-content-muted">{resolved.derivation}</p>

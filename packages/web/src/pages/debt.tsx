@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { CreditCard, Landmark, Pencil, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn, formatMoney } from '../lib/utils';
+import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
+import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
@@ -40,6 +42,7 @@ interface DebtAccount {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -283,14 +286,15 @@ function NoAccountsView() {
 // ── KPI (supporting stat, lighter than the hero) ──────────────────────────────
 
 function Kpi({ label, value, sub, neg }: { label: string; value: React.ReactNode; sub: string; neg?: boolean }) {
+  const masked = isMasked(value);
   return (
     <div className="border-l-2 border-line pl-3.5">
       <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[22px] sm:text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
-        neg ? 'text-negative' : 'text-content',
+        neg && !masked ? 'text-negative' : 'text-content',
       )}>
-        {value}
+        {masked ? <HiddenAmount /> : value}
       </div>
       <div className="mt-1.5 truncate text-[11.5px] font-medium text-content-muted">{sub}</div>
     </div>
@@ -372,7 +376,7 @@ function DebtBreakdown({ debts }: { debts: DebtAccount[] }) {
             <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: r.color }} aria-hidden />
             <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content" title={r.label}>{r.label}</span>
             <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
-              <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">{formatCurrency(r.value)}</span>
+              <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content"><MaskedText text={formatCurrency(r.value)} /></span>
               <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{pct < 0.1 ? '<0.1%' : `${pct.toFixed(0)}%`}</span>
             </span>
           </div>
@@ -493,7 +497,7 @@ function AttackList({ debts, strategy }: { debts: DebtAccount[]; strategy: 'aval
               <div className="mt-0.5 truncate text-[12px] font-medium text-content-muted">{role}</div>
             </div>
             <div className="shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-negative ui-tnum">
-              −{formatCurrency(d.balance)}
+              {isAmountsHidden() ? <HiddenAmount /> : `−${formatCurrency(d.balance)}`}
             </div>
           </li>
         );
@@ -508,7 +512,9 @@ function AccountStat({ label, value, neg }: { label: string; value: string; neg?
   return (
     <div className="min-w-0">
       <div className="text-[9.5px] font-bold uppercase tracking-[0.09em] text-content-muted">{label}</div>
-      <div className={cn('mt-0.5 truncate text-[13.5px] font-bold ui-tnum', neg ? 'text-negative' : 'text-content')}>{value}</div>
+      <div className={cn('mt-0.5 truncate text-[13.5px] font-bold ui-tnum', neg && !isMasked(value) ? 'text-negative' : 'text-content')}>
+        {isMasked(value) ? <HiddenAmount /> : value}
+      </div>
     </div>
   );
 }
@@ -545,7 +551,7 @@ function AccountCard({
           </div>
         </div>
         <div className="shrink-0 pt-0.5 text-right font-editorial text-[17px] font-extrabold tracking-[-0.015em] text-negative ui-tnum">
-          −{formatCurrency(d.balance)}
+          {isAmountsHidden() ? <HiddenAmount /> : `−${formatCurrency(d.balance)}`}
         </div>
       </div>
 
@@ -653,14 +659,14 @@ function HasDebtView({
         <div className="relative">
           <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Total debt</div>
           <div className="mt-2 font-editorial text-[40px] sm:text-[56px] font-extrabold leading-[0.9] tracking-[-0.035em] text-negative ui-tnum">
-            −{formatCurrency(totalDebt)}
+            {isAmountsHidden() ? <HiddenAmount /> : `−${formatCurrency(totalDebt)}`}
           </div>
           <p className="mt-4 max-w-[54ch] text-[14.5px] leading-[1.55] text-content-secondary ui-tnum">
             {noNeverDate ? (
               <>
                 On your <strong className="font-bold text-content">{strategy}</strong> plan you&apos;re debt-free by{' '}
                 <strong className="font-bold text-content">{debtFreeDate}</strong>, and it costs about{' '}
-                <strong className="font-bold text-negative">{formatCurrency(Math.round(activeInterest))}</strong> in interest along the way.
+                <strong className="font-bold text-negative">{isAmountsHidden() ? <HiddenAmount /> : formatCurrency(Math.round(activeInterest))}</strong> in interest along the way.
               </>
             ) : (
               <>
@@ -931,7 +937,7 @@ function LoanDetailsModal({
         )}
         {(loanType === "student_loan" || loanType === "credit_card" || loanType === "other_loan") && (
           <Field label="Minimum payment ($)">
-            <Input
+            <MoneyInput
               type="number" step="1" min="0"
               value={minPayment}
               onChange={e => setMinPayment(e.target.value)}
@@ -1005,7 +1011,7 @@ function PaidInFullSection({
               {d.liabilitySource === 'plaid' && <Badge tone="brand" size="sm">Synced</Badge>}
             </div>
             <div className="shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-content ui-tnum">
-              {formatCurrency(d.balance)}
+              <MaskedText text={formatCurrency(d.balance)} />
             </div>
             {editable && (
               <button

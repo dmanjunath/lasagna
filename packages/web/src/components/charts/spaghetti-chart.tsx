@@ -8,6 +8,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { colors } from '../../styles/theme';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface SpaghettiChartProps {
   paths: number[][];
@@ -16,6 +17,7 @@ interface SpaghettiChartProps {
 }
 
 function formatValue(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   }
@@ -36,6 +38,8 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
       </div>
     );
   }
+
+  const hideAmounts = isAmountsHidden();
 
   // Determine actual number of years from the longest path
   const maxPathLength = Math.max(...paths.map(p => p.length));
@@ -76,6 +80,9 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
             axisLine={false}
             tickFormatter={(v) => `Year ${v}`}
           />
+          {/* Money tick labels are removed while amounts are hidden, and the
+              60px they reserved with them. The paths are unchanged: the domain
+              is derived from the data, never a fixed bound. */}
           <YAxis
             stroke={colors.text.muted}
             fontSize={11}
@@ -84,7 +91,11 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
             width={60}
             tickFormatter={formatValue}
             domain={[Math.min(0, minVal - padding), maxVal + padding]}
+            hide={hideAmounts}
           />
+          {/* One "Portfolio Value" row per simulated path, so with amounts
+              hidden the tooltip is a column of identical masks. The rows drop
+              and the year label is what remains. */}
           <Tooltip
             contentStyle={{
               background: colors.bg.elevated,
@@ -93,6 +104,7 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
               fontFamily: 'DM Sans, system-ui, sans-serif',
               fontSize: '12px',
             }}
+            itemStyle={hideAmounts ? { display: 'none' } : undefined}
             labelFormatter={(label) => `Year ${label}`}
             formatter={(value) => [formatValue(typeof value === 'number' ? value : 0), 'Portfolio Value']}
           />

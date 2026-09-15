@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '../../../lib/utils.js';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface SimulationResult {
   startYear: number;
@@ -27,6 +28,7 @@ type SortDir = 'asc' | 'desc';
 type FilterType = 'all' | 'failed' | 'close' | 'success';
 
 const formatCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   if (value < 0) return `-$${Math.abs(value / 1000).toFixed(0)}K`;
@@ -68,6 +70,9 @@ export function SimulationTable({
   const [filter, setFilter] = useState<FilterType>(defaultFilter);
   const [expanded, setExpanded] = useState(false);
   const [selectedSim, setSelectedSim] = useState<SimulationResult | null>(null);
+  // Red on a depleted end-portfolio is a fact about the hidden number, so the
+  // tone drops with the digits. The Status column still says "Failed".
+  const hideAmounts = isAmountsHidden();
 
   const { filteredSorted, stats } = useMemo(() => {
     const stats = {
@@ -250,7 +255,7 @@ export function SimulationTable({
                   <td className="p-3 text-right">
                     <span className={cn(
                       "text-sm font-medium tabular-nums",
-                      sim.endPortfolio > 0 ? "text-text" : "text-red-400"
+                      sim.endPortfolio > 0 || hideAmounts ? "text-text" : "text-red-400"
                     )}>
                       {formatCurrency(sim.endPortfolio)}
                     </span>

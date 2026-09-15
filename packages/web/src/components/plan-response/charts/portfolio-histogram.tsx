@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { cn } from '../../../lib/utils.js';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface PortfolioHistogramProps {
   title: string;
@@ -20,12 +21,19 @@ interface PortfolioHistogramProps {
   successThreshold?: number; // Portfolio value considered "success" (default: 0)
 }
 
-const formatCurrency = (value: number) => {
+// The bucket label doubles as the bar's CATEGORY KEY, so it must stay a real,
+// distinct string even while amounts are hidden: masking it would give all
+// twenty buckets the same key and collapse them into one bar. The raw form is
+// therefore kept separate, and the labels are suppressed at the axis instead.
+const formatCurrencyRaw = (value: number) => {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   if (value < 0) return `-$${Math.abs(value).toLocaleString()}`;
   return `$${value.toLocaleString()}`;
 };
+
+const formatCurrency = (value: number) =>
+  isAmountsHidden() ? HIDDEN_AMOUNT : formatCurrencyRaw(value);
 
 const formatFullCurrency = (value: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -53,6 +61,7 @@ export function PortfolioHistogram({
   initialPortfolio,
   successThreshold = 0,
 }: PortfolioHistogramProps) {
+  const hideAmounts = isAmountsHidden();
   const { buckets, stats } = useMemo(() => {
     if (!data || data.length === 0) {
       return { buckets: [], stats: null };
@@ -69,7 +78,7 @@ export function PortfolioHistogram({
       const bucketMin = min + i * bucketSize;
       const bucketMax = min + (i + 1) * bucketSize;
       bucketData.push({
-        range: formatCurrency(bucketMin),
+        range: formatCurrencyRaw(bucketMin),
         min: bucketMin,
         max: bucketMax,
         count: 0,
@@ -163,6 +172,10 @@ export function PortfolioHistogram({
                 strokeOpacity={0.5}
                 vertical={false}
               />
+              {/* This chart's MONEY axis is x (portfolio buckets); y counts
+                  simulations and stays. The bucket labels are removed while
+                  amounts are hidden, and the height they reserved with them.
+                  The bars are unchanged. */}
               <XAxis
                 dataKey="range"
                 stroke="#57534e"
@@ -171,6 +184,7 @@ export function PortfolioHistogram({
                 axisLine={false}
                 interval="preserveStartEnd"
                 dy={8}
+                hide={hideAmounts}
               />
               <YAxis
                 stroke="#57534e"
@@ -190,13 +204,16 @@ export function PortfolioHistogram({
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
                   padding: '12px 16px',
                 }}
+                separator={hideAmounts ? '' : ' : '}
                 formatter={(value: any, name: any, props: any): [string, string] => {
                   const bucket = props.payload;
                   const numValue = Number(value) || 0;
-                  return [
-                    `${numValue} simulations (${((numValue / data.length) * 100).toFixed(1)}%)`,
-                    `${formatCurrency(bucket.min)} - ${formatCurrency(bucket.max)}`
-                  ];
+                  const count = `${numValue} simulations (${((numValue / data.length) * 100).toFixed(1)}%)`;
+                  // The bucket range is pure money, so hidden it would read
+                  // "$••••• - $•••••". The count and its share are the real
+                  // content, so that is all that is left.
+                  if (hideAmounts) return [count, ''];
+                  return [count, `${formatCurrencyRaw(bucket.min)} - ${formatCurrencyRaw(bucket.max)}`];
                 }}
                 labelFormatter={() => 'Portfolio Range'}
                 cursor={{ fill: 'rgba(255,255,255,0.03)' }}
@@ -204,7 +221,7 @@ export function PortfolioHistogram({
               {/* Reference line at $0 or success threshold */}
               {successThreshold !== undefined && (
                 <ReferenceLine
-                  x={formatCurrency(successThreshold)}
+                  x={formatCurrencyRaw(successThreshold)}
                   stroke="#ef4444"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
@@ -213,7 +230,7 @@ export function PortfolioHistogram({
               {/* Reference line at initial portfolio */}
               {initialPortfolio && (
                 <ReferenceLine
-                  x={formatCurrency(initialPortfolio)}
+                  x={formatCurrencyRaw(initialPortfolio)}
                   stroke="#f97316"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}

@@ -13,7 +13,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
-import { Button, Surface, Field, Input, Label, Select } from '../components/uikit';
+import { Button, Surface, Field, Input, Label, MoneyInput, Select } from '../components/uikit';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
@@ -62,7 +62,7 @@ function CurrencyInput({ value, onChange, placeholder = '0', autoFocus }: {
   value: string; onChange: (val: string) => void; placeholder?: string; autoFocus?: boolean;
 }) {
   return (
-    <Input
+    <MoneyInput
       type="text"
       inputMode="decimal"
       value={value}

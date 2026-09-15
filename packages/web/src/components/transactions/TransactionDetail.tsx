@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAccountsIndex } from '../../lib/use-accounts-index';
 import { cn } from '../../lib/utils';
-import { Badge, Button, Field, Input, Modal, Textarea } from '../uikit';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
+import { HiddenAmount, Badge, Button, Field, Input, Modal, Textarea } from '../uikit';
 import { InstIcon } from '../common/InstIcon';
 import { CategoryPicker } from '../common/CategoryPicker';
 import { useCategoryDisplay } from '../../lib/taxonomy';
@@ -28,6 +29,7 @@ export interface DetailTx {
 }
 
 function formatCurrencyExact(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -130,8 +132,8 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
           {/* Read-only stack */}
           <div>
             <div className="flex items-center gap-2.5">
-              <span className={cn('font-editorial text-[28px] font-extrabold tracking-[-0.02em] ui-tnum', isIncome && 'text-positive')}>
-                {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
+              <span className={cn('font-editorial text-[28px] font-extrabold tracking-[-0.02em] ui-tnum', isIncome && !isAmountsHidden() && 'text-positive')}>
+                {isAmountsHidden() ? <HiddenAmount /> : `${isIncome ? '+' : ''}${formatCurrencyExact(Math.abs(amount))}`}
               </span>
               {tx.pending === 1 && <Badge tone="neutral">Pending</Badge>}
             </div>

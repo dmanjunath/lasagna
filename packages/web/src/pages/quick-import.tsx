@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Loader2, Sparkles, X, ChevronDown, ChevronUp, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { Select } from '../components/uikit';
+import { formatMoney } from '../lib/utils';
+import { MASK_TEXT_STYLE, Select, useRevealOnFocus } from '../components/uikit';
+import { HIDDEN_AMOUNT } from '../lib/hide-amounts';
 import { api, type QuickImportParseResult, type QuickImportAccount, type QuickImportGoal, type QuickImportProfile, type QuickImportCurrentProfile } from '../lib/api';
 
 type Stage = 'input' | 'preview' | 'done';
@@ -72,20 +74,11 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
   business_owner: 'Business owner',
 };
 
-function formatMoney(n: number | null | undefined): string {
-  if (n === null || n === undefined) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
 function formatProfileValue(field: keyof QuickImportProfile, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
   if (field === 'annualIncome' || field === 'employerMatch') {
     if (field === 'employerMatch') return `${value}%`;
-    return formatMoney(Number(value));
+    return formatMoney(Number(value), true);
   }
   if (field === 'filingStatus' && typeof value === 'string') return FILING_LABELS[value] ?? value;
   if (field === 'employmentType' && typeof value === 'string') return EMPLOYMENT_LABELS[value] ?? value;
@@ -755,7 +748,7 @@ function AccountCard({
           {missingBalance ? (
             <span className="text-xs text-caution">Balance needed</span>
           ) : (
-            <span className="text-sm font-medium text-content ui-tnum">{formatMoney(account.balance)}</span>
+            <span className="text-sm font-medium text-content ui-tnum">{formatMoney(account.balance, true)}</span>
           )}
         </div>
         <button
@@ -873,7 +866,7 @@ function GoalCard({
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-content truncate">{goal.name}</div>
           <div className="text-xs text-content-muted ui-tnum">
-            {formatMoney(goal.targetAmount)}
+            {formatMoney(goal.targetAmount, true)}
             {goal.deadline ? ` by ${goal.deadline}` : ''}
           </div>
         </div>
@@ -1173,6 +1166,10 @@ function CurrencyInput({
   onChange: (v: number | null) => void;
 }) {
   const [text, setText] = useState(value === null || value === undefined ? '' : String(value));
+  // An empty field has no amount to hide, and masking it would cover the
+  // placeholder and read as a filled one.
+  const reveal = useRevealOnFocus();
+  const masked = reveal.masked && text !== '';
 
   // Keep local text in sync if parent resets the number (e.g., after re-parse).
   useEffect(() => {
@@ -1181,18 +1178,22 @@ function CurrencyInput({
 
   return (
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-sm">$</span>
+      {!masked && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-sm">$</span>}
       <input
         type="text"
         inputMode="decimal"
-        value={text}
+        value={masked ? HIDDEN_AMOUNT : text}
+        readOnly={masked}
+        onFocus={reveal.onFocus}
+        onBlur={reveal.onBlur}
+        style={masked ? MASK_TEXT_STYLE : undefined}
         onChange={(e) => {
           const clean = e.target.value.replace(/[^0-9.]/g, '');
           setText(clean);
           onChange(clean === '' ? null : Number(clean));
         }}
         placeholder="0"
-        className="w-full bg-panel border border-line-strong rounded-ui-md pl-7 pr-3 py-2 text-sm text-content ui-tnum outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] transition-[border-color,box-shadow] duration-150 ease-ui"
+        className={`w-full bg-panel border border-line-strong rounded-ui-md ${masked ? 'pl-3' : 'pl-7'} pr-3 py-2 text-sm text-content ui-tnum outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] transition-[border-color,box-shadow] duration-150 ease-ui`}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Send, Trash2, Sparkles, ArrowUpRight } from 'lucide-react';
 import { AdminModelPicker } from './admin-model-picker';
 import { cn } from '../../lib/utils';
+import { maskCurrencyInText } from '../../lib/hide-amounts';
 
 export interface Thread {
   id: string;
@@ -179,11 +180,11 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
                   className={`flex-1 text-left flex flex-col gap-1 py-3 min-w-0 ${thread.unread ? 'pl-4 pr-3' : 'px-4'}`}
                 >
                   <span className={`text-[13.5px] leading-snug line-clamp-2 break-words ${thread.unread ? 'font-semibold text-content' : 'font-medium text-content'}`}>
-                    {thread.question}
+                    {maskCurrencyInText(thread.question)}
                   </span>
                   {thread.answerPreview && (
                     <span className="text-[12px] text-content-muted leading-snug line-clamp-1 break-words">
-                      {thread.answerPreview}
+                      {maskCurrencyInText(thread.answerPreview)}
                     </span>
                   )}
                   <span className="text-[11px] text-content-muted mt-0.5">

@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api.js";
 import { useAuth } from "../lib/auth";
+import { HIDDEN_AMOUNT, isAmountsHidden } from "../lib/hide-amounts";
+import { HiddenAmount, MoneyInput } from "../components/uikit";
 import { isNativeApp } from "../lib/native";
 import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
@@ -34,6 +36,7 @@ import { ValueSourceControl, type ValueSourceChoice } from "../components/common
 // ---------------------------------------------------------------------------
 
 function formatCurrency(value: string, currency: string): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const num = parseFloat(value);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -43,6 +46,7 @@ function formatCurrency(value: string, currency: string): string {
 }
 
 function formatTotal(n: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -1252,7 +1256,7 @@ export function Accounts() {
               />
             ) : (
               <Field label={activeType.isDebt ? "Amount owed" : "Balance"}>
-                <Input
+                <MoneyInput
                   type="text"
                   inputMode="decimal"
                   value={acctBalance}
@@ -1324,7 +1328,7 @@ export function Accounts() {
             {activeType.type === "real_estate" && activeType.subtype === "rental" && (
               <>
                 <Field label="Monthly rent">
-                  <Input
+                  <MoneyInput
                     type="text"
                     inputMode="decimal"
                     value={rentMonthly}
@@ -1336,7 +1340,7 @@ export function Accounts() {
                 </Field>
 
                 <Field label="Annual insurance">
-                  <Input
+                  <MoneyInput
                     type="text"
                     inputMode="decimal"
                     value={insAnnual}
@@ -1348,7 +1352,7 @@ export function Accounts() {
                 </Field>
 
                 <Field label="Annual maintenance">
-                  <Input
+                  <MoneyInput
                     type="text"
                     inputMode="decimal"
                     value={maintAnnual}
@@ -1686,7 +1690,7 @@ function InstitutionArticle({
           </div>
         </div>
         <span className={cn("shrink-0 font-editorial text-[16px] font-extrabold tracking-[-0.015em] ui-tnum", totalNeg && "text-negative")}>
-          {totalNeg ? "−" : ""}{formatTotal(Math.abs(total))}
+          {isAmountsHidden() ? <HiddenAmount /> : `${totalNeg ? "−" : ""}${formatTotal(Math.abs(total))}`}
         </span>
         {!isDemoMode && !isManual && !isFree && (
           <button
@@ -1838,9 +1842,11 @@ function AccountRow({ account, overLimit, linkedAccountName, lastSyncedAt, onEst
       <div className="flex shrink-0 items-center gap-3 sm:gap-3.5">
         <div className="text-right">
           <div className={cn("font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum", isNegative && "text-negative")}>
-            {balance !== null
-              ? (isNegative ? "−" : "") + formatCurrency(String(Math.abs(balance)), account.currency)
-              : "—"}
+            {balance === null ? "—" : isAmountsHidden() ? (
+              <HiddenAmount />
+            ) : (
+              (isNegative ? "−" : "") + formatCurrency(String(Math.abs(balance)), account.currency)
+            )}
           </div>
           {isFrozen ? (
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">

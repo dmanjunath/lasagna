@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { maskCurrencyInText } from "../../lib/hide-amounts.js";
 
 const toolDisplayNames: Record<string, string> = {
   thinking: "Thinking...",
@@ -18,7 +19,10 @@ type ToolStatusProps = {
 export function ToolStatus({ toolName }: ToolStatusProps) {
   if (!toolName) return null;
 
-  const displayText = toolDisplayNames[toolName] || `Running ${toolName}...`;
+  // `toolName` comes straight off the stream and is rendered verbatim in the
+  // fallback, so it goes through the same text mask as every other server
+  // string the chat displays.
+  const displayText = maskCurrencyInText(toolDisplayNames[toolName] || `Running ${toolName}...`);
 
   return (
     <AnimatePresence>

@@ -21,7 +21,8 @@ import { useInsights } from '../hooks/useInsights';
 import { useChatStore } from '../lib/chat-store';
 import { actionArea, areaKey, groupByArea, TONE_STYLE, type AreaTone } from '../lib/action-destination';
 import { formatRelativeTime } from '../lib/utils';
-import { Badge, Button, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
+import { maskCurrencyInText } from '../lib/hide-amounts';
+import { Badge, Button, MaskedText, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 
 // ---------------------------------------------------------------------------
 // Urgency → display group mapping (faithful to the API's urgency field)
@@ -233,7 +234,7 @@ function InsightsDenseRow({
 
       <div className="flex-1 min-w-0 flex items-center gap-1.5 text-left">
         <span className="min-w-0">
-          <h3 className="text-[14px] font-semibold leading-tight text-content">{title}</h3>
+          <h3 className="text-[14px] font-semibold leading-tight text-content"><MaskedText text={title} /></h3>
           {/* The page and the figure sit together, in one fill and one shape,
               so they read as a pair rather than as two unrelated chips at
               opposite ends of the row. */}
@@ -253,7 +254,7 @@ function InsightsDenseRow({
                 className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum"
                 style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
               >
-                {impact}
+                <MaskedText text={impact} />
               </span>
             )}
           </span>
@@ -322,7 +323,7 @@ function ActionCard({
           aria-expanded={expanded}
           // Without this the name is the row's whole text content, so a screen
           // reader read "…back to normalSpending$14,047 spike" as one word.
-          aria-label={title}
+          aria-label={maskCurrencyInText(title)}
           onClick={() => setExpanded((v) => !v)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v); }
@@ -360,7 +361,7 @@ function ActionCard({
                 characters a line at 1280 with nothing to stop it. */}
             <div className="pl-[52px] pr-4 pb-3">
                 <p className="max-w-[70ch] text-[13px] leading-[1.5] text-content-secondary">
-                  {description}
+                  <MaskedText text={description} />
                 </p>
                 <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                   {/* Only offered when the area has a page behind it. The

@@ -5,7 +5,8 @@ import {
   GraduationCap, Hammer, Sparkles, Palmtree, CreditCard, Wallet, Wrench,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Input, SegmentedControl } from '../components/uikit';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
+import { Input, MaskedText, SegmentedControl } from '../components/uikit';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 
 // ---------------------------------------------------------------------------
@@ -14,6 +15,7 @@ import { faviconUrl, institutionDomainFor } from '../components/ds/institutions'
 // ---------------------------------------------------------------------------
 
 export function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -248,7 +250,7 @@ export function AccountPicker({ accounts, selected, onToggle }: AccountPickerPro
                 </span>
               </span>
               <span className="shrink-0 font-editorial text-[14px] font-extrabold tracking-[-0.015em] ui-tnum">
-                {formatCurrency(parseFloat(acct.balance ?? '0'))}
+                <MaskedText text={formatCurrency(parseFloat(acct.balance ?? '0'))} />
               </span>
             </button>
           );

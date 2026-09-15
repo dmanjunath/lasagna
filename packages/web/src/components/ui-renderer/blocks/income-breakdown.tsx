@@ -1,6 +1,8 @@
 import type { IncomeBreakdownBlock } from "../../../lib/types.js";
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return `$${value.toLocaleString()}`;
 }
 
@@ -9,14 +11,14 @@ export function IncomeBreakdownRenderer({ block }: { block: IncomeBreakdownBlock
     <div className="glass-card p-6">
       {block.title && (
         <h3 className="text-base font-semibold tracking-tight text-text mb-4">
-          {block.title}
+          {maskCurrencyInText(block.title)}
         </h3>
       )}
       <div className="space-y-3">
         {block.sources.map((source, idx) => (
           <div key={idx} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
             <div>
-              <span className="text-text">{source.name}</span>
+              <span className="text-text">{maskCurrencyInText(source.name)}</span>
               {source.startAge && (
                 <span className="text-xs text-text-secondary ml-2">(from age {source.startAge})</span>
               )}

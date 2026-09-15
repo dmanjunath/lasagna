@@ -1,4 +1,5 @@
 import type { TableBlock as TableBlockType } from "../../../lib/types.js";
+import { maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 export function TableBlockRenderer({ block }: { block: TableBlockType }) {
   // Handle both formats: columns (structured) or headers (simple strings)
@@ -9,7 +10,7 @@ export function TableBlockRenderer({ block }: { block: TableBlockType }) {
     <div className="overflow-x-auto rounded-ui-xl border border-line bg-panel shadow-ui-sm p-4 col-span-full">
       {block.title && (
         <h4 className="text-base font-bold tracking-tight text-content mb-4">
-          {block.title}
+          {maskCurrencyInText(block.title)}
         </h4>
       )}
       <table className="w-full text-sm">
@@ -20,7 +21,7 @@ export function TableBlockRenderer({ block }: { block: TableBlockType }) {
                 key={idx}
                 className="text-left py-3 px-4 text-[11px] font-bold uppercase tracking-[0.06em] text-content-muted"
               >
-                {header}
+                {maskCurrencyInText(String(header))}
               </th>
             ))}
           </tr>
@@ -32,14 +33,14 @@ export function TableBlockRenderer({ block }: { block: TableBlockType }) {
                 // Row is an array of values
                 row.map((cell, j) => (
                   <td key={j} className="py-3 px-4 text-content-secondary ui-tnum">
-                    {cell}
+                    {maskCurrencyInText(String(cell ?? ""))}
                   </td>
                 ))
               ) : (
                 // Row is an object with column keys
                 columnKeys?.map((key) => (
                   <td key={key} className="py-3 px-4 text-content-secondary ui-tnum">
-                    {row[key]}
+                    {maskCurrencyInText(String(row[key] ?? ""))}
                   </td>
                 ))
               )}

@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { TimelineScrubber } from './timeline-scrubber.js';
 import { cn } from '../../../lib/utils.js';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface AssetCategory {
   id: string;
@@ -35,12 +36,14 @@ interface WealthProjectionProps {
 }
 
 const formatCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toLocaleString()}`;
 };
 
 const formatFullCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -120,6 +123,7 @@ export function WealthProjection({
     data[Math.floor(data.length / 2)]?.year || 2040
   );
   const [hoveredYear, setHoveredYear] = useState<number | null>(null);
+  const hideAmounts = isAmountsHidden();
 
   const years = useMemo(
     () => ({
@@ -205,6 +209,11 @@ export function WealthProjection({
                   axisLine={false}
                   dy={8}
                 />
+                {/* The money tick labels are removed while amounts are hidden,
+                    not replaced by a column of identical masks, and the 60px
+                    they reserved collapses with them. The bars are unchanged:
+                    the domain is fit to the data, so the drawn heights are
+                    already magnitude-free. */}
                 <YAxis
                   stroke="#57534e"
                   fontSize={11}
@@ -213,6 +222,7 @@ export function WealthProjection({
                   tickFormatter={formatCurrency}
                   dx={-8}
                   width={60}
+                  hide={hideAmounts}
                 />
                 <Tooltip
                   content={<CustomTooltip categories={categories} />}

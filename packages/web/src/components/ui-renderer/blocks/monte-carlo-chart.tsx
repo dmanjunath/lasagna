@@ -12,8 +12,10 @@ import {
 } from "recharts";
 import type { MonteCarloChartBlock } from "../../../lib/types.js";
 import { colors } from "../../../styles/theme.js";
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   }
@@ -24,6 +26,7 @@ function formatCurrency(value: number): string {
 }
 
 function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?: string }) {
+  const hideAmounts = isAmountsHidden();
   const chartData = useMemo(() => {
     if (!data.percentiles) return [];
 
@@ -41,7 +44,7 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
         {title && (
-          <h3 className="text-base font-semibold tracking-tight text-text">{title}</h3>
+          <h3 className="text-base font-semibold tracking-tight text-text">{maskCurrencyInText(title)}</h3>
         )}
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-secondary">Success Rate:</span>
@@ -79,14 +82,22 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
               axisLine={false}
               label={{ value: "Years", position: "bottom", fill: colors.text.muted }}
             />
+            {/* Money tick labels are removed while amounts are hidden, and the
+                width they reserved with them. The bands are unchanged: the
+                domain is fit to the data. */}
             <YAxis
               stroke={colors.text.muted}
               fontSize={12}
               tickLine={false}
               axisLine={false}
               tickFormatter={formatCurrency}
+              hide={hideAmounts}
             />
+            {/* Every row is a percentile name plus a dollar figure, so hidden
+                the tooltip is five identical masks. The rows drop and the year
+                label is what remains. */}
             <Tooltip
+              itemStyle={hideAmounts ? { display: "none" } : undefined}
               formatter={(value) => formatCurrency(value as number)}
               contentStyle={{
                 background: colors.bg.elevated,
@@ -156,6 +167,7 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
 }
 
 function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?: string }) {
+  const hideAmounts = isAmountsHidden();
   const chartData = useMemo(() => {
     if (!data.distribution) return [];
 
@@ -182,7 +194,7 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
         {title && (
-          <h3 className="text-base font-semibold tracking-tight text-text">{title}</h3>
+          <h3 className="text-base font-semibold tracking-tight text-text">{maskCurrencyInText(title)}</h3>
         )}
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-secondary">Success Rate:</span>
@@ -198,12 +210,17 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
+            {/* This chart's MONEY axis is x (portfolio buckets); y is a share
+                of simulations and stays. The bucket labels are removed while
+                amounts are hidden. The `label` itself stays a real string
+                because it is the bar's category key. */}
             <XAxis
               dataKey="label"
               stroke={colors.text.muted}
               fontSize={12}
               tickLine={false}
               axisLine={false}
+              hide={hideAmounts}
             />
             <YAxis
               stroke={colors.text.muted}

@@ -1,7 +1,9 @@
 import { CheckCircle } from "lucide-react";
 import type { ScenarioComparisonBlock } from "../../../lib/types.js";
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toFixed(0)}`;
@@ -12,7 +14,7 @@ export function ScenarioComparisonRenderer({ block }: { block: ScenarioCompariso
     <div className="glass-card p-6 col-span-full">
       {block.title && (
         <h3 className="text-base font-semibold tracking-tight text-text mb-4">
-          {block.title}
+          {maskCurrencyInText(block.title)}
         </h3>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -26,13 +28,13 @@ export function ScenarioComparisonRenderer({ block }: { block: ScenarioCompariso
             }`}
           >
             <div className="flex items-start justify-between">
-              <h4 className="font-medium text-text">{scenario.name}</h4>
+              <h4 className="font-medium text-text">{maskCurrencyInText(scenario.name)}</h4>
               {scenario.isRecommended && (
                 <CheckCircle className="w-5 h-5 text-accent" />
               )}
             </div>
             {scenario.description && (
-              <p className="text-sm text-text-secondary mt-1">{scenario.description}</p>
+              <p className="text-sm text-text-secondary mt-1">{maskCurrencyInText(scenario.description)}</p>
             )}
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-sm">

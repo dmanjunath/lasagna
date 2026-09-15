@@ -1,6 +1,9 @@
 import type { AccountSummaryBlock } from "../../../lib/types.js";
+import { HIDDEN_AMOUNT, isAmountsHidden } from "../../../lib/hide-amounts.js";
+import { MaskedText } from "../../uikit/MaskedText.js";
 
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toFixed(0)}`;
@@ -18,7 +21,7 @@ export function AccountSummaryRenderer({ block }: { block: AccountSummaryBlock }
       <div className="text-center mb-6">
         <div className="text-[11px] font-bold uppercase tracking-[0.09em] text-content-muted">Total Portfolio</div>
         <div className="font-editorial text-[30px] font-extrabold tabular-nums tracking-[-0.02em] text-content">
-          {formatCurrency(block.totalBalance)}
+          <MaskedText text={formatCurrency(block.totalBalance)} />
         </div>
       </div>
 

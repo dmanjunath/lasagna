@@ -3,7 +3,7 @@ import { useRoute, useLocation } from 'wouter';
 import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
-import { Badge, Button, EmptyState, PageMeta, PageMetaItem, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
+import { Badge, Button, EmptyState, MaskedText, MoneyInput, PageMeta, PageMetaItem, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
 import {
@@ -667,8 +667,8 @@ export function SavingsGoal() {
             </span>
             <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
               <div className="font-editorial text-[34px] sm:text-[46px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
-                {formatCurrency(current)}{' '}
-                <span className="text-[0.48em] font-bold text-content-muted">of {formatCurrency(target)}</span>
+                <MaskedText text={formatCurrency(current)} />{' '}
+                <span className="text-[0.48em] font-bold text-content-muted">of <MaskedText text={formatCurrency(target)} /></span>
               </div>
               {complete ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3.5 py-1.5 font-editorial text-[15px] font-extrabold text-[rgb(var(--ui-brand-ink))]">
@@ -868,7 +868,7 @@ export function SavingsGoal() {
                   </div>
                 </div>
                 <span className="shrink-0 font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
-                  {formatCurrency(parseFloat(row.balance ?? '0'))}
+                  <MaskedText text={formatCurrency(parseFloat(row.balance ?? '0'))} />
                 </span>
               </div>
             ))}
@@ -919,7 +919,7 @@ export function SavingsGoal() {
               ) : editKind ? null : (
                 <>
                   <Field label="Target amount" error={plainErrors.target}>
-                    <Input
+                    <MoneyInput
                       type="text"
                       inputMode="decimal"
                       invalid={!!plainErrors.target}
@@ -954,7 +954,7 @@ export function SavingsGoal() {
                 </div>
               )}
               <Field label="Planned monthly contribution (optional)" error={plainErrors.monthly}>
-                <Input
+                <MoneyInput
                   type="text"
                   inputMode="decimal"
                   invalid={!!plainErrors.monthly}
@@ -967,7 +967,7 @@ export function SavingsGoal() {
               </Field>
               {!goal.isAutoTracked && (
                 <Field label="Current amount" error={plainErrors.current}>
-                  <Input
+                  <MoneyInput
                     type="text"
                     inputMode="decimal"
                     invalid={!!plainErrors.current}

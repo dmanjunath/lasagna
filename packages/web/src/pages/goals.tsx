@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
-import { Badge, Button, EmptyState, Field, Input, Label, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from '../components/uikit';
+import { Badge, Button, EmptyState, Field, Input, Label, MaskedText, MoneyInput, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from '../components/uikit';
 import { formatCurrency, iconFor, toggleId, AccountPicker, IconKey } from './goal-shared';
 import {
   isTypedGoalCategory, emptyDraft, resolveDraft, useGoalFormContext,
@@ -458,7 +458,7 @@ export function Goals() {
                 ) : activeKind ? null : (
                   <>
                     <Field label="Target amount" error={newTarget === '' ? undefined : createErrors.target}>
-                      <Input
+                      <MoneyInput
                         type="text"
                         inputMode="decimal"
                         invalid={newTarget !== '' && !!createErrors.target}
@@ -490,7 +490,7 @@ export function Goals() {
                   </div>
                 )}
                 <Field label="Planned monthly contribution (optional)" error={createErrors.monthly}>
-                  <Input
+                  <MoneyInput
                     type="text"
                     inputMode="decimal"
                     invalid={!!createErrors.monthly}
@@ -763,8 +763,8 @@ function SummaryHero({
           Total saved toward goals
         </span>
         <div className="mt-2 font-editorial text-[30px] sm:text-[40px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
-          {formatCurrency(totalSaved)}{' '}
-          <span className="text-[0.55em] font-bold text-content-muted">of {formatCurrency(totalTarget)}</span>
+          <MaskedText text={formatCurrency(totalSaved)} />{' '}
+          <span className="text-[0.55em] font-bold text-content-muted">of <MaskedText text={formatCurrency(totalTarget)} /></span>
         </div>
         <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
           <div
@@ -774,7 +774,7 @@ function SummaryHero({
         </div>
         <div className="mt-2.5 flex items-center justify-between gap-3">
           <span className="font-editorial text-[13px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum">{pct}% of all targets</span>
-          <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">{formatCurrency(remaining)} to go</span>
+          <span className="text-[12.5px] font-semibold text-content-muted ui-tnum"><MaskedText text={formatCurrency(remaining)} /> to go</span>
         </div>
       </div>
       <div className="relative flex w-full gap-3.5 sm:w-auto">
@@ -887,8 +887,8 @@ function GoalCard({
       {/* amounts */}
       <div className="relative mt-[18px] flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-content-secondary ui-tnum">
         <span>
-          <span className="font-editorial text-[17px] font-extrabold tracking-[-0.01em] text-content">{formatCurrency(current)}</span>
-          <span className="text-content-muted"> of {formatCurrency(target)}</span>
+          <span className="font-editorial text-[17px] font-extrabold tracking-[-0.01em] text-content"><MaskedText text={formatCurrency(current)} /></span>
+          <span className="text-content-muted"> of <MaskedText text={formatCurrency(target)} /></span>
         </span>
         {goal.isAutoTracked && (
           <span

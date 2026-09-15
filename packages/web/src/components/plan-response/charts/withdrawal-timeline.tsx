@@ -12,6 +12,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { cn } from '../../../lib/utils.js';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface WithdrawalData {
   year: number;
@@ -34,12 +35,14 @@ interface WithdrawalTimelineProps {
 }
 
 const formatCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toLocaleString()}`;
 };
 
 const formatFullCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -62,6 +65,19 @@ function CustomTooltip({
 
   const dataPoint = payload[0]?.payload;
   if (!dataPoint) return null;
+
+  // Every row is an income-source label plus a dollar figure, so with amounts
+  // hidden the body collapses to a column of identical masks. The age or year
+  // is the only line left that says anything.
+  if (isAmountsHidden()) {
+    return (
+      <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl">
+        <div className="text-text font-semibold">
+          {dataPoint.age ? `Age ${dataPoint.age}` : `Year ${dataPoint.year}`}
+        </div>
+      </div>
+    );
+  }
 
   const totalIncome = dataPoint.totalIncome || (
     dataPoint.withdrawal +
@@ -140,6 +156,7 @@ export function WithdrawalTimeline({
   showSources = true,
 }: WithdrawalTimelineProps) {
   const [view, setView] = useState<'withdrawal' | 'portfolio'>('withdrawal');
+  const hideAmounts = isAmountsHidden();
 
   const { stats, hasMultipleSources } = useMemo(() => {
     if (!data || data.length === 0) return { stats: null, hasMultipleSources: false };
@@ -227,7 +244,7 @@ export function WithdrawalTimeline({
           <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">End Portfolio</div>
           <div className={cn(
             "text-sm font-semibold tabular-nums",
-            stats.finalPortfolio > 0 ? "text-green-400" : "text-red-400"
+            stats.finalPortfolio > 0 || hideAmounts ? "text-green-400" : "text-red-400"
           )}>
             {formatCurrency(stats.finalPortfolio)}
           </div>
@@ -264,6 +281,9 @@ export function WithdrawalTimeline({
                 axisLine={false}
                 dy={8}
               />
+              {/* Money tick labels are removed while amounts are hidden, and
+                  the 60px they reserved with them. The bars are unchanged: the
+                  domain is fit to the data. */}
               <YAxis
                 stroke="#57534e"
                 fontSize={11}
@@ -272,6 +292,7 @@ export function WithdrawalTimeline({
                 tickFormatter={formatCurrency}
                 dx={-8}
                 width={60}
+                hide={hideAmounts}
               />
               <Tooltip content={<CustomTooltip showSources={hasMultipleSources && showSources} />} />
 

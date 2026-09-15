@@ -9,9 +9,10 @@ import { planFreshness } from '../lib/plan-freshness';
 import type { FinancialPlanSummary } from '../lib/types';
 import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-amounts';
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
-import { Badge, Button, PageMeta, PageMetaItem, SegmentedControl, Skeleton } from '../components/uikit';
+import { Badge, Button, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import {
   computeWithdrawal,
@@ -50,15 +51,22 @@ function estimateSSMonthly(annualIncome: number, claimAge: number): number {
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 const fmtShort = (v: number) =>
-  v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+  isAmountsHidden() ? HIDDEN_AMOUNT
+  : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
   : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M`
   : v >= 1e3 ? `$${Math.round(v / 1e3)}k`
   : `$${Math.round(v)}`;
 const fmtAxis = (v: number) =>
-  v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
+  isAmountsHidden() ? HIDDEN_AMOUNT
+  : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
   : v >= 1e6 ? `$${Math.round(v / 1e6)}M`
   : v >= 1e3 ? `$${Math.round(v / 1e3)}k`
   : `$${Math.round(v)}`;
+
+// Money for a chat prompt, never masked: the payload the model reads is not a
+// rendered pixel. message-bubble masks the bubble this text lands in.
+const fmtPromptMoney = (v: number) =>
+  v.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 // ── Shared page atoms ────────────────────────────────────────────────────────
 function Card({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
@@ -288,7 +296,8 @@ function FanChartV2({ bands, currentAge, retireAge, clipLabel = 'best 5%', perce
   if (n === 0) return null;
 
   const H = 240;
-  const PL = 52; const PR = 16; const PT = 16; const PB = 28;
+  const hideAmounts = isAmountsHidden();
+  const PL = hideAmounts ? 14 : 52; const PR = 16; const PT = 16; const PB = 28;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
@@ -366,9 +375,11 @@ function FanChartV2({ bands, currentAge, retireAge, clipLabel = 'best 5%', perce
         {yTicks.map(({ pct, val, y }) => (
           <g key={pct}>
             <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
-            <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
-              {fmtAxis(val)}{pct === 1 && clipped ? '+' : ''}
-            </text>
+            {!hideAmounts && (
+              <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
+                {fmtAxis(val)}{pct === 1 && clipped ? '+' : ''}
+              </text>
+            )}
           </g>
         ))}
         {clipped && (
@@ -441,7 +452,8 @@ function BlendedChartV2({ values, currentAge, retireAge, runsShortAge }: {
   if (n < 2) return null;
 
   const H = 240;
-  const PL = 52; const PR = 16; const PT = 16; const PB = 28;
+  const hideAmounts = isAmountsHidden();
+  const PL = hideAmounts ? 14 : 52; const PR = 16; const PT = 16; const PB = 28;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
@@ -495,9 +507,11 @@ function BlendedChartV2({ values, currentAge, retireAge, runsShortAge }: {
         {yTicks.map(({ pct, val, y }) => (
           <g key={pct}>
             <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
-            <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
-              {fmtAxis(val)}
-            </text>
+            {!hideAmounts && (
+              <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
+                {fmtAxis(val)}
+              </text>
+            )}
           </g>
         ))}
 
@@ -545,7 +559,7 @@ function BlendedChartV2({ values, currentAge, retireAge, runsShortAge }: {
                 Age {currentAge + hi}, {year0 + hi}
               </text>
               <text x={ttX + 10} y={PT + 37} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-panel))">
-                balance {values[hi] <= 0 ? '$0 (depleted)' : fmtShort(values[hi])}
+                balance {values[hi] <= 0 ? maskCurrencyInText('$0 (depleted)') : fmtShort(values[hi])}
               </text>
               <text x={ttX + 10} y={PT + 53} fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={10} opacity={0.75} fill="rgb(var(--ui-panel))">
                 today's dollars, deterministic
@@ -803,7 +817,8 @@ function DrawdownChart({ units, rows, currentAge, hidden, onToggleSeries }: {
   if (n < 2 || k === 0) return null;
 
   const H = 240;
-  const PL = 52; const PR = 16; const PT = 14; const PB = 26;
+  const hideAmounts = isAmountsHidden();
+  const PL = hideAmounts ? 14 : 52; const PR = 16; const PT = 14; const PB = 26;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
@@ -852,7 +867,7 @@ function DrawdownChart({ units, rows, currentAge, hidden, onToggleSeries }: {
         {yTicks.map((v) => (
           <g key={v}>
             <line x1={PL} x2={W - PR} y1={yf(v)} y2={yf(v)} stroke="var(--ui-line)" strokeDasharray="2 4" />
-            <text x={PL - 6} y={yf(v) + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">{fmtAxis(v)}</text>
+            {!hideAmounts && <text x={PL - 6} y={yf(v) + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">{fmtAxis(v)}</text>}
           </g>
         ))}
         {units.map((u, si) => vis[si] && (
@@ -911,7 +926,8 @@ function DrawdownBarsChart({ units, rows, currentAge, hidden, onToggleSeries }: 
   if (n < 1 || k === 0) return null;
 
   const H = 240;
-  const PL = 52; const PR = 16; const PT = 14; const PB = 26;
+  const hideAmounts = isAmountsHidden();
+  const PL = hideAmounts ? 14 : 52; const PR = 16; const PT = 14; const PB = 26;
   const chartW = W - PL - PR;
   const chartH = H - PT - PB;
 
@@ -964,7 +980,7 @@ function DrawdownBarsChart({ units, rows, currentAge, hidden, onToggleSeries }: 
         {yTicks.map((v) => (
           <g key={v}>
             <line x1={PL} x2={W - PR} y1={yf(v)} y2={yf(v)} stroke="var(--ui-line)" strokeDasharray="2 4" />
-            <text x={PL - 6} y={yf(v) + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">{fmtAxis(v)}</text>
+            {!hideAmounts && <text x={PL - 6} y={yf(v) + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">{fmtAxis(v)}</text>}
           </g>
         ))}
         {hi !== null && (
@@ -1063,6 +1079,7 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
   // Omit `max` for an open-ended field (floored at `min`, no upper bound).
   const hi = max ?? Infinity;
   const [draft, setDraft] = useState<string | null>(null);
+  const reveal = useRevealOnFocus();
   const fmt = (v: number) => (decimals > 0 ? v.toFixed(decimals) : Math.round(v).toLocaleString('en-US'));
   const parse = (s: string) => (decimals > 0 ? parseFloat(s) : parseInt(s, 10));
   const clean = (s: string) => (decimals > 0 ? s.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1') : s.replace(/[^0-9]/g, ''));
@@ -1078,21 +1095,27 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
       ? (v >= 1000 ? `$${(v / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })}k` : `$${v.toLocaleString('en-US')}`)
       : `${fmt(v)}${suffix === '%' ? '%' : ''}`;
   const aria = ariaLabel ?? (typeof label === 'string' ? label : undefined);
+  // A "$" lever holds a real amount, so at rest it shows the mask and reveals
+  // the figure on focus. An age or a rate is not money and is left alone.
+  const masked = prefix === '$' && reveal.masked;
   return (
     <div className="rv2-field" data-testid={testId}>
       <span className="rv2-field__label">{label}</span>
       <span className="rv2-input">
-        {prefix && <span className="rv2-input__affix">{prefix}</span>}
+        {prefix && !masked && <span className="rv2-input__affix">{prefix}</span>}
         <input
           type="text" inputMode={decimals > 0 ? 'decimal' : 'numeric'}
-          value={draft !== null ? draft : fmt(value)}
+          value={masked ? HIDDEN_AMOUNT : (draft !== null ? draft : fmt(value))}
+          readOnly={masked}
+          style={masked ? MASK_TEXT_STYLE : undefined}
+          onFocus={reveal.onFocus}
           onChange={e => {
             const raw = clean(e.target.value);
             setDraft(raw);
             const v = parse(raw);
             if (Number.isFinite(v) && v >= min && v <= hi) onChange(v);
           }}
-          onBlur={commit}
+          onBlur={() => { reveal.onBlur(); commit(); }}
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           aria-label={aria}
           data-testid={testId ? `${testId}-input` : undefined}
@@ -1114,6 +1137,8 @@ function NumInput({ value, onChange, min, max, money = false, prefix, suffix, wi
   testId?: string; 'aria-label': string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const reveal = useRevealOnFocus();
+  const masked = money && reveal.masked;
   const fmt = (v: number) => (money ? v.toLocaleString('en-US') : String(v));
   const commit = () => {
     const v = parseInt(draft ?? '', 10);
@@ -1122,21 +1147,23 @@ function NumInput({ value, onChange, min, max, money = false, prefix, suffix, wi
   };
   return (
     <span className="rv2-pair">
-      {prefix && <span className="rv2-pair__affix">{prefix}</span>}
+      {prefix && !masked && <span className="rv2-pair__affix">{prefix}</span>}
       <input
         type="text" inputMode="numeric"
-        value={draft !== null ? draft : fmt(value)}
+        value={masked ? HIDDEN_AMOUNT : (draft !== null ? draft : fmt(value))}
+        readOnly={masked}
+        onFocus={reveal.onFocus}
         onChange={e => {
           const raw = e.target.value.replace(/[^0-9]/g, '');
           setDraft(raw);
           const v = parseInt(raw, 10);
           if (Number.isFinite(v) && v >= min && v <= max) onChange(v);
         }}
-        onBlur={commit}
+        onBlur={() => { reveal.onBlur(); commit(); }}
         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
         aria-label={ariaLabel}
         data-testid={testId}
-        style={{ width: width ?? `${fmt(max).length + 1.5}ch` }}
+        style={{ width: width ?? `${fmt(max).length + 1.5}ch`, ...(masked ? MASK_TEXT_STYLE : null) }}
       />
       {suffix && <span className="rv2-pair__affix">{suffix}</span>}
     </span>
@@ -1188,6 +1215,7 @@ function intPercents(parts: number[]): number[] {
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export function RetirementV2() {
+  const hideAmounts = isAmountsHidden();
   const [, navigate] = useLocation();
   const { openChat } = useChatStore();
   const [loading, setLoading] = useState(true);
@@ -1774,8 +1802,8 @@ export function RetirementV2() {
   // from the figure the page states rather than from whichever method happens
   // to be selected.
   const askLasagnaPrompt = resultsPending
-    ? `I want to assess my retirement plan: retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved, spending ${formatMoney(monthlySpendEff, true)}/mo, planning through age ${lifeExp}. Can you walk me through what my chances look like?`
-    : `I want to assess my retirement plan. The dashboard says "${shownVerdict}": a ${shownMcChance} chance my money lasts through age ${lifeExp}, retiring at ${effRetireAge} with ${formatMoney(portfolioValue, true)} saved and spending ${formatMoney(monthlySpendEff, true)}/mo. Can you walk me through what's driving that?`;
+    ? `I want to assess my retirement plan: retiring at ${effRetireAge} with ${fmtPromptMoney(portfolioValue)} saved, spending ${fmtPromptMoney(monthlySpendEff)}/mo, planning through age ${lifeExp}. Can you walk me through what my chances look like?`
+    : `I want to assess my retirement plan. The dashboard says "${shownVerdict}": a ${shownMcChance} chance my money lasts through age ${lifeExp}, retiring at ${effRetireAge} with ${fmtPromptMoney(portfolioValue)} saved and spending ${fmtPromptMoney(monthlySpendEff)}/mo. Can you walk me through what's driving that?`;
 
   // The pencil on the Monthly spending KPI: open the inputs panel (on the "You"
   // tab, where the spending control lives), scroll the spending field to the
@@ -2204,7 +2232,7 @@ export function RetirementV2() {
                 </button>
               </div>
               <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
-                {formatMoney(monthlySpendEff, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
+                <MaskedText text={formatMoney(monthlySpendEff, true)} /><span className="text-[14px] font-bold text-content-muted">/mo</span>
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">in today's dollars</div>
             </div>
@@ -2256,7 +2284,7 @@ export function RetirementV2() {
                 </InfoPopover>
               </div>
               <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content" data-testid="rv2-safe-spend">
-                {formatMoney(sustainableDraw, true)}<span className="text-[14px] font-bold text-content-muted">/mo</span>
+                <MaskedText text={formatMoney(sustainableDraw, true)} /><span className="text-[14px] font-bold text-content-muted">/mo</span>
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">
                 ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
@@ -2894,10 +2922,10 @@ export function RetirementV2() {
                       <td>{r.year}</td>
                       <td style={{ fontSize: 11.5, color: r.phase === 'saving' ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-muted))' }}>{r.phase}</td>
                       <td>{formatMoney(r.start, true)}</td>
-                      <td>{r.contribution > 0 ? `+${formatMoney(r.contribution, true)}` : '—'}</td>
+                      <td>{r.contribution > 0 ? (hideAmounts ? formatMoney(r.contribution, true) : `+${formatMoney(r.contribution, true)}`) : '—'}</td>
                       <td>{r.gi > 0 ? formatMoney(r.gi, true) : '—'}</td>
-                      <td style={{ color: r.withdrawal > 0 ? 'rgb(var(--ui-caution))' : undefined }}>{r.withdrawal > 0 ? `−${formatMoney(r.withdrawal, true)}` : '—'}</td>
-                      <td style={{ fontWeight: 600, color: r.end <= 0 ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-content))' }}>{formatMoney(r.end, true)}</td>
+                      <td style={{ color: r.withdrawal > 0 && !hideAmounts ? 'rgb(var(--ui-caution))' : undefined }}>{r.withdrawal > 0 ? (hideAmounts ? formatMoney(r.withdrawal, true) : `−${formatMoney(r.withdrawal, true)}`) : '—'}</td>
+                      <td style={{ fontWeight: 600, color: r.end <= 0 && !hideAmounts ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-content))' }}>{formatMoney(r.end, true)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2937,7 +2965,7 @@ export function RetirementV2() {
             </span>
             <span className="ret-pin__metric">
               <span className="ret-pin__label">Sustainable draw</span>
-              <span className="ret-pin__pct font-editorial ui-tnum">{formatMoney(sustainableDraw, true)}<span className="text-[12px] font-bold text-content-muted">/mo</span></span>
+              <span className="ret-pin__pct font-editorial ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} /><span className="text-[12px] font-bold text-content-muted">/mo</span></span>
             </span>
           </div>
           <div className="ret-pin__tier2 ui-tnum flex flex-wrap gap-x-3 gap-y-1">

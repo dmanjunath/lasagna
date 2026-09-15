@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useLocation } from 'wouter';
 import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-amounts';
+import { HiddenAmount, MaskedText } from '../components/uikit';
 import { useInsights, type Insight } from '../hooks/useInsights';
 import { api, type FinancialPath } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
@@ -105,9 +107,12 @@ function assetsLabel(b: NetBreakdown): string {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmtUsd = (n: number, frac = 0) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
 
 function formatMoneyShort(n: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const abs = Math.abs(n);
   const sign = n < 0 ? '−' : '';
   if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M`;
@@ -235,8 +240,8 @@ export function SimpleHome() {
           toast({
             title:
               status === 'done'
-                ? `${step.title} is done`
-                : `${step.title} is off your path`,
+                ? maskCurrencyInText(`${step.title} is done`)
+                : maskCurrencyInText(`${step.title} is off your path`),
             duration: 8000,
             // The uikit button, not a text link. Home moves the card on to the
             // next step, so once this toast expires there is no way back to the
@@ -401,16 +406,25 @@ export function SimpleHome() {
 
   const topGoal = goals.find((g) => g.status === 'active');
 
-  const suggestedPrompts = useMemo(() => {
+  const hideAmounts = isAmountsHidden();
+  const suggestedPrompts = useMemo<AskSuggestion[]>(() => {
     const shortUsd = (n: number) => {
       const abs = Math.abs(n);
       if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
       if (abs >= 1_000) return `$${Math.round(abs / 1_000)}k`;
       return `$${Math.round(abs)}`;
     };
-    const prompts: string[] = [];
+    // A chip that names a figure carries two strings. The LABEL is rendered on
+    // this screen, which may be masked, so it shows the mask. The PAYLOAD is
+    // the question the thread is stored with, so it always keeps the real
+    // number. Sending the label would bake the mask into the database forever.
+    const withAmount = (ask: (amount: string) => string, n: number): AskSuggestion => {
+      const real = shortUsd(n);
+      return { label: ask(hideAmounts ? HIDDEN_AMOUNT : real), payload: ask(real) };
+    };
+    const prompts: AskSuggestion[] = [];
     if (breakdown && breakdown.debts > 0) {
-      prompts.push(`Pay off ${shortUsd(breakdown.debts)} faster?`);
+      prompts.push(withAmount((a) => `Pay off ${a} faster?`, breakdown.debts));
     }
     if (topGoal) {
       const target = parseFloat(topGoal.targetAmount);
@@ -420,18 +434,18 @@ export function SimpleHome() {
       if (target > 0) {
         prompts.push(
           remaining > 0
-            ? `Fastest path to ${shortUsd(remaining)}?`
+            ? withAmount((a) => `Fastest path to ${a}?`, remaining)
             : `What's next after my ${label}?`
         );
       }
     }
     if (breakdown && breakdown.netWorth > 0) {
-      prompts.push(`Retire at 65 on ${shortUsd(breakdown.netWorth)}?`);
+      prompts.push(withAmount((a) => `Retire at 65 on ${a}?`, breakdown.netWorth));
     }
     prompts.push('Tax-loss harvest this year?');
     prompts.push('My safe withdrawal rate?');
     return prompts.slice(0, 3);
-  }, [breakdown, topGoal]);
+  }, [breakdown, topGoal, hideAmounts]);
 
   const hasComposition =
     breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0);
@@ -632,7 +646,7 @@ function CompositionColumn({
             <span key={s.key} className="inline-flex flex-wrap items-center gap-1.5 text-[13px]">
               <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: s.color }} />
               <span className="font-bold">{s.label}</span>
-              <span className="font-editorial font-extrabold tracking-[-0.01em]">{fmtUsd(s.value)}</span>
+              <span className="font-editorial font-extrabold tracking-[-0.01em]"><MaskedText text={fmtUsd(s.value)} /></span>
               <span className="text-[12px] font-semibold text-content-muted whitespace-nowrap">{pct}%, {s.count} account{s.count === 1 ? '' : 's'}</span>
             </span>
           );
@@ -714,15 +728,15 @@ function NetWorthBreakdown({
         <div className="nw-statement">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</span>
-            <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{fmtUsd(assetTotal)}</span>
+            <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(assetTotal)}</span>
           </div>
           <div className="mt-3 flex items-baseline justify-between gap-3">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.1em]" style={{ color: 'rgb(var(--ui-negative))' }}>Debt</span>
-            <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: 'rgb(var(--ui-negative))' }}>{fmtUsd(breakdown.debts)}</span>
+            <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: 'rgb(var(--ui-negative))' }}>{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(breakdown.debts)}</span>
           </div>
           <div className="mt-3 pt-3 border-t border-line flex items-baseline justify-between gap-3">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</span>
-            <span className="font-editorial text-[31px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">{fmtUsd(breakdown.netWorth)}</span>
+            <span className="font-editorial text-[31px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(breakdown.netWorth)}</span>
           </div>
         </div>
 
@@ -741,7 +755,7 @@ function NetWorthBreakdown({
           <div>
             <div className="nw-label font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</div>
             <div className="nw-num mt-1 font-editorial font-extrabold tracking-[-0.02em] leading-none ui-tnum">
-              {fmtUsd(assetTotal)}
+              {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(assetTotal)}
             </div>
           </div>
 
@@ -754,7 +768,7 @@ function NetWorthBreakdown({
                 className="nw-num mt-1 font-editorial font-extrabold tracking-[-0.02em] leading-none ui-tnum"
                 style={{ color: 'rgb(var(--ui-negative))' }}
               >
-                {fmtUsd(breakdown.debts)}
+                {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(breakdown.debts)}
               </div>
             </div>
           </div>
@@ -769,7 +783,7 @@ function NetWorthBreakdown({
                   and states it once. This card answers what the total is made of. */}
               <div className="mt-1">
                 <span className="nw-num nw-num--total font-editorial font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">
-                  {fmtUsd(breakdown.netWorth)}
+                  {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(breakdown.netWorth)}
                 </span>
               </div>
             </div>
@@ -966,7 +980,7 @@ export function LevelSection({
   // The same steps, the same "you are here" and the same length /financial-level
   // renders, because both came out of the one response the server built.
   const states = steps.map((s) => levelStateOf(s, currentStepId));
-  const railLabels = steps.map((s) => `Step ${s.order}: ${s.title}`);
+  const railLabels = steps.map((s) => maskCurrencyInText(`Step ${s.order}: ${s.title}`));
   const total = steps.length || 1;
   const doneCount = states.filter((s) => s === 'done').length;
   const ongoingCount = states.filter((s) => s === 'ongoing').length;
@@ -1053,17 +1067,17 @@ export function LevelSection({
       {/* Current level focus — what to do next, kept from the level flow */}
       {!allComplete && (
         <div className="mt-6 pt-5 border-t border-line">
-          <h3 className="font-editorial text-[16px] font-bold tracking-[-0.015em]">{step.title}</h3>
+          <h3 className="font-editorial text-[16px] font-bold tracking-[-0.015em]"><MaskedText text={step.title} /></h3>
           {step.subtitle && (
-            <p className="mt-1 text-[13px] leading-[1.4] text-content-muted max-w-[60ch]">{step.subtitle}</p>
+            <p className="mt-1 text-[13px] leading-[1.4] text-content-muted max-w-[60ch]">{maskCurrencyInText(step.subtitle)}</p>
           )}
           {step.description && (
-            <p className="mt-1.5 text-[14px] leading-[1.5] text-content-secondary max-w-[60ch]">{step.description}</p>
+            <p className="mt-1.5 text-[14px] leading-[1.5] text-content-secondary max-w-[60ch]">{maskCurrencyInText(step.description)}</p>
           )}
           {!isComplete && pct > 0 && (
             <div className="mt-3.5 max-w-[440px]">
               <Track pct={pct} color="rgb(var(--ui-brand))" />
-              {detail && <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">{detail}</div>}
+              {detail && <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">{maskCurrencyInText(detail)}</div>}
             </div>
           )}
           {/* The same four words for the same four actions the step card on
@@ -1132,6 +1146,13 @@ function NetWorthChart({
   // Pixel-true width — the viewBox matches the rendered width so strokes and
   // text stay at native size whether the card is in the rail or full-width.
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Money y-axis labels are removed while amounts are hidden rather than
+  // replaced by five identical masks, and the left margin they reserved
+  // collapses with them. The plotted geometry is untouched: the domain is fit
+  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
+  const hideAmounts = isAmountsHidden();
+  const chartLeft = hideAmounts ? 12 : NW_CHART_M.left;
+
   const [chartW, setChartW] = useState(320);
   useEffect(() => {
     const el = wrapRef.current;
@@ -1143,7 +1164,7 @@ function NetWorthChart({
     return () => ro.disconnect();
   }, [hasChart]);
 
-  const innerW = chartW - NW_CHART_M.left - NW_CHART_M.right;
+  const innerW = chartW - chartLeft - NW_CHART_M.right;
   const innerH = NW_CHART_H - NW_CHART_M.top - NW_CHART_M.bottom;
 
   const { yMin, yMax, yTicks } = useMemo(() => {
@@ -1155,13 +1176,13 @@ function NetWorthChart({
     return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
   }, [points, hasChart]);
 
-  const xAt = (i: number) => NW_CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const xAt = (i: number) => chartLeft + (i / Math.max(1, points.length - 1)) * innerW;
   const yAt = (v: number) => NW_CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
 
   const xy = useMemo<Array<[number, number]>>(
     () => points.map((p, i) => [xAt(i), yAt(p.value)]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, chartW, yMin, yMax],
+    [points, chartW, yMin, yMax, chartLeft],
   );
   const linePath = useMemo(() => smoothLinePath(xy), [xy]);
   const baseY = (NW_CHART_M.top + innerH).toFixed(2);
@@ -1185,7 +1206,7 @@ function NetWorthChart({
     const rect = root.getBoundingClientRect();
     if (rect.width <= 0) return null;
     const localX = (clientX - rect.left) * (chartW / rect.width);
-    const ratio = (localX - NW_CHART_M.left) / Math.max(1, innerW);
+    const ratio = (localX - chartLeft) / Math.max(1, innerW);
     return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
   };
   const hovered = hoverIdx !== null && points[hoverIdx]
@@ -1243,16 +1264,18 @@ function NetWorthChart({
             {yTicks.map((t) => (
               <g key={t}>
                 <line
-                  x1={NW_CHART_M.left} y1={yAt(t)} x2={chartW - NW_CHART_M.right} y2={yAt(t)}
+                  x1={chartLeft} y1={yAt(t)} x2={chartW - NW_CHART_M.right} y2={yAt(t)}
                   stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
                 />
-                <text
-                  x={NW_CHART_M.left - 10} y={yAt(t)} dy="0.32em" textAnchor="end"
-                  fill="rgb(var(--ui-content-faint))"
-                  style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
-                >
-                  {formatShortMoney(t, tickDecimals(yTicks))}
-                </text>
+                {!hideAmounts && (
+                  <text
+                    x={chartLeft - 10} y={yAt(t)} dy="0.32em" textAnchor="end"
+                    fill="rgb(var(--ui-content-faint))"
+                    style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {formatShortMoney(t, tickDecimals(yTicks))}
+                  </text>
+                )}
               </g>
             ))}
 
@@ -1276,9 +1299,12 @@ function NetWorthChart({
               </g>
             )}
 
+            {/* Ends anchored inward: a centred anchor on the first/last point
+                hangs half the label outside the viewBox and the SVG clips it. */}
             {xLabels.map(({ idx, label }) => (
               <text
-                key={`${idx}-${label}`} x={xAt(idx)} y={NW_CHART_H - 8} textAnchor="middle"
+                key={`${idx}-${label}`} x={xAt(idx)} y={NW_CHART_H - 8}
+                textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'}
                 fill="rgb(var(--ui-content-muted))"
                 style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
               >
@@ -1325,13 +1351,19 @@ function NetWorthChart({
 
 // ─── Ask Lasagna composer ───────────────────────────────────────────────────────
 
+/** What a suggestion chip shows and what picking it actually sends. The two
+ *  differ only when the chip names a dollar figure and hide-amounts is on: the
+ *  label shows the mask, the payload keeps the real number so the stored thread
+ *  reads normally once the mode is off. A plain string is both. */
+type AskSuggestion = string | { label: string; payload: string };
+
 function AskComposer({
   value, onChange, onSubmit, prompts, onPick,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: (e?: React.FormEvent) => void;
-  prompts: string[];
+  prompts: AskSuggestion[];
   onPick: (q: string) => void;
 }) {
   return (
@@ -1374,16 +1406,19 @@ function AskComposer({
 
       {prompts.length > 0 && (
         <div className="relative mt-3 flex flex-wrap gap-2">
-          {prompts.map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => onPick(q)}
-              className="inline-flex max-w-full items-center min-h-[36px] px-3.5 rounded-full bg-panel border border-line-strong text-[13px] font-semibold text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-brand active:scale-[0.98] transition-[background,color,border-color,transform]"
-            >
-              <span className="truncate">{q}</span>
-            </button>
-          ))}
+          {prompts.map((p) => {
+            const label = typeof p === 'string' ? p : p.label;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => onPick(typeof p === 'string' ? p : p.payload)}
+                className="inline-flex max-w-full items-center min-h-[36px] px-3.5 rounded-full bg-panel border border-line-strong text-[13px] font-semibold text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-brand active:scale-[0.98] transition-[background,color,border-color,transform]"
+              >
+                <span className="truncate">{label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </section>
@@ -1501,7 +1536,7 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
         <Link href="/spending" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
       </div>
       <div className="mt-3 flex items-end gap-x-2.5 gap-y-1 flex-wrap">
-        <span className="font-editorial text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{fmtUsd(flow.spending)}</span>
+        <span className="font-editorial text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(flow.spending)}</span>
         {pctVsPrev != null && (
           <span
             className="text-[12px] font-bold ui-tnum"
@@ -1557,11 +1592,11 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
           <div className="mt-3 flex flex-col gap-1.5 text-[13px] ui-tnum">
             <div className="flex items-baseline justify-between">
               <span className="font-bold text-content-secondary">In</span>
-              <span className="font-extrabold" style={{ color: 'rgb(var(--ui-positive))' }}>+{fmtUsd(flow.income)}</span>
+              <span className="font-extrabold" style={{ color: 'rgb(var(--ui-positive))' }}>{isAmountsHidden() ? <HiddenAmount /> : `+${fmtUsd(flow.income)}`}</span>
             </div>
             <div className="flex items-baseline justify-between">
               <span className="font-bold text-content-secondary">Out</span>
-              <span className="font-extrabold" style={{ color: 'rgb(var(--ui-negative))' }}>−{fmtUsd(flow.spending)}</span>
+              <span className="font-extrabold" style={{ color: 'rgb(var(--ui-negative))' }}>{isAmountsHidden() ? <HiddenAmount /> : `−${fmtUsd(flow.spending)}`}</span>
             </div>
             <div className="mt-1 pt-2 border-t border-line flex items-baseline justify-between">
               <span className="font-bold">Net</span>
@@ -1569,7 +1604,7 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
                 className="font-editorial text-[15px] font-extrabold"
                 style={{ color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))' }}
               >
-                {positive ? '+' : '−'}{fmtUsd(Math.abs(flow.net))}
+                {isAmountsHidden() ? <HiddenAmount /> : `${positive ? '+' : '−'}${fmtUsd(Math.abs(flow.net))}`}
               </span>
             </div>
           </div>
@@ -1609,7 +1644,7 @@ function RecentActivity({ txns }: { txns: RecentTxn[] }) {
                   className="text-[13.5px] font-extrabold ui-tnum shrink-0"
                   style={income ? { color: 'rgb(var(--ui-positive))' } : undefined}
                 >
-                  {income ? `+${fmtUsd(Math.abs(t.amount), 2)}` : fmtUsd(t.amount, 2)}
+                  {isAmountsHidden() ? <HiddenAmount /> : income ? `+${fmtUsd(Math.abs(t.amount), 2)}` : fmtUsd(t.amount, 2)}
                 </span>
               </li>
             );

@@ -3,6 +3,7 @@ import { ArrowLeft, Send, Trash2, SquarePen, Sparkles } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
 import { AdminModelPicker } from './admin-model-picker';
 import { cn } from '../../lib/utils';
+import { maskCurrencyInText } from '../../lib/hide-amounts';
 import type { ChatMessage } from '../../lib/chat-store';
 import type { Thread } from './chat-thread-list';
 
@@ -118,7 +119,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
             </button>
           )}
           <span className={cn('flex-1 font-medium text-content truncate leading-snug', isFull ? 'text-[15px]' : 'text-sm')}>
-            {thread.question}
+            {maskCurrencyInText(thread.question)}
           </span>
           {onNewChat && (
             <button

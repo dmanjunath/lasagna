@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
 import { TONE_STYLE, type AreaTone } from '../../lib/action-destination';
+import { MaskedText } from '../uikit/MaskedText';
 
 interface ActionItemProps {
   title: string;
@@ -123,7 +124,7 @@ function DenseRowInner({
           instead of disappearing. */}
       <div className="flex-1 min-w-0">
         <h3 className="text-[14px] font-semibold leading-tight text-content">
-          {title}
+          <MaskedText text={title} />
         </h3>
         {(area || impact) && (
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -144,7 +145,7 @@ function DenseRowInner({
                     : { background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }
                 }
               >
-                {impact}
+                <MaskedText text={impact} />
               </span>
             )}
           </span>
@@ -208,7 +209,7 @@ function AccordionActionItem(props: ActionItemProps) {
                 characters a line at 1280 with nothing to stop it. */}
             <div className="pl-[52px] pr-4 pb-3">
               <p className="max-w-[70ch] text-[13px] leading-[1.5] text-content-secondary">
-                {description}
+                <MaskedText text={description} />
               </p>
               <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                 <button

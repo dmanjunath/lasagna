@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { HIDDEN_AMOUNT, isAmountsHidden } from './hide-amounts';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -24,9 +25,11 @@ export function stripAccountMask(name: string, mask?: string | null): string {
 }
 
 export function formatMoney(value: number | string | null, compact = false): string {
+  // "no value" stays distinguishable from "hidden", so the null check runs first.
   if (value === null || value === undefined) return '—';
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(num)) return '—';
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
 
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

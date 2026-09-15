@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { isMasked } from '../../lib/hide-amounts';
+import { HiddenAmount } from '../uikit/HiddenAmount';
 
 interface KPIGridProps {
   children: ReactNode;
@@ -34,7 +36,10 @@ interface KPIProps {
 }
 
 export function KPI({ label, value, sub, tone = 'default' }: KPIProps) {
+  // A masked amount carries no tone — red/green on it would leak the sign.
+  const masked = isMasked(value);
   const valueClass =
+    masked ? 'ds-kpi__value' :
     tone === 'pos' ? 'ds-kpi__value ds-pos' :
     tone === 'neg' ? 'ds-kpi__value ds-neg' :
     tone === 'warn' ? 'ds-kpi__value ds-warn' :
@@ -42,7 +47,7 @@ export function KPI({ label, value, sub, tone = 'default' }: KPIProps) {
   return (
     <div className="ds-kpi">
       <span className="ds-kpi__label">{label}</span>
-      <span className={valueClass}>{value}</span>
+      <span className={valueClass}>{masked ? <HiddenAmount /> : value}</span>
       {sub && <span className="ds-kpi__sub">{sub}</span>}
     </div>
   );

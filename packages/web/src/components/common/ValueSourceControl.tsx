@@ -1,4 +1,4 @@
-import { Field, Input, SegmentedControl } from '../uikit';
+import { Field, MoneyInput, SegmentedControl } from '../uikit';
 
 // ---------------------------------------------------------------------------
 // Value-source control — the "Market estimate / My own value" toggle plus the
@@ -38,7 +38,7 @@ export function ValueSourceControl({
       {source === 'own' ? (
         <div className="mt-3">
           <Field label="Your value">
-            <Input
+            <MoneyInput
               type="text"
               inputMode="decimal"
               value={ownValue}

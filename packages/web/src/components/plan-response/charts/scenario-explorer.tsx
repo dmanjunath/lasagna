@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { ChartControls } from './chart-controls.js';
 import { TimelineScrubber } from './timeline-scrubber.js';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface ScenarioData {
   year: number;
@@ -35,12 +36,14 @@ interface ScenarioExplorerProps {
 }
 
 const formatCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toLocaleString()}`;
 };
 
 const formatFullCurrency = (value: number) => {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -56,6 +59,7 @@ export function ScenarioExplorer({
   sliders,
   onSliderChange,
 }: ScenarioExplorerProps) {
+  const hideAmounts = isAmountsHidden();
   const [activeScenario, setActiveScenario] = useState(scenarios[0]?.id || 'base');
   const [sliderValues, setSliderValues] = useState<Record<string, number>>(
     sliders?.reduce((acc, s) => ({ ...acc, [s.id]: s.default }), {}) || {}
@@ -110,6 +114,9 @@ export function ScenarioExplorer({
               axisLine={false}
               dy={8}
             />
+            {/* Money tick labels are removed while amounts are hidden, and the
+                60px they reserved with them. The curve is unchanged: the domain
+                is fit to the data. */}
             <YAxis
               stroke="#57534e"
               fontSize={11}
@@ -118,7 +125,11 @@ export function ScenarioExplorer({
               tickFormatter={formatCurrency}
               dx={-8}
               width={60}
+              hide={hideAmounts}
             />
+            {/* The tooltip's only row is the scenario's dollar value, so with
+                amounts hidden it would read as one bare mask. The row is
+                dropped and the year label is what remains. */}
             <Tooltip
               contentStyle={{
                 backgroundColor: 'rgba(12, 10, 9, 0.95)',
@@ -129,8 +140,8 @@ export function ScenarioExplorer({
                 padding: '12px 16px',
               }}
               formatter={(value) => [formatFullCurrency(Number(value) || 0), activeScenarioConfig?.label]}
-              labelStyle={{ color: '#f5f5f5', fontWeight: 600, marginBottom: 4 }}
-              itemStyle={{ color: '#a8a29e' }}
+              labelStyle={{ color: '#f5f5f5', fontWeight: 600, marginBottom: hideAmounts ? 0 : 4 }}
+              itemStyle={hideAmounts ? { display: 'none' } : { color: '#a8a29e' }}
               cursor={{ stroke: activeScenarioConfig?.color, strokeWidth: 1, strokeDasharray: '4 4' }}
             />
             <Area

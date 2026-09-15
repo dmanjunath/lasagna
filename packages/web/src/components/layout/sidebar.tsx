@@ -4,12 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Zap, Layers, TrendingUp, PieChart, Wallet,
   CreditCard, AlertCircle, Receipt, Target, ArrowLeftRight,
-  MessageSquare, ChevronUp, ChevronDown, Moon, Sun, type LucideIcon,
+  MessageSquare, ChevronUp, ChevronDown, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
-import { useUiMode } from '../uikit/mode';
+import { PrivacyToggle } from '../uikit/PrivacyToggle';
 import { BrandMark } from '../common/BrandMark';
 
 interface NavItem {
@@ -75,7 +75,6 @@ export function Sidebar({ className }: SidebarProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout, user } = useAuth();
   const { openChat } = useChatStore();
-  const { mode, toggle: toggleMode } = useUiMode();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -154,7 +153,6 @@ export function Sidebar({ className }: SidebarProps) {
   const rawName = tenant?.name || '';
   const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');
   const initial = firstName[0]?.toUpperCase() || 'U';
-  const isDark = mode === 'dark';
 
   return (
     <aside
@@ -247,7 +245,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       </nav>
 
-      {/* Account chip + light/dark toggle */}
+      {/* Account chip + hide-amounts toggle */}
       <div className="mt-2.5 pt-3 border-t border-line relative" ref={userMenuRef}>
         <AnimatePresence>
           {userMenuOpen && (
@@ -313,16 +311,7 @@ export function Sidebar({ className }: SidebarProps) {
               )}
             />
           </button>
-          <button
-            type="button"
-            onClick={toggleMode}
-            role="switch"
-            aria-checked={isDark}
-            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="w-9 h-9 shrink-0 grid place-items-center rounded-[10px] border border-line bg-panel text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
-          >
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+          <PrivacyToggle size={36} />
         </div>
       </div>
     </aside>

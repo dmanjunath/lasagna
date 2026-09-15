@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { SegmentedControl } from '../uikit';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
+import { HiddenAmount, SegmentedControl } from '../uikit';
 import { filterByRange, type Range, type TrendPoint } from '../ds';
 import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../ds/TrendChart';
 
 const fmtUsd = (n: number, frac = 0) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
 
 const fmtDate = (iso: string, withYear = false) =>
   new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
@@ -56,6 +59,13 @@ const CHART_M = { top: 16, right: 12, bottom: 34, left: 68 };
 
 function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Money y-axis labels are removed while amounts are hidden rather than
+  // replaced by five identical masks, and the left margin they reserved
+  // collapses with them. The plotted geometry is untouched: the domain is fit
+  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
+  const hideAmounts = isAmountsHidden();
+  const chartLeft = hideAmounts ? 12 : CHART_M.left;
+
   const [chartW, setChartW] = useState(680);
   const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
   const setHoverIdx = (i: number | null) => { setHoverIdxRaw(i); onHoverChange?.(i); };
@@ -70,7 +80,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
     return () => ro.disconnect();
   }, []);
 
-  const innerW = chartW - CHART_M.left - CHART_M.right;
+  const innerW = chartW - chartLeft - CHART_M.right;
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
 
   const { yMin, yMax, yTicks } = useMemo(() => {
@@ -81,13 +91,13 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
     return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
   }, [points]);
 
-  const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const xAt = (i: number) => chartLeft + (i / Math.max(1, points.length - 1)) * innerW;
   const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
 
   const xy = useMemo<Array<[number, number]>>(
     () => points.map((p, i) => [xAt(i), yAt(p.value)]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, chartW, yMin, yMax],
+    [points, chartW, yMin, yMax, chartLeft],
   );
   const linePath = useMemo(() => smoothLinePath(xy), [xy]);
   const baseY = (CHART_M.top + innerH).toFixed(2);
@@ -105,7 +115,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
     if (rect.width <= 0) return null;
     const scale = chartW / rect.width;
     const localX = (clientX - rect.left) * scale;
-    const ratio = (localX - CHART_M.left) / Math.max(1, innerW);
+    const ratio = (localX - chartLeft) / Math.max(1, innerW);
     return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
   };
 
@@ -133,16 +143,18 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
         {yTicks.map((t) => (
           <g key={t}>
             <line
-              x1={CHART_M.left} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
+              x1={chartLeft} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
               stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
             />
-            <text
-              x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
-              fill="rgb(var(--ui-content-faint))"
-              style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
-            >
-              {formatShortMoney(t, tickDecimals(yTicks))}
-            </text>
+            {!hideAmounts && (
+              <text
+                x={chartLeft - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
+                fill="rgb(var(--ui-content-faint))"
+                style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {formatShortMoney(t, tickDecimals(yTicks))}
+              </text>
+            )}
           </g>
         ))}
 
@@ -166,8 +178,22 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
           </g>
         )}
 
+        {/* The first and last labels sit ON the plot edges, so a centred anchor
+            hangs half of each outside the viewBox and the SVG clips it ("Aug 16"
+            renders as "ug 16"). Anchoring the ends inward keeps the whole label
+            on canvas at any left margin, including the narrow one the chart
+            falls back to when the money y-axis is hidden. */}
         {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 10} textAnchor="middle" fill="rgb(var(--ui-content-muted))" style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+          <text
+            key={`${idx}-${label}`}
+            x={xAt(idx)}
+            y={CHART_H - 10}
+            textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'}
+            fill="rgb(var(--ui-content-muted))"
+            style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+          >
+            {label}
+          </text>
         ))}
       </svg>
 
@@ -304,12 +330,19 @@ export function NetWorthTrendCard({
             height for a chip that fits comfortably beside the number. They
             wrap onto separate lines only when the card is too narrow. */}
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          {/* The mask is the COMPONENT here, not the string `fmtUsd` would
+              return: a bare "$•••••" inherits the editorial face, whose bullets
+              squash into ellipses at this size and read as broken text. */}
           <span className="font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum">
-            {fmtUsd(displayValue)}
+            {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(displayValue)}
           </span>
           {periodDelta !== null && sinceLabel && (
             <span className="flex items-center gap-2.5 flex-wrap">
-              <DeltaChip delta={periodDelta} />
+              {/* Masked, the chip is a tinted arrow around a second copy of the
+                  mask already leading the card, so it is dropped rather than
+                  filled with bullets. The percentage beside it is
+                  scale-invariant, so it stays and carries the change. */}
+              {!isAmountsHidden() && <DeltaChip delta={periodDelta} />}
               <span className="text-[13px] font-medium text-content-muted ui-tnum">
                 since {sinceLabel}
                 {periodPct !== null ? ` (${periodPct < 0 ? '−' : '+'}${Math.abs(periodPct).toFixed(1)}%)` : ''}

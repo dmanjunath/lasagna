@@ -10,9 +10,10 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { cn, formatMoney } from "../lib/utils";
+import { HIDDEN_AMOUNT, isAmountsHidden } from "../lib/hide-amounts";
 import { api, API_BASE, authHeaders } from "../lib/api";
 import { usePageContext } from "../lib/page-context";
-import { Button, EmptyState, Skeleton } from "../components/uikit";
+import { Button, EmptyState, MASK_TEXT_STYLE, MaskedText, Skeleton, useRevealOnFocus } from "../components/uikit";
 
 // ── Chart palette (resolves via CSS vars, so light/dark swap automatically) ──
 const VIZ = "var(--ui-viz-2)"; // periwinkle — the MC value channel
@@ -33,12 +34,16 @@ const tooltipStyle = {
   fontVariantNumeric: "tabular-nums" as const,
 };
 
-function fmtShort(value: number): string {
+function fmtShortRaw(value: number): string {
   const sign = value < 0 ? "-" : "";
   const v = Math.abs(value);
   if (v >= 1_000_000) return `${sign}$${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `${sign}$${(v / 1_000).toFixed(0)}K`;
   return `${sign}$${v.toFixed(0)}`;
+}
+
+function fmtShort(value: number): string {
+  return isAmountsHidden() ? HIDDEN_AMOUNT : fmtShortRaw(value);
 }
 
 // Track the `.dark` class on <html> so chart fills can be strengthened in dark mode.
@@ -185,7 +190,7 @@ function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label
         <span className="text-[11px] font-bold uppercase tracking-[0.1em]">{label}</span>
       </div>
       <div className="mt-2 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-content ui-tnum">
-        {value}
+        <MaskedText text={value} />
       </div>
     </div>
   );
@@ -270,6 +275,7 @@ function FanChart({ data, height = 300 }: { data: FanDatum[]; height?: number })
   const p5Min = Math.min(...data.map((d) => d.p5));
   const p75Max = Math.max(...data.map((d) => d.p75));
   const p95Max = Math.max(...data.map((d) => d.p95));
+  const hideAmounts = isAmountsHidden();
   const yMin = Math.max(0, p5Min);
   const yMax = Math.min(p95Max, Math.max(p75Max * 1.35, yMin + 1));
   // Fills need more presence on the near-black dark card.
@@ -292,7 +298,7 @@ function FanChart({ data, height = 300 }: { data: FanDatum[]; height?: number })
             </linearGradient>
           </defs>
           <XAxis dataKey="year" tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `Yr ${v}`} />
-          <YAxis tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={fmtShort} domain={[yMin, yMax]} allowDataOverflow />
+          <YAxis tick={hideAmounts ? false : { fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={hideAmounts ? 8 : 56} tickFormatter={fmtShortRaw} domain={[yMin, yMax]} allowDataOverflow />
           <Tooltip content={<FanTooltip />} />
           <ReferenceLine y={0} stroke={C_GRID} strokeDasharray="3 3" />
           <Area type="monotone" dataKey="p95" stroke="none" fill="url(#pos-outer)" fillOpacity={1} isAnimationActive={false} />
@@ -345,13 +351,14 @@ function SpaghettiChart({ paths, years, height = 300 }: { paths: number[][]; yea
   // the bulk of the paths stay readable; the outlier simply runs off the top.
   const finals = paths.map((p) => p[p.length - 1]).sort((a, b) => a - b);
   const capIdx = Math.min(finals.length - 1, Math.floor(finals.length * 0.9));
+  const hideAmounts = isAmountsHidden();
   const yMax = Math.min(maxVal, Math.max(finals[capIdx] * 1.1, 1));
   return (
     <div style={{ height, width: "100%" }} className="ui-tnum">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
           <XAxis dataKey="year" tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `Yr ${v}`} />
-          <YAxis tick={{ fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={fmtShort} domain={[0, yMax]} allowDataOverflow />
+          <YAxis tick={hideAmounts ? false : { fill: C_AXIS, fontSize: 11 }} tickLine={false} axisLine={false} width={hideAmounts ? 8 : 56} tickFormatter={fmtShortRaw} domain={[0, yMax]} allowDataOverflow />
           <Tooltip contentStyle={tooltipStyle} labelFormatter={(l) => `Year ${l}`} formatter={(value) => [fmtShort(typeof value === "number" ? value : 0), "Portfolio"]} />
           <ReferenceLine y={0} stroke={C_GRID} strokeDasharray="3 3" />
           {paths.map((_, i) => (
@@ -407,11 +414,34 @@ function rebucket(data: HistogramBucket[]): { buckets: HistogramBucket[]; step: 
 const HIST_COLOR: Record<string, string> = { success: C_GOOD, close: C_WARN, failure: C_RISK };
 
 function HistogramChart({ data, height = 250 }: { data: HistogramBucket[]; height?: number }) {
+  const hideAmounts = isAmountsHidden();
+
+  /**
+   * The one chart whose CATEGORICAL axis is the money one: x is the portfolio
+   * bin, y is only a count of runs. Masking the bins leaves bars with no
+   * labels at all and nothing to read them against, so the chart stops meaning
+   * anything and the legend explains a picture that is no longer there. Same
+   * placeholder the Vega-Lite chart shows, for the same reason: an absent
+   * chart is a smaller loss than an unreadable one.
+   */
+  if (hideAmounts) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-ui-lg border border-line bg-canvas-sunken p-4"
+        style={{ height, width: "100%" }}
+      >
+        <p className="text-[13px] font-semibold text-content-muted">
+          Chart hidden. Show amounts to see it.
+        </p>
+      </div>
+    );
+  }
+
   const { buckets, step } = rebucket(data);
   const total = buckets.reduce((s, d) => s + d.count, 0);
   const displayData = buckets.map((d) => {
     const v = typeof d.bucket === "string" ? parseFloat(d.bucket) : d.bucket;
-    const label = step > 0 ? `${fmtShort(v)} to ${fmtShort(v + step)}` : fmtShort(v);
+    const label = step > 0 ? `${fmtShortRaw(v)} to ${fmtShortRaw(v + step)}` : fmtShortRaw(v);
     return { ...d, label };
   });
   return (
@@ -483,6 +513,9 @@ function StrategyConfig({ strategy, params, monthlySpend, onMonthlySpendChange, 
 }) {
   const inflationAdjusted = params.inflationAdjusted ?? true;
   const rate = params.withdrawalRate ?? 4;
+  // Resting, this field is the user's real monthly spend in plain digits,
+  // directly above the masked "/yr" it derives. It shows the mask until focused.
+  const spendField = useRevealOnFocus();
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -510,14 +543,21 @@ function StrategyConfig({ strategy, params, monthlySpend, onMonthlySpendChange, 
           <div className="space-y-2">
             <label className="text-[13px] font-medium text-content-secondary">Monthly spending</label>
             <div className="relative max-w-[220px]">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-content-muted">$</span>
+              {!spendField.masked && <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-content-muted">$</span>}
               <input
-                type="number"
-                value={monthlySpend}
+                type={spendField.masked ? "text" : "number"}
+                value={spendField.masked ? HIDDEN_AMOUNT : monthlySpend}
+                readOnly={spendField.masked}
+                onFocus={spendField.onFocus}
+                onBlur={spendField.onBlur}
+                style={spendField.masked ? MASK_TEXT_STYLE : undefined}
                 min={0}
                 max={100000}
                 onChange={(e) => { const v = parseInt(e.target.value, 10); if (!isNaN(v) && v >= 0) onMonthlySpendChange(v); }}
-                className="ui-focus h-11 w-full rounded-ui-md border border-line-strong bg-panel pl-7 pr-3.5 text-content ui-tnum shadow-ui-sm outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                className={cn(
+                  "ui-focus h-11 w-full rounded-ui-md border border-line-strong bg-panel pr-3.5 text-content ui-tnum shadow-ui-sm outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
+                  spendField.masked ? "pl-3.5" : "pl-7",
+                )}
               />
             </div>
             <p className="text-[12px] text-content-muted ui-tnum">

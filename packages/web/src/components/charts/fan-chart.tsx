@@ -10,6 +10,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { colors } from '../../styles/theme';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface FanChartData {
   year: number;
@@ -27,6 +28,7 @@ interface FanChartProps {
 }
 
 function formatValue(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   }
@@ -48,6 +50,8 @@ export function FanChart({
       </div>
     );
   }
+
+  const hideAmounts = isAmountsHidden();
 
   // Pass through data with all percentiles for proper rendering
   const chartData = data.map((d) => ({
@@ -87,6 +91,9 @@ export function FanChart({
             axisLine={false}
             tickFormatter={(v) => `Year ${v}`}
           />
+          {/* Money tick labels are removed while amounts are hidden, and the
+              60px they reserved with them. The bands are unchanged: the domain
+              is derived from the data, never a fixed bound. */}
           <YAxis
             stroke={colors.text.muted}
             fontSize={11}
@@ -95,7 +102,11 @@ export function FanChart({
             width={60}
             tickFormatter={formatValue}
             domain={[Math.max(0, minVal - padding), maxVal + padding]}
+            hide={hideAmounts}
           />
+          {/* Every row is a percentile label plus a dollar figure, so with
+              amounts hidden the list is five identical masks. The rows drop and
+              the year label is what remains. */}
           <Tooltip
             contentStyle={{
               background: colors.bg.elevated,
@@ -104,6 +115,7 @@ export function FanChart({
               fontFamily: 'DM Sans, system-ui, sans-serif',
               fontSize: '12px',
             }}
+            itemStyle={hideAmounts ? { display: 'none' } : undefined}
             labelFormatter={(label) => `Year ${label}`}
             formatter={(value, name) => {
               const labels: Record<string, string> = {

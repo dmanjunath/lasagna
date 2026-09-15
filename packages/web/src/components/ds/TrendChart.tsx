@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartHover } from './ChartHover';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 // ── Shared interactive trend chart ─────────────────────────────────────────
 // Extracted verbatim from simple-money's NetWorthChart so the Money page and
@@ -16,7 +17,9 @@ export const CHART_M = { top: 16, right: 12, bottom: 36, left: 56 };
 export const CHART_COLOR = 'rgb(var(--color-success))';
 
 const fmtUsd = (n: number, frac = 0) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
 
 /**
  * Build a smooth monotone-cubic Hermite spline path through (x, y) points.
@@ -64,6 +67,13 @@ export function smoothLinePath(pts: Array<[number, number]>): string {
 
 export function TrendChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  // Money y-axis labels are removed while amounts are hidden rather than
+  // replaced by five identical masks, and the left margin they reserved
+  // collapses with them. The plotted geometry is untouched: the domain is fit
+  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
+  const hideAmounts = isAmountsHidden();
+  const chartLeft = hideAmounts ? 12 : CHART_M.left;
+
   const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
   const setHoverIdx = (i: number | null) => {
     setHoverIdxRaw(i);
@@ -81,7 +91,7 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
     return () => ro.disconnect();
   }, []);
 
-  const innerW = chartW - CHART_M.left - CHART_M.right;
+  const innerW = chartW - chartLeft - CHART_M.right;
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
 
   const { yMin, yMax, yTicks } = useMemo(() => {
@@ -92,14 +102,14 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
     return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
   }, [points]);
 
-  const xAt = (i: number) => CHART_M.left + (i / Math.max(1, points.length - 1)) * innerW;
+  const xAt = (i: number) => chartLeft + (i / Math.max(1, points.length - 1)) * innerW;
   const CHART_W = chartW;
   const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
 
   const xy = useMemo<Array<[number, number]>>(
     () => points.map((p, i) => [xAt(i), yAt(p.value)]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, chartW, yMin, yMax],
+    [points, chartW, yMin, yMax, chartLeft],
   );
   const linePath = useMemo(() => smoothLinePath(xy), [xy]);
   const baseY = (CHART_M.top + innerH).toFixed(2);
@@ -133,8 +143,10 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
         </defs>
         {yTicks.map((t) => (
           <g key={t}>
-            <line x1={CHART_M.left} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule/70" strokeWidth={1} strokeDasharray="2 5" />
-            <text x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-content-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
+            <line x1={chartLeft} y1={yAt(t)} x2={CHART_W - CHART_M.right} y2={yAt(t)} className="stroke-rule/70" strokeWidth={1} strokeDasharray="2 5" />
+            {!hideAmounts && (
+              <text x={chartLeft - 12} y={yAt(t)} dy="0.32em" textAnchor="end" className="fill-content-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{formatShortMoney(t)}</text>
+            )}
           </g>
         ))}
         <path d={areaPath} fill="url(#nw-area)" />
@@ -180,15 +192,19 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
             />
           </g>
         )}
+        {/* The first and last labels sit ON the plot edges, so a centred anchor
+            hangs half of each outside the viewBox and the SVG clips it ("Sep 12"
+            renders as "Sep 1"). Anchoring the ends inward keeps the whole label
+            on canvas. */}
         {xLabels.map(({ idx, label }) => (
-          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor="middle" className="fill-content-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
+          <text key={`${idx}-${label}`} x={xAt(idx)} y={CHART_H - 12} textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'} className="fill-content-muted" style={{ fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{label}</text>
         ))}
       </svg>
       {points.length > 0 && (
         <ChartHover
           width={CHART_W}
           height={CHART_H}
-          paddingLeft={CHART_M.left}
+          paddingLeft={chartLeft}
           paddingRight={CHART_M.right}
           count={points.length}
           onHoverChange={setHoverIdx}
@@ -239,6 +255,7 @@ export function tickDecimals(ticks: number[], minDecimals = 2): number {
 }
 
 export function formatShortMoney(n: number, decimals?: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const abs = Math.abs(n);
   const sign = n < 0 ? '-' : '';
   if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(decimals ?? (abs >= 1e7 ? 0 : 1))}M`;

@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { colors } from '../../styles/theme';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface DataPoint {
   [key: string]: string | number;
@@ -29,10 +30,11 @@ export function AreaChart({
   yKey,
   color = colors.accent.DEFAULT,
   gradientId = 'areaGradient',
-  formatY = (v) => `$${(v / 1000).toFixed(0)}k`,
-  formatTooltip = (v) => `$${v.toLocaleString()}`,
+  formatY = (v) => (isAmountsHidden() ? HIDDEN_AMOUNT : `$${(v / 1000).toFixed(0)}k`),
+  formatTooltip = (v) => (isAmountsHidden() ? HIDDEN_AMOUNT : `$${v.toLocaleString()}`),
   height = 256,
 }: AreaChartProps) {
+  const hideAmounts = isAmountsHidden();
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -50,12 +52,16 @@ export function AreaChart({
             tickLine={false}
             axisLine={false}
           />
+          {/* Money tick labels are removed while amounts are hidden, and the
+              width they reserved with them. The curve is unchanged: the domain
+              is fit to the data. */}
           <YAxis
             stroke={colors.text.muted}
             fontSize={12}
             tickLine={false}
             axisLine={false}
             tickFormatter={formatY}
+            hide={hideAmounts}
           />
           <Tooltip
             contentStyle={{

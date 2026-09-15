@@ -2,6 +2,8 @@ import { ReactNode, useState, useRef, useEffect } from 'react';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { RefreshCw, Trash2, MoreHorizontal, SlidersHorizontal, Lock } from 'lucide-react';
 import { faviconUrl, institutionDomainFor } from './institutions';
+import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../../lib/hide-amounts';
+import { HiddenAmount } from '../uikit/HiddenAmount';
 
 export interface AccountRowProps {
   /** Display name of the institution — "Chase", "Vanguard", etc. */
@@ -39,7 +41,9 @@ export interface AccountRowProps {
 }
 
 const defaultFmt = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 /**
  * AccountRow — shared primitive for any account/holding-style list row.
@@ -78,9 +82,12 @@ export function AccountRow({
   const icon = faviconUrl(resolvedDomain, 64);
   const monogram = (institution || '?').trim().charAt(0).toUpperCase();
   const formatted = formatValue(Math.abs(value));
+  // A masked value absorbs the sign and the tone: a lone − beside the mask
+  // would still say "this one is negative".
+  const masked = isMasked(formatted);
   // Debt sections force a leading − (negative). Elsewhere, show a sign only
   // when the value is actually negative (e.g. an inverted asset balance).
-  const showNeg = negative || value < 0;
+  const showNeg = !masked && (negative || value < 0);
   const display = showNeg ? `−${formatted}` : formatted;
   const hasMenu = Boolean(onSettings || onSync || onDelete || onUpgrade);
 
@@ -122,7 +129,9 @@ export function AccountRow({
         )}
       </div>
       <div className="ds-row__right">
-        <span className={`ds-row__value ds-num${showNeg ? ' ds-neg' : ''}`}>{display}</span>
+        <span className={`ds-row__value ds-num${showNeg ? ' ds-neg' : ''}`}>
+          {masked ? <HiddenAmount /> : display}
+        </span>
         {delta && <span className="ds-row__delta ds-num">{delta}</span>}
       </div>
       {hasMenu && (

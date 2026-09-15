@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "../../../lib/utils.js";
 import type { CollapsibleDetailsBlock } from "../../../lib/types.js";
+import { maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 export function CollapsibleDetailsRenderer({ block }: { block: CollapsibleDetailsBlock }) {
   const [isOpen, setIsOpen] = useState(block.defaultOpen ?? false);
@@ -25,7 +26,7 @@ export function CollapsibleDetailsRenderer({ block }: { block: CollapsibleDetail
         >
           <ChevronRight className="w-4 h-4 text-content-muted" />
         </motion.div>
-        <span className="text-content font-bold">{block.summary}</span>
+        <span className="text-content font-bold">{maskCurrencyInText(block.summary)}</span>
       </button>
 
       {/* Collapsible content */}
@@ -40,7 +41,7 @@ export function CollapsibleDetailsRenderer({ block }: { block: CollapsibleDetail
           >
             <div className="px-4 pb-4 pt-0 border-t border-line">
               <div className="pt-3 max-w-none text-sm [&_p]:text-content-secondary [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:text-content [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_ul]:my-2 [&_ol]:my-2 [&_li]:text-content-secondary [&_li]:mb-1 [&_li>p]:my-0 marker:text-content-faint">
-                <ReactMarkdown>{block.content}</ReactMarkdown>
+                <ReactMarkdown>{maskCurrencyInText(block.content)}</ReactMarkdown>
               </div>
             </div>
           </motion.div>

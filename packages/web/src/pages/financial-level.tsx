@@ -9,12 +9,13 @@ import {
 import { Link, useLocation } from 'wouter';
 import { api } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
 import { useInsights, type Insight } from '../hooks/useInsights';
 import { stripAccountMask } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import type { LucideIcon } from 'lucide-react';
-import { Button, EmptyState, Skeleton, Textarea, useToast } from '../components/uikit';
+import { Button, EmptyState, MaskedText, Skeleton, Textarea, useToast } from '../components/uikit';
 import { type LevelState, levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 import { ActionItem } from '../components/common/action-item';
 
@@ -138,6 +139,7 @@ function updatedLine(updatedAt: string, reason: string): string {
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(value: number) {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency', currency: 'USD',
     minimumFractionDigits: 0, maximumFractionDigits: 0,
@@ -303,7 +305,7 @@ function WhyThisPathPopover({ steps, surplus, orderSource }: {
             </p>
             <p className="text-[13.5px] leading-relaxed text-content-secondary">
               {surplus !== null && surplus > 0 ? (
-                <>Your {fmt(surplus)} a month goes to the step you are on, then moves down as each finishes.</>
+                <MaskedText text={`Your ${fmt(surplus)} a month goes to the step you are on, then moves down as each finishes.`} />
               ) : (
                 <>Add income or link a spending account and each step gets a monthly figure and a date.</>
               )}
@@ -409,7 +411,7 @@ function LevelRow({ step, state, isSelected, onSelect }: {
             Step {step.order}
           </span>
           <span className="font-editorial text-[15.5px] font-bold leading-[1.2] tracking-[-0.012em] line-clamp-2 text-content transition-colors group-hover:text-brand">
-            {step.title}
+            <MaskedText text={step.title} />
           </span>
           {/* Mobile: the pill lives on its own line so it never eats the name. */}
           <StatePill state={state} rateShaped={step.rateShaped} className="sm:hidden mt-0.5 self-start" />
@@ -609,16 +611,16 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
       )}
 
       <h3 className="font-editorial text-[20px] sm:text-[22px] font-bold leading-[1.18] tracking-[-0.02em] text-content">
-        {step.title}
+        <MaskedText text={step.title} />
       </h3>
       {/* `why` is this person's own reason, in their own figures, so it leads.
           The generic argument follows it. The short `subtitle` form is what the
           home summary shows and would only repeat `why` here. */}
       {step.why && (
-        <p className="mt-2 text-[14.5px] leading-[1.5] font-semibold text-content max-w-[58ch]">{step.why}</p>
+        <p className="mt-2 text-[14.5px] leading-[1.5] font-semibold text-content max-w-[58ch]"><MaskedText text={step.why} /></p>
       )}
       {step.description && (
-        <p className="mt-2.5 text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]">{step.description}</p>
+        <p className="mt-2.5 text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]"><MaskedText text={step.description} /></p>
       )}
 
       {/* `why` and `description` both argue for the step. This argues for its
@@ -632,7 +634,7 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
           {/* Same leading as `description`. They are the same size and colour
               and sit next to each other, so a tighter one visibly breaks the
               rhythm once this runs past a line. */}
-          <p className="text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]">{step.reason}</p>
+          <p className="text-[14px] leading-[1.6] text-content-secondary max-w-[58ch]"><MaskedText text={step.reason} /></p>
         </div>
       )}
 
@@ -641,7 +643,7 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
       {state === 'current' && step.action && (
         <div className="mt-5 rounded-ui-lg border border-line bg-canvas-sunken/50 p-3.5">
           <div className="text-[13px] font-semibold text-content-muted mb-1.5">Next step</div>
-          <p className="text-[14px] leading-[1.5] font-semibold text-content">{step.action}</p>
+          <p className="text-[14px] leading-[1.5] font-semibold text-content"><MaskedText text={step.action} /></p>
         </div>
       )}
 
@@ -665,11 +667,11 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
               that has to hold every month, so the heading says which, and the
               box distinguishes an order from the plain readings below. */}
           <div className="text-[13px] font-semibold text-content-muted mb-1.5">Every month</div>
-          <p className="text-[14px] leading-[1.5] font-semibold text-content">{step.action}</p>
+          <p className="text-[14px] leading-[1.5] font-semibold text-content"><MaskedText text={step.action} /></p>
         </div>
       )}
       {state !== 'current' && !step.rateShaped && step.fact && (
-        <p className="mt-5 text-[14px] leading-[1.5] font-semibold text-content">{step.fact}</p>
+        <p className="mt-5 text-[14px] leading-[1.5] font-semibold text-content"><MaskedText text={step.fact} /></p>
       )}
 
       {/* Anything the figures above would otherwise be read as, but aren't — an
@@ -680,7 +682,7 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
       {step.notes.length > 0 && (
         <div className="mt-4">
           {step.notes.map((n) => (
-            <p key={n} className="text-[12.5px] leading-[1.45] text-content-muted">{n}</p>
+            <p key={n} className="text-[12.5px] leading-[1.45] text-content-muted"><MaskedText text={n} /></p>
           ))}
         </div>
       )}
@@ -1101,7 +1103,7 @@ export function FinancialLevel() {
             {!allComplete && (
               <>
                 <p className="mt-3 text-[14.5px] font-bold leading-[1.5] text-content max-w-[40ch]">
-                  {currentStep.title}
+                  <MaskedText text={currentStep.title} />
                 </p>
                 {/* Only when there is no verdict to show instead. A profile
                     echo does not earn the footer band the verdict gets. */}
@@ -1278,7 +1280,7 @@ export function FinancialLevel() {
             {offPath.map(off => (
               <li key={off.id} className="flex items-start gap-3 border-t border-line py-3 px-1.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14.5px] font-semibold text-content-secondary">{off.title}</p>
+                  <p className="text-[14.5px] font-semibold text-content-secondary"><MaskedText text={off.title} /></p>
                   {/* Why it is not on the path, where there is something to
                       say. A step you took off yourself says who took it off. A
                       step the plan left out carries the line it wrote. A step
@@ -1288,7 +1290,7 @@ export function FinancialLevel() {
                       times over. */}
                   {(off.byYou ? 'You said this does not apply to you.' : off.reason) && (
                     <p className="mt-1 text-[13px] leading-[1.5] text-content-muted">
-                      {off.byYou ? 'You said this does not apply to you.' : off.reason}
+                      {off.byYou ? 'You said this does not apply to you.' : <MaskedText text={off.reason} />}
                     </p>
                   )}
                 </div>

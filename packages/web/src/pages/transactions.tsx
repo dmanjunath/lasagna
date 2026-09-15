@@ -4,6 +4,8 @@ import { Banknote, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Receipt, 
 import { api, type TxnQueryRow, type TxnQuerySummary } from '../lib/api';
 import { useAccountsIndex } from '../lib/use-accounts-index';
 import { cn } from '../lib/utils';
+import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
+import { HiddenAmount } from '../components/uikit';
 import { usePageContext } from '../lib/page-context';
 import { Alert, Button, EmptyState, Skeleton, useToast } from '../components/uikit';
 import { useCategoryDisplay } from '../lib/taxonomy';
@@ -26,6 +28,7 @@ import { RulesPanel } from '../components/rules/RulesPanel';
 // ---------------------------------------------------------------------------
 
 function formatCurrencyExact(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -104,14 +107,17 @@ function KpiCell({ label, value, sub, tone }: {
   sub?: string;
   tone?: 'pos' | 'neg';
 }) {
+  // A masked figure sheds its tone AND the sign baked into its string: both
+  // would still say which way the number went.
+  const masked = isMasked(value);
   return (
     <div className="px-4 py-3 sm:px-5 sm:py-3.5">
       <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
-        tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
-        tone === 'neg' && 'text-negative',
-      )}>{value}</div>
+        !masked && tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
+        !masked && tone === 'neg' && 'text-negative',
+      )}>{masked ? <HiddenAmount /> : value}</div>
       {sub && <div className="mt-1.5 truncate text-[11.5px] font-semibold text-content-muted">{sub}</div>}
     </div>
   );

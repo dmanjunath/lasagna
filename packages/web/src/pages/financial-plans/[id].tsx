@@ -7,6 +7,7 @@ import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { SegmentedControl } from "../../components/uikit/SegmentedControl.js";
 import { vizColor } from "../../components/uikit/viz.js";
 import { formatMoney, splitParagraphs } from "../../lib/utils.js";
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../lib/hide-amounts.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { BrandMark } from "../../components/common/BrandMark.js";
 import { PlanFreshnessBanner } from "../../components/common/plan-freshness-banner.js";
@@ -205,7 +206,7 @@ function ThemeLede({ body, className }: { body: string | null; className?: strin
     <div className={`plan-prose mt-4 max-w-[660px] space-y-3 ${className ?? ""}`}>
       {paras.map((p, i) => (
         <p key={i} className="text-[14.5px] leading-[1.56] text-content-secondary">
-          {p}
+          {maskCurrencyInText(p)}
         </p>
       ))}
     </div>
@@ -218,6 +219,7 @@ function ThemeLede({ body, className }: { body: string | null; className?: strin
 // terse "$1.2M / $340k" style. Drops a trailing ".0" so round decade ticks read
 // as "$1M" not "$1.0M", and handles billions for long-horizon terminal values.
 function fmtShortMoney(v: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const trim = (s: string) => s.replace(/\.0$/, "");
   if (v >= 1e9) return `$${trim((v / 1e9).toFixed(1))}B`;
   if (v >= 1e6) return `$${trim((v / 1e6).toFixed(1))}M`;
@@ -254,9 +256,15 @@ function GrowthChart({ section }: { section: RetirementReadinessSection }) {
   const n = pts.length;
   if (n < 2) return null;
 
+  // Money y-axis labels are removed while amounts are hidden rather than
+  // replaced by a column of identical masks, and the left gutter they reserved
+  // collapses with them. The plotted paths are untouched: the log domain is fit
+  // to the data, so the climb reads the same at any magnitude.
+  const hideAmounts = isAmountsHidden();
+
   const W = 760;
   const H = 240;
-  const PL = 56;
+  const PL = hideAmounts ? 10 : 56;
   const PR = 64; // room for the terminal-value annotation at the right edge
   const PT = 20;
   const PB = 28;
@@ -325,9 +333,11 @@ function GrowthChart({ section }: { section: RetirementReadinessSection }) {
         return (
           <g key={val}>
             <line x1={PL} x2={PL + chartW} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
-            <text x={PL - 8} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">
-              {fmtShortMoney(val)}
-            </text>
+            {!hideAmounts && (
+              <text x={PL - 8} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontSize={11} fill="rgb(var(--ui-content-muted))">
+                {fmtShortMoney(val)}
+              </text>
+            )}
           </g>
         );
       })}
@@ -346,7 +356,7 @@ function GrowthChart({ section }: { section: RetirementReadinessSection }) {
           <circle cx={xf(retireIdx)} cy={yf(atRetire)} r={3} fill="rgb(var(--ui-brand))" />
           {frac > 0.14 && (
             <text x={xf(retireIdx) + 6} y={PT + 12} fontFamily="inherit" style={{ fontVariantNumeric: "tabular-nums" }} fontWeight={600} fontSize={11} fill="rgb(var(--ui-brand-ink))">
-              retire {section.retirementAge}, {fmtShortMoney(atRetire)}
+              retire {section.retirementAge}{hideAmounts ? "" : `, ${fmtShortMoney(atRetire)}`}
             </text>
           )}
         </>
@@ -723,10 +733,10 @@ function GoalsSectionView({
                 className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <span className="min-w-0">
-                  <span className="text-[14px] font-semibold text-content">{g.label}</span>
+                  <span className="text-[14px] font-semibold text-content">{maskCurrencyInText(g.label)}</span>
                   {g.note && (
                     <span className="mt-0.5 block text-[12.5px] font-semibold text-content-muted">
-                      {g.note}
+                      {maskCurrencyInText(g.note)}
                     </span>
                   )}
                 </span>
@@ -792,7 +802,7 @@ function SuggestionsSectionView({
                   <span className="shrink-0 text-[12px] font-semibold leading-none text-content-faint ui-tnum">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="min-w-0 break-words">{s.title}</span>
+                  <span className="min-w-0 break-words">{maskCurrencyInText(s.title)}</span>
                 </h3>
                 {s.category && (
                   <span className="mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
@@ -801,14 +811,14 @@ function SuggestionsSectionView({
                 )}
               </div>
               <p className="mt-2 max-w-[660px] text-[14.5px] leading-[1.56] text-content-secondary">
-                {s.rationale}
+                {maskCurrencyInText(s.rationale)}
               </p>
               {s.impact && (
                 <p className="mt-2.5 text-[12.5px] font-semibold text-content-muted">
                   <span className="font-bold uppercase tracking-[0.06em] text-content-faint">
                     Impact
                   </span>{" "}
-                  {s.impact}
+                  {maskCurrencyInText(s.impact)}
                 </p>
               )}
             </li>
@@ -842,7 +852,7 @@ function StrategySectionView({
           Absent when the grounding gate dropped an ungrounded draft headline. */}
       {strategy.situationHeadline && (
         <div className="plan-prose mt-10 max-w-[660px]">
-          <p className="text-[19px] leading-snug text-content">{strategy.situationHeadline}</p>
+          <p className="text-[19px] leading-snug text-content">{maskCurrencyInText(strategy.situationHeadline)}</p>
         </div>
       )}
 
@@ -852,9 +862,9 @@ function StrategySectionView({
           <ol className="mt-6 space-y-0">
             {strategy.watchouts.map((w, i) => (
               <li key={`watchout-${i}`} className="border-t border-line pt-5 mt-5 first:mt-0">
-                <h3 className="text-[15px] font-bold text-content">{w.title}</h3>
+                <h3 className="text-[15px] font-bold text-content">{maskCurrencyInText(w.title)}</h3>
                 <p className="mt-2 max-w-[660px] text-[14.5px] leading-[1.56] text-content-secondary">
-                  {w.detail}
+                  {maskCurrencyInText(w.detail)}
                 </p>
               </li>
             ))}
@@ -868,16 +878,16 @@ function StrategySectionView({
           <ol className="mt-6 space-y-0">
             {strategy.strategies.map((s, i) => (
               <li key={`strategy-${i}`} className="border-t border-line pt-5 mt-5 first:mt-0">
-                <h3 className="text-[15px] font-bold text-content">{s.title}</h3>
+                <h3 className="text-[15px] font-bold text-content">{maskCurrencyInText(s.title)}</h3>
                 <p className="mt-2 max-w-[660px] text-[14.5px] leading-[1.56] text-content-secondary">
-                  {s.detail}
+                  {maskCurrencyInText(s.detail)}
                 </p>
                 {s.quantifiedImpact && (
                   <p className="mt-2.5 text-[12.5px] font-semibold text-content-muted">
                     <span className="font-bold uppercase tracking-[0.06em] text-content-faint">
                       Impact
                     </span>{" "}
-                    {s.quantifiedImpact}
+                    {maskCurrencyInText(s.quantifiedImpact)}
                   </p>
                 )}
               </li>
@@ -895,9 +905,9 @@ function StrategySectionView({
                 key={`explore-${i}`}
                 className="rounded-ui-md bg-canvas-sunken px-4 py-3"
               >
-                <p className="text-[14px] font-bold text-content">{e.title}</p>
+                <p className="text-[14px] font-bold text-content">{maskCurrencyInText(e.title)}</p>
                 <p className="mt-1.5 text-[13.5px] leading-[1.5] text-content-secondary">
-                  {e.detail}
+                  {maskCurrencyInText(e.detail)}
                 </p>
               </div>
             ))}
@@ -1131,12 +1141,14 @@ function FreeformReportView({
         )}
       </div>
 
-      {/* The report itself, exactly as the model wrote it. Sandboxed: no scripts. */}
+      {/* The report itself, exactly as the model wrote it. Sandboxed: no scripts.
+          Nothing inside the frame passes through a number formatter, so the
+          money is masked in the document text before it is handed over. */}
       <iframe
         ref={frameRef}
         title="Retirement plan"
         sandbox="allow-same-origin"
-        srcDoc={report.html}
+        srcDoc={maskCurrencyInText(report.html)}
         onLoad={measure}
         style={{ height: frameHeight }}
         className="mt-5 w-full rounded-ui-md border border-line bg-white shadow-ui-sm"
@@ -1220,7 +1232,7 @@ function ScheduleTableView({
     chips.push({
       label: "Tax-free withdrawals",
       value: `${formatMoney(flags.taxFreeCapacityAtRetirement, true)}/yr`,
-      hint: "at $0 federal tax (standard deduction + 0% gains band)",
+      hint: "at zero federal tax (standard deduction + 0% gains band)",
     });
   }
   if (flags.coastFi.deferredPlusRothAt59 > 0) {
@@ -1391,7 +1403,7 @@ function ScheduleTableView({
                     {formatMoney(row.taxFreeWithdrawal, true)}
                   </td>
                   <td
-                    className={`py-2 text-right ui-tnum text-[13px] font-bold ${isShortfall ? "text-[rgb(var(--ui-negative))]" : "text-content"}`}
+                    className={`py-2 text-right ui-tnum text-[13px] font-bold ${isShortfall && !isAmountsHidden() ? "text-[rgb(var(--ui-negative))]" : "text-content"}`}
                   >
                     {formatMoney(row.totalPortfolio, true)}
                   </td>
@@ -1423,12 +1435,12 @@ function ScheduleTableView({
                               <span className="shrink-0 ui-tnum whitespace-nowrap">
                                 {f.withdrawal > 0 && (
                                   <span className="font-semibold text-content">
-                                    −{formatMoney(f.withdrawal, true)}
+                                    {isAmountsHidden() ? "" : "−"}{formatMoney(f.withdrawal, true)}
                                   </span>
                                 )}
                                 {f.contribution > 0 && (
                                   <span className="font-semibold text-[rgb(var(--ui-brand-ink))]">
-                                    +{formatMoney(f.contribution, true)}
+                                    {isAmountsHidden() ? "" : "+"}{formatMoney(f.contribution, true)}
                                   </span>
                                 )}
                                 <span className="ml-2 text-content-muted">
@@ -2265,7 +2277,7 @@ export function FinancialPlanDetailPage() {
                       key={i}
                       className="text-[16.5px] leading-[1.55] tracking-[-0.01em] text-content"
                     >
-                      {p}
+                      {maskCurrencyInText(p)}
                     </p>
                   ))}
               </div>

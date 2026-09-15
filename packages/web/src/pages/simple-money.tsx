@@ -8,6 +8,8 @@ import {
 import { api } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
+import { HiddenAmount } from '../components/uikit';
 import { Button, SegmentedControl, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, useToast, Tooltip } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
 import { CategoryPicker } from '../components/common/CategoryPicker';
@@ -48,7 +50,9 @@ type GroupBy = 'category' | 'institution';
 const GROUP_BY_KEY = 'lasagna-money-group-by';
 
 const fmtUsd = (n: number, frac = 0) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
 
 // Balance with the user's invert override applied — used everywhere a balance
 // feeds a total or a row value so the UI matches the server's net-worth math.
@@ -511,7 +515,7 @@ function GroupSection({
             <div className="mt-0.5 hidden truncate text-[12px] font-medium text-content-faint sm:block">{caption}</div>
           </div>
           <span className={cn('ml-3 shrink-0 font-editorial text-[16.5px] font-extrabold tracking-[-0.015em] ui-tnum', totalNeg && 'text-negative')}>
-            {totalNeg ? '−' : ''}{fmtUsd(total)}
+            {isAmountsHidden() ? <HiddenAmount /> : `${totalNeg ? '−' : ''}${fmtUsd(total)}`}
           </span>
           <span className="grid h-[26px] w-[26px] shrink-0 place-items-center text-content-faint">
             <ChevronDown
@@ -640,7 +644,7 @@ function InstitutionSection({
           </div>
         </div>
         <span className={cn('ml-3 shrink-0 font-editorial text-[16px] font-extrabold tracking-[-0.015em] ui-tnum', totalNeg && 'text-negative')}>
-          {totalNeg ? '−' : ''}{fmtUsd(Math.abs(total))}
+          {isAmountsHidden() ? <HiddenAmount /> : `${totalNeg ? '−' : ''}${fmtUsd(Math.abs(total))}`}
         </span>
         <span className="grid h-[26px] w-[26px] shrink-0 place-items-center text-content-faint">
           <ChevronDown size={18} className={cn('transition-transform duration-200 ease-ui', collapsed && '-rotate-90')} />
@@ -795,7 +799,7 @@ function AcctRow({
       <div className="flex shrink-0 items-center gap-3 sm:gap-4">
         <div className="text-right">
           <div className={cn('font-editorial text-[15.5px] font-extrabold tracking-[-0.015em] ui-tnum', showNeg && 'text-negative')}>
-            {showNeg ? '−' : ''}{formatted}
+            {isAmountsHidden() ? <HiddenAmount /> : `${showNeg ? '−' : ''}${formatted}`}
           </div>
           {frozen ? (
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">

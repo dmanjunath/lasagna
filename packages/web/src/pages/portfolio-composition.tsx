@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Building2, ChevronRight, ChevronDown, Check } from 'lucide-react';
 import { formatMoney, cn } from '../lib/utils';
+import { isAmountsHidden } from '../lib/hide-amounts';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
-import { Button, Surface, SegmentedControl, EmptyState, PageMeta, PageMetaItem, Skeleton } from '../components/uikit';
+import { Button, Surface, SegmentedControl, EmptyState, MaskedText, PageMeta, PageMetaItem, Skeleton } from '../components/uikit';
 import { faviconUrl, tickerToIssuer } from '../components/ds/institutions';
 
 // ---------------------------------------------------------------------------
@@ -272,7 +273,7 @@ function AllocationBreakdown({
                 </span>
                 <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
                   <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content">
-                    {formatMoney(s.value, true)}
+                    <MaskedText text={formatMoney(s.value, true)} />
                   </span>
                   <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{fmtPct(s.pct)}</span>
                 </span>
@@ -366,7 +367,7 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
         </div>
         <div className="shrink-0 text-right">
           <div className="font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum">
-            {formatMoney(h.totalValue, true)}
+            <MaskedText text={formatMoney(h.totalValue, true)} />
           </div>
           <div className="mt-0.5 flex justify-end gap-2 text-[12px] font-medium text-content-muted ui-tnum">
             <span>{h.percentage.toFixed(1)}%</span>
@@ -402,7 +403,7 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
                     {cleanAccountLabel(a.account)}
                   </span>
                   <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
-                    <span className="text-[12px] text-content-muted">{formatShares(a.shares)} sh</span>
+                    {!isAmountsHidden() && <span className="text-[12px] text-content-muted">{formatShares(a.shares)} sh</span>}
                     <span className="ml-3 text-[13px] font-bold text-content">{formatMoney(a.value, true)}</span>
                     <span className="ml-2 text-[12px] font-semibold text-content-muted">{fmtPct(a.percentage)}</span>
                   </span>
@@ -999,7 +1000,7 @@ export default function PortfolioComposition() {
             <div className="relative">
               <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-content-muted">Allocation by account</div>
               <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
-                {formatMoney(accountTotal, true)}
+                <MaskedText text={formatMoney(accountTotal, true)} />
               </div>
               <div className="mt-5">
                 <AllocationBar slices={acctSlices} hovered={hoveredSlice} onHover={setHoveredSlice} />
@@ -1094,7 +1095,7 @@ export default function PortfolioComposition() {
                 <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-content-muted">Portfolio value</div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
                   <span className="font-editorial text-[34px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
-                    {formatMoney(filteredTotal, true)}
+                    <MaskedText text={formatMoney(filteredTotal, true)} />
                   </span>
                   {blendedReturn !== null && (
                     <span

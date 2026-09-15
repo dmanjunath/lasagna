@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight, Search, X, DollarSign, Banknote } from 'luci
 import { Link } from 'wouter';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
-import { Badge, EmptyState, Skeleton, useToast } from '../uikit';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
+import { HiddenAmount, Badge, EmptyState, Skeleton, useToast } from '../uikit';
 import { categoryOptionLabel, useCategoryDisplay, usePickerGroups } from '../../lib/taxonomy';
 import { CategoryPicker } from '../common/CategoryPicker';
 import { TransactionDetail } from './TransactionDetail';
@@ -13,6 +14,7 @@ import { TransactionDetail } from './TransactionDetail';
 // ---------------------------------------------------------------------------
 
 function formatCurrencyExact(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -137,8 +139,8 @@ export function TxnRow({
           {accountName && <span className="hidden truncate sm:inline">{accountName}</span>}
         </div>
       </div>
-      <span className={cn('shrink-0 text-[14.5px] font-bold tracking-[-0.01em] ui-tnum', isIncome && 'text-positive', excluded && 'opacity-50')}>
-        {isIncome ? '+' : ''}{formatCurrencyExact(Math.abs(amount))}
+      <span className={cn('shrink-0 text-[14.5px] font-bold tracking-[-0.01em] ui-tnum', isIncome && !isAmountsHidden() && 'text-positive', excluded && 'opacity-50')}>
+        {isAmountsHidden() ? <HiddenAmount /> : `${isIncome ? '+' : ''}${formatCurrencyExact(Math.abs(amount))}`}
       </span>
     </div>
   );

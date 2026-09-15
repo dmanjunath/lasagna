@@ -1,13 +1,14 @@
 import ReactMarkdown from "react-markdown";
 import { cn } from "../../../lib/utils.js";
 import type { TextBlock as TextBlockType } from "../../../lib/types.js";
+import { maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 export function TextBlockRenderer({ block }: { block: TextBlockType }) {
   if (block.variant === "callout") {
     return (
       <div className="bg-[var(--ui-accent-soft)] border-l-2 border-[rgb(var(--ui-accent))] rounded-r-ui-lg p-5 col-span-full">
         <div className="max-w-none text-sm [&_p]:text-content [&_p]:leading-relaxed [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:text-[rgb(var(--ui-accent-ink))] [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_ul]:my-2 [&_ol]:my-2 [&_li]:text-content [&_li]:mb-1 [&_li>p]:my-0 marker:text-content-faint">
-          <ReactMarkdown>{block.content}</ReactMarkdown>
+          <ReactMarkdown>{maskCurrencyInText(block.content)}</ReactMarkdown>
         </div>
       </div>
     );
@@ -45,7 +46,7 @@ export function TextBlockRenderer({ block }: { block: TextBlockType }) {
           // Trim card edges (the plugin's own first/last-child trimming)
           "[&>:first-child]:mt-0 [&>:last-child]:mb-0"
         )}>
-          <ReactMarkdown>{block.content}</ReactMarkdown>
+          <ReactMarkdown>{maskCurrencyInText(block.content)}</ReactMarkdown>
         </div>
       </div>
     </div>

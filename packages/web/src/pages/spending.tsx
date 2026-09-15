@@ -13,6 +13,8 @@ import { Link, useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
+import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
+import { HiddenAmount } from '../components/uikit';
 import { useAuth } from '../lib/auth';
 import { usePageContext } from '../lib/page-context';
 import { useTaxonomy, taxonomyIcon } from '../lib/taxonomy';
@@ -27,6 +29,7 @@ import { RulesPanel } from '../components/rules/RulesPanel';
 // ---------------------------------------------------------------------------
 
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -106,14 +109,18 @@ interface SpendingCategory {
 // ---------------------------------------------------------------------------
 
 function StatCell({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: 'pos' | 'neg' }) {
+  // A masked figure sheds its tone AND the sign baked into its string: both
+  // would still say which way the number went. The savings-rate cell is a
+  // percentage, is never masked, and keeps both.
+  const masked = isMasked(value);
   return (
     <div>
       <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[20px] sm:text-[25px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
-        tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
-        tone === 'neg' && 'text-negative',
-      )}>{value}</div>
+        !masked && tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
+        !masked && tone === 'neg' && 'text-negative',
+      )}>{masked ? <HiddenAmount /> : value}</div>
       <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">{sub}</div>
     </div>
   );
@@ -774,7 +781,7 @@ export function Spending() {
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="mt-2 font-editorial text-[40px] sm:text-[54px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum"
               >
-                {formatCurrency(heroValue)}
+                {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(heroValue)}
               </motion.div>
               <div className="mt-3.5 flex min-h-7 flex-wrap items-center gap-2.5">
                 {hoveredPeriod ? (
@@ -864,7 +871,7 @@ export function Spending() {
             <div className="mt-4 flex items-baseline gap-2.5">
               <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Est. monthly spend</span>
               <span className="font-editorial text-[22px] font-extrabold tracking-[-0.02em] ui-tnum text-negative">
-                {formatCurrency(creditCardTotal)}
+                {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(creditCardTotal)}
               </span>
             </div>
           )}

@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { isMasked } from '../../lib/hide-amounts';
+import { HiddenAmount } from './HiddenAmount';
 
 export type DeltaDirection = 'up' | 'down' | 'flat';
 
@@ -15,13 +17,17 @@ export function Delta({
   direction: DeltaDirection;
   className?: string;
 }) {
+  // A masked dollar delta drops its arrow and tone — both are siblings of the
+  // value, so neither is covered by the mask span's own color. A percentage
+  // delta is scale-invariant and stays exactly as it is.
+  const masked = isMasked(value);
   const Icon = direction === 'up' ? ArrowUpRight : direction === 'down' ? ArrowDownRight : Minus;
   const tone =
-    direction === 'up'
-      ? 'bg-positive-soft text-positive'
-      : direction === 'down'
-        ? 'bg-negative-soft text-negative'
-        : 'bg-canvas-sunken text-content-secondary';
+    masked || direction === 'flat'
+      ? 'bg-canvas-sunken text-content-secondary'
+      : direction === 'up'
+        ? 'bg-positive-soft text-positive'
+        : 'bg-negative-soft text-negative';
   return (
     <span
       className={cn(
@@ -30,8 +36,8 @@ export function Delta({
         className,
       )}
     >
-      <Icon className="h-3.5 w-3.5" aria-hidden />
-      {value}
+      {!masked && <Icon className="h-3.5 w-3.5" aria-hidden />}
+      {masked ? <HiddenAmount /> : value}
     </span>
   );
 }
@@ -67,7 +73,7 @@ export function Stat({
       </div>
       <div className="mt-2 flex items-baseline gap-2.5">
         <span className="ui-tnum text-[28px] font-semibold leading-none tracking-tight text-content">
-          {value}
+          {isMasked(value) ? <HiddenAmount /> : value}
         </span>
         {delta && <Delta value={delta} direction={deltaDirection} />}
       </div>

@@ -8,6 +8,7 @@ import {
   Cell,
 } from 'recharts';
 import { colors } from '../../styles/theme';
+import { isAmountsHidden } from '../../lib/hide-amounts';
 
 interface HistogramBucket {
   bucket: string | number;
@@ -26,6 +27,9 @@ const STATUS_COLORS = {
   failure: '#ef4444',
 };
 
+// NOT masked: the string it builds is the bar's CATEGORY KEY, and masking it
+// would give every bin the same key and collapse them into one bar. The labels
+// are suppressed at the axis and in the tooltip instead.
 function formatValue(v: number): string {
   if (v === 0) return '$0';
   if (v < 0) return `-$${formatValue(Math.abs(v)).slice(1)}`;
@@ -120,6 +124,29 @@ function rebucket(data: HistogramBucket[]): { buckets: HistogramBucket[]; step: 
 }
 
 export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
+  const hideAmounts = isAmountsHidden();
+
+  /**
+   * The one chart whose CATEGORICAL axis is the money one: x is the portfolio
+   * bin, y is only a count of simulations. Masking the bins leaves bars with
+   * no labels at all and nothing to read them against, so the chart stops
+   * meaning anything and the legend explains a picture that is no longer
+   * there. Same placeholder the Vega-Lite chart shows, for the same reason:
+   * an absent chart is a smaller loss than an unreadable one.
+   */
+  if (hideAmounts) {
+    return (
+      <div
+        className="rounded-ui-lg border border-line bg-canvas-sunken p-4 flex items-center justify-center"
+        style={{ height, width: '100%' }}
+      >
+        <p className="text-content-muted text-sm font-semibold">
+          Chart hidden. Show amounts to see it.
+        </p>
+      </div>
+    );
+  }
+
   const { buckets, step } = rebucket(data);
   const totalSimulations = buckets.reduce((sum, d) => sum + d.count, 0);
   const displayData = buckets.map((d) => {

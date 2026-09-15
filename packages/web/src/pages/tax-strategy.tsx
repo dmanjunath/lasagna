@@ -16,6 +16,7 @@ import { TaxInputPanel } from "../components/tax/TaxInputPanel.js";
 import type { TaxDocument, TaxDocumentSummary, TaxInputResult } from "../lib/types.js";
 import { api } from "../lib/api.js";
 import { cn, splitParagraphs, formatRelativeTime, exactSyncTime } from "../lib/utils.js";
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../lib/hide-amounts";
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
 import { ActionItem } from "../components/common/action-item.js";
@@ -975,7 +976,7 @@ export function TaxStrategy() {
                     <div className="space-y-2.5">
                       {splitParagraphs(summary ?? "").map((para, i) => (
                         <p key={i} className="text-[15px] leading-[1.6] text-content-secondary">
-                          {para}
+                          {maskCurrencyInText(para)}
                         </p>
                       ))}
                     </div>
@@ -1442,8 +1443,9 @@ function DocRow({
   // subtitle. The filename is the fallback for a document with no summary, and
   // `meta.marker` carries it separately when the row is an exception.
   const summaryLine = summarySubtitle(doc.llmSummary?.trim() ?? "", label, isFormName);
-  const subtitle =
+  const subtitleRaw =
     summaryLine ?? (nameNoExt !== label && !meta.nameIsRedundant ? doc.fileName : null);
+  const subtitle = subtitleRaw === null ? null : maskCurrencyInText(subtitleRaw);
 
   return (
     <div
@@ -1604,6 +1606,7 @@ function formatFieldValue(value: unknown, key = ""): string {
     // and it must not be thousands-separated either.
     if (words.some((w) => NEVER_MONEY_WORDS.has(w))) return String(value);
     if (words.some((w) => MONEY_WORDS.has(w))) {
+      if (isAmountsHidden()) return HIDDEN_AMOUNT;
       // Whole dollars show none, cents show both: 18234.5 was rendering as
       // "$18,234.5" rather than "$18,234.50".
       const cents = Number.isInteger(value) ? 0 : 2;

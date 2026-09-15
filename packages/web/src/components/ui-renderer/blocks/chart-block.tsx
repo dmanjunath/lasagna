@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { colors } from "../../../styles/theme.js";
+import { maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 // Chart colors that complement the theme
 const CHART_COLORS = [
@@ -27,7 +28,7 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
       <div className="h-64">
         {block.title && (
           <h4 className="text-[14px] font-semibold text-content mb-2">
-            {block.title}
+            {maskCurrencyInText(block.title)}
           </h4>
         )}
         <AreaChart
@@ -51,7 +52,7 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
       <div className="h-64 flex items-center justify-center">
         {block.title && (
           <h4 className="text-[14px] font-semibold text-content mb-2 absolute top-0 left-0">
-            {block.title}
+            {maskCurrencyInText(block.title)}
           </h4>
         )}
         <DonutChart data={donutData} size={200} />
@@ -64,7 +65,7 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
       <div className="h-64">
         {block.title && (
           <h4 className="text-[14px] font-semibold text-content mb-2">
-            {block.title}
+            {maskCurrencyInText(block.title)}
           </h4>
         )}
         <ResponsiveContainer width="100%" height="100%">

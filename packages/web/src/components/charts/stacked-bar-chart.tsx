@@ -9,6 +9,7 @@ import {
   LabelList,
 } from 'recharts';
 import { colors } from '../../styles/theme';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface StackedBarDataPoint {
   name: string;
@@ -27,7 +28,9 @@ export function StackedBarChart({
   height = 60,
   onClick,
 }: StackedBarChartProps) {
-  // Transform to single stacked bar format
+  const hideAmounts = isAmountsHidden();
+  // Transform to single stacked bar format. The x-domain is [0, totalValue], so
+  // the segment widths are pure proportions and carry no magnitude.
   const totalValue = data.reduce((sum, d) => sum + d.value, 0);
   const chartData = [
     data.reduce((acc, d, i) => {
@@ -56,7 +59,8 @@ export function StackedBarChart({
             formatter={(value, name) => {
               const idx = parseInt(String(name).replace('segment', ''));
               const item = data[idx];
-              return [`$${Number(value).toLocaleString()} (${((Number(value) / totalValue) * 100).toFixed(1)}%)`, item?.name || ''];
+              const money = hideAmounts ? HIDDEN_AMOUNT : `$${Number(value).toLocaleString()}`;
+              return [`${money} (${((Number(value) / totalValue) * 100).toFixed(1)}%)`, item?.name || ''];
             }}
           />
           {data.map((item, index) => {

@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { niceTicks, formatShortMoney } from '../ds/TrendChart';
+import { isAmountsHidden } from '../../lib/hide-amounts';
 
 // ---------------------------------------------------------------------------
 // CashflowBars — Monarch-style diverging income/expense bars on --ui-* tokens.
@@ -165,7 +166,14 @@ export function CashflowBars({
   const start = windowed ? Math.min(Math.max(0, windowStart), maxStart) : 0;
 
   const chartW = containerW ?? 680;
-  const innerW = chartW - CHART_M.left - CHART_M.right;
+  // Money y-axis labels are removed while amounts are hidden rather than
+  // replaced by five identical masks, and the left margin they reserved
+  // collapses with them. The plotted geometry is untouched: the domain is fit
+  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
+  const hideAmounts = isAmountsHidden();
+  const chartLeft = hideAmounts ? 12 : CHART_M.left;
+
+  const innerW = chartW - chartLeft - CHART_M.right;
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
   const colW = innerW / Math.max(1, visN);
   const barW = Math.min(colW * 0.66, 76);
@@ -222,7 +230,7 @@ export function CashflowBars({
   const zeroY = yAt(0);
   // ABSOLUTE column center — carousel-layer coordinates (the layer's translate
   // brings the window into view).
-  const colCenter = (ai: number) => CHART_M.left + (ai + 0.5) * colW;
+  const colCenter = (ai: number) => chartLeft + (ai + 0.5) * colW;
 
   const selIdx = useMemo(
     () => periods.findIndex((p) => p.period === selectedPeriod),
@@ -274,7 +282,7 @@ export function CashflowBars({
     if (rect.width <= 0) return null;
     const scale = chartW / rect.width;
     const localX = (clientX - rect.left) * scale;
-    return Math.min(visN - 1, Math.max(0, Math.floor((localX - CHART_M.left) / Math.max(1, colW))));
+    return Math.min(visN - 1, Math.max(0, Math.floor((localX - chartLeft) / Math.max(1, colW))));
   };
   const absIdx = (vi: number | null) => (vi === null ? null : start + vi);
 
@@ -452,7 +460,7 @@ export function CashflowBars({
         {windowed && (
           <clipPath id={clipId}>
             {/* Plot width, full height — x labels ride along and clip hard too. */}
-            <rect x={CHART_M.left} y={0} width={innerW} height={CHART_H} />
+            <rect x={chartLeft} y={0} width={innerW} height={CHART_H} />
           </clipPath>
         )}
 
@@ -495,22 +503,24 @@ export function CashflowBars({
           <g key={t}>
             {t === 0 ? (
               <line
-                x1={CHART_M.left} y1={zeroY} x2={chartW - CHART_M.right} y2={zeroY}
+                x1={chartLeft} y1={zeroY} x2={chartW - CHART_M.right} y2={zeroY}
                 stroke="var(--ui-line-strong)" strokeWidth={1}
               />
             ) : (
               <line
-                x1={CHART_M.left} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
+                x1={chartLeft} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
                 stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
               />
             )}
-            <text
-              x={CHART_M.left - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
-              fill="rgb(var(--ui-content-faint))"
-              style={yTickStyle}
-            >
-              {formatShortMoney(Math.abs(t))}
-            </text>
+            {!hideAmounts && (
+              <text
+                x={chartLeft - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
+                fill="rgb(var(--ui-content-faint))"
+                style={yTickStyle}
+              >
+                {formatShortMoney(Math.abs(t))}
+              </text>
+            )}
           </g>
         ))}
 
@@ -576,7 +586,11 @@ export function CashflowBars({
                   aria-current={p.period === selectedPeriod ? 'true' : undefined}
                   tabIndex={inWindow ? 0 : -1}
                   aria-hidden={inWindow ? undefined : true}
-                  aria-label={`${periodLabel(p.period, granularity)}: income ${formatShortMoney(p.income)}, spent ${formatShortMoney(p.expenses)}`}
+                  aria-label={
+                    hideAmounts
+                      ? periodLabel(p.period, granularity)
+                      : `${periodLabel(p.period, granularity)}: income ${formatShortMoney(p.income)}, spent ${formatShortMoney(p.expenses)}`
+                  }
                   onFocus={() => setHoverIdx(ai, true)}
                   onBlur={() => setHoverIdx(null)}
                   onKeyDown={(e) => {
@@ -589,8 +603,13 @@ export function CashflowBars({
         </g>
       </svg>
 
-      {/* Hover pill — period label + income/spent/net readout. */}
-      {hovered && hoverInWindow && !hoverIsKeyboard && (
+      {/* Hover pill — period label plus the income/spent/net readout.
+           Masked, the readout would read "Income $•••••, spent $•••••, net
+           $•••••" and the pill would be left stating only the period, which
+           the header above it ("SPENT IN JULY 2026") already says. With
+           nothing left to tell the reader, the whole pill goes rather than
+           half of it. */}
+      {hovered && hoverInWindow && !hoverIsKeyboard && !hideAmounts && (
         <div
           data-chart-hover="pill"
           className="ui-tnum pointer-events-none absolute z-10 flex -translate-x-1/2 flex-col gap-0.5 whitespace-nowrap rounded-ui-sm bg-[rgb(var(--ui-panel-raised))] px-2.5 py-1.5 shadow-ui-lg"

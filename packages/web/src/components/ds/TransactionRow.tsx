@@ -2,6 +2,8 @@ import { ReactNode } from 'react';
 import { Banknote } from 'lucide-react';
 import { Favicon } from './AccountRow';
 import { faviconUrl, merchantDomainFor } from './institutions';
+import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../../lib/hide-amounts';
+import { HiddenAmount } from '../uikit/HiddenAmount';
 
 export interface TransactionRowProps {
   merchant: string;
@@ -26,7 +28,9 @@ export interface TransactionRowProps {
 }
 
 const defaultFmt = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function shortDate(iso: string): string {
   const d = new Date(iso);
@@ -71,9 +75,12 @@ export function TransactionRow({
   const icon = faviconUrl(resolvedDomain, 64);
   const monogram = (merchant || '?').trim().charAt(0).toUpperCase();
   const display = formatAmount(Math.abs(amount));
-  const sign = isIncome ? '+' : '';
+  // The mask absorbs the sign and the green: a leading + beside it still says
+  // "this one was income".
+  const masked = isMasked(display);
+  const sign = isIncome && !masked ? '+' : '';
   const amountClass = isTransfer ? 'ds-row__amount ds-num ds-row__amount--muted'
-    : isIncome ? 'ds-row__amount ds-num ds-pos'
+    : isIncome && !masked ? 'ds-row__amount ds-num ds-pos'
     : 'ds-row__amount ds-num';
 
   const Tag = onClick ? 'button' : 'div';
@@ -104,7 +111,7 @@ export function TransactionRow({
         </div>
       </div>
 
-      <span className={amountClass}>{sign}{display}</span>
+      <span className={amountClass}>{masked ? <HiddenAmount /> : `${sign}${display}`}</span>
     </Tag>
   );
 }

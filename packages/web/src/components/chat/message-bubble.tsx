@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChevronDown, Database, Wrench, AlertTriangle, RotateCw, Sparkles } from "lucide-react";
 import { cn } from "../../lib/utils.js";
+import { maskCurrencyInText } from "../../lib/hide-amounts.js";
 import type { ChatMessage } from "../../lib/chat-store.js";
 
 // Small assistant identity mark — anchors every reply to the left so the
@@ -110,7 +111,10 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
           </div>
         )}
         <div className="max-w-[80%] rounded-ui-lg rounded-br-md px-4 py-2.5 bg-brand-soft border border-brand/30 text-content break-words">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+          {/* The app composes most of these itself, interpolating live figures
+              into the prompt, so a stored question replays a real balance onto
+              a masked screen. Render-only: the payload is untouched. */}
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">{maskCurrencyInText(message.content)}</p>
         </div>
       </div>
     );
@@ -202,7 +206,11 @@ export function MessageBubble({ message, onRetry }: { message: ChatMessage; onRe
               },
             }}
           >
-            {message.content}
+            {/* Masked BEFORE the markdown parser, not after: the real figure
+                must never exist as a DOM node. Heuristic, unlike the exact
+                formatter-based masking — the model hands us prose, not
+                numbers. */}
+            {maskCurrencyInText(message.content)}
           </Markdown>
         </div>
       </div>

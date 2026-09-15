@@ -2,11 +2,13 @@ import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, Filter } from "lucide-react";
 import { Select } from '../../uikit';
 import type { BacktestTableBlock } from "../../../lib/types.js";
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 type SortField = "startYear" | "endBalance" | "status" | "worstDrawdown";
 type FilterStatus = "all" | "failed" | "close" | "success";
 
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) {
     return `$${(value / 1000000).toFixed(1)}M`;
   }
@@ -91,7 +93,7 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
     <div className="glass-card p-6 col-span-full">
       {block.title && (
         <h3 className="text-base font-semibold tracking-tight text-text mb-2">
-          {block.title}
+          {maskCurrencyInText(block.title)}
         </h3>
       )}
 

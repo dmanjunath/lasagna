@@ -1,4 +1,6 @@
 import { ReactNode, useState } from 'react';
+import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
+import { MaskedText } from '../uikit/MaskedText';
 
 export interface CompositionSegment {
   /** Display label, e.g. "Cash" */
@@ -33,7 +35,9 @@ interface CompositionRibbonProps {
 }
 
 const fmtUsd = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  isAmountsHidden()
+    ? HIDDEN_AMOUNT
+    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 /** Fallback DATA palette — themed, visually distinct, semantically friendly.
  *  Used when the caller doesn't pass a `color`. Order: green → blue → purple →
@@ -180,7 +184,7 @@ export function CompositionRibbon({
               {hovered.negative ? 'Debt: ' : ''}{hovered.label}
             </span>
             <span className="ds-ribbon__tooltip-value">
-              {hovered.negative ? '−' : ''}{fmtUsd(Math.abs(hovered.value))}
+              {hovered.negative && !isAmountsHidden() ? '−' : ''}<MaskedText text={fmtUsd(Math.abs(hovered.value))} />
             </span>
             <span className="ds-ribbon__tooltip-pct">
               {hoveredPct.toFixed(1)}% of assets{hovered.negative ? ', deducted' : ''}
@@ -197,7 +201,7 @@ export function CompositionRibbon({
               <span className="ds-ribbon__swatch" style={{ background: seg.color }} aria-hidden="true" />
               <span className="ds-ribbon__legend-label">{seg.label}</span>
               <span className="ds-ribbon__legend-value">
-                {seg.negative ? '−' : ''}{fmtUsd(Math.abs(seg.value))}
+                {seg.negative && !isAmountsHidden() ? '−' : ''}<MaskedText text={fmtUsd(Math.abs(seg.value))} />
               </span>
               <span style={{ color: 'var(--lf-muted)', fontVariantNumeric: 'tabular-nums' }}>
                 {pct.toFixed(0)}%
@@ -206,7 +210,7 @@ export function CompositionRibbon({
                 <span className="ds-ribbon__legend-sub">
                   {small.map((s, j) => (
                     <span key={`${s.label}-${j}`}>
-                      {s.label} {fmtUsd(Math.abs(s.value))}
+                      {s.label} <MaskedText text={fmtUsd(Math.abs(s.value))} />
                       {j < small.length - 1 ? ', ' : ''}
                     </span>
                   ))}

@@ -25,6 +25,7 @@ import {
   Label,
 } from "recharts";
 import { colors } from "../../styles/theme.js";
+import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../lib/hide-amounts.js";
 import type { RechartsConfig, RechartsComponent, AxisConfig } from "../../lib/types.js";
 import { ChartError } from "./chart-error.js";
 
@@ -50,6 +51,7 @@ function formatCompactNumber(value: number): string {
 
 // Format currency with commas and compact notation
 function formatCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (Math.abs(value) >= 1_000_000) {
     return `$${(value / 1_000_000).toFixed(1)}M`;
   }
@@ -61,6 +63,7 @@ function formatCurrency(value: number): string {
 
 // Format full currency for tooltips
 function formatFullCurrency(value: number): string {
+  if (isAmountsHidden()) return HIDDEN_AMOUNT;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -108,19 +111,31 @@ function getTickFormatter(formatter?: string) {
   };
 }
 
-// Map axis config to Recharts props
+// Map axis config to Recharts props. A currency-formatted axis is HIDDEN while
+// amounts are hidden (labels removed, not replaced by a column of identical
+// masks, and the width they reserved collapses with them). Only "currency" is
+// treated that way: "number" and "percent" axes count things and stay, the same
+// sigil-anchored rule maskCurrencyInText follows.
 function mapAxisConfig(config: AxisConfig) {
   const { tickFormatter, dataKey, type, domain, yAxisId } = config;
+  const maskMoney = isAmountsHidden() && tickFormatter === "currency";
   return {
     dataKey,
     type,
-    domain,
+    // The one place the mask moves GEOMETRY, and deliberately. `domain` comes
+    // from the model, and an absolute bound like [0, 1000000] pins the marks
+    // to a dollar scale, so the bar heights keep stating the magnitude the
+    // hidden tick labels stopped stating. Dropped, the axis falls back to a
+    // domain derived from its own data, which carries no magnitude, the same
+    // as every other masked chart.
+    domain: maskMoney ? undefined : domain,
     yAxisId,
     stroke: colors.text.muted,
     fontSize: 12,
     tickLine: false,
     axisLine: false,
     tickFormatter: getTickFormatter(tickFormatter),
+    hide: maskMoney,
   };
 }
 
@@ -309,11 +324,14 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
           {/* Chart components */}
           {config.components.map((comp, i) => renderComponent(comp, i, config.data))}
 
-          {/* Reference lines */}
+          {/* Reference lines. The label is model prose ("$1.2M target"), so it
+              goes through the text mask; the line's own position is left alone,
+              the same as the plotted marks. */}
           {config.referenceLines?.map((line, i) => (
             <ReferenceLine
               key={i}
               {...line}
+              label={line.label ? maskCurrencyInText(line.label) : line.label}
               stroke={line.stroke || colors.text.muted}
               strokeDasharray="4 4"
             />

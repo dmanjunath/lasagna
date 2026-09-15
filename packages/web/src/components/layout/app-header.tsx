@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useUiMode } from '../uikit/mode';
+import { PrivacyToggle } from '../uikit/PrivacyToggle';
 import { BrandMark } from '../common/BrandMark';
 import { subscribePull, getPullState } from '../../lib/pull-store';
 
@@ -83,11 +82,9 @@ function NavBrandMark({ size }: { size: number }) {
 
 /**
  * Shared top bar (mobile only). Lives `fixed top-0`. Renders the leading slot
- * (hamburger / back), a centered brand mark, and the light/dark toggle.
+ * (hamburger / back), a centered brand mark, and the hide-amounts toggle.
  */
 export function AppHeader({ leadingSlot }: AppHeaderProps) {
-  const { mode, toggle } = useUiMode();
-  const isDark = mode === 'dark';
   return (
     <header className="fixed top-0 inset-x-0 z-30 border-b border-line pt-safe-top">
       {/* Blur on its own layer so the pulled mark is never inside a
@@ -103,16 +100,7 @@ export function AppHeader({ leadingSlot }: AppHeaderProps) {
         <div className="flex-1 flex items-center justify-center min-w-0">
           <NavBrandMark size={28} />
         </div>
-        <button
-          type="button"
-          onClick={toggle}
-          role="switch"
-          aria-checked={isDark}
-          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          className="w-11 h-11 -mr-2 shrink-0 grid place-items-center rounded-[10px] text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
-        >
-          {isDark ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
+        <PrivacyToggle size={44} />
       </div>
     </header>
   );
