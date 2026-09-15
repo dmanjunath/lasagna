@@ -713,6 +713,15 @@ export const transactions = pgTable(
   (t) => [
     index("transactions_tenant_category_idx").on(t.tenantId, t.categoryId),
     index("transactions_tenant_date_idx").on(t.tenantId, t.date),
+    // One row per Plaid transaction, enforced by the database rather than by a
+    // read-then-write. Nothing serializes a sync for one item — a webhook, the
+    // cron, a manual sync and the post-link sync each call it independently —
+    // so two overlapping runs both saw "not stored yet" and both inserted, and
+    // the user got every transaction on the page twice.
+    // Partial: seeded and manually-added rows carry no Plaid id.
+    uniqueIndex("transactions_tenant_plaid_txn_idx")
+      .on(t.tenantId, t.plaidTransactionId)
+      .where(sql`${t.plaidTransactionId} IS NOT NULL`),
   ],
 );
 

@@ -78,6 +78,27 @@ export function categorize(
   return { categoryId: finalId!, categorySource: rule ? "rule" : "auto" };
 }
 
+/**
+ * Drop a transaction Plaid no longer stands behind, leaving no dangling
+ * transfer link. `linkedTransactionId` carries no foreign key, so deleting one
+ * side without clearing the other leaves its partner pointing at nothing.
+ */
+async function deletePlaidTransaction(tenantId: string, plaidTransactionId: string): Promise<void> {
+  const existing = await db.query.transactions.findFirst({
+    where: and(
+      eq(transactions.tenantId, tenantId),
+      eq(transactions.plaidTransactionId, plaidTransactionId),
+    ),
+  });
+  if (!existing) return;
+  if (existing.linkedTransactionId) {
+    await db.update(transactions)
+      .set({ linkedTransactionId: null })
+      .where(eq(transactions.id, existing.linkedTransactionId));
+  }
+  await db.delete(transactions).where(eq(transactions.id, existing.id));
+}
+
 export async function syncTransactions(itemId: string): Promise<{ added: number; modified: number; removed: number }> {
   const item = await db.query.plaidItems.findFirst({
     where: eq(plaidItems.id, itemId),
@@ -135,7 +156,10 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
       // Check if already exists (in case of retry)
       const existing = txn.transaction_id
         ? await db.query.transactions.findFirst({
-            where: eq(transactions.plaidTransactionId, txn.transaction_id),
+            where: and(
+              eq(transactions.tenantId, item.tenantId),
+              eq(transactions.plaidTransactionId, txn.transaction_id),
+            ),
           })
         : null;
 
@@ -146,7 +170,11 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           amount: txn.amount.toString(),
           accountId,
         }, txn.personal_finance_category);
-        await db.insert(transactions).values({
+        // The existence check above cannot stand alone: nothing serializes a
+        // sync for one item, so a second run can pass the same check before
+        // this insert lands. The unique index is what actually keeps it to one
+        // row; DO NOTHING is how the run that loses the race backs off.
+        const inserted = await db.insert(transactions).values({
           accountId,
           tenantId: item.tenantId,
           plaidTransactionId: txn.transaction_id,
@@ -160,8 +188,13 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
           pending: txn.pending ? 1 : 0,
           source: "plaid" as any,
-        });
-        totalAdded++;
+        }).onConflictDoNothing({
+          target: [transactions.tenantId, transactions.plaidTransactionId],
+          where: sql`${transactions.plaidTransactionId} is not null`,
+        }).returning({ id: transactions.id });
+        // Count real writes only, so the sync log stays a usable signal for
+        // exactly this problem rather than reporting a write that never landed.
+        if (inserted.length > 0) totalAdded++;
       } else if (existing.categorySource === "auto" || existing.categorySource === "rule") {
         const { categoryId, categorySource } = categorize(taxonomy, tenantRules, {
           name: existing.name,
@@ -176,14 +209,30 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
             plaidCategoryPrimary: txn.personal_finance_category?.primary ?? null,
             plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
           })
-          .where(eq(transactions.plaidTransactionId, txn.transaction_id));
+          .where(and(
+            eq(transactions.tenantId, item.tenantId),
+            eq(transactions.plaidTransactionId, txn.transaction_id),
+          ));
+      }
+
+      // A posted transaction supersedes the pending one it came from, and gets
+      // a NEW transaction_id to do it. Plaid normally also sends the pending
+      // one in `removed`, but that is a separate delivery — when it is late or
+      // never arrives, both rows sit in the ledger as an apparent duplicate.
+      // `pending_transaction_id` is the link between them, so drop the pending
+      // row here rather than waiting for a removal that may not come.
+      if (txn.pending_transaction_id) {
+        await deletePlaidTransaction(item.tenantId, txn.pending_transaction_id);
       }
     }
 
     // Process modified transactions
     for (const txn of modified) {
       const existing = await db.query.transactions.findFirst({
-        where: eq(transactions.plaidTransactionId, txn.transaction_id),
+        where: and(
+          eq(transactions.tenantId, item.tenantId),
+          eq(transactions.plaidTransactionId, txn.transaction_id),
+        ),
       });
       if (!existing) continue;
       const name = txn.name || txn.merchant_name || "Unknown";
@@ -208,23 +257,17 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
         fields.categorySource = categorySource;
       }
       await db.update(transactions).set(fields as any)
-        .where(eq(transactions.plaidTransactionId, txn.transaction_id));
+        .where(and(
+          eq(transactions.tenantId, item.tenantId),
+          eq(transactions.plaidTransactionId, txn.transaction_id),
+        ));
       totalModified++;
     }
 
     // Process removed transactions
     for (const txn of removed) {
       if (txn.transaction_id) {
-        const existing = await db.query.transactions.findFirst({
-          where: eq(transactions.plaidTransactionId, txn.transaction_id),
-        });
-        if (existing?.linkedTransactionId) {
-          await db.update(transactions)
-            .set({ linkedTransactionId: null })
-            .where(eq(transactions.id, existing.linkedTransactionId));
-        }
-        await db.delete(transactions)
-          .where(eq(transactions.plaidTransactionId, txn.transaction_id));
+        await deletePlaidTransaction(item.tenantId, txn.transaction_id);
         totalRemoved++;
       }
     }
