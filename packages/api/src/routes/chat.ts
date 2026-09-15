@@ -9,7 +9,6 @@ import { type AuthEnv } from "../middleware/auth.js";
 import { buildAliasMap, scrub, PII_DEBUG } from "../lib/pii-scrubber.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 import { resolveModelLevel } from "../lib/model-gate.js";
-import { logLlmUsage } from "../lib/activity.js";
 import { FREE_MODEL_LEVEL } from "@lasagna/core";
 import { resolvePlanGrounding } from "../services/plan-grounding.js";
 
@@ -166,7 +165,7 @@ chatRouter.post("/", async (c) => {
       }
     }
 
-    const stepResult = await llmGenerateText({ tenantId, aliasMap }, {
+    const stepResult = await llmGenerateText({ tenantId, source: "chat", aliasMap }, {
       // Enable OpenRouter's server-side web search so the assistant can pull in
       // live figures (rates, tax thresholds, market context) with citations.
       model: getModel(agentLevel, { webSearch: true, override: modelOverride }),
@@ -194,7 +193,6 @@ chatRouter.post("/", async (c) => {
     // answering. Without it, "4096 output tokens, 150 chars stored" looks
     // impossible.
     console.log(`[Chat] Step ${step + 1}: text=${stepResult.text.length} chars, toolCalls=${toolCallCount}, finishReason=${stepResult.finishReason}, outputTokens=${stepResult.usage?.outputTokens}, reasoningTokens=${stepResult.usage?.outputTokenDetails?.reasoningTokens}`);
-    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: stepResult.usage?.inputTokens, outputTokens: stepResult.usage?.outputTokens, costUsd: stepResult.costUsd });
 
     finalText = stepResult.text;
     lastFinishReason = stepResult.finishReason;
@@ -265,7 +263,7 @@ chatRouter.post("/", async (c) => {
   // "couldn't respond" message.
   if (!finalText.trim()) {
     console.log("[Chat] Tool rounds exhausted with no text — forcing a final synthesis");
-    const synthResult = await llmGenerateText({ tenantId, aliasMap }, {
+    const synthResult = await llmGenerateText({ tenantId, source: "chat", aliasMap }, {
       model: getModel(agentLevel, { webSearch: true, override: modelOverride }),
       system: systemPrompt,
       messages: conversationMessages,
@@ -274,7 +272,6 @@ chatRouter.post("/", async (c) => {
     });
     finalText = synthResult.text;
     lastFinishReason = synthResult.finishReason;
-    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: synthResult.usage?.inputTokens, outputTokens: synthResult.usage?.outputTokens, costUsd: synthResult.costUsd });
     console.log(`[Chat] Synthesis: text=${finalText.length} chars, finishReason=${synthResult.finishReason}, outputTokens=${synthResult.usage?.outputTokens}, reasoningTokens=${synthResult.usage?.outputTokenDetails?.reasoningTokens}`);
   }
 
@@ -286,7 +283,7 @@ chatRouter.post("/", async (c) => {
   // too we keep what we have rather than looping or throwing the text away.
   if (lastFinishReason === "length" && finalText.trim()) {
     console.log("[Chat] Hit the output cap mid-answer — continuing once");
-    const contResult = await llmGenerateText({ tenantId, aliasMap }, {
+    const contResult = await llmGenerateText({ tenantId, source: "chat", aliasMap }, {
       model: getModel(agentLevel, { webSearch: true, override: modelOverride }),
       system: systemPrompt,
       messages: [
@@ -301,7 +298,6 @@ chatRouter.post("/", async (c) => {
       maxOutputTokens: 8192,
       // No tools this turn — everything it needs is already in the transcript.
     });
-    logLlmUsage({ tenantId, source: "chat", model: agentModelSlug, inputTokens: contResult.usage?.inputTokens, outputTokens: contResult.usage?.outputTokens, costUsd: contResult.costUsd });
     console.log(`[Chat] Continuation: text=${contResult.text.length} chars, finishReason=${contResult.finishReason}, outputTokens=${contResult.usage?.outputTokens}, reasoningTokens=${contResult.usage?.outputTokenDetails?.reasoningTokens}`);
     // Join flush so a continuation opening with punctuation, a newline or a
     // table row lands clean; a space only when both sides are mid-word.
@@ -350,13 +346,12 @@ chatRouter.post("/", async (c) => {
   if (!isDemo && !thread.title) {
     try {
       const titleLevel = plan === "free" ? FREE_MODEL_LEVEL : "quality";
-      const titleResult = await llmGenerateText({ tenantId, aliasMap }, {
+      const titleResult = await llmGenerateText({ tenantId, source: "chat-title", aliasMap }, {
         model: getModel(titleLevel),
         system: "Generate a short title (3-6 words) for this financial conversation. No quotes, no punctuation at the end. Just the title.",
         messages: [{ role: "user", content: `Title for: "${body.message.slice(0, 200)}"` }],
         maxOutputTokens: 32,
       });
-      logLlmUsage({ tenantId, source: "chat-title", model: getModelSlug(titleLevel), inputTokens: titleResult.usage?.inputTokens, outputTokens: titleResult.usage?.outputTokens, costUsd: titleResult.costUsd });
       generatedThreadTitle = titleResult.text.trim().slice(0, 100);
       if (generatedThreadTitle && generatedThreadTitle.length > 2) {
         await db

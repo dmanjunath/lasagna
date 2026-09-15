@@ -15,8 +15,7 @@ import {
   type AssetClass,
 } from "@lasagna/core";
 import { db } from "./db.js";
-import { getModel, getModelSlug } from "../agent/index.js";
-import { logLlmUsage } from "./activity.js";
+import { getModel } from "../agent/index.js";
 
 // Fast, cheap classifier model — small/quick and already configured. Given just
 // a symbol plus whatever name/type metadata Plaid gives us, it slots the
@@ -95,7 +94,7 @@ export async function classifySecurity(
 
   let result;
   try {
-    result = await llmGenerateObject({ tenantId, aliasMap }, {
+    result = await llmGenerateObject({ tenantId, source: "security-classify", aliasMap }, {
       model: getModel(CLASSIFIER_LEVEL),
       schema: classificationSchema,
       system: SYSTEM_PROMPT,
@@ -110,15 +109,6 @@ export async function classifySecurity(
     );
     return null;
   }
-
-  logLlmUsage({
-    tenantId: null,
-    source: "security-classify",
-    model: getModelSlug(CLASSIFIER_LEVEL),
-    inputTokens: result.usage?.inputTokens,
-    outputTokens: result.usage?.outputTokens,
-    costUsd: result.costUsd,
-  });
 
   const out = result.object;
 

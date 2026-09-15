@@ -14,16 +14,20 @@
 import { z } from "zod";
 import { llmGenerateObject, type LlmAnonContext } from "../lib/llm.js";
 import { buildAliasMap } from "../lib/pii-scrubber.js";
-import { getModel, getModelSlug } from "../agent/index.js";
-import { logLlmUsage } from "../lib/activity.js";
+import { getModel } from "../agent/index.js";
 import { DEFERRED_401K_LIMIT, standardDeduction } from "./tax-model.js";
 import type { CompactPlanGrounding } from "./plan-grounding.js";
 
 const STRATEGY_LEVEL = "medium" as const;
-// Verification is judge-capability-bound: the frontier tier catches semantic
-// errors (inverted tax logic, claims contradicted by the rows) the medium tier
-// demonstrably missed. One call per create; worth it for a trust-critical report.
-const VERIFY_LEVEL = "frontier" as const;
+// This was the frontier tier, on the reasoning that a better judge catches
+// semantic errors (inverted tax logic, claims contradicted by the rows) the
+// medium tier misses. That reasoning never actually applied HERE: verification
+// is a structured-output call, and the frontier route rejects structured-output
+// config outright (see generateObjectWithFallback), so the frontier verdict was
+// never produced and every verification already ran on the medium tier. All the
+// frontier setting bought was a doomed Opus request in front of each of the two
+// verification calls per section, billed and never logged.
+const VERIFY_LEVEL = "medium" as const;
 
 export interface StrategySection {
   section: "strategy";
@@ -284,10 +288,14 @@ const adjudicationSchema = z.object({
 const ADJUDICATOR_PROMPT = `You are adjudicating rejections raised against items in a financial plan's strategy section. For each rejection you get the item's text and the reviewer's claimed error. Uphold a rejection ONLY when the claimed error is clearly real when checked against the DATA: the figure or claim in the item genuinely contradicts the data or the stated tolerance (rounding within ~3% or to two significant figures is always acceptable). If the reviewer's claim is itself mistaken, contradicts the data, or the item is fine, do NOT uphold. Return a verdict for every key.`;
 
 /**
- * generateObject with a model-tier fallback: the frontier route (Bedrock Opus)
- * rejects structured-output config ("output_config.format: Extra inputs are not
- * permitted"), so fall back to the medium tier rather than silently skipping
- * verification via fail-open.
+ * generateObject with one retry. The retry exists because the OpenRouter ->
+ * Bedrock route occasionally returns unparseable JSON, and the caller treats a
+ * failure as fail-open, so one flaky response would silently skip verification.
+ *
+ * It is written as a tier fallback because VERIFY_LEVEL used to be the frontier
+ * tier, whose route rejects structured-output config ("output_config.format:
+ * Extra inputs are not permitted") on every call. Both tiers are now the same,
+ * so this is a plain retry and the first call is no longer doomed.
  */
 async function generateObjectWithFallback<T extends z.ZodTypeAny>(anon: LlmAnonContext, opts: {
   schema: T;
@@ -456,7 +464,7 @@ export async function buildStrategySection(
   // never re-reads the DB per call. Guarded: this function must never throw.
   let anon: LlmAnonContext;
   try {
-    anon = { tenantId, aliasMap: await buildAliasMap(tenantId) };
+    anon = { tenantId, source: "strategy", aliasMap: await buildAliasMap(tenantId) };
   } catch (e) {
     console.error(
       `[strategy] alias map build failed for plan ${grounding.planId}:`,
@@ -573,16 +581,6 @@ export async function buildStrategySection(
           e instanceof Error ? e.message : e,
         );
       }
-    }
-    if (result) {
-      logLlmUsage({
-        tenantId,
-        source: "strategy",
-        model: getModelSlug(STRATEGY_LEVEL),
-        inputTokens: result.usage?.inputTokens,
-        outputTokens: result.usage?.outputTokens,
-        costUsd: result.costUsd,
-      });
     }
     return result?.object ?? null;
   };

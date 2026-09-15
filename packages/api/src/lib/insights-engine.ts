@@ -1,6 +1,6 @@
-import { llmGenerateText } from "./llm.js";
-import { getModel, getModelSlug } from "../agent/index.js";
-import { logLlmUsage } from "./activity.js";
+import { z } from "zod";
+import { llmGenerateObject } from "./llm.js";
+import { getModel } from "../agent/index.js";
 import { isTenantDisabled } from "./billing.js";
 import { db } from "./db.js";
 import { env } from "./env.js";
@@ -154,6 +154,46 @@ interface GeneratedInsight {
   /** The key of the path step this action serves, or "none". */
   pathStepKey?: string;
 }
+
+/**
+ * The structured-output contract for a generation.
+ *
+ * Every constrained field is a plain string rather than a z.enum, for two
+ * reasons: the insert loop already validates each one against its allowed set
+ * and falls back when the model answers with something else, so an enum here
+ * would only restate a rule that is enforced downstream anyway; and enums
+ * serialize to a JSON-Schema construct the OpenRouter -> Bedrock route for this
+ * model tier has rejected outright before (see strategySchema's note on
+ * maxItems). The shape mirrors GeneratedInsight, which is what the loop reads.
+ *
+ * Wrapped in an object because the root of a structured-output schema cannot be
+ * an array.
+ *
+ * Only title and description are required, because a schema stricter than its
+ * consumer is a self-inflicted failure: generateObject throws on the WHOLE
+ * response if one field of one action is missing, where the insert loop below
+ * already reads every one of these as optional and falls back. Requiring them
+ * here would turn a response with nine good actions and one missing impact
+ * label into another call that bills in full and returns nothing, which is the
+ * exact failure this change exists to remove. The prompt still asks for all of
+ * them.
+ */
+const insightsPayloadSchema = z.object({
+  insights: z.array(
+    z.object({
+      title: z.string(),
+      description: z.string(),
+      category: z.string().optional(),
+      urgency: z.string().optional(),
+      effort: z.string().optional(),
+      type: z.string().optional(),
+      impact: z.string().optional(),
+      impactColor: z.string().optional(),
+      chatPrompt: z.string().optional(),
+      pathStepKey: z.string().optional(),
+    }),
+  ),
+});
 
 /**
  * Every holding this tenant owns, joined to the security that names it.
@@ -869,8 +909,8 @@ If data exists:
 
 ## Output Format
 
-Respond with ONLY a JSON array, no markdown:
-[
+Return an object with one key, "insights", holding the list:
+{ "insights": [
   {
     "category": "portfolio" | "debt" | "tax" | "savings" | "general",
     "urgency": "critical" | "high" | "medium" | "low",
@@ -883,7 +923,7 @@ Respond with ONLY a JSON array, no markdown:
     "chatPrompt": "Natural question the user would ask",
     "pathStepKey": "the key of the financial path step this action serves, exactly as given, or \\"none\\""
   }
-]
+] }
 
 ## Title examples (write the move, not the diagnosis)
 - Instead of "Credit card at 24.99% APR costs $736/yr in interest", write "Pay down your $3,076 card to stop $736/yr in interest".
@@ -1402,13 +1442,54 @@ function assertPromptFits(tenantId: string, data: unknown, dataJson: string): vo
   );
 }
 
+/**
+ * Record that a generation pass RAN for this household, whether or not it
+ * produced anything.
+ *
+ * The field therefore reads as "last attempt", and only coincides with "last
+ * success" because generation usually succeeds. It has to mean the attempt:
+ * routes/insights regenerates on a read once the marker is older than its
+ * staleness window, so a pass that threw before reaching the marker left the
+ * household stale and the very next page view paid for the whole call again.
+ * Measured at 303 calls and $23.78 for one household in 15 hours.
+ */
+async function markGenerationAttempt(tenantId: string): Promise<void> {
+  await db
+    .insert(financialProfiles)
+    .values({
+      tenantId,
+      lastActionsGeneratedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: financialProfiles.tenantId,
+      set: {
+        lastActionsGeneratedAt: new Date(),
+      },
+    });
+}
+
 export async function generateInsights(tenantId: string): Promise<number> {
   // Admin pause: disabled tenants get no actions generated (route + cron both
-  // funnel through here).
+  // funnel through here). Checked OUTSIDE the attempt marker below: a paused
+  // household never reaches a model, so there is no attempt to record and no
+  // loop to brake.
   if (await isTenantDisabled(tenantId)) {
     console.log(`[Insights] Tenant ${tenantId} is disabled — skipping`);
     return 0;
   }
+  try {
+    return await runGeneration(tenantId);
+  } finally {
+    // Swallowed deliberately: an unhandled throw in a `finally` REPLACES the
+    // error the caller needs to see, and a missed marker is a cost problem, not
+    // a correctness one.
+    await markGenerationAttempt(tenantId).catch((e: unknown) =>
+      console.error(`[Insights] Could not record the generation attempt for ${tenantId}:`, e),
+    );
+  }
+}
+
+async function runGeneration(tenantId: string): Promise<number> {
   console.log(`[Insights] Starting generation for tenant ${tenantId}`);
   const data = await gatherFinancialData(tenantId);
 
@@ -1440,40 +1521,36 @@ export async function generateInsights(tenantId: string): Promise<number> {
     throw e instanceof Error ? e : new Error("AI model not available");
   }
 
-  let result;
-  try {
-    // descrubOutput: false — the response is JSON.parsed below, and a real
-    // name containing a quote/backslash would corrupt it. The insert loop
-    // descrubs each user-visible field after parsing.
-    result = await llmGenerateText({ tenantId, aliasMap, descrubOutput: false }, {
-      model,
-      system: INSIGHTS_PROMPT + (env.HOSTED_MODE ? HOSTED_PORTFOLIO_RULES : ""),
-      prompt:
-        `Here is the user's complete financial data:\n\n${dataJson}` +
-        (pathSteps.length > 0
-          ? `\n\nHere are the steps of their financial path, in the order they work through them:\n\n${pathJson}`
-          : ""),
-      temperature: 0.3,
-      maxOutputTokens: 4000,
-    });
-    logLlmUsage({ tenantId, source: "insights", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens, costUsd: result.costUsd });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[Insights] LLM API call failed: ${msg.slice(0, 300)}`);
-    throw e instanceof Error ? e : new Error(msg);
-  }
-
   let generated: GeneratedInsight[];
   try {
-    let text = result.text.trim();
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) text = jsonMatch[0];
-    generated = JSON.parse(text);
-    if (!Array.isArray(generated)) throw new Error("Not an array");
+    // descrubOutput: false — a real name containing a quote or backslash must
+    // not be spliced back in before the insert loop, which descrubs each
+    // user-visible field itself.
+    const result = await llmGenerateObject(
+      { tenantId, source: "insights", aliasMap, descrubOutput: false },
+      {
+        model,
+        schema: insightsPayloadSchema,
+        system: INSIGHTS_PROMPT + (env.HOSTED_MODE ? HOSTED_PORTFOLIO_RULES : ""),
+        prompt:
+          `Here is the user's complete financial data:\n\n${dataJson}` +
+          (pathSteps.length > 0
+            ? `\n\nHere are the steps of their financial path, in the order they work through them:\n\n${pathJson}`
+            : ""),
+        temperature: 0.3,
+        // Ten actions of prose against a ~16k-token prompt does not fit in
+        // 4,000, which is what the old hand-rolled parse kept failing on: the
+        // response hit the cap mid-object, the regex found no closing bracket,
+        // and the call billed in full while returning nothing.
+        maxOutputTokens: 8000,
+      },
+    );
+    // The loose schema is narrowed here exactly as the hand-rolled JSON.parse
+    // used to be: the insert loop validates every constrained field.
+    generated = (result.object.insights ?? []) as GeneratedInsight[];
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[Insights] Failed to parse AI response: ${msg}`);
-    console.error(`[Insights] Raw response (first 5000 chars): ${result.text.slice(0, 5000)}`);
+    console.error(`[Insights] Generation call failed: ${msg.slice(0, 300)}`);
     throw e instanceof Error ? e : new Error(msg);
   }
 
@@ -1596,20 +1673,6 @@ export async function generateInsights(tenantId: string): Promise<number> {
     });
     insertCount++;
   }
-
-  // Update lastActionsGeneratedAt timestamp in financial profile
-  await db
-    .insert(financialProfiles)
-    .values({
-      tenantId,
-      lastActionsGeneratedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: financialProfiles.tenantId,
-      set: {
-        lastActionsGeneratedAt: new Date(),
-      },
-    });
 
   return insertCount;
 }

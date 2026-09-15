@@ -24,8 +24,7 @@
 
 import { createHash } from "node:crypto";
 import { llmGenerateText } from "./llm.js";
-import { getModel, getModelSlug } from "../agent/index.js";
-import { logLlmUsage } from "./activity.js";
+import { getModel } from "../agent/index.js";
 import { db } from "./db.js";
 import { taxDocuments, financialProfiles, eq, desc } from "@lasagna/core";
 import { readHouseholdProfile } from "./profile-resolver.js";
@@ -220,7 +219,7 @@ export async function readTaxSummary(
     });
 
     const result = await llmGenerateText(
-      { tenantId },
+      { tenantId, source: "tax-summary" },
       {
         model: getModel("medium"),
         system: TAX_SUMMARY_PROMPT,
@@ -229,15 +228,6 @@ export async function readTaxSummary(
         maxOutputTokens: 400,
       },
     );
-    logLlmUsage({
-      tenantId,
-      source: "tax-summary",
-      model: getModelSlug("medium"),
-      inputTokens: result.usage?.inputTokens,
-      outputTokens: result.usage?.outputTokens,
-      costUsd: result.costUsd,
-    });
-
     const summary = clampToSentence(normalizePunctuation(result.text.trim()));
     if (!summary) return stored;
 

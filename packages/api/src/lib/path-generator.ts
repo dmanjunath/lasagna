@@ -14,7 +14,6 @@ import {
 } from '@lasagna/core';
 import { z } from 'zod';
 import { getModel, getModelSlug } from '../agent/index.js';
-import { logLlmUsage } from './activity.js';
 import { db } from './db.js';
 import { CONTRIBUTION_TAX_YEAR, isUrgentDebt, transferableAssets, type PathCandidate } from './path-candidates.js';
 import type { PathContext } from './path-context.js';
@@ -499,7 +498,7 @@ async function proposeOrder(
       // aliases cannot survive the guards below either way, since "Account 1",
       // "Goal 1" and a numbered debt all end in a count, and a bare count is
       // never one of the bands the payload sent.
-      { tenantId, aliasMap, descrubOutput: false },
+      { tenantId, source: 'financial-path', aliasMap, descrubOutput: false },
       {
         model: getModel(ORDER_LEVEL),
         schema: orderSchema,
@@ -513,15 +512,6 @@ async function proposeOrder(
     console.error('[path] order call failed:', e instanceof Error ? e.message : e);
     return null;
   }
-
-  logLlmUsage({
-    tenantId,
-    source: 'financial-path',
-    model: getModelSlug(ORDER_LEVEL),
-    inputTokens: result.usage?.inputTokens,
-    outputTokens: result.usage?.outputTokens,
-    costUsd: result.costUsd,
-  });
 
   const steps = result.object.steps;
   if (!steps) return null;

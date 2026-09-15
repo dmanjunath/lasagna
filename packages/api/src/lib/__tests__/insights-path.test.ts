@@ -18,9 +18,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── The model, and everything the engine reaches for around it ───────────────
 
-const llmGenerateText = vi.fn();
+const llmGenerateObject = vi.fn();
 vi.mock("../llm.js", () => ({
-  llmGenerateText: (...args: unknown[]) => llmGenerateText(...args),
+  llmGenerateObject: (...args: unknown[]) => llmGenerateObject(...args),
 }));
 vi.mock("../../agent/index.js", () => ({
   getModel: () => ({}) as never,
@@ -138,8 +138,8 @@ import { generateInsights } from "../insights-engine.js";
 
 /** What the model hands back, before anything is validated. */
 function modelReturns(items: Array<Record<string, unknown>>) {
-  llmGenerateText.mockResolvedValue({
-    text: JSON.stringify(items),
+  llmGenerateObject.mockResolvedValue({
+    object: { insights: items },
     usage: { inputTokens: 900, outputTokens: 400 },
   });
 }
@@ -162,7 +162,7 @@ const TENANT = "00000000-0000-4000-8000-0000000000aa";
 
 beforeEach(() => {
   inserted.length = 0;
-  llmGenerateText.mockReset();
+  llmGenerateObject.mockReset();
   pathSteps = [
     { key: "stabilize", step: 1, title: "Save a starter emergency fund" },
     { key: "debt:11111111-1111-4111-8111-111111111111", step: 2, title: "Pay off a card" },
@@ -222,7 +222,7 @@ describe("attaching an action to the step it serves", () => {
     modelReturns([action("Pay down your card", "stabilize")]);
     await generateInsights(TENANT);
 
-    const prompt = String(llmGenerateText.mock.calls[0][1].prompt);
+    const prompt = String(llmGenerateObject.mock.calls[0][1].prompt);
     expect(prompt).toContain("financial path");
     expect(prompt).toContain('"key":"stabilize"');
     expect(prompt).toContain('"step":2');

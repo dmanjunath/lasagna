@@ -19,6 +19,15 @@ export const insightsRoutes = new Hono<AuthEnv>();
 
 // Cloud Scheduler is the happy path for daily regeneration. If it stalls, the
 // next read older than this window regenerates synchronously as a backstop.
+//
+// This doubles as the COOLDOWN between two generation attempts for the same
+// household, because generateInsights records the attempt whether it succeeded
+// or not. That is the brake on this path: the marker used to be written only on
+// success, ~140 lines past the parse that could throw, so a household whose
+// generation kept failing was stale on every single read and every single read
+// paid for a fresh model call. useInsights is mounted on the home screen as
+// well as /insights, so nearly every navigation re-entered it. One household
+// ran 303 calls for $23.78 in 15 hours that way.
 const REGEN_STALE_MS = 48 * 60 * 60 * 1000;
 
 function loadActiveInsights(tenantId: string) {

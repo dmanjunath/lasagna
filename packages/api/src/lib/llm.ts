@@ -26,11 +26,20 @@ import {
   descrubObject,
   type AliasMap,
 } from "./pii-scrubber.js";
-import { actualLlmCostUsd } from "./activity.js";
+import { actualLlmCostUsd, logLlmUsage, type LlmSource } from "./activity.js";
 
 /** Who the call is for; pass a prebuilt aliasMap to avoid a per-call DB read. */
 export interface LlmAnonContext {
   tenantId: string;
+  /**
+   * What the call is for. Required, because this is also the metering boundary:
+   * every call through here writes one activity_events row, so a call with no
+   * source would be spend nobody can see. Hand-rolled logging at the call sites
+   * left real holes — the strategy verifier billed two model calls per section
+   * and logged neither, so "strategy" stopped appearing in activity_events
+   * altogether while it was still running daily.
+   */
+  source: LlmSource;
   aliasMap?: AliasMap;
   /**
    * Default true. Two reasons to set it false:
@@ -74,20 +83,53 @@ function scrubOpts<T extends { system?: unknown; prompt?: unknown; messages?: un
   return out;
 }
 
+/**
+ * The provider slug actually used, for the usage row.
+ *
+ * Read off the model the caller built rather than re-derived from a tier name,
+ * so an admin override is metered as the model it really ran.
+ */
+function modelSlug(model: GenerateTextOpts["model"]): string {
+  if (typeof model === "string") return model;
+  const id = (model as { modelId?: unknown } | null | undefined)?.modelId;
+  return typeof id === "string" && id.length > 0 ? id : "unknown";
+}
+
 /** Anonymized generateText: scrubbed outbound, text descrubbed inbound. */
 export async function llmGenerateText(
   anon: LlmAnonContext,
   opts: GenerateTextOpts,
 ): Promise<LlmTextResult> {
+  // Outside the try: a failure here means no model was reached, so there is no
+  // call to meter.
   const map = await resolveMap(anon);
-  const result = await generateText(scrubOpts(opts, map) as GenerateTextOpts);
-  return {
-    text: anon.descrubOutput === false ? result.text : descrub(result.text, map),
-    toolCalls: result.toolCalls,
-    finishReason: result.finishReason,
-    usage: result.usage,
-    costUsd: actualLlmCostUsd(result.providerMetadata),
-  };
+  let usage: Awaited<ReturnType<typeof generateText>>["usage"] | undefined;
+  let costUsd: number | undefined;
+  try {
+    const result = await generateText(scrubOpts(opts, map) as GenerateTextOpts);
+    usage = result.usage;
+    costUsd = actualLlmCostUsd(result.providerMetadata);
+    return {
+      text: anon.descrubOutput === false ? result.text : descrub(result.text, map),
+      toolCalls: result.toolCalls,
+      finishReason: result.finishReason,
+      usage: result.usage,
+      costUsd,
+    };
+  } finally {
+    // In a `finally` so a call that THREW is still recorded. A provider error
+    // arrives after the tokens are billed, so the ones that throw are exactly
+    // the spend an operator most needs to see; logging only on success is how
+    // whole features went missing from the activity table.
+    logLlmUsage({
+      tenantId: anon.tenantId,
+      source: anon.source,
+      model: modelSlug(opts.model),
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      costUsd,
+    });
+  }
 }
 
 /** Anonymized generateObject: scrubbed outbound, object strings descrubbed inbound. */
@@ -104,12 +146,28 @@ export async function llmGenerateObject<T>(
   },
 ): Promise<{ object: T; usage?: { inputTokens?: number; outputTokens?: number }; costUsd?: number }> {
   const map = await resolveMap(anon);
-  const result = await generateObject(scrubOpts(opts, map) as never);
-  return {
-    object: (anon.descrubOutput === false
-      ? result.object
-      : descrubObject(result.object, map)) as T,
-    usage: result.usage as { inputTokens?: number; outputTokens?: number } | undefined,
-    costUsd: actualLlmCostUsd(result.providerMetadata),
-  };
+  let usage: { inputTokens?: number; outputTokens?: number } | undefined;
+  let costUsd: number | undefined;
+  try {
+    const result = await generateObject(scrubOpts(opts, map) as never);
+    usage = result.usage as { inputTokens?: number; outputTokens?: number } | undefined;
+    costUsd = actualLlmCostUsd(result.providerMetadata);
+    return {
+      object: (anon.descrubOutput === false
+        ? result.object
+        : descrubObject(result.object, map)) as T,
+      usage,
+      costUsd,
+    };
+  } finally {
+    // See llmGenerateText: recorded even when the call throws.
+    logLlmUsage({
+      tenantId: anon.tenantId,
+      source: anon.source,
+      model: modelSlug(opts.model),
+      inputTokens: usage?.inputTokens,
+      outputTokens: usage?.outputTokens,
+      costUsd,
+    });
+  }
 }

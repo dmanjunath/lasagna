@@ -15,7 +15,6 @@
 import type { ModelMessage } from "ai";
 import { llmGenerateText } from "../lib/llm.js";
 import { getModel, createAgentTools } from "../agent/index.js";
-import { logLlmUsage } from "../lib/activity.js";
 import { buildAliasMap, scrub, descrub } from "../lib/pii-scrubber.js";
 
 export interface FreeformReport {
@@ -157,7 +156,7 @@ export async function generateFreeformReport(
     // descrubOutput: false — keep the model's text in alias form so
     // sanitizeBrand at the end sees pure model output (aliases carry no banned
     // vocabulary) before real names are restored once, at the very end.
-    const stepResult = await llmGenerateText({ tenantId, aliasMap, descrubOutput: false }, {
+    const stepResult = await llmGenerateText({ tenantId, source: "freeform", aliasMap, descrubOutput: false }, {
       model,
       system: SYSTEM_PROMPT,
       messages,
@@ -166,14 +165,6 @@ export async function generateFreeformReport(
       // more headroom than a chat turn.
       maxOutputTokens: 60000,
       toolChoice: step === 0 && !opts?.previousHtml ? "required" : "auto",
-    });
-    logLlmUsage({
-      tenantId,
-      source: "freeform",
-      model: FREEFORM_MODEL,
-      inputTokens: stepResult.usage?.inputTokens,
-      outputTokens: stepResult.usage?.outputTokens,
-      costUsd: stepResult.costUsd,
     });
     finalText = stepResult.text;
     console.log(
@@ -223,7 +214,7 @@ export async function generateFreeformReport(
 
   // Tool rounds exhausted mid-gathering: force one tool-free synthesis turn.
   if (!extractHtml(finalText)) {
-    const synth = await llmGenerateText({ tenantId, aliasMap, descrubOutput: false }, {
+    const synth = await llmGenerateText({ tenantId, source: "freeform", aliasMap, descrubOutput: false }, {
       model,
       system: SYSTEM_PROMPT,
       messages: [
@@ -235,14 +226,6 @@ export async function generateFreeformReport(
         },
       ],
       maxOutputTokens: 60000,
-    });
-    logLlmUsage({
-      tenantId,
-      source: "freeform",
-      model: FREEFORM_MODEL,
-      inputTokens: synth.usage?.inputTokens,
-      outputTokens: synth.usage?.outputTokens,
-      costUsd: synth.costUsd,
     });
     finalText = synth.text;
   }

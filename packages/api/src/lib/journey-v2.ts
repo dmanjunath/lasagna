@@ -27,7 +27,6 @@
 
 import { z } from 'zod';
 import { getModel, getModelSlug } from '../agent/index.js';
-import { logLlmUsage } from './activity.js';
 import { llmGenerateText } from './llm.js';
 import {
   classifyDebtKind,
@@ -690,7 +689,7 @@ export async function proposeJourney(
       // the "describes a balance by what it is and never by the name on it" test
       // holds it to. Nothing comes back carrying a name either, so there is
       // nothing to restore.
-      { tenantId, aliasMap: { forward: new Map(), reverse: new Map() }, descrubOutput: false },
+      { tenantId, source: 'financial-journey-v2', aliasMap: { forward: new Map(), reverse: new Map() }, descrubOutput: false },
       {
         model: getModel(LEVEL),
         system: SYSTEM_PROMPT,
@@ -708,15 +707,6 @@ export async function proposeJourney(
     console.error('[journey-v2] generation failed:', e instanceof Error ? e.message : e);
     return null;
   }
-
-  logLlmUsage({
-    tenantId,
-    source: 'financial-journey-v2',
-    model: getModelSlug(LEVEL),
-    inputTokens: result.usage?.inputTokens,
-    outputTokens: result.usage?.outputTokens,
-    costUsd: result.costUsd,
-  });
 
   const raw = parseJourneyJson(result.text);
   if (raw === null) {

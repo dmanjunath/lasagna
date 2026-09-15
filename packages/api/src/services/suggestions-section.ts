@@ -16,8 +16,7 @@
 
 import { z } from "zod";
 import { llmGenerateObject } from "../lib/llm.js";
-import { getModel, getModelSlug } from "../agent/index.js";
-import { logLlmUsage } from "../lib/activity.js";
+import { getModel } from "../agent/index.js";
 import type { CompactPlanGrounding } from "./plan-grounding.js";
 
 // Mid-tier model: cheap enough for a create-time call, strong enough to reason
@@ -95,7 +94,7 @@ export async function buildSuggestionsSection(
 
   let result;
   try {
-    result = await llmGenerateObject({ tenantId }, {
+    result = await llmGenerateObject({ tenantId, source: "suggestions" }, {
       model: getModel(SUGGESTIONS_LEVEL),
       schema: suggestionsSchema,
       system: SYSTEM_PROMPT,
@@ -110,15 +109,6 @@ export async function buildSuggestionsSection(
     );
     return null;
   }
-
-  logLlmUsage({
-    tenantId,
-    source: "suggestions",
-    model: getModelSlug(SUGGESTIONS_LEVEL),
-    inputTokens: result.usage?.inputTokens,
-    outputTokens: result.usage?.outputTokens,
-    costUsd: result.costUsd,
-  });
 
   // Trim and drop any item the model left without the two required fields; if
   // nothing survives, treat it as no suggestions rather than an empty card.

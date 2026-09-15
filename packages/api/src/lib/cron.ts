@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { db } from "./db.js";
-import { eq, plaidItems, tenants, type Plan } from "@lasagna/core";
+import { eq, gte, accounts, plaidItems, tenants, users, type Plan } from "@lasagna/core";
 import { syncItem } from "./sync.js";
 import { generateInsights } from "./insights-engine.js";
 import { resolveTenantPlan } from "./billing.js";
@@ -58,23 +58,46 @@ export async function runSyncAll(proOnly = false): Promise<CronRunResult> {
   }
 }
 
+// A household is worth generating actions for when there is something to
+// analyse AND somebody who will read the result. This query used to be an
+// unfiltered `select id from tenants`, so every account ever created, including
+// abandoned signups and test-domain tenants that never connected anything,
+// bought a full model call every single day.
+const INSIGHTS_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function tenantsWorthGenerating() {
+  const activeSince = new Date(Date.now() - INSIGHTS_IDLE_MS);
+  return db
+    .selectDistinct({ id: tenants.id })
+    .from(tenants)
+    .innerJoin(accounts, eq(accounts.tenantId, tenants.id))
+    .innerJoin(users, eq(users.tenantId, tenants.id))
+    .where(gte(users.lastLoginAt, activeSince));
+}
+
 export async function runDailyInsights(): Promise<CronRunResult> {
   console.log("[Cron] Starting daily insights generation...");
   try {
-    const allTenants = await db.select({ id: tenants.id }).from(tenants);
-    console.log(`[Cron] Generating insights for ${allTenants.length} tenants`);
+    const targetTenants = await tenantsWorthGenerating();
+    console.log(`[Cron] Generating insights for ${targetTenants.length} tenants`);
 
     // A transient failure here means a tenant gets no fresh actions for a day.
     // Retry the rejected tenants exactly once so it self-heals within the run.
-    const { succeededFirstPass, recoveredOnRetry, stillFailedIds } = await runWithRetry(
-      allTenants.map(({ id }) => id),
-      (id) => generateInsights(id)
-    );
+    const { succeededFirstPass, recoveredOnRetry, stillFailedIds, retrySkipped } =
+      await runWithRetry(
+        targetTenants.map(({ id }) => id),
+        (id) => generateInsights(id)
+      );
     const succeeded = succeededFirstPass + recoveredOnRetry;
     console.log(
       `[Cron] Insights generation complete: ${succeeded} succeeded, ${stillFailedIds.length} failed` +
         (recoveredOnRetry > 0 ? ` (${recoveredOnRetry} recovered on retry)` : "")
     );
+    if (retrySkipped) {
+      console.error(
+        `[Cron] Retry pass SKIPPED: ${stillFailedIds.length}/${targetTenants.length} tenants failed the first pass, which reads as a broken dependency rather than flakiness`
+      );
+    }
     if (stillFailedIds.length > 0) {
       console.error(`[Cron] Insights still failing after retry for tenants: ${stillFailedIds.join(", ")}`);
     }

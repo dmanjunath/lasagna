@@ -16,8 +16,7 @@
 
 import { z } from "zod";
 import { llmGenerateObject } from "../lib/llm.js";
-import { getModel, getModelSlug } from "../agent/index.js";
-import { logLlmUsage } from "../lib/activity.js";
+import { getModel } from "../agent/index.js";
 import type { CompactPlanGrounding } from "./plan-grounding.js";
 
 // Mid-tier model: same tier as suggestions — cheap enough for a create-time call,
@@ -118,7 +117,7 @@ export async function buildNarrativeSection(
   let result: { object: z.infer<typeof narrativeSchema>; usage?: { inputTokens?: number; outputTokens?: number }; costUsd?: number } | null = null;
   for (let attempt = 0; attempt < 2 && result === null; attempt++) {
     try {
-      result = await llmGenerateObject({ tenantId }, {
+      result = await llmGenerateObject({ tenantId, source: "narrative" }, {
         model: getModel(NARRATIVE_LEVEL),
         schema: narrativeSchema,
         system: SYSTEM_PROMPT,
@@ -138,15 +137,6 @@ export async function buildNarrativeSection(
     }
   }
   if (result === null) return null;
-
-  logLlmUsage({
-    tenantId,
-    source: "narrative",
-    model: getModelSlug(NARRATIVE_LEVEL),
-    inputTokens: result.usage?.inputTokens,
-    outputTokens: result.usage?.outputTokens,
-    costUsd: result.costUsd,
-  });
 
   const executiveSummary = (result.object.executiveSummary ?? "").trim();
 

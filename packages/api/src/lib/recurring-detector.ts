@@ -2,8 +2,7 @@ import { llmGenerateText } from "./llm.js";
 import { buildAliasMap, descrub } from "./pii-scrubber.js";
 import { and, eq, gte, accounts, recurringTransactions, transactions } from "@lasagna/core";
 import { db } from "./db.js";
-import { getModel, getModelSlug } from "../agent/index.js";
-import { logLlmUsage } from "./activity.js";
+import { getModel } from "../agent/index.js";
 import { loadTaxonomy } from "./taxonomy.js";
 
 const buildSystemPrompt = (categoryNames: string[]) => `You analyze a user's recent bank transactions and identify RECURRING expenses and income.
@@ -117,7 +116,7 @@ export async function detectRecurringForTenant(tenantId: string): Promise<{
   // containing a quote/backslash would corrupt it. User-visible fields are
   // descrubbed after parsing.
   const aliasMap = await buildAliasMap(tenantId);
-  const result = await llmGenerateText({ tenantId, aliasMap, descrubOutput: false }, {
+  const result = await llmGenerateText({ tenantId, source: "recurring", aliasMap, descrubOutput: false }, {
     model,
     system: buildSystemPrompt(enabledCategories.map((c) => c.name)),
     prompt: `Accounts on file (use these to recognize debt payments):
@@ -128,7 +127,6 @@ ${JSON.stringify(compact)}`,
     temperature: 0.2,
     maxOutputTokens: 4000,
   });
-  logLlmUsage({ tenantId, source: "recurring", model: getModelSlug("medium"), inputTokens: result.usage?.inputTokens, outputTokens: result.usage?.outputTokens, costUsd: result.costUsd });
 
   let parsed: LLMResult[];
   try {
