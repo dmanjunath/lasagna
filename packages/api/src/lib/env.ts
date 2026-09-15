@@ -74,8 +74,16 @@ export const env = {
   get PORT() {
     return parseInt(optional("PORT", "3000"), 10);
   },
+  // Multi-tenant (the default) isolates every household and never grants admin
+  // on signup. Single-tenant is an explicit opt-in for a personal/internal
+  // deployment where the operator is the only user.
+  //
+  // Reads as single-tenant ONLY for the exact string "false". Unset, empty,
+  // "FALSE", "0" or any typo all resolve to multi-tenant, because the failure
+  // mode of this flag is handing the admin console to every stranger who signs
+  // up. The dangerous state has to be spelled correctly, on purpose.
   get MULTI_TENANT() {
-    return optional("MULTI_TENANT", "true") === "true";
+    return optional("MULTI_TENANT", "true") !== "false";
   },
   // Hosted deployments state general allocation guidance in generated portfolio
   // actions instead of the reader's own holdings and figures. Self-hosted

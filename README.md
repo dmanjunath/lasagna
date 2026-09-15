@@ -155,6 +155,10 @@ cd lasagna
 cp .env.example .env
 # Fill in: ENCRYPTION_KEY, and optional Plaid/OpenRouter credentials
 # (see .env.example for all variables)
+#
+# Note: this defaults to MULTI_TENANT=false, which makes every account that
+# signs up an admin. That suits a personal install. Change it before anyone
+# else can reach your instance. See "Admin access" below.
 
 docker compose up
 ```
@@ -198,8 +202,39 @@ pnpm db:seed --preset=4M         # high net worth, $4M
 | `PLAID_SECRET` | Plaid API secret | Optional |
 | `PLAID_ENV` | `sandbox`, `development`, or `production` | Optional |
 | `OPENROUTER_API_KEY` | OpenRouter key for AI chat | Optional |
+| `MULTI_TENANT` | Tenancy mode. Set to `false` for a personal install where every account is an admin. See [Admin access](#admin-access). | Optional |
 
 Plaid is required only if you want live bank account syncing. Without it, you can still use the app by entering balances manually. The AI chat feature requires an OpenRouter API key.
+
+### Admin access
+
+The admin console (`/admin`) shows every user on the deployment, their plan, their
+spend, and controls to pause, comp, or delete them. Who gets it is decided by
+`MULTI_TENANT`, and by nothing else:
+
+| `MULTI_TENANT` | Mode | Who becomes an admin |
+|---|---|---|
+| `false` | Single tenant | **Every account created.** Meant for a personal install where you are the only user. |
+| Anything else, including unset | Multi tenant (default) | Nobody. Signing up never grants admin. |
+
+Only the exact string `false` opts in. `FALSE`, `0`, an empty value, or a typo all
+read as multi tenant, so a misconfigured deployment fails toward no access rather
+than handing the console to whoever signs up next.
+
+`.env.example` ships `MULTI_TENANT=false`, because the common case for a cloned
+repo is one person running it for themselves. **Change it before you let anyone
+else sign up.** The API prints the resolved mode on every boot, so you can check
+which one you are in:
+
+```
+Tenancy: SINGLE-TENANT (MULTI_TENANT=false). Every new signup becomes an admin.
+```
+
+On a multi-tenant deployment, promote an operator from the admin console
+(**Administrator → Make admin** on a user), or by setting `users.is_admin = true`
+in the database for the first one. The console re-reads `users.is_admin` from the
+database on every request, so granting or revoking access takes effect immediately
+rather than at the user's next login.
 
 ### Deployment
 

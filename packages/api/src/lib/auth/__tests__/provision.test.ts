@@ -187,12 +187,57 @@ describe("provisionUser", () => {
     expect(coreMock.seedTaxonomyForTenant).toHaveBeenCalled();
   });
 
-  it("makes new users internal admins when MULTI_TENANT=false", async () => {
-    process.env.MULTI_TENANT = "false";
-    const { provisionUser } = await import("../provision.js");
-    const { user, isNew } = await provisionUser({ email: "internal@user.com", name: "Internal User" });
-    expect(isNew).toBe(true);
-    expect(user.isAdmin).toBe(true);
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ isAdmin: true }));
+  // Regression: admin used to be granted whenever MULTI_TENANT was anything but
+  // the exact string "true", so a missing or mistyped value turned every new
+  // account into an operator. The parse is now inverted: only an explicit
+  // "false" opts into single-tenant, so every wrong value fails closed.
+  describe("admin on signup is decided by server config, and fails closed", () => {
+    const neverGrants = [
+      ["unset", undefined],
+      ["empty string", ""],
+      ["true", "true"],
+      ["uppercase FALSE", "FALSE"],
+      ["zero", "0"],
+      ["typo", "fasle"],
+      ["padded false", " false "],
+    ] as const;
+
+    for (const [label, value] of neverGrants) {
+      it(`does not grant admin when MULTI_TENANT is ${label}`, async () => {
+        if (value === undefined) delete process.env.MULTI_TENANT;
+        else process.env.MULTI_TENANT = value;
+        const { provisionUser } = await import("../provision.js");
+        const { user } = await provisionUser({ email: `${label.replace(/\W/g, "")}@user.com`, name: "U" });
+        expect(user.isAdmin).toBe(false);
+        expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ isAdmin: false }));
+      });
+    }
+
+    it("grants admin only on an explicit MULTI_TENANT=false single-tenant deployment", async () => {
+      process.env.MULTI_TENANT = "false";
+      const { provisionUser } = await import("../provision.js");
+      const { user, isNew } = await provisionUser({ email: "internal@user.com", name: "Internal User" });
+      expect(isNew).toBe(true);
+      expect(user.isAdmin).toBe(true);
+      expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({ isAdmin: true }));
+    });
+
+    // Joining an existing household is never an operator action, whatever the
+    // deployment mode is.
+    it("join branch never grants admin, even single-tenant", async () => {
+      process.env.MULTI_TENANT = "false";
+      invitesFindFirst.mockResolvedValue({
+        id: "invite-1",
+        tenantId: "tenant-inviter",
+        email: "partner@user.com",
+        role: "member",
+        expiresAt: new Date(Date.now() + 60_000),
+        acceptedAt: null,
+        revokedAt: null,
+      });
+      const { provisionUser } = await import("../provision.js");
+      const { user } = await provisionUser({ email: "partner@user.com", name: "Partner" });
+      expect(user.isAdmin).toBe(false);
+    });
   });
 });

@@ -77,8 +77,11 @@ export async function provisionUser(input: ProvisionInput) {
     passwordHash: input.passwordHash ?? null,
     workosUserId: input.workosUserId ?? null,
     role: "owner",
-    // Multi-tenant (the default) never grants admin on signup. A deliberate
-    // MULTI_TENANT=false single-tenant deployment makes every new user internal admin.
+    // Server configuration decides this, never the database: deriving it from
+    // "are there any users yet" would make wiping the users table an admin
+    // escalation. Multi-tenant (the default, and anything but an explicit
+    // MULTI_TENANT=false) never grants admin here — those grants are deliberate,
+    // one user at a time, from the admin console (PATCH /admin/users/:id).
     isAdmin: !env.MULTI_TENANT,
     onboardingStage: "profile",
     acceptedTermsAt: input.acceptedTerms ? new Date() : null,
