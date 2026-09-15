@@ -502,6 +502,7 @@ export function SimpleHome() {
             <NetWorthTrendCard
               history={nwHistory}
               netWorth={breakdown.netWorth}
+              titleClassName="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]"
               defaultRange="1M"
               action={
                 <Link href="/money" className={pageLinkCls}>

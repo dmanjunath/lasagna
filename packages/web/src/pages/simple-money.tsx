@@ -309,7 +309,12 @@ export function SimpleMoney() {
 
       {/* ── Net-worth + chart card ── */}
       {hasMoney && (
-        <NetWorthTrendCard history={history} netWorth={netWorth} className="mt-6" />
+        <NetWorthTrendCard
+          history={history}
+          netWorth={netWorth}
+          className="mt-6"
+          titleClassName="font-editorial text-[19px] font-bold tracking-[-0.018em]"
+        />
       )}
 
       {/* ── Empty state ── */}

@@ -216,12 +216,18 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
  * day. Shared by Money and Home so both surfaces scrub the same way.
  */
 export function NetWorthTrendCard({
-  history, netWorth, className, defaultRange = '6M', action,
+  history, netWorth, className, titleClassName, defaultRange = '6M', action,
 }: {
   history: TrendPoint[];
   netWorth: number;
   /** Margin/placement from the page that hosts the card. */
   className?: string;
+  /**
+   * The host page's section-heading treatment for "Net worth". Required, and
+   * supplied per page: Home and Money run their sections at different scales,
+   * so a size baked in here would be an outlier on one of them.
+   */
+  titleClassName: string;
   /** Range the picker starts on. The user can still switch. */
   defaultRange?: Range;
   /**
@@ -266,6 +272,13 @@ export function NetWorthTrendCard({
     ? (periodDelta! / periodStart.value) * 100
     : null;
   const sinceLabel = periodStart ? fmtDate(periodStart.date, true) : null;
+  // The scrubbed day leads the caption only when it is a DIFFERENT day from
+  // the one the change is measured against. Scrubbing the first point of the
+  // period it is the same day, and printing it twice ("on Aug 16, since Aug
+  // 16, 2026") reads as two facts when there is one.
+  const hoveredLabel = hoveredPoint && hoveredPoint.date !== periodStart?.date
+    ? fmtDate(hoveredPoint.date)
+    : null;
 
   return (
     <section
@@ -297,20 +310,19 @@ export function NetWorthTrendCard({
             div instead resolved that width against the div and shrank the rail
             on phones, so it stays a direct child here. */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-          {/* Scrubbing the chart shows a past day, so the label says which one.
-              Without it the figure silently contradicts every other net-worth
-              number on the page.
+          {/* The card is a section of the page that hosts it, so its title is
+              that page's section heading, at that page's scale.
 
-              `flex-1` sizes this box from the row, not from its text, so
-              swapping in the longer scrubbing label cannot shift the controls
-              beside it. Sized by content, hovering the chart moved the picker,
-              jumped the link to a new row and dropped the chart out from under
-              the cursor doing the scrubbing. It also right-aligns whatever
-              follows without an auto margin, so the link still sits right when
-              there is no history and the picker is not rendered at all. */}
-          <div className="min-w-0 flex-1 truncate text-[13px] font-semibold text-content-muted">
-            {hoveredPoint ? `Net worth on ${fmtDate(hoveredPoint.date)}` : 'Net worth'}
-          </div>
+              The heading is FIXED at "Net worth". The scrubbed day it used to
+              swap in now reads on the muted line under the figure: at display
+              size a longer title wraps this row, and the row jumping height is
+              exactly what drops the chart out from under the cursor doing the
+              scrubbing.
+
+              `flex-1` right-aligns whatever follows without an auto margin, so
+              the link still sits right when there is no history and the picker
+              is not rendered at all. */}
+          <h2 className={cn('min-w-0 flex-1 truncate', titleClassName)}>Net worth</h2>
           {action}
           {hasRanges && (
             <SegmentedControl
@@ -336,18 +348,41 @@ export function NetWorthTrendCard({
           <span className="font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum">
             {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(displayValue)}
           </span>
+          {/* Chip and caption are direct children of the row, not a nested
+              flex box of their own. Nested, the pair wrapped as a unit onto a
+              line of its own and then wrapped AGAIN inside it, so the longer
+              scrubbing caption cost the card a third line (+29.5px at 390px)
+              and pushed the chart down under the finger doing the scrubbing.
+              Flat, the caption is the only thing that moves, onto a full-width
+              line that holds it at every width. */}
           {periodDelta !== null && sinceLabel && (
-            <span className="flex items-center gap-2.5 flex-wrap">
+            <>
               {/* Masked, the chip is a tinted arrow around a second copy of the
                   mask already leading the card, so it is dropped rather than
                   filled with bullets. The percentage beside it is
                   scale-invariant, so it stays and carries the change. */}
               {!isAmountsHidden() && <DeltaChip delta={periodDelta} />}
+              {/* Scrubbing the chart shows a past day, so this line says which
+                  one. Without it the figure silently contradicts every other
+                  net-worth number on the page. It rides here rather than in the
+                  title because this line already dates the figure, and because
+                  the title is a display-size heading that cannot absorb a
+                  changing label without moving the controls beside it.
+
+                  The scrubbed day is the only token on the line that changes,
+                  and it is what re-dates the figure above, so it carries the
+                  full-contrast weight while the period it is measured against
+                  stays muted. Set in the same muted grey it read as a third
+                  run of dates rather than as the answer to "which day is
+                  this?". */}
               <span className="text-[13px] font-medium text-content-muted ui-tnum">
+                {hoveredLabel && (
+                  <span className="font-semibold text-content">on {hoveredLabel},{' '}</span>
+                )}
                 since {sinceLabel}
                 {periodPct !== null ? ` (${periodPct < 0 ? '−' : '+'}${Math.abs(periodPct).toFixed(1)}%)` : ''}
               </span>
-            </span>
+            </>
           )}
         </div>
       </div>
