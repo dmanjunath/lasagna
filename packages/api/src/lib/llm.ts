@@ -27,7 +27,6 @@ import {
   type AliasMap,
 } from "./pii-scrubber.js";
 import { actualLlmCostUsd, logLlmUsage, type LlmSource } from "./activity.js";
-import { throughFixtures } from "./llm-fixtures.js";
 
 /** Who the call is for; pass a prebuilt aliasMap to avoid a per-call DB read. */
 export interface LlmAnonContext {
@@ -107,14 +106,7 @@ export async function llmGenerateText(
   let usage: Awaited<ReturnType<typeof generateText>>["usage"] | undefined;
   let costUsd: number | undefined;
   try {
-    const sent = scrubOpts(opts, map) as GenerateTextOpts;
-    // Record/replay sits exactly HERE: on the scrubbed request and on the
-    // response BEFORE it is descrubbed, so a stored fixture can only ever hold
-    // aliases. Off in production and by default; see lib/llm-fixtures.ts.
-    const result = await throughFixtures(
-      { kind: "text", source: anon.source, request: sent, aliasMap: map },
-      () => generateText(sent),
-    );
+    const result = await generateText(scrubOpts(opts, map) as GenerateTextOpts);
     usage = result.usage;
     costUsd = actualLlmCostUsd(result.providerMetadata);
     return {
@@ -157,12 +149,7 @@ export async function llmGenerateObject<T>(
   let usage: { inputTokens?: number; outputTokens?: number } | undefined;
   let costUsd: number | undefined;
   try {
-    const sent = scrubOpts(opts, map);
-    // See llmGenerateText: scrubbed in, not-yet-descrubbed out.
-    const result = await throughFixtures(
-      { kind: "object", source: anon.source, request: sent, aliasMap: map },
-      () => generateObject(sent as never),
-    );
+    const result = await generateObject(scrubOpts(opts, map) as never);
     usage = result.usage as { inputTokens?: number; outputTokens?: number } | undefined;
     costUsd = actualLlmCostUsd(result.providerMetadata);
     return {
