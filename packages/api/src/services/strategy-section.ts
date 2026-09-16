@@ -19,15 +19,24 @@ import { DEFERRED_401K_LIMIT, standardDeduction } from "./tax-model.js";
 import type { CompactPlanGrounding } from "./plan-grounding.js";
 
 const STRATEGY_LEVEL = "medium" as const;
-// This was the frontier tier, on the reasoning that a better judge catches
-// semantic errors (inverted tax logic, claims contradicted by the rows) the
-// medium tier misses. That reasoning never actually applied HERE: verification
-// is a structured-output call, and the frontier route rejects structured-output
-// config outright (see generateObjectWithFallback), so the frontier verdict was
-// never produced and every verification already ran on the medium tier. All the
-// frontier setting bought was a doomed Opus request in front of each of the two
-// verification calls per section, billed and never logged.
-const VERIFY_LEVEL = "medium" as const;
+// The frontier tier, because a better judge catches semantic errors (inverted
+// tax logic, claims contradicted by the rows) the medium tier misses.
+//
+// It only works in TOOL mode. Verification is a structured-output call, and the
+// AI SDK's generateObject asks for one with a JSON response format, which the
+// provider sends as `response_format: {type: "json_schema"}`. OpenRouter then
+// translates that into Anthropic's `output_config.format`, and the Opus routes
+// that actually serve this account (Bedrock, Vertex, Azure) reject the field
+// ("output_config.format: Extra inputs are not permitted"). OpenRouter now
+// filters those routes out of a json_schema request instead, which leaves only
+// the Anthropic-direct endpoints — all of them excluded by the account's
+// zero-data-retention guardrail, so the request 404s before a model sees it.
+// Every Opus route DOES support tool calls, which is how Anthropic models do
+// structured output natively, so the verifier carries its schema as one forced
+// tool call (llmGenerateObject's `viaToolCall`). Do not switch it back to a
+// response format: with provider routing relaxed the parameter is silently
+// dropped and the model answers in fenced prose instead.
+const VERIFY_LEVEL = "frontier" as const;
 
 export interface StrategySection {
   section: "strategy";
@@ -288,14 +297,15 @@ const adjudicationSchema = z.object({
 const ADJUDICATOR_PROMPT = `You are adjudicating rejections raised against items in a financial plan's strategy section. For each rejection you get the item's text and the reviewer's claimed error. Uphold a rejection ONLY when the claimed error is clearly real when checked against the DATA: the figure or claim in the item genuinely contradicts the data or the stated tolerance (rounding within ~3% or to two significant figures is always acceptable). If the reviewer's claim is itself mistaken, contradicts the data, or the item is fine, do NOT uphold. Return a verdict for every key.`;
 
 /**
- * generateObject with one retry. The retry exists because the OpenRouter ->
- * Bedrock route occasionally returns unparseable JSON, and the caller treats a
- * failure as fail-open, so one flaky response would silently skip verification.
+ * Verification on VERIFY_LEVEL, falling back to STRATEGY_LEVEL once. The
+ * fallback exists because the OpenRouter -> Bedrock route occasionally returns
+ * unparseable JSON, and the caller treats a failure as fail-open, so one flaky
+ * response would silently skip verification.
  *
- * It is written as a tier fallback because VERIFY_LEVEL used to be the frontier
- * tier, whose route rejects structured-output config ("output_config.format:
- * Extra inputs are not permitted") on every call. Both tiers are now the same,
- * so this is a plain retry and the first call is no longer doomed.
+ * The two tiers use different structured-output modes on purpose: frontier
+ * carries the schema as a tool call (see the VERIFY_LEVEL note), medium keeps
+ * the response-format call that has always worked on it. A fallback that fires
+ * routinely means frontier is broken again — the warning below is the signal.
  */
 async function generateObjectWithFallback<T extends z.ZodTypeAny>(anon: LlmAnonContext, opts: {
   schema: T;
@@ -304,7 +314,7 @@ async function generateObjectWithFallback<T extends z.ZodTypeAny>(anon: LlmAnonC
   maxOutputTokens: number;
 }): Promise<{ object: z.infer<T> }> {
   try {
-    return (await llmGenerateObject(anon, { model: getModel(VERIFY_LEVEL), temperature: 0, ...opts })) as { object: z.infer<T> };
+    return (await llmGenerateObject(anon, { model: getModel(VERIFY_LEVEL), temperature: 0, viaToolCall: true, ...opts })) as { object: z.infer<T> };
   } catch (e) {
     console.warn(
       `[strategy] ${VERIFY_LEVEL} verification route failed, falling back to ${STRATEGY_LEVEL}:`,
