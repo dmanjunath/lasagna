@@ -27,6 +27,7 @@ import {
   type AliasMap,
 } from "./pii-scrubber.js";
 import { actualLlmCostUsd, logLlmUsage, type LlmSource } from "./activity.js";
+import { assertLlmSpendUnderCap, recordLlmSpend } from "./llm-spend.js";
 
 /** Who the call is for; pass a prebuilt aliasMap to avoid a per-call DB read. */
 export interface LlmAnonContext {
@@ -100,6 +101,9 @@ export async function llmGenerateText(
   anon: LlmAnonContext,
   opts: GenerateTextOpts,
 ): Promise<LlmTextResult> {
+  // Before anything else: refuse to start a call once this process has already
+  // spent past the development cap. No-op in production.
+  assertLlmSpendUnderCap();
   // Outside the try: a failure here means no model was reached, so there is no
   // call to meter.
   const map = await resolveMap(anon);
@@ -121,13 +125,21 @@ export async function llmGenerateText(
     // arrives after the tokens are billed, so the ones that throw are exactly
     // the spend an operator most needs to see; logging only on success is how
     // whole features went missing from the activity table.
-    logLlmUsage({
+    const slug = modelSlug(opts.model);
+    const billed = logLlmUsage({
       tenantId: anon.tenantId,
       source: anon.source,
-      model: modelSlug(opts.model),
+      model: slug,
       inputTokens: usage?.inputTokens,
       outputTokens: usage?.outputTokens,
       costUsd,
+    });
+    recordLlmSpend({
+      source: anon.source,
+      model: slug,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      costUsd: billed,
     });
   }
 }
@@ -156,6 +168,7 @@ export async function llmGenerateObject<T>(
     viaToolCall?: boolean;
   },
 ): Promise<{ object: T; usage?: { inputTokens?: number; outputTokens?: number }; costUsd?: number }> {
+  assertLlmSpendUnderCap();
   const map = await resolveMap(anon);
   let usage: { inputTokens?: number; outputTokens?: number } | undefined;
   let costUsd: number | undefined;
@@ -197,13 +210,21 @@ export async function llmGenerateObject<T>(
     };
   } finally {
     // See llmGenerateText: recorded even when the call throws.
-    logLlmUsage({
+    const slug = modelSlug(opts.model);
+    const billed = logLlmUsage({
       tenantId: anon.tenantId,
       source: anon.source,
-      model: modelSlug(opts.model),
+      model: slug,
       inputTokens: usage?.inputTokens,
       outputTokens: usage?.outputTokens,
       costUsd,
+    });
+    recordLlmSpend({
+      source: anon.source,
+      model: slug,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      costUsd: billed,
     });
   }
 }

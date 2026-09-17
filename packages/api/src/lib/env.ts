@@ -94,6 +94,14 @@ export const env = {
   get APP_ENV() {
     return optional("APP_ENV", process.env.NODE_ENV || "dev");
   },
+  // Total USD of model spend one process may run up before lib/llm.ts starts
+  // throwing — the stop on a local test loop that would otherwise bill all
+  // night. NEVER enforced in production, where failing a request costs more
+  // than the spend; production is bounded by the frontier-escalation ceiling in
+  // services/strategy-section.ts instead. Set to 0 to disable it locally.
+  get LLM_DEV_SPEND_CAP_USD() {
+    return parseFloat(optional("LLM_DEV_SPEND_CAP_USD", "2"));
+  },
   get STRIPE_SECRET_KEY() {
     return optional("STRIPE_SECRET_KEY", "");
   },

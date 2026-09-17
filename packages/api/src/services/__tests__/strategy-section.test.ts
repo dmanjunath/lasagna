@@ -29,7 +29,7 @@ vi.mock("../../lib/pii-scrubber.js", () => ({
   descrubObject: (x: unknown) => x,
 }));
 
-import { buildStrategySection } from "../strategy-section.js";
+import { buildStrategySection, nextVerifyLevel, type FrontierBudget } from "../strategy-section.js";
 import { buildScheduleGrounding } from "../plan-grounding.js";
 import type { CompactPlanGrounding } from "../plan-grounding.js";
 import type { ScheduleSection, ScheduleRow, ScheduleFlags } from "../retirement-schedule.js";
@@ -550,5 +550,71 @@ describe("adjudication of verifier rejections", () => {
     expect(res!.strategies).toHaveLength(1);
     expect(generateObject).toHaveBeenCalledTimes(1); // draft
     expect(generateText).toHaveBeenCalledTimes(2); // verifier + adjudicator
+  });
+});
+
+describe("frontier escalation ceiling", () => {
+  beforeEach(() => resetModel());
+
+  it("escalates every call one plan legitimately makes", () => {
+    const budget: FrontierBudget = { used: 0 };
+    // A plan generates one strategy section, verified by one sweep plus one
+    // adjudication. Both must reach the frontier tier.
+    expect(nextVerifyLevel(budget)).toBe("frontier");
+    expect(nextVerifyLevel(budget)).toBe("frontier");
+    expect(budget.used).toBe(2);
+  });
+
+  it("degrades to the medium tier past the ceiling instead of throwing", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const budget: FrontierBudget = { used: 0 };
+    const tiers = Array.from({ length: 7 }, () => nextVerifyLevel(budget));
+    expect(tiers).toEqual([
+      "frontier",
+      "frontier",
+      "frontier",
+      "frontier",
+      "medium",
+      "medium",
+      "medium",
+    ]);
+    warn.mockRestore();
+  });
+
+  it("logs loudly when it trips", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const budget: FrontierBudget = { used: 4 };
+    expect(nextVerifyLevel(budget)).toBe("medium");
+    expect(String(warn.mock.calls[0]?.[0])).toContain("frontier verification ceiling reached");
+    expect(String(warn.mock.calls[0]?.[0])).toContain("ceiling 4");
+    warn.mockRestore();
+  });
+
+  it("stops charging the budget once it has degraded", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const budget: FrontierBudget = { used: 0 };
+    for (let i = 0; i < 20; i++) nextVerifyLevel(budget);
+    expect(budget.used).toBe(4);
+    warn.mockRestore();
+  });
+
+  it("gives each plan generation a fresh budget", async () => {
+    const draft = {
+      situationHeadline: "You retire at 55 with $1.2M invested.",
+      watchouts: [],
+      strategies: [{ title: "Good", detail: "Spend the $400,000 taxable first." }],
+      explore: [],
+    };
+    // Two separate plan generations. The second must still reach the frontier
+    // tier: the ceiling bounds ONE plan, it is not a process-wide quota that
+    // silently downgrades every plan after the first.
+    for (let run = 0; run < 2; run++) {
+      generateObject.mockResolvedValueOnce({ object: draft, usage: okUsage });
+      await buildStrategySection("t1", "u1", grounding);
+    }
+    const tiers = generateText.mock.calls.map(
+      (c) => (c[0] as { model: { modelId: string } }).model.modelId,
+    );
+    expect(tiers).toEqual(["frontier", "frontier"]);
   });
 });

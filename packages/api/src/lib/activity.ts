@@ -59,7 +59,14 @@ export function actualLlmCostUsd(providerMetadata: unknown): number | undefined 
   return typeof cost === "number" && Number.isFinite(cost) && cost >= 0 ? cost : undefined;
 }
 
-/** Log an LLM call. Fire-and-forget: errors are logged, never thrown. */
+/**
+ * Log an LLM call. Fire-and-forget: errors are logged, never thrown.
+ *
+ * Returns the USD this call is billed at (the provider's actual cost when it
+ * reported one, otherwise the token estimate), so the spend meter in
+ * lib/llm-spend.ts can count the same number the activity row records rather
+ * than re-deriving the fallback.
+ */
 export function logLlmUsage(input: {
   tenantId: string | null;
   source: LlmSource;
@@ -68,7 +75,7 @@ export function logLlmUsage(input: {
   outputTokens?: number;
   /** OpenRouter's actual USD cost; falls back to the token estimate when absent. */
   costUsd?: number;
-}): void {
+}): number {
   const inputTokens = input.inputTokens ?? 0;
   const outputTokens = input.outputTokens ?? 0;
   const costUsd =
@@ -86,6 +93,7 @@ export function logLlmUsage(input: {
       costUsd: costUsd.toFixed(6),
     })
     .catch((e: unknown) => console.error("[activity] llm log failed:", e));
+  return costUsd;
 }
 
 /** Log a Plaid event. Fire-and-forget: errors are logged, never thrown. */

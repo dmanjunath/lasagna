@@ -38,6 +38,51 @@ const STRATEGY_LEVEL = "medium" as const;
 // dropped and the model answers in fenced prose instead.
 const VERIFY_LEVEL = "frontier" as const;
 
+/**
+ * How many frontier verification calls ONE plan generation may make before the
+ * rest of them drop to the medium tier.
+ *
+ * The bound comes from the call structure: a plan generates one strategy
+ * section, and that section verifies itself with at most two frontier calls —
+ * one verifier sweep across every item, then one adjudication of whatever the
+ * sweep rejected. Two is the legitimate maximum, so the ceiling sits at twice
+ * that and cannot be reached by the code as it stands. It is a stop on the
+ * thing that would otherwise be unbounded: a verification loop, or a future
+ * change that makes the number of calls grow with the size of the plan.
+ *
+ * Crossing it costs accuracy, never the section. Verification still runs, on
+ * the medium tier, which is exactly what it did before the frontier escalation
+ * landed — a degraded state the product shipped on for months. A ceiling that
+ * threw would turn a cost problem into an outage.
+ */
+const FRONTIER_VERIFY_CEILING = 4;
+
+/** Frontier verification calls already spent by ONE buildStrategySection run. */
+export interface FrontierBudget {
+  used: number;
+}
+
+/**
+ * The tier the next verification call runs on, charging it to the budget.
+ *
+ * Exported for tests. The ceiling is deliberately out of reach of the current
+ * two-call structure, so driving it through buildStrategySection is impossible
+ * — testing it directly is what keeps it from rotting into a number nobody has
+ * ever watched fire.
+ */
+export function nextVerifyLevel(budget: FrontierBudget): typeof VERIFY_LEVEL | typeof STRATEGY_LEVEL {
+  if (budget.used >= FRONTIER_VERIFY_CEILING) {
+    // Loud on purpose: reaching this means a plan is far larger than any this
+    // code can currently produce, or something is looping.
+    console.warn(
+      `[strategy] frontier verification ceiling reached (${budget.used} calls for one plan, ceiling ${FRONTIER_VERIFY_CEILING}) — verifying on ${STRATEGY_LEVEL} for the rest of this plan`,
+    );
+    return STRATEGY_LEVEL;
+  }
+  budget.used += 1;
+  return VERIFY_LEVEL;
+}
+
 export interface StrategySection {
   section: "strategy";
   situationHeadline: string;
@@ -307,12 +352,18 @@ const ADJUDICATOR_PROMPT = `You are adjudicating rejections raised against items
  * the response-format call that has always worked on it. A fallback that fires
  * routinely means frontier is broken again — the warning below is the signal.
  */
-async function generateObjectWithFallback<T extends z.ZodTypeAny>(anon: LlmAnonContext, opts: {
+async function generateObjectWithFallback<T extends z.ZodTypeAny>(anon: LlmAnonContext, budget: FrontierBudget, opts: {
   schema: T;
   system: string;
   prompt: string;
   maxOutputTokens: number;
 }): Promise<{ object: z.infer<T> }> {
+  // Past the per-plan ceiling this degrades to the medium tier instead of
+  // escalating again. Not an error path: the medium call below is the same one
+  // the fallback uses, in the response-format mode that tier has always served.
+  if (nextVerifyLevel(budget) === STRATEGY_LEVEL) {
+    return (await llmGenerateObject(anon, { model: getModel(STRATEGY_LEVEL), temperature: 0, ...opts })) as { object: z.infer<T> };
+  }
   try {
     return (await llmGenerateObject(anon, { model: getModel(VERIFY_LEVEL), temperature: 0, viaToolCall: true, ...opts })) as { object: z.infer<T> };
   } catch (e) {
@@ -327,6 +378,7 @@ async function generateObjectWithFallback<T extends z.ZodTypeAny>(anon: LlmAnonC
 /** Returns the set of item keys that FAILED verification (empty on fail-open). */
 async function verifyItems(
   anon: LlmAnonContext,
+  budget: FrontierBudget,
   grounding: CompactPlanGrounding,
   object: StrategyObject,
   timepointRef: unknown,
@@ -340,7 +392,7 @@ async function verifyItems(
 
   const failed = new Map<string, string>();
   try {
-    const res = await generateObjectWithFallback(anon, {
+    const res = await generateObjectWithFallback(anon, budget, {
       schema: verdictSchema,
       system: VERIFIER_PROMPT,
       prompt: `DATA:\n${JSON.stringify(grounding)}\n\nTIMEPOINT REFERENCE:\n${JSON.stringify(timepointRef)}\n\nDRAFT ITEMS:\n${JSON.stringify(items)}`,
@@ -359,7 +411,7 @@ async function verifyItems(
     // Adjudicate: each surviving rejection must be upheld before it drops content.
     // Fail-open on adjudication error = keep the content (discard rejections).
     try {
-      const adj = await generateObjectWithFallback(anon, {
+      const adj = await generateObjectWithFallback(anon, budget, {
         schema: adjudicationSchema,
         system: ADJUDICATOR_PROMPT,
         prompt: `DATA:\n${JSON.stringify(grounding)}\n\nTIMEPOINT REFERENCE:\n${JSON.stringify(timepointRef)}\n\nREJECTIONS:\n${JSON.stringify(
@@ -627,7 +679,10 @@ export async function buildStrategySection(
   // Adversarial fact-check on what survives the numeric gate: semantic errors
   // (mis-sized ranges, bad arithmetic, cross-item contradictions, wrong legal
   // claims) that regex cannot see. Fail-open on verifier error.
-  const failedVerify = await verifyItems(anon, redactedGrounding, object, timepointReference);
+  // One escalation budget per plan generation — buildStrategySection is called
+  // once per plan, so its lifetime is exactly the scope the ceiling bounds.
+  const frontierBudget: FrontierBudget = { used: 0 };
+  const failedVerify = await verifyItems(anon, frontierBudget, redactedGrounding, object, timepointReference);
   const rejected = (key: string) => {
     if (!failedVerify.has(key)) return false;
     console.warn(
