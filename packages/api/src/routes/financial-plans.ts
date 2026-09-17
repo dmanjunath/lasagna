@@ -12,6 +12,11 @@ import { buildStrategySection } from "../services/strategy-section.js";
 import { toCompactGrounding, resolvePersonContext, parseAssumptions } from "../services/plan-grounding.js";
 import { regeneratePlan, type PlanAssumptions, type DocumentSections } from "../services/plan-assumptions.js";
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
+import {
+  claimPlanRegeneration,
+  beginStructuredRun,
+  endStructuredRun,
+} from "../lib/plan-regen-guard.js";
 // Type-only here; the implementation is imported lazily inside the handlers.
 // A static value import would eagerly drag the agent/tool graph (security
 // classifier etc.) into unrelated test suites that partially mock @lasagna/core.
@@ -267,6 +272,10 @@ financialPlansRouter.post("/", async (c) => {
     if (!hasInvestable) {
       return c.json({ error: "Link an account first. The plan needs real balances." }, 400);
     }
+    // Spend one of the household's two daily attempts. Claimed here, before
+    // the row is inserted, so a background run that fails has still spent it.
+    const denied = await claimPlanRegeneration(tenantId, "freeform-create");
+    if (denied) return c.json(denied, 429);
     const freeform: FreeformReport = {
       status: "generating",
       startedAt: new Date().toISOString(),
@@ -289,6 +298,11 @@ financialPlansRouter.post("/", async (c) => {
     runFreeformInBackground(tenantId, userId, plan.id, freeform);
     return c.json({ plan: { ...plan, document: { freeform } } }, 201);
   }
+
+  // A structured create runs the same strategy section a regeneration does, so
+  // it spends an attempt too. Claimed before any of the builders run.
+  const denied = await claimPlanRegeneration(tenantId, "plan-create");
+  if (denied) return c.json(denied, 429);
 
   const [snapshot, portfolio, retirement] = await Promise.all([
     buildFinancialSnapshot(tenantId, userId),
@@ -505,6 +519,9 @@ financialPlansRouter.post("/:id/feedback", async (c) => {
     return c.json({ error: "A revision is already in progress" }, 409);
   }
 
+  const denied = await claimPlanRegeneration(tenantId, "freeform-feedback");
+  if (denied) return c.json(denied, 429);
+
   // Mark revising (previous report stays readable), respond immediately, and
   // revise in the background — the client polls until ready.
   const revising: FreeformReport = {
@@ -557,6 +574,9 @@ financialPlansRouter.post("/:id/regenerate", async (c) => {
   if (status === "generating" || status === "revising") {
     return c.json({ error: "An update is already in progress" }, 409);
   }
+
+  const denied = await claimPlanRegeneration(tenantId, "freeform-regenerate");
+  if (denied) return c.json(denied, 429);
 
   const freeform: FreeformReport = {
     ...doc.freeform,
@@ -629,6 +649,21 @@ financialPlansRouter.patch("/:id/assumptions", async (c) => {
     );
   }
 
+  // ── In-flight guard, the structured twin of the freeform 409s above ─────────
+  // Two overlapping requests for the same plan used to both regenerate: the
+  // work is synchronous and nothing marked the plan as busy. Taken BEFORE the
+  // budget claim so a duplicate request is turned away without spending an
+  // attempt on work that is already running.
+  if (!(await beginStructuredRun(tenantId, userId, planId))) {
+    return c.json({ error: "An update is already in progress" }, 409);
+  }
+
+  const denied = await claimPlanRegeneration(tenantId, "plan-assumptions");
+  if (denied) {
+    await endStructuredRun(tenantId, userId, planId);
+    return c.json(denied, 429);
+  }
+
   // Merge: a value sets the field, null deletes it, an omitted field is kept.
   const merged: PlanAssumptions = { ...(parseAssumptions(plan.assumptions) ?? {}) };
   const body = parsed.data;
@@ -686,6 +721,10 @@ financialPlansRouter.patch("/:id/assumptions", async (c) => {
     regenerated = true;
   } catch (e) {
     console.error("[financial-plans] assumptions regeneration failed:", e);
+  } finally {
+    // Hand the plan back whatever happened. A run that threw still has to
+    // release, or the next request waits out the staleness window for nothing.
+    await endStructuredRun(tenantId, userId, planId);
   }
 
   return c.json({

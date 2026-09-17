@@ -918,6 +918,18 @@ export const financialPlans = pgTable("financial_plans", {
   title: text("title").notNull(),
   document: text("document"), // JSON string (structured multi-section payload)
   assumptions: text("assumptions"), // JSON string (PlanAssumptions: scalar overrides applied to the plan)
+  // Set while a STRUCTURED regeneration is running, cleared when it finishes.
+  // The in-flight marker for the structured half of the plan, mirroring what
+  // `document.freeform.startedAt` already does for the freeform half. It lives
+  // in its own column rather than inside `document` because both the
+  // assumptions route and the chat tool rewrite `document` wholesale from a
+  // read taken BEFORE the regeneration, so a marker stored in there would be
+  // clobbered by the very run it is guarding.
+  //
+  // Null means no run is in flight. A value older than the staleness window is
+  // treated as a dead run (the process died mid-regeneration), exactly as the
+  // freeform side converges a dead `startedAt`.
+  regenStartedAt: timestamp("regen_started_at", { withTimezone: true }),
   status: planStatusEnum("status").notNull().default("draft"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -1104,3 +1116,41 @@ export const financialJourneys = pgTable("financial_journeys", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull().defaultNow().$onUpdate(() => new Date()),
 });
+
+// ── Plan regeneration budget ────────────────────────────────────────────────
+// One row per ATTEMPT to run the expensive plan generation path, which is the
+// most costly thing the product does (a full strategy section, including two
+// frontier-tier verification calls). Two attempts per tenant per rolling 24
+// hours are allowed, and this table is the counter.
+//
+// Written BEFORE the work starts, which is what makes a failed attempt count.
+// Counting only successes would let a loop that fails every time run forever,
+// and the money is spent either way.
+//
+// It is a table of its own rather than a query over activity_events because
+// that table records one row per MODEL CALL, not per attempt: a single strategy
+// section makes between one and four (draft, corrective retry, verifier,
+// adjudicator), its writes are fire-and-forget, and an attempt that fails
+// before it reaches a model writes no row at all. None of those can be turned
+// into an attempt count.
+export const planRegenerationAttempts = pgTable(
+  "plan_regeneration_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    // Which caller spent the attempt (plan-create, plan-assumptions,
+    // chat-assumptions, freeform-create, freeform-feedback,
+    // freeform-regenerate). Recorded so an operator can see what burned a
+    // tenant's budget, which is the first question asked when someone is
+    // locked out.
+    source: varchar("source", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // The only read this table serves: this tenant's attempts inside the
+    // window, newest first.
+    index("plan_regen_attempts_tenant_created_idx").on(t.tenantId, t.createdAt),
+  ],
+);

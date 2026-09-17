@@ -11,6 +11,7 @@ import {
   type PlanAssumptions,
   type DocumentSections,
 } from "../../services/plan-assumptions.js";
+import { claimPlanRegeneration } from "../../lib/plan-regen-guard.js";
 import type { GoalsSection, NamedGoal } from "../../services/goals-section.js";
 
 // Read-only tool for the NEW Financial Plans (financial_plans table). Grounds
@@ -224,6 +225,17 @@ export function createFinancialPlanTools(
         // last property), matching the route's convention so chips render nothing.
         const hasAssumptions = Object.keys(merged).length > 0;
         const nextAssumptions = hasAssumptions ? merged : null;
+
+        // The household's regeneration budget applies here exactly as it does
+        // to the HTTP routes: this tool reaches the same strategy section.
+        // Claimed BEFORE the assumptions are persisted, so a refusal changes
+        // nothing at all and the user's plan still says what it said.
+        //
+        // Returned as a tool RESULT, not thrown. A throw surfaces to the model
+        // as a tool failure it will usually retry, which is the loop this
+        // limit exists to stop; a result is a sentence it can relay.
+        const denied = await claimPlanRegeneration(tenantId, "chat-assumptions");
+        if (denied) return { error: denied.error, rateLimited: true };
 
         // Persist the merged assumptions FIRST so a regen failure still records
         // the user's intent. Then regenerate into a NEW document and swap it in

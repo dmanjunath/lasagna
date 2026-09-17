@@ -62,13 +62,33 @@ const buildNarrativeSection = vi.fn();
 vi.mock("../../services/narrative-section.js", () => ({
   buildNarrativeSection: (...args: unknown[]) => buildNarrativeSection(...args),
 }));
+// Regeneration itself has its own unit test (services/plan-assumptions.test.ts).
+// Stubbed here so the assumptions route stays a routing/guard test.
+const regeneratePlan = vi.fn();
+vi.mock("../../services/plan-assumptions.js", () => ({
+  regeneratePlan: (...args: unknown[]) => regeneratePlan(...args),
+}));
 // The freeform create guard checks for investable balances; default: one
 // funded investment account so structured/freeform creates proceed.
 const fetchAccountsWithBalances = vi.fn();
 vi.mock("../../lib/account-balances.js", () => ({
   fetchAccountsWithBalances: (...args: unknown[]) => fetchAccountsWithBalances(...args),
 }));
+// The regeneration budget + the in-flight claim are DB-backed and exercised in
+// lib/__tests__/plan-regen-guard.test.ts. Here they are controllable doubles so
+// the routing tests can drive an allowed run, a refused one, and a plan that is
+// already busy. Default (set in beforeEach): allowed, and free.
+const claimPlanRegeneration = vi.fn();
+const beginStructuredRun = vi.fn();
+const endStructuredRun = vi.fn();
+vi.mock("../../lib/plan-regen-guard.js", () => ({
+  claimPlanRegeneration: (...a: unknown[]) => claimPlanRegeneration(...a),
+  beginStructuredRun: (...a: unknown[]) => beginStructuredRun(...a),
+  endStructuredRun: (...a: unknown[]) => endStructuredRun(...a),
+}));
+
 vi.mock("../../services/plan-grounding.js", () => ({
+  parseAssumptions: (raw: unknown) => (typeof raw === "string" ? JSON.parse(raw) : null),
   toCompactGrounding: (
     planId: string,
     title: string,
@@ -243,6 +263,10 @@ beforeEach(() => {
   fetchAccountsWithBalances.mockResolvedValue([
     { id: "acct-1", type: "investment", rawBalance: 100 },
   ]);
+  claimPlanRegeneration.mockResolvedValue(null); // budget available
+  beginStructuredRun.mockResolvedValue(true); // no run in flight
+  endStructuredRun.mockResolvedValue(undefined);
+  regeneratePlan.mockResolvedValue({ sections: { snapshot: SNAPSHOT, retirement: RETIREMENT } });
 });
 
 const SCHEDULE = {
@@ -533,5 +557,159 @@ describe("DELETE /api/financial-plans/:id", () => {
     const res = await appWithSession(otherTenant).request(`/api/financial-plans/${uuid}`, { method: "DELETE" });
     expect(res.status).toBe(404);
     expect(updateSet).not.toHaveBeenCalled();
+  });
+});
+
+// ── The regeneration budget and the in-flight claim ──────────────────────────
+// Every path that reaches the expensive generation work has to answer for an
+// exhausted budget, including the ones that do the work in the background: the
+// money is spent whether or not the caller waits for it.
+describe("plan regeneration guards", () => {
+  const uuid = "33333333-3333-4333-8333-333333333333";
+  const DENIAL = {
+    error: "Your household can build or update a plan twice every 24 hours, and both attempts have been used.",
+    code: "rate_limited" as const,
+    retryAfter: "2026-09-18T09:05:00.000Z",
+  };
+
+  function seedPlan(document: string) {
+    planTable = [
+      { id: uuid, tenantId: "tenant-1", userId: "user-a", title: "A", document, status: "draft" },
+    ];
+  }
+
+  it("429s a structured create and runs none of the builders", async () => {
+    claimPlanRegeneration.mockResolvedValue(DENIAL);
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual(DENIAL);
+    expect(claimPlanRegeneration).toHaveBeenCalledWith("tenant-1", "plan-create");
+    expect(buildFinancialSnapshot).not.toHaveBeenCalled();
+    expect(buildStrategySection).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it("429s a freeform create and never inserts the plan row", async () => {
+    claimPlanRegeneration.mockResolvedValue(DENIAL);
+    const res = await appWithSession(userA).request("/api/financial-plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "freeform" }),
+    });
+    expect(res.status).toBe(429);
+    expect(claimPlanRegeneration).toHaveBeenCalledWith("tenant-1", "freeform-create");
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it("429s freeform feedback without marking the report revising", async () => {
+    seedPlan(JSON.stringify({ freeform: { status: "ready", html: "<p>hi</p>" } }));
+    claimPlanRegeneration.mockResolvedValue(DENIAL);
+    const res = await appWithSession(userA).request(`/api/financial-plans/${uuid}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feedback: "make it shorter" }),
+    });
+    expect(res.status).toBe(429);
+    expect(claimPlanRegeneration).toHaveBeenCalledWith("tenant-1", "freeform-feedback");
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  it("429s a freeform refresh without touching the stored report", async () => {
+    seedPlan(JSON.stringify({ freeform: { status: "ready", html: "<p>hi</p>" } }));
+    claimPlanRegeneration.mockResolvedValue(DENIAL);
+    const res = await appWithSession(userA).request(`/api/financial-plans/${uuid}/regenerate`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(429);
+    expect(claimPlanRegeneration).toHaveBeenCalledWith("tenant-1", "freeform-regenerate");
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  it("429s an assumptions change, persists nothing, and hands the plan back", async () => {
+    seedPlan(JSON.stringify({ sections: { snapshot: SNAPSHOT } }));
+    claimPlanRegeneration.mockResolvedValue(DENIAL);
+    const res = await appWithSession(userA).request(`/api/financial-plans/${uuid}/assumptions`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retirementAge: 62 }),
+    });
+    expect(res.status).toBe(429);
+    expect(claimPlanRegeneration).toHaveBeenCalledWith("tenant-1", "plan-assumptions");
+    expect(regeneratePlan).not.toHaveBeenCalled();
+    // The user's change was refused, so it must not be recorded either.
+    expect(updateSet).not.toHaveBeenCalled();
+    // A refused claim releases the in-flight claim it took first.
+    expect(endStructuredRun).toHaveBeenCalledWith("tenant-1", "user-a", uuid);
+  });
+
+  it("409s an assumptions change while a run is already in progress", async () => {
+    seedPlan(JSON.stringify({ sections: { snapshot: SNAPSHOT } }));
+    beginStructuredRun.mockResolvedValue(false);
+    const res = await appWithSession(userA).request(`/api/financial-plans/${uuid}/assumptions`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retirementAge: 62 }),
+    });
+    // Same status and same shape the freeform refresh already returns.
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "An update is already in progress" });
+    // The duplicate request is turned away WITHOUT spending an attempt.
+    expect(claimPlanRegeneration).not.toHaveBeenCalled();
+    expect(regeneratePlan).not.toHaveBeenCalled();
+  });
+
+  it("claims and releases around a successful assumptions change", async () => {
+    seedPlan(JSON.stringify({ sections: { snapshot: SNAPSHOT } }));
+    const res = await appWithSession(userA).request(`/api/financial-plans/${uuid}/assumptions`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retirementAge: 62 }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).regenerated).toBe(true);
+    expect(beginStructuredRun).toHaveBeenCalledWith("tenant-1", "user-a", uuid);
+    expect(endStructuredRun).toHaveBeenCalledWith("tenant-1", "user-a", uuid);
+  });
+
+  it("releases the plan when the regeneration throws", async () => {
+    seedPlan(JSON.stringify({ sections: { snapshot: SNAPSHOT } }));
+    regeneratePlan.mockRejectedValue(new Error("regen boom"));
+    const res = await appWithSession(userA).request(`/api/financial-plans/${uuid}/assumptions`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retirementAge: 62 }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).regenerated).toBe(false);
+    // A failed run still hands the plan back, or the next request waits out
+    // the staleness window for nothing.
+    expect(endStructuredRun).toHaveBeenCalledWith("tenant-1", "user-a", uuid);
+  });
+
+  it("guards the second concurrent request for the same plan, not the first", async () => {
+    seedPlan(JSON.stringify({ sections: { snapshot: SNAPSHOT } }));
+    // What Postgres does with the conditional UPDATE: the first caller takes
+    // the claim, the second finds it held.
+    let taken = false;
+    beginStructuredRun.mockImplementation(async () => {
+      if (taken) return false;
+      taken = true;
+      return true;
+    });
+    const fire = () =>
+      appWithSession(userA).request(`/api/financial-plans/${uuid}/assumptions`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retirementAge: 62 }),
+      });
+    const [a, b] = await Promise.all([fire(), fire()]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    // One run, not two.
+    expect(regeneratePlan).toHaveBeenCalledTimes(1);
+    expect(claimPlanRegeneration).toHaveBeenCalledTimes(1);
   });
 });

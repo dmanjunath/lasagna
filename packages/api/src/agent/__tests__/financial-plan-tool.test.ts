@@ -120,6 +120,14 @@ vi.mock("../../services/plan-assumptions.js", () => ({
   regeneratePlan: (...args: Parameters<typeof regeneratePlanMock>) => regeneratePlanMock(...args),
 }));
 
+// The household regeneration budget. DB-backed and exercised in
+// lib/__tests__/plan-regen-guard.test.ts; a double here so this suite can drive
+// both an allowed claim and a refused one. Default (beforeEach): allowed.
+const claimPlanRegeneration = vi.fn();
+vi.mock("../../lib/plan-regen-guard.js", () => ({
+  claimPlanRegeneration: (...a: unknown[]) => claimPlanRegeneration(...a),
+}));
+
 // The sell/unsell path validates the property id against the tenant's accounts.
 // Return a fixed set (scoped by the tenantId the tool passes) so the tests can
 // exercise a valid sale, a bad-id disambiguation, and cross-tenant scoping.
@@ -201,6 +209,8 @@ beforeEach(() => {
   lastUpdate = null;
   regenShouldThrow = false;
   regeneratePlanMock.mockClear();
+  claimPlanRegeneration.mockReset();
+  claimPlanRegeneration.mockResolvedValue(null); // budget available
 });
 
 describe("get_financial_plan tool", () => {
@@ -495,6 +505,58 @@ describe("update_financial_plan_assumptions tool", () => {
     // Nothing persisted, nothing regenerated.
     expect(storedAssumptions()).toBeNull();
     expect(regeneratePlanMock).not.toHaveBeenCalled();
+  });
+
+  // ── The household regeneration budget applies to the chat path too ─────────
+  // The tool reaches the same strategy section the HTTP routes do, so an
+  // exhausted budget has to stop it here as well.
+  it("refuses when the household's regeneration budget is spent, and changes nothing", async () => {
+    const message =
+      "Your household can build or update a plan twice every 24 hours, and both attempts have been used. " +
+      "A failed attempt still counts, because the work runs either way. " +
+      "You can try again after September 18 at 9:05 AM UTC.";
+    claimPlanRegeneration.mockResolvedValue({
+      error: message,
+      code: "rate_limited",
+      retryAfter: "2026-09-18T09:05:00.000Z",
+    });
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const res = (await tools.update_financial_plan_assumptions.execute!(
+      { retirementAge: 60 },
+      { messages: [], toolCallId: "t" },
+    )) as { error?: string; rateLimited?: boolean };
+
+    // A tool RESULT the model can relay, not a throw it would retry.
+    expect(res.error).toBe(message);
+    expect(res.rateLimited).toBe(true);
+    expect(claimPlanRegeneration).toHaveBeenCalledWith("tenant-1", "chat-assumptions");
+    // Nothing regenerated, and the refused change was not recorded either.
+    expect(regeneratePlanMock).not.toHaveBeenCalled();
+    expect(storedAssumptions()).toBeNull();
+    expect(lastUpdate).toBeNull();
+  });
+
+  it("lets ONE chat message spend the whole budget: nothing dedupes the tool per turn", async () => {
+    // Measured, not fixed. The chat loop calls this tool once per tool call the
+    // model emits, and a single message can emit several, so two calls in one
+    // turn exhaust a household's 24 hours. The dedupe that would stop it was
+    // explicitly left out of scope.
+    let claims = 0;
+    claimPlanRegeneration.mockImplementation(async () =>
+      ++claims > 2 ? { error: "spent", code: "rate_limited", retryAfter: "" } : null,
+    );
+    const tools = createFinancialPlanTools("tenant-1", "user-a", PLAN_ID);
+    for (const age of [60, 62, 65]) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await tools.update_financial_plan_assumptions.execute!(
+        { retirementAge: age },
+        { messages: [], toolCallId: "t" },
+      );
+    }
+    // Two of the three calls from that one message did the expensive work.
+    expect(regeneratePlanMock).toHaveBeenCalledTimes(2);
+    expect(claims).toBe(3);
   });
 
   it("scopes property validation to the tenant: another tenant's plan sees no properties", async () => {
