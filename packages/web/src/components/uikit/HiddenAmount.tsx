@@ -7,10 +7,11 @@ import { HIDDEN_AMOUNT, useAmountsHidden } from '../../lib/hide-amounts';
  *
  * All four properties are load-bearing:
  * - `fontFamily` and `fontWeight`, because the mask must NOT inherit the
- *   editorial display face. Bricolage draws U+2022 as a squashed ellipse next
- *   to a tall `$`, which passes at 13-24px and reads as broken text at the
- *   54-68px hero sizes. Pinning the body face at 700 keeps the bullets round at
- *   every size, and keeps the mask one constant width per font-size.
+ *   editorial display face, whichever one that currently is. The behaviour was
+ *   found with Bricolage Grotesque, which drew U+2022 as a squashed ellipse
+ *   next to a tall `$`: fine at 13-24px, broken text at the 54-68px hero sizes.
+ *   Pinning the body face at 700 keeps the bullets round at every size whatever
+ *   --display is set to, and keeps the mask one constant width per font-size.
  * - `letterSpacing`, because the site's own tracking still applies: the display
  *   headings carry tight negative tracking that jams the bullets together, and
  *   a positive value to beat it spaced them out as far again once the face was

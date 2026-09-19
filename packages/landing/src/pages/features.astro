@@ -11,20 +11,20 @@ import { TAX_ACTIONS } from "../demo-data";
 
 const TAX_YEARS = [
   {
-    year: "2025",
-    summary: "Your 2025 return shows household income of <b>$82,400</b>, taken as the standard deduction.",
-    meta: ["Married filing jointly", "Virginia"],
-    actions: [
-      ...TAX_ACTIONS,
-    ],
-  },
-  {
     year: "2024",
     summary: "Your 2024 return shows household income of <b>$78,900</b>, with $1,100 of interest on top.",
     meta: ["Married filing jointly", "Virginia"],
     actions: [
       { title: "Claim the $1,240 saver\u2019s credit you missed", chip: "$1,240 back" },
       { title: "Carry forward $1,800 of capital losses", chip: "$1,800 to carry" },
+    ],
+  },
+  {
+    year: "2025",
+    summary: "Your 2025 return shows household income of <b>$82,400</b>, taken as the standard deduction.",
+    meta: ["Married filing jointly", "Virginia"],
+    actions: [
+      ...TAX_ACTIONS,
     ],
   },
 ];
@@ -52,14 +52,14 @@ const PAYOFF = [
 
 const MONTHS = [
   {
-    label: "August", spent: "$4,380", delta: "21% more than July", income: "$5,140",
-    left: "$760", rate: "15%", now: 4,
-    action: { title: "Bring utilities back to your usual", sub: "Utilities was $418 in August, against $265 in a normal month.", chip: "$153 a month" },
-  },
-  {
     label: "July", spent: "$3,620", delta: "4% less than June", income: "$5,140",
     left: "$1,520", rate: "30%", now: 3,
     action: { title: "Nothing above your usual", sub: "Every category sat inside its normal range in July.", chip: "No action" },
+  },
+  {
+    label: "August", spent: "$4,380", delta: "21% more than July", income: "$5,140",
+    left: "$760", rate: "15%", now: 4,
+    action: { title: "Bring utilities back to your usual", sub: "Utilities was $418 in August, against $265 in a normal month.", chip: "$153 a month" },
   },
 ];
 // Bars are derived from the same numbers the card prints, so the chart can

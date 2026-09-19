@@ -1,8 +1,9 @@
 ---
 import Icon from "./Icon.astro";
 import Redaction from "./Redaction.astro";
+import ConnectDemo from "./ConnectDemo.astro";
 import ChatDemo from "./ChatDemo.astro";
-import { INSTITUTIONS, ACTIONS, RANGES } from "../demo-data";
+import { ACTIONS, RANGES } from "../demo-data";
 
 const FILTERS = ["All", "Debt", "Savings"];
 const SEG_COLORS = ["var(--viz-cash)", "var(--viz-invest)", "var(--viz-property)"];
@@ -36,44 +37,7 @@ const SEG_NAMES = ["Cash", "Investments", "Property"];
           </ul>
         </div>
         <div class="step-art">
-          <div class="card" data-demo data-demo-hold="3000" data-demo-labels="1 connected|2 connected|3 connected">
-            <div class="card-head">
-              <div class="card-title">Connected institutions</div>
-              <span class="chip-meta" data-demo-label>1 connected</span>
-            </div>
-            <div class="demo-stage" data-demo-stage>
-              {INSTITUTIONS.map((_, n) => (
-                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
-                  {INSTITUTIONS.slice(0, n + 1).map((inst, k) => (
-                    <div class:list={["inst-card", { "is-new": k === n }]}>
-                      <div class="inst">
-                        <span class="logo" style={`color:${inst.color}`}>{inst.initial}</span>
-                        <div>
-                          <div class="nm">{inst.name}</div>
-                          <div class="meta">{inst.meta}</div>
-                        </div>
-                        <span class="tot">{inst.total}</span>
-                      </div>
-                      {k === n && (
-                        <div class="acct-rows">
-                          {inst.accounts.map((a) => (
-                            <div class="acct-row">
-                              <div><b>{a.name}</b><em>{a.kind}</em></div>
-                              <div class="right">
-                                <span class:list={["bal", { neg: a.neg }]}>{a.bal}</span>
-                                <span class="chip-meta c-save">Synced</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  <span class="btn btn-primary btn-sm full mt" data-demo-target>Add account</span>
-                </article>
-              ))}
-            </div>
-          </div>
+          <ConnectDemo />
         </div>
       </div>
 
@@ -81,7 +45,7 @@ const SEG_NAMES = ["Cash", "Investments", "Property"];
       <div class="step rv">
         <div class="step-rail"><span class="step-num">2</span></div>
         <div class="copy">
-          <h3 class="display">LasagnaFi removes your identity</h3>
+          <h3 class="display">LasagnaFi redacts your information</h3>
           <p>
             Your accounts are merged into a single view of your finances.
             Before any prompt reaches the AI, your name, institution and account

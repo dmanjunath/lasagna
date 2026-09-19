@@ -1,0 +1,111 @@
+---
+// Connecting accounts is additive, so this is not a frame swapper: every
+// institution stays in the DOM and each one is revealed in turn. The list that
+// is already on screen slides up to make room rather than being cleared and
+// redrawn, which is what actually happens when you add an account.
+import { INSTITUTIONS } from "../demo-data";
+---
+
+<div class="card connect-demo" data-connect>
+  <div class="card-head">
+    <div class="card-title">Connected institutions</div>
+    <span class="chip-meta" data-connect-count>1 connected</span>
+  </div>
+
+  <div class="connect-list" data-connect-list>
+    {INSTITUTIONS.map((inst, n) => (
+      <div class:list={["inst-card", { "is-shown": n === 0, "is-new": n === 0 }]} data-connect-item>
+        <div class="inst">
+          <span class="logo" style={`color:${inst.color}`}>{inst.initial}</span>
+          <div>
+            <div class="nm">{inst.name}</div>
+            <div class="meta">{inst.meta}</div>
+          </div>
+          <span class="tot">{inst.total}</span>
+        </div>
+        <div class="acct-wrap">
+          <div class="acct-rows">
+            {inst.accounts.map((a) => (
+              <div class="acct-row">
+                <div><b>{a.name}</b><em>{a.kind}</em></div>
+                <div class="right">
+                  <span class:list={["bal", { neg: a.neg }]}>{a.bal}</span>
+                  <span class="chip-meta c-save">Synced</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <span class="btn btn-primary btn-sm full mt" data-connect-add>Add account</span>
+</div>
+
+<script>
+  const root = document.querySelector("[data-connect]");
+  if (root && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const items = [...root.querySelectorAll<HTMLElement>("[data-connect-item]")];
+    const list = root.querySelector<HTMLElement>("[data-connect-list]")!;
+    const count = root.querySelector<HTMLElement>("[data-connect-count]")!;
+    const add = root.querySelector<HTMLElement>("[data-connect-add]")!;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    // The card must not resize as institutions arrive, so the list is pinned to
+    // its full height up front.
+    const lock = () => {
+      list.style.minHeight = "";
+      const shown = items.map((el) => el.className);
+      items.forEach((el) => el.classList.add("is-shown"));
+      const full = list.offsetHeight;
+      items.forEach((el, k) => (el.className = shown[k]));
+      list.style.minHeight = full + "px";
+    };
+    lock();
+    addEventListener("resize", lock);
+
+    let n = 0;
+    let running = false;
+
+    async function run() {
+      if (running) return;
+      running = true;
+      for (;;) {
+        await wait(2600);
+
+        add.classList.add("is-pressed");
+        await wait(240);
+        add.classList.remove("is-pressed");
+
+        if (n < items.length - 1) {
+          // The one already on screen collapses to a summary row while the new
+          // one opens, so the list rises into the space instead of jumping.
+          items[n].classList.remove("is-new");
+          n += 1;
+          items[n].classList.add("is-shown", "is-new");
+          count.textContent = `${n + 1} connected`;
+          await wait(1400);
+        } else {
+          // Back to one, fading out rather than snapping.
+          await wait(400);
+          items.forEach((el, k) => el.classList.toggle("is-leaving", k > 0));
+          await wait(320);
+          items.forEach((el, k) => {
+            el.classList.remove("is-leaving");
+            el.classList.toggle("is-shown", k === 0);
+            el.classList.toggle("is-new", k === 0);
+          });
+          n = 0;
+          count.textContent = "1 connected";
+          await wait(600);
+        }
+      }
+    }
+
+    new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) run(); },
+      { threshold: 0.3 }
+    ).observe(root);
+  }
+</script>

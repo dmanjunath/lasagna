@@ -86,7 +86,7 @@
     --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
     /* ── Type — same faces as the app ── */
-    --display: "Bricolage Grotesque", system-ui, sans-serif;
+    --display: "Instrument Sans", system-ui, sans-serif;
     --sans:    "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
     --mono:    "JetBrains Mono", ui-monospace, monospace;
 

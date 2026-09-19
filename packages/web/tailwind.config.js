@@ -71,9 +71,9 @@ export default {
         sans:    ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
         mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
         serif:   ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        display: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
-        // DS Bright editorial display face — Bricolage Grotesque.
-        editorial: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
+        display: ['Instrument Sans', 'system-ui', 'sans-serif'],
+        // DS Bright editorial display face — Instrument Sans.
+        editorial: ['Instrument Sans', 'system-ui', 'sans-serif'],
       },
 
       // DS v3 radius scale (prefixed; legacy radii untouched)

@@ -34,10 +34,9 @@
     const ack = root.dataset.demoAck === "done";
     const hold = Number(root.dataset.demoHold || 2800);
 
-    // Only one frame is in flow, so the stage needs an explicit height. Pinning
-    // every frame to the TALLEST left short frames with a large void under
-    // them, so each frame is measured once and the stage animates to the height
-    // of whichever is showing.
+    // Only one frame is in flow, so the stage needs an explicit height, and it
+    // is pinned to the TALLEST frame. Sizing it to whichever frame is showing
+    // animated the card on every swap and shoved the rest of the page around.
     let i = 0;
     let heights: number[] = [];
     const measure = () => {
@@ -48,7 +47,7 @@
         if (!was) el.classList.remove("is-active");
         return h;
       });
-      stage.style.minHeight = heights[i] + "px";
+      stage.style.minHeight = Math.max(...heights) + "px";
     };
     measure();
     addEventListener("resize", measure);
@@ -62,6 +61,14 @@
     async function run() {
       if (running) return;
       running = true;
+
+      // Restart the entrance on the frame that rendered server-side, so the
+      // first action arrives the same way the others do.
+      const first = frames[i];
+      first.classList.remove("is-active");
+      void first.offsetWidth;            // reflow, so the animation replays
+      first.classList.add("is-active");
+
       await wait(offset);
       for (;;) {
         const frame = frames[i];
@@ -85,7 +92,6 @@
         frame.classList.remove("is-active", "is-done", "is-leaving");
 
         i = (i + 1) % frames.length;
-        stage!.style.minHeight = heights[i] + "px";
         frames[i].classList.add("is-active");
         if (label && labels[i]) label.textContent = labels[i];
       }
