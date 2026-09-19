@@ -128,7 +128,10 @@ transactionRoutes.post("/query", async (c) => {
   if (filters.search) {
     conditions.push(sql`(${transactions.name} ILIKE ${"%" + filters.search + "%"} OR ${transactions.merchantName} ILIKE ${"%" + filters.search + "%"})`);
   }
-  if (filters.categoryIds) conditions.push(inArray(transactions.categoryId, filters.categoryIds));
+  // The same scope helper GET / applies to the same two parameter names, so a
+  // drill handed over from /spending is filtered identically whichever endpoint
+  // reads it.
+  conditions.push(...categoryScopeConditions(filters.categoryIds ?? [], filters.excludeCategoryIds ?? []));
   if (filters.accountIds) {
     conditions.push(inArray(transactions.accountId, filters.accountIds));
   } else {

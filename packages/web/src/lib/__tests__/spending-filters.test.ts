@@ -7,7 +7,12 @@ import {
   spendFilterToSearchParams,
   type SpendFilter,
 } from '../spending-filters';
-import { filtersFromQuery } from '../../components/transactions/TransactionFilters';
+import {
+  filtersFromQuery,
+  filtersToQuery,
+  transactionsHref,
+  wholeMonthLabel,
+} from '../../components/transactions/TransactionFilters';
 
 /**
  * The spending scope is shareable, so the URL has to carry all of it and the
@@ -114,6 +119,66 @@ describe('the include list is the transactions page vocabulary', () => {
   it('never hands an exclude list over as an include list', () => {
     const query = spendFilterToSearchParams({ include: [], exclude: ['a', 'b'] });
     expect(filtersFromQuery(`?${query}`).categories).toEqual([]);
+  });
+});
+
+/**
+ * The drill from a breakdown row. The row states a figure for ONE category over
+ * ONE period, so the page it links to has to land on that same period, or the
+ * user checks a month's number against nine months of rows.
+ *
+ * The window asserted here is the exact pair of strings /spending already sends
+ * to /spending-summary, so the two sides cannot describe different spans.
+ */
+describe('a drill hands over the window the figure was counted over', () => {
+  // What spending.tsx computes for August 2026 and sends to /spending-summary.
+  const PERIOD_START = '2026-08-01';
+  const PERIOD_END = '2026-08-31T23:59:59';
+
+  const query = (href: string) => href.slice(href.indexOf('?'));
+  // filtersToQuery's return type is optional only because TxnQueryBody's is.
+  const landed = (href: string) => filtersToQuery(filtersFromQuery(query(href)))!;
+
+  it('arrives with the same span it left with', () => {
+    const sent = landed(
+      transactionsHref({ startDate: PERIOD_START, endDate: PERIOD_END, categories: [CAT_A] }),
+    );
+    expect(sent.startDate).toBe(PERIOD_START);
+    expect(sent.endDate).toBe(PERIOD_END);
+    expect(sent.categories).toEqual([CAT_A]);
+  });
+
+  it('names the month it landed on, so the landing is visible', () => {
+    const f = filtersFromQuery(
+      query(transactionsHref({ startDate: PERIOD_START, endDate: PERIOD_END, categories: [CAT_A] })),
+    );
+    expect(wholeMonthLabel(f.customStart, f.customEnd)).toBe('August 2026');
+  });
+
+  it('carries a whole-year window too', () => {
+    const sent = landed(
+      transactionsHref({ startDate: '2026-01-01', endDate: '2026-12-31T23:59:59', categories: [CAT_B] }),
+    );
+    expect(sent.startDate).toBe('2026-01-01');
+    expect(sent.endDate).toBe('2026-12-31T23:59:59');
+  });
+
+  /**
+   * An exclude scope has to survive the handover too. Dropping it would widen
+   * the destination silently: the same window, over categories the figure the
+   * user clicked never counted.
+   */
+  it('carries an exclude scope as an exclude scope', () => {
+    const sent = landed(
+      transactionsHref({
+        startDate: PERIOD_START,
+        endDate: PERIOD_END,
+        excludeCategories: [CAT_B],
+      }),
+    );
+    expect(sent.excludeCategories).toEqual([CAT_B]);
+    expect(sent.categories).toBeUndefined();
+    expect(sent.startDate).toBe(PERIOD_START);
   });
 });
 

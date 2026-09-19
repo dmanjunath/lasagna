@@ -8,7 +8,6 @@ import {
   TrendingDown,
   TrendingUp,
   Receipt,
-  X,
 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { motion } from 'framer-motion';
@@ -24,8 +23,9 @@ import { Badge, Button, EmptyState, SegmentedControl, Skeleton } from '../compon
 import { PageTitle } from '../components/ds/PageTitle';
 import { CashflowBars, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
+import { ChipBadge, transactionsHref } from '../components/transactions/TransactionFilters';
 import { RulesPanel } from '../components/rules/RulesPanel';
-import { CategoryMultiSelect, useCategoryChips } from '../components/common/CategoryMultiSelect';
+import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../components/common/CategoryMultiSelect';
 import {
   EMPTY_SPEND_FILTER,
   isActive as isSpendFilterActive,
@@ -701,19 +701,24 @@ export function Spending() {
   const handleTableRollupChange = useCallback((r: 'category' | 'group') => {
     setTableRollup(r);
   }, []);
-  // Drill from a breakdown row to the transactions behind it, filtered to the
-  // given category ids. The Transactions page hydrates its filter from the URL.
+  // Drill from a breakdown row to the transactions behind it: the category ids
+  // the row covers, AND the period the row's figure was counted over. The
+  // window handed over is periodStart/periodEnd themselves — the same strings
+  // the summary fetch above used — so the landed page cannot be scoped to a
+  // second, separately-derived span that disagrees with the number clicked.
   const drillToTransactions = useCallback((categoryIds: string[]) => {
     if (categoryIds.length === 0) return;
-    navigate(`/transactions?categories=${categoryIds.join(',')}`);
-  }, [navigate]);
-  // "View all" hands over the include list verbatim — same parameter, same
-  // format. An exclude scope has no spelling there, and a reader that cannot
-  // say "everything except these" has to land on the WIDER set, never the
-  // inverted one, so it hands over nothing.
-  const viewAllHref = filter.include.length > 0
-    ? `/transactions?categories=${filter.include.join(',')}`
-    : '/transactions';
+    navigate(transactionsHref({ startDate: periodStart, endDate: periodEnd, categories: categoryIds }));
+  }, [navigate, periodStart, periodEnd]);
+  // "View all" carries the whole scope its own count was counted under: the
+  // period, and both halves of the category filter. Handing over less widened
+  // the destination past the count the link itself prints.
+  const viewAllHref = transactionsHref({
+    startDate: periodStart,
+    endDate: periodEnd,
+    categories: filter.include,
+    excludeCategories: filter.exclude,
+  });
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
   // Keyed off heroPeriod, not the selection: while the figures still describe
@@ -849,9 +854,15 @@ export function Spending() {
 
       {/* ════════ Category scope — the trigger and the filter it applied, side
            by side. The period controls stay in the header (the hero caption
-           names the period); this is the modifier applied on top. ════════ */}
+           names the period); this is the modifier applied on top.
+
+           Each chip names the mode itself. A single "Only"/"Except" word ahead
+           of the run did not survive the wrap: on a phone the second line began
+           with a bare chip carrying no sign of which mode it was under. The
+           vertical gap clears the 44px tap zone each × carries there, so a tap
+           between two lines cannot remove the chip on the other one. ════════ */}
       {showScopeRow && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-4 sm:gap-y-2">
           <CategoryMultiSelect
             variant="filters"
             selected={selectedIds}
@@ -860,33 +871,18 @@ export function Spending() {
           />
           {filterChips.length > 0 && (
             <>
-              <span className="text-[12.5px] font-semibold text-content-muted">
-                {filterMode === 'exclude' ? 'Except' : 'Only'}
-              </span>
               {filterChips.map((chip) => (
-                <Badge
+                <ChipBadge
                   key={chip.key}
-                  tone={filterMode === 'exclude' ? 'neutral' : 'brand'}
-                  className="pr-1.5"
-                >
-                  {chip.label}
-                  <button
-                    type="button"
-                    onClick={chip.remove}
-                    aria-label={`Remove ${chip.label} filter`}
-                    className="ui-focus group relative -mx-0.5 inline-flex items-center justify-center rounded-full px-1 max-sm:before:absolute max-sm:before:inset-x-0 max-sm:before:-inset-y-3 max-sm:before:content-['']"
-                  >
-                    <span className="grid h-5 w-5 place-items-center rounded-full transition-colors group-hover:bg-content/10">
-                      <X size={12} />
-                    </span>
-                  </button>
-                </Badge>
+                  {...scopeChipProps(filterMode, chip)}
+                  onClear={chip.remove}
+                />
               ))}
               {filterChips.length >= 2 && (
                 <button
                   type="button"
                   onClick={clearFilter}
-                  className="ui-focus rounded-ui-xs text-[12.5px] font-semibold text-content-muted transition-colors hover:text-content"
+                  className="ui-focus touch-target-inline rounded-ui-xs text-[12.5px] font-semibold text-content-muted transition-colors hover:text-content"
                 >
                   Clear all
                 </button>

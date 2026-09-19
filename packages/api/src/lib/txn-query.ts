@@ -11,6 +11,7 @@ export interface QuerySort { field: "date" | "amount"; dir: "asc" | "desc" }
 export interface QueryFilters {
   search?: string;
   categoryIds?: string[];
+  excludeCategoryIds?: string[];
   accountIds?: string[];
   startDate?: Date;
   endDate?: Date;
@@ -57,7 +58,7 @@ export function validateQueryBody(body: any): { ok: NormalizedQuery } | { error:
   if (f.search != null && String(f.search).trim() !== "") filters.search = String(f.search).trim();
   if (f.merchant != null && String(f.merchant).trim() !== "") filters.merchant = String(f.merchant).trim();
 
-  for (const key of ["categories", "accountIds"] as const) {
+  for (const key of ["categories", "excludeCategories", "accountIds"] as const) {
     const v = f[key];
     if (v == null) continue;
     if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) return { error: `${key} must be an array of strings` };
@@ -66,8 +67,9 @@ export function validateQueryBody(body: any): { ok: NormalizedQuery } | { error:
       continue;
     }
     if (v.length > 0) {
-      if (!v.every((x: string) => UUID_RE.test(x))) return { error: "categories must be category ids" };
-      filters.categoryIds = v;
+      if (!v.every((x: string) => UUID_RE.test(x))) return { error: `${key} must be category ids` };
+      if (key === "categories") filters.categoryIds = v;
+      else filters.excludeCategoryIds = v;
     }
   }
 

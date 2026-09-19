@@ -1315,7 +1315,7 @@ export interface QuickImportCurrentProfile {
 
 export interface TxnQueryBody {
   filters?: {
-    search?: string; categories?: string[]; accountIds?: string[];
+    search?: string; categories?: string[]; excludeCategories?: string[]; accountIds?: string[];
     startDate?: string; endDate?: string;
     amountMin?: number; amountMax?: number; merchant?: string;
   };

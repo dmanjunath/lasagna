@@ -1524,6 +1524,14 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
 
 const SPEND_VIZ = ['var(--ui-viz-1)', 'var(--ui-viz-2)', 'var(--ui-viz-3)'];
 
+// The month the "this month" cards below count over. /spending defaults to LAST
+// month, so a link without it lands the reader on a different month's page than
+// the figure they just clicked.
+function thisMonthPeriod(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function SpendingPulse({ flow }: { flow: MonthFlow }) {
   const pctVsPrev =
     flow.prevSpending != null && flow.prevSpending > 0
@@ -1535,7 +1543,7 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
     <Card className="p-[22px]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Spending this month</div>
-        <Link href="/spending" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
+        <Link href={`/spending?period=${thisMonthPeriod()}`} className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
       </div>
       <div className="mt-3 flex items-end gap-x-2.5 gap-y-1 flex-wrap">
         <span className="font-editorial text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(flow.spending)}</span>
@@ -1579,7 +1587,7 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
     <Card className="p-[22px]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Cash flow this month</div>
-        <Link href="/spending" className={`shrink-0 ${pageLinkCls}`}>Details<ArrowRight className="h-4 w-4" /></Link>
+        <Link href={`/spending?period=${thisMonthPeriod()}`} className={`shrink-0 ${pageLinkCls}`}>Details<ArrowRight className="h-4 w-4" /></Link>
       </div>
       {hasFlow ? (
         <>

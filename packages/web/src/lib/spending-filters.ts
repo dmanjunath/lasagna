@@ -40,7 +40,7 @@ const PERIOD_RE = /^\d{4}(-(0[1-9]|1[0-2]))?$/;
 // route applies to this same `categories` parameter. The two halves have to
 // agree: if only one of them dropped a malformed token, the page would show an
 // active filter over numbers the server never filtered.
-const CATEGORY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const CATEGORY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // The reading half. A token that cannot possibly be an id (truncated by a
 // line-wrapped link, hand-mangled) is DROPPED, so the page degrades to the

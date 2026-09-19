@@ -390,6 +390,7 @@ export function Transactions() {
   const hasActiveFilters =
     filters.search !== '' ||
     filters.categories.length > 0 ||
+    filters.excludeCategories.length > 0 ||
     filters.accountIds.length > 0 ||
     filters.datePreset !== 'all' ||
     filters.amountMin !== '' ||

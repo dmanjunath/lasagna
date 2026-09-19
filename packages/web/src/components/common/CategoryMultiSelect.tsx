@@ -6,6 +6,7 @@ import { Badge, Button, SegmentedControl, Skeleton } from '../uikit';
 import { cn } from '../../lib/utils';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { getCategoryDisplay } from '../../lib/categories';
+import { CATEGORY_ID_RE } from '../../lib/spending-filters';
 import { categoryOptionLabel, taxonomyIcon, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
@@ -71,14 +72,37 @@ export function useCategoryChips(
       if (consumed.has(id)) continue;
       chips.push({
         // A disabled or cross-tenant id still gets a chip — a row the user can
-        // see in the breakdown has to be removable from the scope.
+        // see in the breakdown has to be removable from the scope. `byId`
+        // carries disabled categories, so a name is missing only for an id
+        // this tenant never had, and printing the raw 36 characters named
+        // nothing. A legacy system key cannot match the uuid shape, so its
+        // display is untouched.
         key: `cat-${id}`,
-        label: byId.get(id)?.name ?? getCategoryDisplay(id).label,
+        label:
+          byId.get(id)?.name ??
+          (CATEGORY_ID_RE.test(id) ? 'Unavailable category' : getCategoryDisplay(id).label),
         remove: () => onChange(selected.filter((c) => c !== id)),
       });
     }
     return { chips, count: chips.length };
   }, [pickerGroups, byId, selected, onChange]);
+}
+
+/**
+ * The words one scope chip wears, written once: a drill from /spending has to
+ * land on chips saying the same thing about the same scope, and /transactions
+ * used to render an include scope as a bare name. The prefix is also what
+ * separates an include scope from the neutral date chip beside it, and each
+ * chip carries its own because a single lead word ahead of the run does not
+ * survive the wrap. The remove label names the plain category, not the prefix.
+ */
+export function scopeChipProps(
+  mode: 'include' | 'exclude',
+  chip: CategoryChip,
+): { label: string; tone: 'brand' | 'neutral'; removeLabel: string } {
+  return mode === 'exclude'
+    ? { label: `Except ${chip.label}`, tone: 'neutral', removeLabel: `Stop excluding ${chip.label}` }
+    : { label: `Only ${chip.label}`, tone: 'brand', removeLabel: `Remove ${chip.label} filter` };
 }
 
 // ---------------------------------------------------------------------------
@@ -88,14 +112,21 @@ export function CategoryMultiSelect({
   onChange,
   variant,
   mode,
+  describedBy,
   className,
 }: {
   /** Category ids. */
   selected: string[];
   onChange: (ids: string[]) => void;
   variant: 'field' | 'filters';
-  /** Include/exclude segments above the list. Omit for a plain picker. */
+  /** Only/Except segments above the list. Omit for a plain picker. */
   mode?: { value: 'include' | 'exclude'; onChange: (m: 'include' | 'exclude') => void };
+  /**
+   * Id of an element qualifying the trigger, e.g. the caption naming the
+   * categories an arrived scope excludes. Without it a screen reader hears
+   * "All categories" and nothing about the exclusion.
+   */
+  describedBy?: string;
   className?: string;
 }) {
   const pickerGroups = usePickerGroups();
@@ -297,14 +328,17 @@ export function CategoryMultiSelect({
       list
     ) : (
       <>
+        {/* "Only"/"Except" — the words the chips this switch produces use.
+             Labelling the switch Include/Exclude put two vocabularies for one
+             concept on screen at once, both visible together. */}
         {mode && (
           <SegmentedControl
-            aria-label="Include or exclude categories"
+            aria-label="Keep only or leave out the chosen categories"
             value={mode.value}
             onChange={mode.onChange}
             options={[
-              { value: 'include' as const, label: 'Include' },
-              { value: 'exclude' as const, label: 'Exclude' },
+              { value: 'include' as const, label: 'Only' },
+              { value: 'exclude' as const, label: 'Except' },
             ]}
           />
         )}
@@ -344,6 +378,7 @@ export function CategoryMultiSelect({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
+        aria-describedby={describedBy}
         className="ui-focus touch-target relative h-10 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm"
       >
         {triggerLabel}

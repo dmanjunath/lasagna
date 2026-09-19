@@ -6,6 +6,7 @@ import {
   filtersToQuery,
   filtersToSearchParams,
   wholeMonthLabel,
+  wholeYearLabel,
   type TxnFilters,
 } from '../TransactionFilters';
 
@@ -63,6 +64,33 @@ describe('filtersFromQuery', () => {
     expect(filtersFromQuery(`?${query}`)).toEqual(scoped);
   });
 
+  /**
+   * The exclude half of the scope. It has no authoring control on this page, so
+   * the URL is the only way in and this round-trip is the only thing holding it.
+   * Dropping it here would widen a drill silently: the right window, over
+   * categories the figure the user clicked never counted.
+   */
+  it('round-trips an exclude scope without confusing it for an include one', () => {
+    const scoped: TxnFilters = {
+      ...EMPTY_FILTERS,
+      excludeCategories: ['cat-1', 'cat-2'],
+      datePreset: 'custom',
+      customStart: '2026-07-01',
+      customEnd: '2026-07-31',
+    };
+    const query = filtersToSearchParams(scoped);
+    expect(query).toBe('excludeCategories=cat-1,cat-2&startDate=2026-07-01&endDate=2026-07-31');
+    expect(filtersFromQuery(`?${query}`)).toEqual(scoped);
+    expect(filtersFromQuery(`?${query}`).categories).toEqual([]);
+  });
+
+  it('keeps the two lists apart where a URL carries both', () => {
+    const f = filtersFromQuery('?categories=a&excludeCategories=b');
+    expect(f.categories).toEqual(['a']);
+    expect(f.excludeCategories).toEqual(['b']);
+    expect(filtersToQuery(f)).toMatchObject({ categories: ['a'], excludeCategories: ['b'] });
+  });
+
   it('hands the API the same span the URL asked for', () => {
     expect(filtersToQuery(filtersFromQuery('?startDate=2026-07-01&endDate=2026-07-31'))).toMatchObject({
       startDate: '2026-07-01',
@@ -84,6 +112,31 @@ describe('wholeMonthLabel', () => {
     expect(wholeMonthLabel('2026-07-01', '2026-08-31')).toBeNull();
     expect(wholeMonthLabel('2026-02-01', '2026-02-29')).toBeNull();
     expect(wholeMonthLabel('2026-07-01', '')).toBeNull();
+  });
+});
+
+/**
+ * The year drill is the month drill's sibling: /spending's Year mode hands over
+ * Jan 1 to Dec 31, and that chip has to name the year the way the month chip
+ * names the month, not spell out both endpoints.
+ */
+describe('wholeYearLabel', () => {
+  it('names a range that is exactly one calendar year', () => {
+    expect(wholeYearLabel('2026-01-01', '2026-12-31')).toBe('2026');
+    expect(wholeYearLabel('2024-01-01', '2024-12-31')).toBe('2024');
+  });
+
+  it('declines anything that is not a whole year', () => {
+    expect(wholeYearLabel('2026-01-02', '2026-12-31')).toBeNull();
+    expect(wholeYearLabel('2026-01-01', '2026-12-30')).toBeNull();
+    expect(wholeYearLabel('2026-02-01', '2026-12-31')).toBeNull();
+    expect(wholeYearLabel('2025-01-01', '2026-12-31')).toBeNull();
+    expect(wholeYearLabel('2026-01-01', '')).toBeNull();
+  });
+
+  it('leaves a single month to wholeMonthLabel', () => {
+    expect(wholeYearLabel('2026-07-01', '2026-07-31')).toBeNull();
+    expect(wholeMonthLabel('2026-07-01', '2026-07-31')).toBe('July 2026');
   });
 });
 

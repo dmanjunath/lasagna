@@ -5,7 +5,7 @@ import type { AccountIndexEntry } from '../../lib/use-accounts-index';
 import { Badge } from '../uikit';
 import { cn, formatStoredDay, formatStoredMonth } from '../../lib/utils';
 import { InstIcon } from '../common/InstIcon';
-import { CategoryMultiSelect, useCategoryChips } from '../common/CategoryMultiSelect';
+import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../common/CategoryMultiSelect';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,6 +14,8 @@ import { CategoryMultiSelect, useCategoryChips } from '../common/CategoryMultiSe
 export interface TxnFilters {
   search: string;
   categories: string[];
+  /** Category ids to drop. Arrives from a /spending exclude scope. */
+  excludeCategories: string[];
   accountIds: string[];
   datePreset: 'all' | 'this-month' | 'last-month' | 'last-3-months' | 'ytd' | 'custom';
   customStart: string;   // 'YYYY-MM-DD' or ''
@@ -25,6 +27,7 @@ export interface TxnFilters {
 export const EMPTY_FILTERS: TxnFilters = {
   search: '',
   categories: [],
+  excludeCategories: [],
   accountIds: [],
   datePreset: 'all',
   customStart: '',
@@ -43,6 +46,7 @@ export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryB
   const search = f.search.trim();
   if (search) result.search = search;
   if (f.categories.length > 0) result.categories = f.categories;
+  if (f.excludeCategories.length > 0) result.excludeCategories = f.excludeCategories;
   if (f.accountIds.length > 0) result.accountIds = f.accountIds;
 
   // Date presets
@@ -119,6 +123,9 @@ export function filtersFromQuery(queryString: string): TxnFilters {
   const categories = params.get('categories');
   if (categories) filters.categories = categories.split(',').filter(Boolean);
 
+  const excludeCategories = params.get('excludeCategories');
+  if (excludeCategories) filters.excludeCategories = excludeCategories.split(',').filter(Boolean);
+
   const start = isoDay(params.get('startDate'));
   const end = isoDay(params.get('endDate'));
   if (start || end) {
@@ -140,11 +147,44 @@ export function filtersToSearchParams(f: TxnFilters): string {
   if (f.categories.length > 0) {
     parts.push(`categories=${f.categories.map(encodeURIComponent).join(',')}`);
   }
+  if (f.excludeCategories.length > 0) {
+    parts.push(`excludeCategories=${f.excludeCategories.map(encodeURIComponent).join(',')}`);
+  }
   if (f.datePreset === 'custom') {
     if (f.customStart) parts.push(`startDate=${f.customStart}`);
     if (f.customEnd) parts.push(`endDate=${f.customEnd}`);
   }
   return parts.join('&');
+}
+
+/**
+ * The /transactions URL another page hands a scope over in: the window a figure
+ * was counted over, plus the category scope it was counted under.
+ *
+ * `startDate`/`endDate` are passed in as the caller already holds them — the
+ * SAME strings it sent to the endpoint that produced the figure — so the landed
+ * window cannot be a second, separately-derived one that disagrees. The day is
+ * all the URL carries; the page re-appends its own end-of-day stamp.
+ *
+ * Built through filtersToSearchParams rather than by hand so the parameter
+ * order matches what the page writes back on mount, and so a field added to the
+ * scope later is carried by construction.
+ */
+export function transactionsHref(scope: {
+  startDate: string;
+  endDate: string;
+  categories?: string[];
+  excludeCategories?: string[];
+}): string {
+  const query = filtersToSearchParams({
+    ...EMPTY_FILTERS,
+    categories: scope.categories ?? [],
+    excludeCategories: scope.excludeCategories ?? [],
+    datePreset: 'custom',
+    customStart: scope.startDate.slice(0, 10),
+    customEnd: scope.endDate.slice(0, 10),
+  });
+  return query ? `/transactions?${query}` : '/transactions';
 }
 
 // "July 2026" when a custom range covers exactly one calendar month, so a drill
@@ -161,6 +201,20 @@ export function wholeMonthLabel(start: string, end: string): string | null {
   const lastDay = new Date(year, month, 0).getDate();
   if (Number(b[3]) !== lastDay) return null;
   return formatStoredMonth(start, { month: 'long' });
+}
+
+// "2026" when a custom range covers exactly one calendar year. The year drill
+// is the month drill's sibling — /spending hands over Jan 1 to Dec 31 from its
+// Year mode — so its chip has to name the period the same way, not spell out
+// the two endpoints the month case is spared.
+export function wholeYearLabel(start: string, end: string): string | null {
+  const a = ISO_DAY.exec(start);
+  const b = ISO_DAY.exec(end);
+  if (!a || !b) return null;
+  if (a[1] !== b[1]) return null;
+  if (a[2] !== '01' || a[3] !== '01') return null;
+  if (b[2] !== '12' || b[3] !== '31') return null;
+  return a[1];
 }
 
 /**
@@ -286,6 +340,44 @@ function MultiSelectDropdown({
 }
 
 // ---------------------------------------------------------------------------
+// ChipBadge — one removable scope chip. Shared by this page's chip row and by
+// /spending's scope row, which kept a byte-identical copy that had already
+// drifted (a generic remove label, a different gap). One copy, one behaviour.
+// ---------------------------------------------------------------------------
+
+export function ChipBadge({
+  label,
+  tone,
+  removeLabel,
+  onClear,
+}: {
+  label: string;
+  tone?: 'brand' | 'neutral';
+  /** Overrides the default "Remove X filter" accessible name. */
+  removeLabel?: string;
+  onClear: () => void;
+}) {
+  return (
+    <Badge tone={tone ?? 'neutral'} className="pr-2">
+      {/* An unresolvable-but-well-formed category id is labelled with the id
+           itself (a shared link is never rewritten), and 36 characters ran past
+           a 390px screen, carrying the × off the edge with it. */}
+      <span className="max-w-[16rem] truncate" title={label}>{label}</span>
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label={removeLabel ?? `Remove ${label} filter`}
+        className="ui-focus group relative inline-flex items-center justify-center rounded-full px-1 max-sm:before:absolute max-sm:before:-inset-x-2 max-sm:before:-inset-y-3 max-sm:before:content-['']"
+      >
+        <span className="grid h-5 w-5 place-items-center rounded-full transition-colors group-hover:bg-content/10">
+          <X size={12} />
+        </span>
+      </button>
+    </Badge>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TransactionFilters — one toolbar row: [search] [Filters button → popover
 // panel with Category / Account / Date / Amount], plus the active-filter chips
 // row beneath. Debounce ONLY the search input; all other controls call
@@ -360,6 +452,20 @@ export function TransactionFilters({
     filters.categories,
     (cats) => onChange({ ...filters, categories: cats }),
   );
+  // An exclude scope has no authoring control here — it arrives from /spending.
+  // It still gets chips, so the reader can see what the rows are missing and
+  // drop the scope, the way an arrived date range already works.
+  const { chips: excludeChips, count: excludeCount } = useCategoryChips(
+    filters.excludeCategories,
+    (cats) => onChange({ ...filters, excludeCategories: cats }),
+  );
+  // Both scopes name their mode per chip (scopeChipProps). Its own key prefix
+  // keeps an excluded id distinct from the same id in the include list.
+  const excludeChipItems = excludeChips.map((cat) => ({
+    key: `ex-${cat.key}`,
+    ...scopeChipProps('exclude', cat),
+    clear: cat.remove,
+  }));
   // Account options carry the institution identity so several accounts named
   // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ••1234").
   const accountOptions = accounts.map((a) => ({
@@ -376,12 +482,19 @@ export function TransactionFilters({
   // A whole selected group counts as one, matching the collapsed chips.
   const activeCount =
     categoryCount +
+    excludeCount +
     filters.accountIds.length +
     (filters.datePreset !== 'all' ? 1 : 0) +
     (filters.amountMin || filters.amountMax ? 1 : 0);
 
   // Build active chips.
-  type Chip = { key: string; label: string; clear: () => void; tone?: 'brand' | 'neutral' };
+  type Chip = {
+    key: string;
+    label: string;
+    clear: () => void;
+    tone?: 'brand' | 'neutral';
+    removeLabel?: string;
+  };
   const chips: Chip[] = [];
 
   if (filters.search) {
@@ -395,8 +508,9 @@ export function TransactionFilters({
   // Brand-tone both so a drill-in from Spending reads as "you're scoped here",
   // distinct from search/account chips.
   for (const cat of categoryChips) {
-    chips.push({ key: cat.key, label: cat.label, tone: 'brand', clear: cat.remove });
+    chips.push({ key: cat.key, ...scopeChipProps('include', cat), clear: cat.remove });
   }
+  chips.push(...excludeChipItems);
   for (const accId of filters.accountIds) {
     const acc = accounts.find((a) => a.id === accId);
     const ambiguous = acc && (nameCounts.get(acc.name) ?? 0) > 1;
@@ -423,6 +537,7 @@ export function TransactionFilters({
     const spanLabel =
       filters.datePreset === 'custom'
         ? wholeMonthLabel(filters.customStart, filters.customEnd) ??
+          wholeYearLabel(filters.customStart, filters.customEnd) ??
           dateRangeLabel(filters.customStart, filters.customEnd)
         : null;
     chips.push({
@@ -445,6 +560,12 @@ export function TransactionFilters({
   }
 
   const sectionLabel = 'mb-1.5 text-[12px] font-semibold text-content-secondary';
+  // An exclude scope arrives from /spending and has no control of its own here,
+  // so without this caption the picker reads "All categories" while a category
+  // is dropped, and the Filters badge counts a filter the open panel never
+  // shows. It is a caption rather than a second run of chips: the row below
+  // already carries those, and on a wide screen both are on screen at once.
+  const excludeCaptionId = 'txn-filters-excluded';
 
   return (
     <div className="space-y-2">
@@ -468,7 +589,7 @@ export function TransactionFilters({
                 type="button"
                 onClick={() => { setSearchInput(''); onChange({ ...filters, search: '' }); }}
                 aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 grid -translate-y-1/2 place-items-center text-content-muted hover:text-content"
+                className="ui-focus absolute right-2.5 top-1/2 grid -translate-y-1/2 place-items-center rounded-ui-xs text-content-muted hover:text-content"
               >
                 <X size={14} />
               </button>
@@ -500,10 +621,27 @@ export function TransactionFilters({
           >
             <div>
               <div className={sectionLabel}>Category</div>
+              {/* Above the trigger, not below it: the picker's popover opens
+                   downward and covered the caption at exactly the moment the
+                   user is choosing categories. */}
+              {excludeChips.length > 0 && (
+                <p id={excludeCaptionId} className="mb-1.5 text-[12px] font-medium text-content-muted">
+                  Except {excludeChips.map((c) => c.label).join(', ')}
+                </p>
+              )}
               <CategoryMultiSelect
                 variant="field"
+                describedBy={excludeChips.length > 0 ? excludeCaptionId : undefined}
                 selected={filters.categories}
-                onChange={(cats) => onChange({ ...filters, categories: cats })}
+                // Including a category that is also excluded matches nothing,
+                // so ticking one here drops it from the exclude list rather
+                // than leaving two chips that contradict each other over an
+                // empty result.
+                onChange={(cats) => onChange({
+                  ...filters,
+                  categories: cats,
+                  excludeCategories: filters.excludeCategories.filter((id) => !cats.includes(id)),
+                })}
               />
             </div>
 
@@ -594,29 +732,26 @@ export function TransactionFilters({
         )}
       </div>
 
-      {/* Active filter chips */}
+      {/* Active filter chips. The row wraps, and each × carries a 44px tall tap
+           zone on phones (max-sm:before:-inset-y-3), so the vertical gap has to
+           clear that zone: at gap-2 the zones of two stacked lines overlapped by
+           6px and a tap in the band deleted the chip on the other line. */}
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-4 sm:gap-y-2">
           {chips.map((chip) => (
-            <Badge key={chip.key} tone={chip.tone ?? 'neutral'} className="pr-1.5">
-              {chip.label}
-              <button
-                type="button"
-                onClick={chip.clear}
-                aria-label={`Remove ${chip.label} filter`}
-                className="ui-focus group relative -mx-0.5 inline-flex items-center justify-center rounded-full px-1 max-sm:before:absolute max-sm:before:inset-x-0 max-sm:before:-inset-y-3 max-sm:before:content-['']"
-              >
-                <span className="grid h-5 w-5 place-items-center rounded-full transition-colors group-hover:bg-content/10">
-                  <X size={12} />
-                </span>
-              </button>
-            </Badge>
+            <ChipBadge
+              key={chip.key}
+              label={chip.label}
+              tone={chip.tone}
+              removeLabel={chip.removeLabel}
+              onClear={chip.clear}
+            />
           ))}
           {chips.length >= 2 && (
             <button
               type="button"
               onClick={() => { setSearchInput(''); onChange(EMPTY_FILTERS); }}
-              className="text-[12.5px] font-semibold text-content-muted transition-colors hover:text-content"
+              className="ui-focus touch-target-inline rounded-ui-xs text-[12.5px] font-semibold text-content-muted transition-colors hover:text-content"
             >
               Clear all
             </button>

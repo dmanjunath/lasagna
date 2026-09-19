@@ -251,6 +251,70 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
     expect(period.income).toBe(EXPECTED_INCOME);
   });
 
+  /**
+   * The drill's money invariant. A breakdown row states Dining 250.00 for this
+   * window; clicking it lands on POST /query over the SAME window and category,
+   * and the strip there has to state the same 250.00 back, as a net.
+   *
+   * It is the NET that reconciles, not "Money out". /spending-summary sums a
+   * category's rows (300.00 - 50.00 = 250.00); the strip prints the two
+   * directions separately, so its Money out reads the gross 300.00 in any month
+   * with a refund. Both are asserted, so neither can drift into the other.
+   */
+  it("lands a category drill on a net equal to the figure that was clicked", async () => {
+    if (!dbAvailable) {
+      console.warn("SKIP: no DB at DATABASE_URL");
+      return;
+    }
+    const app = makeApp(tenantId!);
+    const res = await app.request("/query", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ filters: { categories: [diningId!], startDate: START, endDate: END } }),
+    });
+    expect(res.status).toBe(200);
+    const { summary } = await res.json();
+
+    const { summary: spending } = await fetchBoth();
+    const dining = spending.categories.find((cat: any) => cat.id === diningId);
+    expect(dining?.total).toBe(250);
+
+    // The invariant: |net| is the figure the row stated.
+    expect(summary.totalCredits - summary.totalDebits).toBe(-dining.total);
+    // And the documented gross: Money out is the 300.00 charge, not the net.
+    expect(summary.totalDebits).toBe(300);
+    expect(summary.totalCredits).toBe(50);
+  });
+
+  /**
+   * The exclude scope the spending page can now hand over. Without a spelling
+   * for it here, a drill from an "everything except Dining" view landed on
+   * every Dining row it had just been told to leave out.
+   */
+  it("drops exactly the excluded category from a drill", async () => {
+    if (!dbAvailable) {
+      console.warn("SKIP: no DB at DATABASE_URL");
+      return;
+    }
+    const app = makeApp(tenantId!);
+    const body = (filters: Record<string, unknown>) => ({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ filters: { ...filters, startDate: START, endDate: END } }),
+    });
+
+    const all = await (await app.request("/query", body({}))).json();
+    const excluded = await (
+      await app.request("/query", body({ excludeCategories: [diningId!] }))
+    ).json();
+
+    // The two Dining rows left the match, and only those.
+    expect(excluded.summary.count).toBe(all.summary.count - 2);
+    expect(excluded.transactions.some((t: any) => t.categoryId === diningId)).toBe(false);
+    expect(excluded.summary.totalDebits).toBe(all.summary.totalDebits - 300);
+    expect(excluded.summary.totalCredits).toBe(all.summary.totalCredits - 50);
+  });
+
   it("excludes a category refunded past zero from both the total and the breakdown", async () => {
     if (!dbAvailable) {
       console.warn("SKIP: no DB at DATABASE_URL");

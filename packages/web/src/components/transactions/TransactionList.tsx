@@ -525,7 +525,7 @@ export function TransactionList({
             href={viewAllHref}
             className="ui-focus flex items-center justify-center rounded-b-ui-xl border-t border-line px-4 py-3 text-[13px] font-bold text-content-muted transition-colors hover:text-brand sm:px-5"
           >
-            View all {total} transactions →
+            View all {total} {total === 1 ? 'transaction' : 'transactions'} →
           </Link>
         )}
       </div>
