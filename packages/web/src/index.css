@@ -473,12 +473,12 @@
    WORDMARK — "Lasagna" grotesque + italic serif "fi"
    ============================================================ */
 .lf-wordmark {
-  font-family: 'Instrument Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: var(--ui-display), 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: -0.025em;
 }
 .lf-wordmark .fi {
-  font-family: 'Instrument Sans', system-ui, sans-serif;
+  font-family: var(--ui-display), system-ui, sans-serif;
   font-style: italic;
   font-weight: 500;
   letter-spacing: 0;
@@ -2933,7 +2933,7 @@
 
   @bottom-left {
     content: "LasagnaFi, Financial Plan";
-    font-family: "Instrument Sans", system-ui, sans-serif;
+    font-family: var(--ui-display), system-ui, sans-serif;
     font-size: 8pt;
     letter-spacing: 0.1em;
     color: #86939f; /* --ui-content-faint (light), literal: margin boxes can't read var() reliably */

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useAuth } from "../lib/auth";
+import { DisplayFontPicker } from "../components/settings/display-font-picker";
 import { api } from "../lib/api";
 import { useBilling, startUpgrade, openPortal } from "../lib/billing";
 import { formatMoney, cn } from "../lib/utils";
@@ -332,8 +333,9 @@ export function Settings() {
           a phone, and these two are the only home the chrome toggles have. */}
       <section className="mt-10">
         <GroupHeader title="Display" hint="How the app looks on this device" />
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
           <DisplayCard />
+          <DisplayFontPicker />
         </div>
       </section>
 

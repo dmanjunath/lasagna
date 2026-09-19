@@ -180,6 +180,20 @@
         .safe-right { padding-right: max(16px, env(safe-area-inset-right)); }
       }
     </style>
+      <script>
+      // Admin display-face override, applied before first paint.
+      try {
+        var f = JSON.parse(localStorage.getItem("lasagna-display-font") || "null");
+        if (f && f.stack) {
+          document.documentElement.style.setProperty("--ui-display", f.stack);
+          if (f.href) {
+            var l = document.createElement("link");
+            l.rel = "stylesheet"; l.href = f.href;
+            document.head.appendChild(l);
+          }
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

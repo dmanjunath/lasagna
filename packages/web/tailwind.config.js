@@ -71,9 +71,9 @@ export default {
         sans:    ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
         mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
         serif:   ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        display: ['Instrument Sans', 'system-ui', 'sans-serif'],
-        // DS Bright editorial display face — Instrument Sans.
-        editorial: ['Instrument Sans', 'system-ui', 'sans-serif'],
+        // Both read --ui-display so the face can be swapped at runtime.
+        display: ['var(--ui-display)', 'system-ui', 'sans-serif'],
+        editorial: ['var(--ui-display)', 'system-ui', 'sans-serif'],
       },
 
       // DS v3 radius scale (prefixed; legacy radii untouched)

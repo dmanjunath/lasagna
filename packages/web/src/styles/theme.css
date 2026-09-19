@@ -105,6 +105,11 @@
   --ui-r-md: 12px;
   --ui-r-lg: 16px;
   --ui-r-xl: 22px;
+
+  /* ── Display face ──────────────────────────────────────────────────────
+     A token rather than a literal, because font-display / font-editorial
+     resolve at build time and an admin needs to compare faces at runtime. */
+  --ui-display: "Instrument Sans";
 }
 
 /* ── Dark mode — Bright deep slate (cool, not warm) ─────────────────────── */

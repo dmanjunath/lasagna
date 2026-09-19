@@ -23,10 +23,11 @@
 /* ── Wordmark ───────────────────────────────────────────────────────────── */
 .brand {
   display: inline-flex; align-items: center; gap: 9px;
-  font-family: var(--display); font-weight: 800; font-size: 20px;
-  letter-spacing: -0.03em; color: var(--content);
+  /* Matches the app's sidebar wordmark: one colour, semibold, -0.01em. The
+     landing used to tint "Fi" green, which the app never does. */
+  font-family: var(--display); font-weight: 600; font-size: 20px;
+  letter-spacing: -0.01em; color: var(--content);
 }
-.brand .fi { color: var(--brand-ink); }
 
 /* ── Reveal-on-scroll (only when JS present; no-JS shows everything) ─────── */
 .js .rv { opacity: 0; transform: translateY(20px); animation: rv .8s var(--ease) forwards; animation-play-state: paused; will-change: opacity, transform; }
@@ -356,6 +357,26 @@ nav.open .nav-toggle .bars i:nth-child(3) { top: 5px; transform: rotate(-45deg);
 .js .in-view .stat:nth-child(3) { transition-delay: .20s; }
 .js .in-view .stat:nth-child(4) { transition-delay: .30s; }
 .js .in-view .evidence { transition-delay: .2s; }
+
+/* ── Illustration controls are drawings of controls ─────────────────────
+   Every real call to action on this site is an <a>; the ones inside an
+   illustration are <span>. They must not invite a click they cannot answer:
+   no pointer cursor, no hover lift, no hover ring. The driver's own
+   .is-pressed animation is untouched, since that is the demo showing itself
+   being used rather than a response to the reader. */
+span.btn { cursor: default; }
+span.btn:hover,
+span.btn.btn-primary:hover,
+span.btn.btn-ghost:hover,
+span.btn.btn-danger:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--line);
+}
+span.btn.btn-primary:hover { background: var(--brand-soft); border-color: transparent; }
+span.btn.btn-danger:hover { background: var(--negative-soft); border-color: transparent; }
+/* Same for the segmented controls and row chevrons inside a card. */
+.seg-chip, .row-chev, .demo-check, .chip-status { cursor: default; }
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 .hero { padding: 76px 28px 52px; display: grid; grid-template-columns: 1fr 1.04fr; gap: 56px; align-items: center; }
