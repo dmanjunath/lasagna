@@ -23,7 +23,8 @@ import { HiddenAmount, MoneyInput } from "../components/uikit";
 import { isNativeApp } from "../lib/native";
 import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
-import { Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from "../components/uikit";
+import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountTypeOption } from "../lib/account-types";
+import { Alert, Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Select, Skeleton } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { PageTitle } from "../components/ds/PageTitle";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
@@ -55,6 +56,24 @@ function formatTotal(n: number): string {
   }).format(n);
 }
 
+// What the create route's 400s say, in the words of the field the person filled
+// in. The route names the column and its limit ("apr must be a number between 0
+// and 99.99"), which is a developer string, not an answer to act on. Anything
+// else falls through to the generic message.
+const ADD_ERROR_COPY: Record<string, string> = {
+  name: "That name is too long. Try a shorter one.",
+  apr: "Enter a rate between 0 and 99.99.",
+  type: "Choose an account type.",
+  subtype: "Choose an account type.",
+};
+
+const GENERIC_ADD_ERROR = "We couldn't add this account. Try again.";
+
+function friendlyAddError(raw: string | undefined): string {
+  const field = raw?.match(/^(\w+) must /)?.[1];
+  return (field && ADD_ERROR_COPY[field]) || GENERIC_ADD_ERROR;
+}
+
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diff / 60_000);
@@ -64,11 +83,6 @@ function formatRelativeTime(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
-}
-
-function getAccountTypeLabel(type: string, subtype: string | null): string {
-  const sub = subtype ?? type;
-  return sub.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ---------------------------------------------------------------------------
@@ -106,53 +120,50 @@ function isItemError(item: PlaidItem): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Manual account types
-// ---------------------------------------------------------------------------
-
-interface AccountTypeDef {
-  label: string;
-  emoji: string;
-  type: string;
-  subtype?: string;
-  isDebt: boolean;
-  // Plaid can connect this type automatically. Manual-only types (property,
-  // cash, other) skip the connect/manual choice and go straight to the form.
-  plaidEligible: boolean;
-}
-
-// Internal lookup table — NOT the picker. Deep-links (?add=type:subtype),
-// property↔mortgage counterpart resolution, and the link-picker's type labels
-// all resolve against this, so the granular defs must stay even though the
-// picker itself now shows a handful of top-level choices.
-const ACCOUNT_TYPES: AccountTypeDef[] = [
-  { label: "Checking / Savings", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
-  { label: "Credit Card", emoji: "💳", type: "credit", isDebt: true, plaidEligible: true },
-  { label: "Mortgage", emoji: "🏠", type: "loan", subtype: "mortgage", isDebt: true, plaidEligible: true },
-  { label: "Loan", emoji: "🏦", type: "loan", isDebt: true, plaidEligible: true },
-  { label: "Primary Residence", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false, plaidEligible: false },
-  { label: "Rental Property", emoji: "🏢", type: "real_estate", subtype: "rental", isDebt: false, plaidEligible: false },
-  { label: "Other Asset", emoji: "📦", type: "alternative", isDebt: false, plaidEligible: false },
-];
-
-// ---------------------------------------------------------------------------
-// Add-account picker — the six top-level choices the modal opens on.
+// Add-account picker — the top-level choices the modal opens on.
 // ---------------------------------------------------------------------------
 
 // How selecting a top-level option routes:
 //   "plaid"       → connect-or-manual choice (Plaid is the preferred path)
 //   "realEstate"  → straight into the real-estate form (address + estimate)
 //   "manual"      → straight into the manual form
-//   "describe"    → the AI-style "describe your accounts" flow
-type AddRoute = "plaid" | "realEstate" | "manual" | "describe";
+// ("Describe to add" is its own button below the list — it creates nothing here.)
+type AddRoute = "plaid" | "realEstate" | "manual";
 
 interface AddOption {
   label: string;
   hint: string;
   emoji: string;
   route: AddRoute;
-  // The account-type def the manual/Plaid path uses. Omitted for "describe".
-  def?: AccountTypeDef;
+  // The account types this option can create. More than one renders a Select at
+  // the top of the manual form, labelled `typeLabel`, because the specific type
+  // is what decides the tax bucket, the debt maths and the rest of the fields.
+  types: AccountTypeOption[];
+  typeLabel?: string;
+  // Set where the type answer actually adds fields below it, so the form is
+  // taller after a type is picked than it was before. A category can offer seven
+  // types and still render the same fields for every one of them, so the count of
+  // types says nothing about this — and only this is worth a full-height phone
+  // tray.
+  growsWithType?: boolean;
 }
+
+// The "Manual" card is a deliberate catch-all: one untyped account for anything
+// with a balance. It names no specific kind, so it isn't in the catalog.
+const MANUAL_CATCH_ALL: AccountTypeOption = {
+  label: "Manual account",
+  type: "depository",
+  subtype: null,
+  isDebt: false,
+  category: "bank",
+};
+
+// A monthly payment is asked for on an amortising loan only. A card's minimum is
+// a percentage of its balance, and a mortgage with a rate amortises over its
+// term, so for those the estimate is already right. For an auto or student loan
+// it isn't: without a payment on file they get the card-shaped 2%-of-balance
+// estimate (api/lib/debt-accounts).
+const asksMinPayment = (t: AccountTypeOption) => t.type === "loan" && t.subtype !== "mortgage";
 
 const ADD_OPTIONS: AddOption[] = [
   {
@@ -160,35 +171,43 @@ const ADD_OPTIONS: AddOption[] = [
     hint: "Checking, savings, cash & brokerage",
     emoji: "💵",
     route: "plaid",
-    def: { label: "Bank or investment account", emoji: "💵", type: "depository", isDebt: false, plaidEligible: true },
+    typeLabel: "Account type",
+    types: accountTypesIn("bank"),
   },
   {
     label: "Debt",
     hint: "Credit cards, Klarna, Afterpay, mortgage",
     emoji: "💳",
     route: "plaid",
-    def: { label: "Debt", emoji: "💳", type: "credit", isDebt: true, plaidEligible: true },
+    typeLabel: "Debt type",
+    types: accountTypesIn("debt"),
+    // Picking a type adds the interest rate, a mortgage adds the property link,
+    // and the amortising loans add a monthly payment.
+    growsWithType: true,
   },
   {
     label: "Real Estate",
     hint: "Home or rental. We'll estimate its value",
     emoji: "🏡",
     route: "realEstate",
-    def: { label: "Real Estate", emoji: "🏡", type: "real_estate", subtype: "primary", isDebt: false, plaidEligible: false },
+    typeLabel: "Property type",
+    types: accountTypesIn("realEstate"),
+    // A rental adds rent, insurance and maintenance.
+    growsWithType: true,
   },
   {
     label: "Other",
     hint: "Jewellery, watches, cars & more",
     emoji: "💎",
     route: "manual",
-    def: { label: "Other", emoji: "💎", type: "alternative", isDebt: false, plaidEligible: false },
+    types: accountTypesIn("other"),
   },
   {
     label: "Manual",
     hint: "Add any account with a balance yourself",
     emoji: "✏️",
     route: "manual",
-    def: { label: "Manual account", emoji: "✏️", type: "depository", isDebt: false, plaidEligible: false },
+    types: [MANUAL_CATCH_ALL],
   },
 ];
 
@@ -218,16 +237,26 @@ export function Accounts() {
   const itemRefs = useRef<Record<string, HTMLElement | null>>({});
 
   // Add-account modal state. The modal is a small wizard:
-  //   no type + no choice  → grouped type picker (step 1)
-  //   Plaid-eligible type  → connect/manual choice (step 2a)
-  //   manual-only / "manual" chosen → the manual form (step 2b)
+  //   nothing set          → top-level picker (step 1)
+  //   methodChoice set     → connect/manual choice (step 2a)
+  //   formOption set       → the manual form (step 2b)
+  // Back clears one pointer at a time, so the render order below walks the user
+  // back through exactly the steps they came in by.
   const [showManualModal, setShowManualModal] = useState(false);
-  // A Plaid-eligible type awaiting the connect-vs-manual choice.
-  const [methodChoiceType, setMethodChoiceType] = useState<AccountTypeDef | null>(null);
-  const [activeType, setActiveType] = useState<AccountTypeDef | null>(null);
+  // A Plaid-eligible category awaiting the connect-vs-manual choice.
+  const [methodChoice, setMethodChoice] = useState<AddOption | null>(null);
+  // The category whose manual form is open, and the specific type chosen in it.
+  // activeType stays null until the user picks one (a category with a single
+  // type picks it for them) — nothing is submitted under a guessed type.
+  const [formOption, setFormOption] = useState<AddOption | null>(null);
+  const [activeType, setActiveType] = useState<AccountTypeOption | null>(null);
+  // The category the values currently in the fields were typed under. Back keeps
+  // them, so only picking a *different* category clears them.
+  const [typedUnder, setTypedUnder] = useState<string | null>(null);
   const [acctName, setAcctName] = useState("");
   const [acctBalance, setAcctBalance] = useState("");
   const [acctRate, setAcctRate] = useState("");
+  const [acctMinPayment, setAcctMinPayment] = useState("");
   const [rentMonthly, setRentMonthly] = useState("");
   const [insAnnual, setInsAnnual] = useState("");
   const [maintAnnual, setMaintAnnual] = useState("");
@@ -244,6 +273,10 @@ export function Accounts() {
   // override the estimate never overwrites. Mirrors the detail/edit page.
   const [acctValueSource, setAcctValueSource] = useState<ValueSourceChoice>("market");
   const [addingAccount, setAddingAccount] = useState(false);
+  // A rejected create, shown inside the modal. The page-level banner sits behind
+  // the overlay, so a failure there is invisible while the form is still open.
+  const [addError, setAddError] = useState("");
+  const addErrorRef = useRef<HTMLDivElement>(null);
   // Async value-estimate spinner state, shown after creating a property with an
   // address but no manual value (we poll GET /accounts/:id/value-estimate).
   const [estimating, setEstimating] = useState<
@@ -256,6 +289,13 @@ export function Accounts() {
     | null
   >(null);
   const [linkedBanner, setLinkedBanner] = useState<{ message: string; actionLabel: string; onAction: () => void } | null>(null);
+  // Every way out of the add dialog stays live while a create is in flight, so a
+  // create can outlive the form it was started from. Each submit takes the next
+  // number here, and every way of leaving that form burns one too (see
+  // `leaveAddRun` — the only thing that moves this). The POST still lands and the
+  // refetch surfaces the account, but a create whose number has moved on no
+  // longer drives what's on screen.
+  const addRun = useRef(0);
   const [pendingLinkedId, setPendingLinkedId] = useState<string | null>(null);
   // "+ Add a new …" in the create-modal link picker sets this: after the current
   // account is created, open the counterpart's add form pre-linked to it (instead
@@ -302,12 +342,8 @@ export function Accounts() {
     const link = params.get("link");
     window.history.replaceState({}, "", "/accounts");
     const [type, subtype] = add.split(":");
-    const target =
-      ACCOUNT_TYPES.find((at) => at.type === type && (subtype ? at.subtype === subtype : true)) ??
-      ACCOUNT_TYPES.find((at) => at.type === type);
-    if (!target) return;
+    if (!openFormForType(type, subtype ?? null)) return;
     if (link) setPendingLinkedId(link);
-    enterManualForm(target);
     setShowManualModal(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -567,12 +603,11 @@ export function Accounts() {
     }
   };
 
-  const resetManualForm = () => {
-    setActiveType(null);
-    setMethodChoiceType(null);
+  const clearFormFields = () => {
     setAcctName("");
     setAcctBalance("");
     setAcctRate("");
+    setAcctMinPayment("");
     setRentMonthly("");
     setInsAnnual("");
     setMaintAnnual("");
@@ -582,48 +617,107 @@ export function Accounts() {
     setAcctLng(null);
     setAcctAddressRejected(false);
     setAcctValueSource("market");
+    setAddError("");
+  };
+
+  // Full wipe back to step 1. Wired only to Cancel, close, and a successful
+  // create — Back moves the step pointer and keeps everything typed.
+  const resetManualForm = () => {
+    setFormOption(null);
+    setMethodChoice(null);
+    setActiveType(null);
+    setTypedUnder(null);
     setEstimating(null);
     setPendingLinkedId(null);
     setAddCounterpartAfter(false);
+    clearFormFields();
   };
 
-  // Open the manual form for a given type (prefills name, clears the rest).
-  const enterManualForm = (at: AccountTypeDef) => {
-    setMethodChoiceType(null);
-    setActiveType(at);
-    setAcctName(at.label);
-    setAcctBalance("");
-    setAcctRate("");
-    setRentMonthly("");
-    setInsAnnual("");
-    setMaintAnnual("");
-    setAcctAddress("");
-    setAcctPlaceId("");
-    setAcctLat(null);
-    setAcctLng(null);
-    setAcctAddressRejected(false);
-    setAcctValueSource("market");
-    setEstimating(null);
+  // Leave the form a create was started from — closing the dialog, but also
+  // stepping back to an earlier step or walking off the page. The create keeps
+  // going and still lands, but its number has moved on, so it no longer writes
+  // over whatever the user moved on to. The spinner goes with it: the button it
+  // belonged to isn't on screen any more. Every such exit must come through
+  // here.
+  const leaveAddRun = () => {
+    addRun.current += 1;
+    setAddingAccount(false);
+  };
+
+  // Every way out of the dialog: the X, Escape, the overlay, the swipe, Cancel.
+  const closeAddModal = () => {
+    leaveAddRun();
+    setShowManualModal(false);
+    resetManualForm();
+  };
+
+  // Open the manual form for a category. A single-type category picks its type;
+  // anything else waits for the Select. Never clears what's already typed.
+  const enterManualForm = (opt: AddOption) => {
+    setFormOption(opt);
+    setTypedUnder(opt.label);
+    if (opt.types.length === 1) setActiveType(opt.types[0]);
+  };
+
+  // Open the manual form already set to a specific type — deep links and the
+  // property↔mortgage chain. A link that names no subtype opens the right
+  // category with the Select still unanswered rather than guessing one.
+  const openFormForType = (type: string, subtype: string | null) => {
+    const exact = (o: AddOption) => o.types.find((t) => t.type === type && t.subtype === subtype);
+    const opt = ADD_OPTIONS.find(exact) ?? ADD_OPTIONS.find((o) => o.types.some((t) => t.type === type));
+    if (!opt) return false;
+    setFormOption(opt);
+    setTypedUnder(opt.label);
+    setActiveType(exact(opt) ?? (opt.types.length === 1 ? opt.types[0] : null));
+    return true;
+  };
+
+  // A type change re-renders the rest of the form off the new type. It must not
+  // leave a counterpart link behind for a type that doesn't offer one.
+  const chooseType = (key: string) => {
+    const next = formOption?.types.find((t) => accountTypeKey(t.type, t.subtype) === key);
+    if (!next) return;
+    // A card's purchase APR and a loan's interest rate are different numbers, so
+    // a rate typed for one must not ride across to the other — 19.5 is an
+    // ordinary card, and a mortgage nobody has. Loan to loan keeps it: the same
+    // rate still means the same thing.
+    if (activeType && activeType.isDebt && next.isDebt && activeType.type !== next.type) {
+      setAcctRate("");
+    }
+    setActiveType(next);
+    if (next.type !== "real_estate" && next.subtype !== "mortgage") {
+      setPendingLinkedId(null);
+      setAddCounterpartAfter(false);
+    }
   };
 
   // Step 1 → step 2. Each top-level option routes to its own next step:
   //   plaid      → connect-or-manual choice (Plaid preferred)
   //   realEstate → straight into the property form
   //   manual     → straight into the manual form
-  //   describe   → the AI-style "describe your accounts" flow
   const selectOption = (opt: AddOption) => {
-    if (opt.route === "describe") {
-      setShowManualModal(false);
-      resetManualForm();
-      navigate("/quick-import");
-      return;
+    // Coming back to step 1 keeps the fields, so switching category is the one
+    // moment they stop applying.
+    if (typedUnder && typedUnder !== opt.label) {
+      clearFormFields();
+      setActiveType(null);
+      setPendingLinkedId(null);
+      setAddCounterpartAfter(false);
     }
     if (opt.route === "plaid") {
-      setMethodChoiceType(opt.def!);
+      setMethodChoice(opt);
+      setTypedUnder(opt.label);
     } else {
       // realEstate + manual both drop straight into the form.
-      enterManualForm(opt.def!);
+      enterManualForm(opt);
     }
+  };
+
+  const startDescribe = () => {
+    leaveAddRun();
+    setShowManualModal(false);
+    resetManualForm();
+    navigate("/quick-import");
   };
 
   // Poll the async value estimate for a freshly-created property (~10s cadence,
@@ -665,10 +759,43 @@ export function Accounts() {
     const hasManualValue = isProperty
       ? ownValueChosen && acctBalance.trim() !== ""
       : acctBalance.trim() !== "";
+    const run = ++addRun.current;
+    const onScreen = () => addRun.current === run;
     setAddingAccount(true);
+    setAddError("");
+    // A rate out of the column's range (numeric(6,4)) is dropped rather than
+    // sent, so a typo can't fail the whole create.
+    const rateTyped = acctRate.trim() !== "" ? Number(acctRate) : NaN;
+    const rate = Number.isFinite(rateTyped) && rateTyped >= 0 && rateTyped <= 99.99 ? rateTyped : null;
     try {
       const metadata: Record<string, unknown> = {};
-      if (activeType.isDebt && acctRate) metadata.interestRate = parseFloat(acctRate);
+      if (activeType.isDebt) {
+        // The typed liability shape (core/liability-metadata) — what
+        // resolveDebtApr, the Debt page and the loan-details PATCH all read. The
+        // legacy untyped `interestRate` key never reached accounts.apr, so a rate
+        // entered here was invisible to the chat tools.
+        const loanType =
+          activeType.type === "credit"
+            ? "credit_card"
+            : activeType.subtype === "mortgage"
+              ? "mortgage"
+              : activeType.subtype === "student"
+                ? "student_loan"
+                : "other_loan";
+        metadata.type = loanType;
+        metadata.source = "manual";
+        if (rate !== null) {
+          if (loanType === "credit_card") {
+            metadata.aprs = [{ aprType: "purchase_apr", aprPercentage: rate }];
+          } else {
+            metadata.interestRatePercentage = rate;
+          }
+        }
+        const minPay = acctMinPayment.trim() !== "" ? Number(acctMinPayment) : NaN;
+        if (asksMinPayment(activeType) && Number.isFinite(minPay) && minPay >= 0) {
+          metadata.minimumPaymentAmount = minPay;
+        }
+      }
       if (activeType.subtype === "rental") {
         if (rentMonthly) metadata.monthlyRent = parseFloat(rentMonthly);
         if (insAnnual) metadata.annualInsurance = parseFloat(insAnnual);
@@ -686,8 +813,11 @@ export function Accounts() {
       const result = await api.createManualAccount({
         name: acctName.trim(),
         type: activeType.type,
-        subtype: activeType.subtype,
+        subtype: activeType.subtype ?? undefined,
         balance: hasManualValue ? parseFloat(acctBalance) : willEstimate ? undefined : 0,
+        // Column and metadata carry the same rate, the way the loan-details
+        // PATCH keeps them in sync.
+        ...(activeType.isDebt && rate !== null ? { apr: rate } : {}),
         metadata: Object.keys(metadata).length ? metadata : undefined,
         // Pin the typed value as a durable override so the estimate never
         // overwrites it (matches the detail/edit page's "My own value").
@@ -695,23 +825,29 @@ export function Accounts() {
         linkedAccountId: pendingLinkedId || undefined,
       });
 
+      // The dialog this create was started from is gone. The account is made,
+      // so refresh the list and stop: everything below drives a dialog — an
+      // estimating spinner, the counterpart form, a follow-up banner — that is
+      // no longer this create's.
+      if (!onScreen()) {
+        loadItems();
+        return;
+      }
+
       const justAdded = activeType;
       const createdId = result.account.id;
       // The user chose "+ Add a new <counterpart>" in the link picker: after this
       // account is created, advance the modal straight to the counterpart's add
       // form, pre-linked to it (reuses the same pendingLinkedId flow as the
-      // post-create banner). The counterpart type is derived from ACCOUNT_TYPES.
+      // post-create banner). The counterpart type comes from the shared catalog.
       const chainCounterpart = addCounterpartAfter;
 
       // Open the counterpart's add form pre-linked to the just-created account.
       const openCounterpartForm = () => {
-        const target =
-          justAdded.type === "real_estate"
-            ? ACCOUNT_TYPES.find((at) => at.subtype === "mortgage")!
-            : ACCOUNT_TYPES.find((at) => at.type === "real_estate")!;
-        setAddCounterpartAfter(false);
+        resetManualForm();
         setPendingLinkedId(createdId);
-        enterManualForm(target);
+        if (justAdded.type === "real_estate") openFormForType("loan", "mortgage");
+        else openFormForType("real_estate", null);
         setShowManualModal(true);
       };
 
@@ -754,8 +890,7 @@ export function Accounts() {
           onAction: () => {
             setLinkedBanner(null);
             setPendingLinkedId(createdId);
-            const mortgage = ACCOUNT_TYPES.find((at) => at.subtype === "mortgage")!;
-            enterManualForm(mortgage);
+            openFormForType("loan", "mortgage");
             setShowManualModal(true);
           },
         });
@@ -766,14 +901,21 @@ export function Accounts() {
           onAction: () => {
             setLinkedBanner(null);
             setPendingLinkedId(createdId);
+            openFormForType("real_estate", null);
             setShowManualModal(true);
           },
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add account");
+      // Nowhere to show it once the dialog is gone, and holding it would surface
+      // this failure on the next form the user opens.
+      if (!onScreen()) return;
+      // Surfaced inside the modal: the form is still open over the page banner.
+      setAddError(friendlyAddError(err instanceof Error ? err.message : undefined));
+      setTimeout(() => addErrorRef.current?.scrollIntoView({ block: "nearest" }), 0);
     } finally {
-      setAddingAccount(false);
+      // Closing already cleared it, and a later create may own the button now.
+      if (onScreen()) setAddingAccount(false);
     }
   };
 
@@ -785,27 +927,28 @@ export function Accounts() {
   // Link-counterpart candidates for the add form. A property is secured by a
   // mortgage/loan (never a credit card), so the property form offers unlinked
   // `loan` accounts and the mortgage form offers real_estate accounts.
-  const typeLabel = (type: string, subtype?: string | null) =>
-    ACCOUNT_TYPES.find((at) => at.type === type && at.subtype === (subtype ?? undefined))?.label ??
-    ACCOUNT_TYPES.find((at) => at.type === type)?.label ??
-    type;
+  // Which type the common part of the form is shaped by. Before a type is chosen
+  // the category's first option stands in: every type within a category agrees on
+  // asset-vs-debt and on whether it's a property, so the fields above the Select
+  // answer never move once a type is picked.
+  const formShape = formOption ? activeType ?? formOption.types[0] : null;
   const linkCandidateOptions: AccountPickerOption[] = items.flatMap((i) =>
     i.accounts
       .filter((a) => {
-        if (!activeType) return false;
-        if (activeType.type === "real_estate") return a.type === "loan" && !a.propertyAccountId;
-        if (activeType.subtype === "mortgage") return a.type === "real_estate";
+        if (!formShape) return false;
+        if (formShape.type === "real_estate") return a.type === "loan" && !a.propertyAccountId;
+        if (formShape.subtype === "mortgage") return a.type === "real_estate";
         return false;
       })
       .map((a) => ({
         id: a.id,
         name: a.name,
         institution: i.institutionName || "Manual",
-        meta: typeLabel(a.type, a.subtype),
+        meta: accountTypeLabel(a.type, a.subtype),
       })),
   );
   const offersLink =
-    !!activeType && (activeType.type === "real_estate" || activeType.subtype === "mortgage");
+    !!formShape && (formShape.type === "real_estate" || formShape.subtype === "mortgage");
 
   // Total tracked = sum of absolute balances across all accounts (a soft "scope" figure)
   const totalTracked = allAccounts.reduce((sum, a) => {
@@ -1113,36 +1256,52 @@ export function Accounts() {
       {/* ── Add Account Modal ── */}
       <Modal
         open={showManualModal}
-        onClose={() => { setShowManualModal(false); resetManualForm(); }}
-        title={
-          activeType
-            ? activeType.label
-            : methodChoiceType
-              ? methodChoiceType.label
-              : "Add an account"
+        onClose={closeAddModal}
+        // Back walks one step: form → connect-vs-manual (or straight to the
+        // picker when the category never offered it) → picker. It only moves the
+        // step, so nothing typed is lost either way. It does leave the run,
+        // though: the step it came from is the one an in-flight create belongs
+        // to, and that create must not land on the step being walked to.
+        // `null` rather than undefined: this dialog has steps, so the header
+        // holds the Back slot open even where there's nowhere back to, and the
+        // title doesn't slide sideways between steps.
+        onBack={
+          estimating
+            ? null
+            : formOption
+              ? () => { leaveAddRun(); setFormOption(null); }
+              : methodChoice
+                ? () => { leaveAddRun(); setMethodChoice(null); }
+                : null
         }
+        // The type answer re-shapes the form beneath it, so the panel grows
+        // downward instead of recentring under what's already filled in.
+        stableTop
+        // A full-height tray costs the empty sheet below a short form, so only a
+        // form that actually grows under its type answer takes one. Everything
+        // else, including a category whose every type renders the same fields,
+        // sizes to its content.
+        stableTopOnPhone={!!formOption?.growsWithType && !estimating}
+        title={formOption?.label ?? methodChoice?.label ?? "Add an account"}
         description={
-          activeType || methodChoiceType
+          formOption || methodChoice
             ? undefined
             : "Pick an account type to connect it or enter it manually."
         }
         footer={
-          activeType && estimating ? (
-            <Button
-              variant="primary"
-              onClick={() => { setShowManualModal(false); resetManualForm(); }}
-            >
+          formOption && estimating ? (
+            <Button variant="primary" onClick={closeAddModal}>
               {estimating.status === "pending" ? "Continue in background" : "Done"}
             </Button>
-          ) : activeType ? (
+          ) : formOption ? (
           <>
-            <Button variant="ghost" onClick={() => { setShowManualModal(false); resetManualForm(); }}>
+            <Button variant="ghost" onClick={closeAddModal}>
               Cancel
             </Button>
             <Button
               variant="primary"
               onClick={handleAddManualAccount}
-              disabled={!acctName.trim() || addingAccount}
+              disabled={!activeType || !acctName.trim() || addingAccount}
               loading={addingAccount}
               leadingIcon={<Plus size={15} />}
             >
@@ -1151,7 +1310,7 @@ export function Accounts() {
           </>
         ) : undefined}
       >
-        {activeType && estimating ? (
+        {formOption && estimating ? (
           <div role="status" aria-live="polite" className="flex flex-col items-center gap-3 py-8 text-center">
             {estimating.status === "pending" ? (
               <>
@@ -1189,31 +1348,40 @@ export function Accounts() {
               </>
             )}
           </div>
-        ) : activeType ? (
+        ) : formOption ? (
           <div className="flex flex-col gap-5">
-            <div className="flex items-center gap-2.5">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas-sunken px-2.5 py-1 text-[12px] font-semibold text-content-secondary">
-                <span>{activeType.emoji}</span> {activeType.label}
-              </span>
-              <button
-                type="button"
-                onClick={() => { resetManualForm(); }}
-                className="ui-focus ml-auto rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:opacity-80"
-              >
-                change type
-              </button>
-            </div>
+            {/* The type comes first: it decides what the rest of the form is, so
+                every type-specific field appends below and nothing already
+                filled in ever moves. */}
+            {formOption.types.length > 1 && (
+              <Field label={formOption.typeLabel ?? "Type"}>
+                <Select
+                  value={activeType ? accountTypeKey(activeType.type, activeType.subtype) : ""}
+                  onChange={(e) => chooseType(e.target.value)}
+                  // Unanswered reads as answered when the placeholder is full
+                  // strength, so mute it until a type is picked.
+                  className={activeType ? undefined : "text-content-muted"}
+                  autoFocus
+                >
+                  <option value="" disabled>Choose a type…</option>
+                  {formOption.types.map((t) => {
+                    const key = accountTypeKey(t.type, t.subtype);
+                    return <option key={key} value={key}>{t.label}</option>;
+                  })}
+                </Select>
+              </Field>
+            )}
 
             <Field label="Account name">
               <Input
                 type="text"
                 value={acctName}
                 onChange={(e) => setAcctName(e.target.value)}
-                autoFocus
+                autoFocus={formOption.types.length === 1}
               />
             </Field>
 
-            {activeType.type === "real_estate" && (
+            {formShape?.type === "real_estate" && (
               <Field label="Address">
                 <AddressAutocomplete
                   value={acctAddress}
@@ -1246,7 +1414,7 @@ export function Accounts() {
               </Field>
             )}
 
-            {activeType.type === "real_estate" ? (
+            {formShape?.type === "real_estate" ? (
               <ValueSourceControl
                 source={acctValueSource}
                 onSourceChange={setAcctValueSource}
@@ -1254,7 +1422,7 @@ export function Accounts() {
                 onOwnValueChange={setAcctBalance}
               />
             ) : (
-              <Field label={activeType.isDebt ? "Amount owed" : "Balance"}>
+              <Field label={formShape?.isDebt ? "Amount owed" : "Balance"}>
                 <MoneyInput
                   type="text"
                   inputMode="decimal"
@@ -1270,7 +1438,7 @@ export function Accounts() {
             {offersLink && (
               <Field
                 label={
-                  activeType.type === "real_estate"
+                  formShape?.type === "real_estate"
                     ? "Link a mortgage / loan (optional)"
                     : "Secured by a property (optional)"
                 }
@@ -1284,7 +1452,7 @@ export function Accounts() {
                       <Plus className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1 truncate font-semibold">
-                      {activeType.type === "real_estate"
+                      {formShape?.type === "real_estate"
                         ? "New mortgage (we'll set it up next)"
                         : "New property (we'll set it up next)"}
                     </span>
@@ -1303,10 +1471,10 @@ export function Accounts() {
                     value={pendingLinkedId ?? ""}
                     onChange={(v) => setPendingLinkedId(v || null)}
                     placeholder={
-                      activeType.type === "real_estate" ? "No mortgage" : "No property"
+                      formShape?.type === "real_estate" ? "No mortgage" : "No property"
                     }
                     addLabel={
-                      activeType.type === "real_estate"
+                      formShape?.type === "real_estate"
                         ? "Add a new mortgage"
                         : "Add a new property"
                     }
@@ -1317,14 +1485,14 @@ export function Accounts() {
                   />
                 )}
                 <p className="mt-2 text-[12px] leading-relaxed text-content-muted">
-                  {activeType.type === "real_estate"
+                  {formShape?.type === "real_estate"
                     ? "Tie an existing mortgage to this property so we can show your equity. You can also add one later."
                     : "Tie this loan to the property it's secured by. You can also add one later."}
                 </p>
               </Field>
             )}
 
-            {activeType.type === "real_estate" && activeType.subtype === "rental" && (
+            {activeType?.type === "real_estate" && activeType.subtype === "rental" && (
               <>
                 <Field label="Monthly rent">
                   <MoneyInput
@@ -1364,40 +1532,47 @@ export function Accounts() {
               </>
             )}
 
-            {activeType.isDebt && (
-              <Field label="Interest rate">
+            {activeType?.isDebt && (
+              <Field label="Interest rate (%)">
                 <Input
                   type="number"
                   min={0}
-                  max={40}
-                  step={0.1}
+                  max={99.99}
+                  step={0.01}
                   value={acctRate}
                   onChange={(e) => setAcctRate(e.target.value)}
-                  placeholder="5.5"
+                  placeholder={activeType.type === "credit" ? "21.99" : "6.5"}
                   className="ui-tnum"
                 />
               </Field>
             )}
-          </div>
-        ) : methodChoiceType ? (
-          // Step 2a — Plaid-eligible type: connect automatically or enter by hand.
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2.5">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-canvas-sunken px-2.5 py-1 text-[12px] font-semibold text-content-secondary">
-                <span>{methodChoiceType.emoji}</span> {methodChoiceType.label}
-              </span>
-              <button
-                type="button"
-                onClick={() => setMethodChoiceType(null)}
-                className="ui-focus ml-auto rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:opacity-80"
-              >
-                change type
-              </button>
-            </div>
 
+            {activeType && asksMinPayment(activeType) && (
+              <Field label="Monthly payment">
+                <MoneyInput
+                  type="text"
+                  inputMode="decimal"
+                  value={acctMinPayment}
+                  onChange={(e) => setAcctMinPayment(e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder="0"
+                  className="ui-tnum"
+                  leadingIcon={<span className="text-[13px]">$</span>}
+                />
+              </Field>
+            )}
+
+            {addError && (
+              <div ref={addErrorRef}>
+                <Alert tone="negative">{addError}</Alert>
+              </div>
+            )}
+          </div>
+        ) : methodChoice ? (
+          // Step 2a — a Plaid-eligible category: connect automatically or by hand.
+          <div className="flex flex-col gap-4">
             <button
               type="button"
-              onClick={() => { setShowManualModal(false); resetManualForm(); handleLink(); }}
+              onClick={() => { leaveAddRun(); setShowManualModal(false); resetManualForm(); handleLink(); }}
               disabled={linking}
               className="ui-focus group flex items-start gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand hover:shadow-ui-sm disabled:opacity-60"
             >
@@ -1415,7 +1590,7 @@ export function Accounts() {
 
             <button
               type="button"
-              onClick={() => enterManualForm(methodChoiceType)}
+              onClick={() => enterManualForm(methodChoice)}
               className="ui-focus group flex items-start gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
             >
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
@@ -1456,7 +1631,7 @@ export function Accounts() {
             {/* Describe to add — the AI-magical path, set apart from the rest. */}
             <button
               type="button"
-              onClick={() => selectOption({ label: "Describe to add", hint: "", emoji: "✨", route: "describe" })}
+              onClick={startDescribe}
               className="ui-focus group relative mt-1.5 flex min-h-touch items-center gap-3.5 overflow-hidden rounded-ui-lg border border-brand/40 px-4 py-3 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand hover:shadow-ui-md"
               style={{
                 background:
@@ -1833,7 +2008,7 @@ function AccountRow({ account, overLimit, linkedAccountName, lastSyncedAt, onEst
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-content-muted">
-          <span>{getAccountTypeLabel(account.type, account.subtype)}</span>
+          <span>{accountTypeLabel(account.type, account.subtype)}</span>
           {linkedAccountName && <span>linked to {linkedAccountName}</span>}
         </div>
       </div>

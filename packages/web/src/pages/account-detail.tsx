@@ -14,6 +14,7 @@ import { AddressAutocomplete } from '../components/common/AddressAutocomplete';
 import { ValueSourceBadge, type ValueSource } from '../components/common/ValueSourceBadge';
 import { ValueSourceControl } from '../components/common/ValueSourceControl';
 import { AccountLinkPicker, type AccountPickerOption } from '../components/common/AccountLinkPicker';
+import { ACCOUNT_TYPE_CATALOG, accountTypeLabel, canonicalSubtype } from '../lib/account-types';
 import { TransactionList } from '../components/transactions/TransactionList';
 
 // ---------------------------------------------------------------------------
@@ -29,24 +30,9 @@ interface TypeOption {
   subtype: string | null;
 }
 
-// Mirrors the manual-account creation list on /accounts, with Checking and
-// Savings split so saving never collapses a synced subtype into one bucket.
-const TYPE_OPTIONS: TypeOption[] = [
-  { label: 'Checking', type: 'depository', subtype: 'checking' },
-  { label: 'Savings', type: 'depository', subtype: 'savings' },
-  { label: '401(k) / 403(b)', type: 'investment', subtype: '401k' },
-  { label: 'Roth IRA', type: 'investment', subtype: 'roth_ira' },
-  { label: 'Traditional IRA', type: 'investment', subtype: 'ira' },
-  { label: 'Brokerage', type: 'investment', subtype: 'brokerage' },
-  { label: 'HSA', type: 'investment', subtype: 'hsa' },
-  { label: 'Primary Residence', type: 'real_estate', subtype: 'primary' },
-  { label: 'Rental Property', type: 'real_estate', subtype: 'rental' },
-  { label: 'Other Asset', type: 'alternative', subtype: null },
-  { label: 'Credit Card', type: 'credit', subtype: null },
-  { label: 'Student Loan', type: 'loan', subtype: 'student' },
-  { label: 'Auto Loan', type: 'loan', subtype: 'auto' },
-  { label: 'Mortgage', type: 'loan', subtype: 'mortgage' },
-];
+// Reclassifying is the edit side of the same decision the create modal makes, so
+// both read the one catalog (lib/account-types) and offer the same words.
+const TYPE_OPTIONS: TypeOption[] = ACCOUNT_TYPE_CATALOG;
 
 const LIABILITY_TYPES = new Set(['credit', 'loan']);
 const keyFor = (type: string, subtype: string | null) => `${type}:${subtype ?? ''}`;
@@ -324,7 +310,7 @@ export function AccountDetail() {
 
   const { acct, institution, isManual, status, lastSyncedAt, snapshots } = data;
   const balance = parseFloat(acct.balance ?? '0');
-  const typeLabel = titleCaseType(acct.type, acct.subtype);
+  const typeLabel = accountTypeLabel(acct.type, acct.subtype);
   const displayName = titleCase(stripAccountMask(acct.name, acct.mask));
   const needsAttention = status === 'error' || status === 'item_login_required';
 
@@ -342,12 +328,17 @@ export function AccountDetail() {
   const hasHistory = allPoints.length >= 2;
 
   // Preserve a synced type/subtype that isn't one of our presets so saving
-  // doesn't silently reclassify it.
-  const initialKey = keyFor(acct.type, acct.subtype);
-  const knownKeys = new Set(TYPE_OPTIONS.map((o) => keyFor(o.type, o.subtype)));
-  const options: TypeOption[] = knownKeys.has(initialKey)
-    ? TYPE_OPTIONS
-    : [{ label: titleCaseType(acct.type, acct.subtype), type: acct.type, subtype: acct.subtype }, ...TYPE_OPTIONS];
+  // doesn't silently reclassify it. Matching goes through the same alias the
+  // label does: Plaid's "credit card" IS the catalog's Credit card, so it must
+  // not be prepended as a second entry reading the same words. The option it
+  // matches carries the persisted spelling, so saving doesn't rewrite it.
+  const knownKey = keyFor(acct.type, canonicalSubtype(acct.subtype));
+  const isKnown = TYPE_OPTIONS.some((o) => keyFor(o.type, o.subtype) === knownKey);
+  const options: TypeOption[] = isKnown
+    ? TYPE_OPTIONS.map((o) =>
+        keyFor(o.type, o.subtype) === knownKey ? { ...o, subtype: acct.subtype ?? null } : o,
+      )
+    : [{ label: accountTypeLabel(acct.type, acct.subtype), type: acct.type, subtype: acct.subtype }, ...TYPE_OPTIONS];
 
   const chosen = options.find((o) => keyFor(o.type, o.subtype) === typeKey) ?? options[0];
   const wasLiability = LIABILITY_TYPES.has(acct.type);
@@ -382,7 +373,7 @@ export function AccountDetail() {
     id: a.id,
     name: titleCase(a.name),
     institution: data.accountInstitution[a.id] ?? 'Manual',
-    meta: titleCaseType(a.type, a.subtype),
+    meta: accountTypeLabel(a.type, a.subtype),
   });
   const loanOptions: AccountPickerOption[] = data.allAccounts
     .filter((a) => a.type === 'loan' && !a.propertyAccountId)
@@ -1531,7 +1522,3 @@ function titleCase(raw: string): string {
     .join(' ');
 }
 
-function titleCaseType(type: string, subtype: string | null): string {
-  const base = subtype || type;
-  return base.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-}

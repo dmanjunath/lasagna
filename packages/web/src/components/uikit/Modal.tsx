@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { createPortal } from 'react-dom';
 import { motion, useDragControls, type PanInfo } from 'framer-motion';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
 
@@ -17,19 +17,42 @@ import { Button } from './Button';
 export function Modal({
   open,
   onClose,
+  onBack,
   title,
   description,
   children,
   footer,
   variant = 'center',
+  stableTop = false,
+  stableTopOnPhone = false,
 }: {
   open: boolean;
   onClose: () => void;
+  /**
+   * Multi-step dialogs only: renders Back in the header, left of the title.
+   * Pass `null` on the first step to hold the slot open, so the title doesn't
+   * shift sideways the moment Back appears.
+   */
+  onBack?: (() => void) | null;
   title?: ReactNode;
   description?: ReactNode;
   children?: ReactNode;
   footer?: ReactNode;
   variant?: 'center' | 'sheet';
+  /**
+   * Opt in when the content changes height while it's open (a form that appends
+   * fields as you answer). The panel's top edge stays put and the new fields
+   * append downward, instead of a centred panel sliding everything already
+   * filled in upwards. Ignored by `variant="sheet"`, which is already anchored.
+   */
+  stableTop?: boolean;
+  /**
+   * The phone half of `stableTop`, opt in separately because it costs more: a
+   * bottom-docked tray can only hold its top edge by taking a fixed height up
+   * front, which on content that can't grow leaves an empty sheet above the
+   * footer. Pass it only while the step on screen is the one that grows.
+   */
+  stableTopOnPhone?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   // Swipe-to-dismiss for the mobile bottom sheet: drag starts only from the
@@ -41,6 +64,10 @@ export function Modal({
 
   useBodyScrollLock(open);
 
+  // Close, Escape, the overlay, the swipe and the footer's own Cancel all stay
+  // live while a submit is in flight. Holding some of them shut and not the rest
+  // is worse than holding none, and holding all of them would strand the user
+  // behind a request that never answers.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -60,9 +87,11 @@ export function Modal({
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       ) ?? [])].filter((el) => !el.hasAttribute('disabled'));
     if (panelRef.current && !panelRef.current.contains(document.activeElement)) {
-      // Prefer the first control after the header's close button.
+      // Prefer the first control after the header's own buttons — Back (when
+      // present) then Close — so focus lands in the dialog's content, never on
+      // the control that leaves it.
       const els = focusables();
-      (els[1] ?? els[0])?.focus();
+      (els[onBack ? 2 : 1] ?? els[0])?.focus();
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
@@ -83,19 +112,31 @@ export function Modal({
       document.removeEventListener('keydown', onKey);
       opener?.focus?.();
     };
-  }, [open]);
+  }, [open, onBack]);
 
   if (!open || typeof document === 'undefined') return null;
 
   // Shared phone treatment: a bottom-docked tray spanning the full width, up to
   // ~92% of the viewport tall (its content scrolls internally), rounded only at
   // the top, sliding up from the bottom edge.
+  // `stableTopOnPhone` takes that full height up front instead of growing into
+  // it, since a bottom-docked panel that grows moves its own top edge (and
+  // everything already answered) up the screen. It's per-step, not per-dialog:
+  // content that can't grow would just get an empty sheet above its footer.
   const phoneTray =
-    'max-sm:inset-x-0 max-sm:inset-y-auto max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-ui-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t max-sm:max-h-[92dvh] max-sm:[animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]';
+    'max-sm:inset-x-0 max-sm:inset-y-auto max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-ui-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t max-sm:max-h-[92dvh] max-sm:[animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]' +
+    (stableTopOnPhone ? ' max-sm:h-[92dvh]' : '');
+  // `stableTop`: on desktop, pin the top edge with a fixed offset instead of
+  // centring, so growing content can only push downward. Each placement needs
+  // its own entrance, since the keyframes carry the centring transform the panel
+  // is holding.
+  const placement = stableTop
+    ? 'top-[max(2rem,7vh)] max-h-[calc(100dvh-max(4rem,14vh))] [animation:ui-scale-in-top_180ms_cubic-bezier(0.22,1,0.36,1)]'
+    : 'top-1/2 -translate-y-1/2 max-h-[calc(100dvh-2rem)] [animation:ui-scale-in_180ms_cubic-bezier(0.22,1,0.36,1)]';
   const panel =
     variant === 'sheet'
       ? `fixed inset-y-0 right-0 w-full max-w-md rounded-none border-l sm:rounded-l-ui-xl [animation:ui-slide-right_220ms_cubic-bezier(0.22,1,0.36,1)] ${phoneTray}`
-      : `fixed left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-ui-lg border [animation:ui-scale-in_180ms_cubic-bezier(0.22,1,0.36,1)] max-h-[calc(100dvh-2rem)] ${phoneTray}`;
+      : `fixed left-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 rounded-ui-lg border ${placement} ${phoneTray}`;
 
   return createPortal(
     // ui-root lives on the PANEL, not this wrapper: .ui-root paints an opaque
@@ -138,8 +179,25 @@ export function Modal({
             className="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6"
             onPointerDown={swipeable ? (e) => dragControls.start(e) : undefined}
           >
-            <div className="min-w-0">
-              {title && <h2 className="text-[18px] font-semibold text-content">{title}</h2>}
+            {onBack !== undefined && (
+              // Icon-only, sized to mirror Close: the slot is reserved on every
+              // step, so the title keeps its x, and an empty 36px gutter reads as
+              // the pair of Close rather than as a title indented by nothing.
+              // `null` renders it invisible and disabled, so it can't be tabbed to.
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onBack ?? undefined}
+                disabled={!onBack}
+                aria-label="Back"
+                aria-hidden={!onBack || undefined}
+                className={cn('-ml-2 -mt-2 h-9 w-9 min-h-0 min-w-0 shrink-0', !onBack && 'invisible')}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            )}
+            <div className="min-w-0 flex-1">
+              {title && <h2 className="truncate text-[18px] font-semibold text-content">{title}</h2>}
               {description && (
                 <p className="mt-1 text-[13px] leading-relaxed text-content-muted">{description}</p>
               )}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CreditCard, Landmark, Pencil, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn, formatMoney, formatInstant, formatStoredMonth } from '../lib/utils';
+import { accountTypeLabel } from '../lib/account-types';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
@@ -85,10 +86,17 @@ function blendedApr(debts: DebtAccount[]): number {
   return Math.round((weighted / totalBal) * 10) / 10;
 }
 
+// Names the debt from the shared catalog (lib/account-types) so a subtype the
+// create modal writes reads the same here as it does everywhere else. Subtype
+// leads; the name is only sniffed when a synced loan carries no subtype at all.
 function debtTypeLabel(d: DebtAccount): string {
-  if (d.type === 'credit') return 'Credit Card';
-  if (d.subtype === 'mortgage' || d.name?.toLowerCase().includes('mortgage')) return 'Mortgage';
-  if (d.subtype === 'student_loan' || d.name?.toLowerCase().includes('student')) return 'Student Loan';
+  if (d.type === 'credit') return accountTypeLabel('credit', d.subtype);
+  if (d.subtype) return accountTypeLabel(d.type, d.subtype);
+  const name = d.name?.toLowerCase() ?? '';
+  if (name.includes('mortgage')) return accountTypeLabel('loan', 'mortgage');
+  if (name.includes('student')) return accountTypeLabel('loan', 'student');
+  // Nothing on file says which kind of loan it is, so don't claim one. The add
+  // form's "Other loan" is a choice the user made, not a reading of the data.
   return 'Loan';
 }
 
@@ -137,7 +145,9 @@ export function Debt() {
       setHasAccounts(balanceData.balances.length > 0);
       const apiDebts = debtResult.debts;
       const mapped: DebtAccount[] = apiDebts.map((d) => {
-        const isMortgage = d.name?.toLowerCase().includes('mortgage');
+        // Subtype first: a mortgage named for its lender ("Wells Fargo") was
+        // reading as a generic loan and getting the 8% stand-in, not 6.5%.
+        const isMortgage = d.subtype === 'mortgage' || d.name?.toLowerCase().includes('mortgage');
         const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
         const minPay = d.minimumPayment;
         const isHighInterest = apr >= 7 && !isMortgage;
@@ -830,7 +840,7 @@ function LoanDetailsModal({
     ? "credit_card"
     : debt.subtype === "mortgage"
       ? "mortgage"
-      : debt.subtype === "student_loan"
+      : debt.subtype === "student" || debt.subtype === "student_loan"
         ? "student_loan"
         : debt.name.toLowerCase().includes("mortgage")
           ? "mortgage"

@@ -1126,7 +1126,7 @@ export const api = {
     }),
 
   // Manual Accounts
-  createManualAccount: (data: { name: string; type: string; subtype?: string; balance?: number; metadata?: Record<string, unknown>; valueSource?: 'market' | 'own'; linkedAccountId?: string }) =>
+  createManualAccount: (data: { name: string; type: string; subtype?: string; balance?: number; apr?: number; metadata?: Record<string, unknown>; valueSource?: 'market' | 'own'; linkedAccountId?: string }) =>
     request<{ account: { id: string; name: string; type: string } }>('/manual-accounts', { method: 'POST', body: JSON.stringify(data) }),
 
   updateManualAccount: (id: string, data: { name?: string; balance?: number; metadata?: Record<string, unknown> }) =>

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, desc, accounts, balanceSnapshots, plaidItems } from "@lasagna/core";
+import { eq, and, desc, accounts, accountTypeEnum, balanceSnapshots, plaidItems } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
@@ -32,7 +32,7 @@ async function getOrCreateManualItem(tenantId: string): Promise<string> {
 manualAccountRoutes.post("/", async (c) => {
   const session = c.get("session");
   const body = await c.req.json();
-  const { name, type, subtype, balance, metadata, linkedAccountId } = body;
+  const { name, type, subtype, balance, metadata, apr, linkedAccountId } = body;
   // "own" pins the user's typed value as a durable override the auto-estimate
   // never overwrites (real_estate only; mirrors the property-details PATCH).
   const ownValueOverride = type === "real_estate" && body.valueSource === "own";
@@ -41,9 +41,39 @@ manualAccountRoutes.post("/", async (c) => {
     return c.json({ error: "name and type are required" }, 400);
   }
 
-  const validTypes = ["depository", "investment", "credit", "loan", "real_estate", "alternative"];
+  // name is accounts.name, varchar(255) — anything longer is a Postgres error,
+  // which reaches the user as a bare "Internal Server Error".
+  if (typeof name !== "string" || name.length > 255) {
+    return c.json({ error: "name must be a string of at most 255 characters" }, 400);
+  }
+
+  const validTypes: readonly string[] = accountTypeEnum.enumValues;
   if (!validTypes.includes(type)) {
     return c.json({ error: `type must be one of: ${validTypes.join(", ")}` }, 400);
+  }
+
+  // subtype is free-form (Plaid's vocabulary is open and quick-import writes its
+  // own), but the column is varchar(100) — anything longer is a Postgres error,
+  // not a 500.
+  if (subtype !== undefined && subtype !== null) {
+    if (typeof subtype !== "string" || subtype.length > 100) {
+      return c.json({ error: "subtype must be a string of at most 100 characters" }, 400);
+    }
+  }
+
+  // apr is numeric(6,4) — 100 or more overflows the column.
+  let aprValue: string | null = null;
+  if (apr !== undefined && apr !== null) {
+    const n =
+      typeof apr === "number"
+        ? apr
+        : typeof apr === "string" && apr.trim() !== ""
+          ? Number(apr)
+          : NaN;
+    if (!Number.isFinite(n) || n < 0 || n > 99.99) {
+      return c.json({ error: "apr must be a number between 0 and 99.99" }, 400);
+    }
+    aprValue = String(n);
   }
 
   const plaidItemId = await getOrCreateManualItem(session.tenantId);
@@ -84,6 +114,9 @@ manualAccountRoutes.post("/", async (c) => {
     type,
     subtype: subtype || null,
     mask: null,
+    // Keep the column in step with the rate in metadata: the Debt page reads
+    // metadata, the chat tools read this column.
+    apr: aprValue,
     metadata: metaStr,
     // creating a debt linked to a property → FK on the new row
     propertyAccountId: isDebt && linked ? linked.id : null,
