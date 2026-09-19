@@ -28,7 +28,7 @@ const CODE = [
   },
   {
     tab: "llm-boundary.test.ts",
-    note: "Any code path that reaches the model without scrubbing fails the build.",
+    note: "A test in the repo checks that no other file calls the model directly.",
     lines: [
       { s: "it(\"never imports the model directly\", () => {", t: "kw" },
       { s: "  const direct = sourceFiles()", t: "" },
@@ -143,20 +143,20 @@ const WIPE = [
           <h3 class="display">All of it is open source</h3>
           <p>
             All of LasagnaFi is open source, scrub layer included, so you can
-            read exactly what happens to your data. A test fails the build if any
-            code path reaches the model without passing through that layer
-            first.
+            read exactly what happens to your data. Chat, insights and the
+            planning tools all go through that one layer, and a test in the repo
+            checks that nothing else calls the model directly.
           </p>
           <ul class="pts">
             <li>MIT licensed, on GitHub</li>
-            <li>A test fails the build on any call that skips the scrub layer</li>
+            <li>A test in the repo checks for any call that skips the scrub layer</li>
             <li>The whole app can be run on your own server</li>
           </ul>
           <div class="hero-cta" style="margin-top:24px">
             <a class="btn btn-ghost" href={GITHUB_URL}><Icon name="github" size={17} /> See the source code</a>
           </div>
         </div>
-        <div class="card" data-demo data-demo-hold="3000" data-demo-labels="The scrub layer|The test that enforces it">
+        <div class="card" data-demo data-demo-hold="3000" data-demo-labels="The scrub layer|The test that checks it">
           <div class="card-head">
             <div class="card-title">lasagna</div>
             <span class="chip-meta" data-demo-label>The scrub layer</span>
