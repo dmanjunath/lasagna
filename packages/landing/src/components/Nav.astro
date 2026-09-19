@@ -1,20 +1,83 @@
 ---
 import { APP_URL, GITHUB_URL } from "../config";
 import WaveMark from "./WaveMark.astro";
+import Icon from "./Icon.astro";
+
+const links = [
+  { href: "/#how", label: "How it works" },
+  { href: "/features", label: "Features" },
+  { href: "/data-privacy", label: "Data Privacy" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: GITHUB_URL, label: "GitHub" },
+];
 ---
 
-<nav>
+<nav data-nav>
   <div class="nav-in">
-    <a class="brand" href="/#top">
+    <a class="brand" href="/">
       <WaveMark size={24} />
       <span>Lasagna<span class="fi">Fi</span></span>
     </a>
+
     <div class="nav-links">
-      <a href="/#how">How it works</a>
-      <a href="/#pricing">Pricing</a>
-      <a href="/#privacy">Privacy</a>
-      <a href={GITHUB_URL}>GitHub</a>
+      {links.map((l) => <a href={l.href}>{l.label}</a>)}
     </div>
-    <a class="btn btn-primary btn-sm" href={APP_URL}>Get started</a>
+
+    <div class="nav-right">
+      <a class="btn btn-primary btn-sm" href={APP_URL}>Get started <Icon name="arrow" size={15} /></a>
+      <button
+        class="nav-toggle"
+        type="button"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="nav-menu"
+        data-nav-toggle
+      >
+        <span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="nav-menu" id="nav-menu" data-nav-menu>
+    {links.map((l) => <a href={l.href}>{l.label}</a>)}
   </div>
 </nav>
+
+<script>
+  const nav = document.querySelector<HTMLElement>("[data-nav]");
+  const toggle = document.querySelector<HTMLButtonElement>("[data-nav-toggle]");
+  const menu = document.querySelector<HTMLElement>("[data-nav-menu]");
+
+  if (nav && toggle && menu) {
+    const setOpen = (open: boolean) => {
+      nav.classList.toggle("open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    };
+
+    toggle.addEventListener("click", () =>
+      setOpen(toggle.getAttribute("aria-expanded") !== "true")
+    );
+
+    // A link inside the menu may be a same-page anchor, which does not reload.
+    menu.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest("a")) setOpen(false);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && nav.classList.contains("open")) {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (nav.classList.contains("open") && !nav.contains(e.target as Node)) setOpen(false);
+    });
+
+    // Leaving the mobile breakpoint while open would strand the menu.
+    matchMedia("(min-width: 901px)").addEventListener("change", (e) => {
+      if (e.matches) setOpen(false);
+    });
+  }
+</script>

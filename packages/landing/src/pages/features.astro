@@ -1,0 +1,415 @@
+---
+import Layout from "../layouts/Layout.astro";
+import "../styles/landing.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import Motion from "../components/Motion.astro";
+import Demo from "../components/Demo.astro";
+import FinalCTA from "../components/FinalCTA.astro";
+import Icon from "../components/Icon.astro";
+import { TAX_ACTIONS } from "../demo-data";
+
+const TAX_YEARS = [
+  {
+    year: "2025",
+    summary: "Your 2025 return shows household income of <b>$82,400</b>, taken as the standard deduction.",
+    meta: ["Married filing jointly", "Virginia"],
+    actions: [
+      ...TAX_ACTIONS,
+    ],
+  },
+  {
+    year: "2024",
+    summary: "Your 2024 return shows household income of <b>$78,900</b>, with $1,100 of interest on top.",
+    meta: ["Married filing jointly", "Virginia"],
+    actions: [
+      { title: "Claim the $1,240 saver\u2019s credit you missed", chip: "$1,240 back" },
+      { title: "Carry forward $1,800 of capital losses", chip: "$1,800 to carry" },
+    ],
+  },
+];
+
+const PAYOFF = [
+  {
+    method: "Avalanche", note: "Highest rate first, lowest total interest",
+    interest: "$41,600", free: "June 2038",
+    order: [
+      { name: "Rewards Card", rate: "22.9%", note: "Attack this first, then roll the payment down" },
+      { name: "Auto Loan", rate: "7.2%", note: "Pay the $296 minimum for now" },
+      { name: "Mortgage", rate: "6.4%", note: "Pay the $1,570 minimum for now" },
+    ],
+  },
+  {
+    method: "Snowball", note: "Smallest balance first, accounts close sooner",
+    interest: "$46,300", free: "November 2038",
+    order: [
+      { name: "Rewards Card", rate: "$5,800", note: "Smallest balance, clears in 11 months" },
+      { name: "Auto Loan", rate: "$14,900", note: "Next smallest, clears in 4 years" },
+      { name: "Mortgage", rate: "$248,000", note: "Largest balance, last to clear" },
+    ],
+  },
+];
+
+const MONTHS = [
+  {
+    label: "August", spent: "$4,380", delta: "21% more than July", income: "$5,140",
+    left: "$760", rate: "15%", now: 4,
+    action: { title: "Bring utilities back to your usual", sub: "Utilities was $418 in August, against $265 in a normal month.", chip: "$153 a month" },
+  },
+  {
+    label: "July", spent: "$3,620", delta: "4% less than June", income: "$5,140",
+    left: "$1,520", rate: "30%", now: 3,
+    action: { title: "Nothing above your usual", sub: "Every category sat inside its normal range in July.", chip: "No action" },
+  },
+];
+// Bars are derived from the same numbers the card prints, so the chart can
+// never contradict the "left over" and "savings rate" beside it. Take-home is
+// flat, spending varies; both scale against take-home.
+const TAKE_HOME = 5140;
+const SPEND_BY_MONTH = [3200, 3450, 3780, 3620, 4380, 3300];
+const INCOME_BAR = 62;
+const BARS = SPEND_BY_MONTH.map((spend) => [
+  INCOME_BAR,
+  Math.round((spend / TAKE_HOME) * INCOME_BAR),
+]);
+const MONTH_LABELS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep"];
+
+const RETIRE = [
+  { age: "65", verdict: "On track", chip: "88% vs 85% target", years: "24", spend: "$4,200", length: "25", mc: "88%", hist: "85%", safe: "$4,380" },
+  { age: "60", verdict: "At risk", chip: "61% vs 85% target", years: "19", spend: "$4,200", length: "30", mc: "61%", hist: "58%", safe: "$3,240" },
+];
+
+const STEPS = [
+  { n: 1, icon: "check" as const, cat: "c-save", title: "Save a starter emergency fund of $1,000" },
+  { n: 2, icon: "card" as const, cat: "c-debt", title: "Pay off the $5,800 card" },
+  { n: 3, icon: "wallet" as const, cat: "c-spend", title: "Save 3 months of costs, $13,100" },
+  { n: 4, icon: "trend" as const, cat: "c-invest", title: "Put every spare dollar into tax-free accounts" },
+];
+---
+
+<Layout
+  title="Features | LasagnaFi"
+  description="Taxes, debt payoff, spending, retirement and your financial level. What LasagnaFi works out from the accounts you connect."
+>
+  <Nav />
+
+  <section class="wrap">
+    <div class="page-head rv">
+      <h1 class="display">Features</h1>
+      <p>
+        LasagnaFi aggregates every account you connect, then works out what you
+        should do about your taxes, debt, spending, retirement and savings.
+      </p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+
+      <!-- TAXES -->
+      <div class="feat-row rv" id="taxes">
+        <div class="copy">
+          <h3 class="display">Taxes</h3>
+          <p>
+            Upload your tax return and your brokerage forms. LasagnaFi reads
+            them against your connected accounts to find unused contribution
+            room, over-withholding and losses worth harvesting before year end.
+          </p>
+          <ul class="pts">
+            <li>Unused contribution room in an HSA, 401(k) or IRA</li>
+            <li>Over-withholding against last year's return</li>
+            <li>Unrealized losses that can offset gains</li>
+            <li>Estimated quarterly payments</li>
+          </ul>
+        </div>
+        <div class="card" data-demo data-demo-hold="3200">
+          <div class="demo-stage" data-demo-stage>
+            {TAX_YEARS.map((y, n) => {
+              const next = TAX_YEARS[(n + 1) % TAX_YEARS.length].year;
+              return (
+                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                  <div class="card-head">
+                    <div class="card-title">Your tax situation</div>
+                    <div class="segrow tight">
+                      {TAX_YEARS.map((o) => (
+                        <span
+                          class:list={["seg-chip", { on: o.year === y.year }]}
+                          {...(o.year === next ? { "data-demo-target": true } : {})}
+                        >{o.year}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div class="taxsit">
+                    <p set:html={y.summary} />
+                    <div class="meta">
+                      {y.meta.map((m) => <span class="chip-meta">{m}</span>)}
+                    </div>
+                  </div>
+                  <div class="rows mt">
+                    {y.actions.map((a) => (
+                      <div class="row bar c-tax">
+                        <span class="row-icon c-tax"><Icon name="dollar" /></span>
+                        <div class="row-body">
+                          <b>{a.title}</b>
+                          <span class="row-chips"><span class="chip-meta c-tax">{a.chip}</span></span>
+                        </div>
+                        <span class="row-chev"><Icon name="chevron" /></span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <!-- DEBT PAYOFF -->
+      <div class="feat-row flip rv" id="debt">
+        <div class="copy">
+          <h3 class="display">Debt payoff</h3>
+          <p>
+            Every card, loan and mortgage goes into one payoff schedule. Compare
+            avalanche against snowball, and each one shows you the date you
+            finish paying and the total interest it costs to get there.
+          </p>
+          <ul class="pts">
+            <li>Avalanche: highest rate first, lowest total interest</li>
+            <li>Snowball: smallest balance first, accounts close sooner</li>
+            <li>Extra monthly payments recalculate the payoff date</li>
+            <li>Mortgages, car loans and cards in one list</li>
+          </ul>
+        </div>
+        <div class="card" data-demo data-demo-hold="3200">
+          <div class="demo-stage" data-demo-stage>
+            {PAYOFF.map((p, n) => {
+              const next = PAYOFF[(n + 1) % PAYOFF.length].method;
+              return (
+                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                  <div class="card-head">
+                    <div class="card-title">How fast can you be debt free?</div>
+                    <div class="segrow tight">
+                      {PAYOFF.map((o) => (
+                        <span
+                          class:list={["seg-chip", { on: o.method === p.method }]}
+                          {...(o.method === next ? { "data-demo-target": true } : {})}
+                        >{o.method}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div class="stats-4" style="grid-template-columns:repeat(2,1fr)">
+                    <div class="stat"><span class="datalabel">Total interest</span><span class="figure">{p.interest}</span><span class="sub">{p.note}</span></div>
+                    <div class="stat"><span class="datalabel">Debt free</span><span class="figure" style="font-size:19px">{p.free}</span><span class="sub">at your current payment</span></div>
+                  </div>
+
+                  <div class="grp" style="margin-top:18px"><h4 class="display">Pay in this order</h4></div>
+                  <div class="rows">
+                    {p.order.map((o, k) => (
+                      <div class:list={["ord", { first: k === 0 }]}>
+                        <span class="n">{k + 1}</span>
+                        <div><b>{o.name}</b><em>{o.note}</em></div>
+                        <span class:list={["chip-meta", { "c-debt": k === 0 }]}>{o.rate}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <!-- SPENDING -->
+      <div class="feat-row rv" id="spending">
+        <div class="copy">
+          <h3 class="display">Spending</h3>
+          <p>
+            Every transaction is categorized automatically, so you get income,
+            spending and savings rate month by month. Any category running above
+            its own trailing average is flagged and turned into an action with a
+            dollar amount attached.
+          </p>
+          <ul class="pts">
+            <li>Income, spending and savings rate, month by month</li>
+            <li>Categories compared against their own recent average</li>
+            <li>Flagged categories become actions with a dollar amount</li>
+            <li>Transfers between your own accounts are excluded</li>
+          </ul>
+        </div>
+        <div class="card" data-demo data-demo-hold="3200">
+          <div class="demo-stage" data-demo-stage>
+            {MONTHS.map((m, n) => {
+              const next = MONTHS[(n + 1) % MONTHS.length].label;
+              return (
+                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                  <div class="card-head">
+                    <div class="card-title">Spent in {m.label}</div>
+                    <div class="segrow tight">
+                      {MONTHS.map((o) => (
+                        <span
+                          class:list={["seg-chip", { on: o.label === m.label }]}
+                          {...(o.label === next ? { "data-demo-target": true } : {})}
+                        >{o.label}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div class="nw-figure figure-lg" style="font-size:34px">{m.spent}</div>
+                  <p class="card-desc" style="margin-top:2px">{m.delta}</p>
+
+                  <div class="stats" style="margin-top:16px">
+                    <div class="stat"><span class="datalabel">Income</span><span class="figure">{m.income}</span></div>
+                    <div class="stat"><span class="datalabel">Left over</span><span class="figure pos">{m.left}</span></div>
+                    <div class="stat"><span class="datalabel">Savings rate</span><span class="figure">{m.rate}</span></div>
+                  </div>
+
+                  <div class="own-head">
+                    <span class="complegend" style="display:flex;gap:14px">
+                      <span class="lg"><i class="d" style="background:var(--viz-invest)"></i>Income</span>
+                      <span class="lg"><i class="d" style="background:var(--viz-debt)"></i>Spending</span>
+                    </span>
+                  </div>
+                  <div class="flow" aria-hidden="true">
+                    {BARS.map(([up, dn], k) => (
+                      <div class:list={["fl", { now: k === m.now }]}>
+                        <span class="up" style={`--up:${up}%`}></span>
+                        <span class="zero"></span>
+                        <span class="dn" style={`--dn:${dn}%`}></span>
+                        <em>{MONTH_LABELS[k]}</em>
+                      </div>
+                    ))}
+                  </div>
+
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <!-- RETIREMENT -->
+      <div class="feat-row flip rv" id="retirement">
+        <div class="copy">
+          <h3 class="display">Retirement</h3>
+          <p>
+            A Monte Carlo simulation runs your plan through 1,000 market paths
+            out to age 90 and returns a single number: the probability your money
+            lasts. Change your retirement age or your savings rate and all 1,000
+            run again.
+          </p>
+          <ul class="pts">
+            <li>1,000 simulated markets, plus a backtest on real history since 1928</li>
+            <li>On track means an 85% chance or better</li>
+            <li>Change your saving or your retirement age and watch it move</li>
+          </ul>
+        </div>
+        <div class="card" data-demo data-demo-hold="3200">
+          <div class="demo-stage" data-demo-stage>
+            {RETIRE.map((r, n) => {
+              const next = RETIRE[(n + 1) % RETIRE.length].age;
+              const good = r.verdict === "On track";
+              return (
+                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                  <div class="card-head">
+                    <div class="card-title">Retirement outlook</div>
+                    <div class="segrow tight">
+                      {RETIRE.map((o) => (
+                        <span
+                          class:list={["seg-chip", { on: o.age === r.age }]}
+                          {...(o.age === next ? { "data-demo-target": true } : {})}
+                        >Retire at {o.age}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div class="verdict">
+                    <span class="word" style={good ? "" : "color:var(--negative)"}>{r.verdict}</span>
+                    <span
+                      class="chip-num"
+                      style={good
+                        ? "background:var(--brand-soft);color:var(--brand-ink)"
+                        : "background:var(--negative-soft);color:var(--negative)"}
+                    >{r.chip}</span>
+                  </div>
+                  <p class="ret-note">
+                    On track means a chance of 85% or better across 1,000 simulated
+                    markets, through age 90.
+                  </p>
+
+                  <div class="stats">
+                    <div class="stat"><span class="datalabel">Years to retirement</span><span class="figure">{r.years}</span><span class="sub">retiring at {r.age}</span></div>
+                    <div class="stat"><span class="datalabel">Monthly spending</span><span class="figure">{r.spend}</span><span class="sub">in today's money</span></div>
+                    <div class="stat"><span class="datalabel">Length of retirement</span><span class="figure">{r.length}<span class="unit"> yrs</span></span><span class="sub">age {r.age} to 90</span></div>
+                  </div>
+
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <!-- FINANCIAL LEVEL -->
+      <div class="feat-row rv" id="level">
+        <div class="copy">
+          <h3 class="display">Your financial level</h3>
+          <p>
+            Fourteen steps take you from a starter emergency fund to retirement.
+            LasagnaFi derives which step you are on from your actual balances
+            rather than from a questionnaire.
+          </p>
+          <ul class="pts">
+            <li>Placed from your balances, recalculated as they change</li>
+            <li>High-rate debt is ordered ahead of investing</li>
+            <li>Each step shows the amount that clears it</li>
+            <li>Steps above your current one stay locked</li>
+          </ul>
+        </div>
+        <div class="card" data-demo data-demo-ack="done" data-demo-hold="3000" data-demo-labels="2 of 14|3 of 14">
+          <div class="card-head">
+            <div class="card-title">Your 14 steps</div>
+            <span class="chip-meta" data-demo-label>2 of 14</span>
+          </div>
+          <div class="demo-stage" data-demo-stage>
+            {[2, 3].map((current, n) => (
+              <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                <div class="blocks" aria-hidden="true">
+                  {Array.from({ length: 14 }).map((_, k) => (
+                    <i class:list={[{ done: k + 1 < current, here: k + 1 === current }]}></i>
+                  ))}
+                </div>
+                <div class="rows mt">
+                  {STEPS.map((s) => (
+                    <div class:list={["row", { here: s.n === current }]}>
+                      <span class:list={["row-icon", s.n === current ? "" : s.cat]}>
+                        <Icon name={s.n < current ? "check" : s.icon} />
+                      </span>
+                      <div class="row-body">
+                        <span class="step-no">Step {s.n}</span>
+                        <b>{s.title}</b>
+                      </div>
+                      {s.n < current ? (
+                        <span class="chip-status" style="background:var(--brand-soft);color:var(--brand-ink)">Done</span>
+                      ) : s.n === current ? (
+                        <span class="btn btn-primary btn-sm" data-demo-target>Mark done</span>
+                      ) : (
+                        <span class="chip-status" style="background:var(--canvas-sunken);color:var(--content-2)">Ahead</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <FinalCTA />
+  <Footer />
+  <Motion />
+  <Demo />
+</Layout>

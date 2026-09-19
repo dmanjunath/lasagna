@@ -1103,7 +1103,7 @@ export function Accounts() {
         <button
           type="button"
           onClick={() => setShowManualModal(true)}
-          className="ui-focus group mt-[18px] flex w-full items-center justify-center gap-2 rounded-ui-xl border border-dashed border-line-strong bg-canvas-sunken/40 px-4 py-4 text-[13.5px] font-bold text-content-secondary transition-colors hover:border-brand hover:bg-brand-softer hover:text-brand min-h-touch"
+          className="ui-focus group mt-[18px] flex h-12 w-full items-center justify-center gap-2 rounded-ui-xl border border-dashed border-line-strong bg-canvas-sunken/40 px-4 text-[13.5px] font-bold text-content-secondary transition-colors hover:border-brand hover:bg-brand-softer hover:text-brand min-h-touch"
         >
           <Plus size={15} />
           Add an account

@@ -137,7 +137,7 @@ export function AdminSpend() {
               aria-selected={days === r}
               onClick={() => setDays(r)}
               className={cn(
-                'ui-focus touch-target h-8 px-3.5 rounded-full text-[12.5px] font-semibold transition-colors',
+                'ui-focus touch-target h-9 px-3.5 rounded-full text-[12.5px] font-semibold transition-colors',
                 days === r ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))]' : 'text-content-muted hover:text-content',
               )}
             >

@@ -1,27 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
+import type { ApiActionRow } from '../lib/action-rows';
 
-export interface Insight {
-  id: string;
-  category: string;
-  urgency: string;
-  /**
-   * How much work the action is, as the generator judged it. Null on every
-   * action written before the field existed, and on one the model declined to
-   * rate, so a reader that ranks on it must say what an absent answer means.
-   */
-  effort: 'quick' | 'moderate' | 'involved' | null;
-  type: string | null;
-  title: string;
-  description: string;
-  impact: string | null;
-  impactColor: string | null;
-  chatPrompt: string | null;
-  generatedBy: string;
-  createdAt: string;
-  /** The step of the user's path this action serves. Null when it serves none. */
-  pathStepKey: string | null;
-}
+/**
+ * One action, exactly as the wire serves it.
+ *
+ * Both producers write to this shape: the insights engine, whose rows carry
+ * advice in words, and the spend-cuts detector, whose rows carry a figure, a
+ * receipt and the transactions behind it. `lib/action-rows.ts` normalises them
+ * into the one model the row component reads.
+ */
+export type Insight = ApiActionRow;
 
 /**
  * Fetches all insights and optionally filters by type.
@@ -56,6 +45,12 @@ export function useInsights(typeFilter?: string | string[]) {
     setAllInsights((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
+  /** Mark an action done. Same removal as dismiss, different verb server-side. */
+  const complete = useCallback(async (id: string) => {
+    await api.actOnInsight(id);
+    setAllInsights((prev) => prev.filter((i) => i.id !== id));
+  }, []);
+
   /** Re-fetch insights from the server without regenerating */
   const reload = useCallback(async () => {
     await load();
@@ -79,5 +74,5 @@ export function useInsights(typeFilter?: string | string[]) {
       ? allInsights
       : allInsights.filter((i) => types.includes(i.type ?? 'general'));
 
-  return { insights: filtered, lastActionsGeneratedAt, isLoading, dismiss, reload, refresh };
+  return { insights: filtered, lastActionsGeneratedAt, isLoading, dismiss, complete, reload, refresh };
 }

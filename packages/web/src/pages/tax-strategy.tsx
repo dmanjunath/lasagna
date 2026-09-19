@@ -337,7 +337,7 @@ export function TaxStrategy() {
   const safetyRef = useRef<HTMLDivElement>(null);
   const docsListRef = useRef<HTMLElement>(null);
 
-  const { insights, isLoading: insightsLoading, reload, refresh, dismiss } = useInsights(TAX_INSIGHT_TYPE);
+  const { insights, isLoading: insightsLoading, reload, refresh, dismiss, complete } = useInsights(TAX_INSIGHT_TYPE);
   const { setPageContext } = usePageContext();
   const confirm = useConfirm();
   const toast = useToast();
@@ -1187,6 +1187,7 @@ export function TaxStrategy() {
                   impact={ins.impact ?? ''}
                   impactColor={(ins.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
                   chatPrompt={ins.chatPrompt ?? ins.title}
+                  onComplete={() => complete(ins.id)}
                   onDismiss={() => dismiss(ins.id)}
                 />
               ))}

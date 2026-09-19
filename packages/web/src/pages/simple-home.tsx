@@ -155,7 +155,7 @@ export function SimpleHome() {
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
   const toast = useToast();
-  const { insights, refresh: refreshInsights, dismiss, isLoading: insightsLoading } = useInsights();
+  const { insights, refresh: refreshInsights, dismiss, complete, isLoading: insightsLoading } = useInsights();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
@@ -528,6 +528,7 @@ export function SimpleHome() {
                 const { link } = actionArea(a.type, a.category);
                 if (link) setLocation(link);
               }}
+              onComplete={complete}
               onDismiss={dismiss}
             />
 
@@ -851,7 +852,7 @@ const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, 
  * groups would be a second copy of that page.
  */
 export function ActionsSection({
-  actions, loading, generating, onGenerate, onOpen, onDismiss,
+  actions, loading, generating, onGenerate, onOpen, onComplete, onDismiss,
 }: {
   actions: Insight[];
   loading: boolean;
@@ -859,6 +860,7 @@ export function ActionsSection({
   onGenerate: () => void | Promise<void>;
   /** Open the page this action belongs to, as the other surfaces do. */
   onOpen: (action: Insight) => void;
+  onComplete: (id: string) => void;
   onDismiss: (id: string) => void;
 }) {
   const shown = useMemo(() => {
@@ -910,6 +912,7 @@ export function ActionsSection({
               impactColor={(a.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
               chatPrompt={a.chatPrompt ?? a.title}
               onContextClick={actionArea(a.type, a.category).link ? () => onOpen(a) : undefined}
+              onComplete={() => onComplete(a.id)}
               onDismiss={() => onDismiss(a.id)}
             />
           ))}
