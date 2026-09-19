@@ -186,11 +186,6 @@ export function toActionRow(r: ApiActionRow): ActionRow {
 }
 
 const EFFORT_ORDER: Effort[] = ['quick', 'moderate', 'involved'];
-const EFFORT_LABEL: Record<Effort, string> = {
-  quick: 'Quick',
-  moderate: 'Moderate',
-  involved: 'Involved',
-};
 const URGENCY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 
 /** An unrated row sorts after every rated one rather than pretending to be quick. */
@@ -231,28 +226,6 @@ export function rankActions(rows: ActionRow[]): ActionRow[] {
     if (urgency !== 0) return urgency;
     return b.createdAt.localeCompare(a.createdAt);
   });
-}
-
-export const ALL_EFFORTS = 'all' as const;
-export type EffortFilter = Effort | typeof ALL_EFFORTS;
-
-/**
- * The effort filter's segments, or an empty list meaning "render no control".
- *
- * Only the efforts that a row actually has, because a segment built from the
- * static list alone would select nothing: a household whose every saving is a
- * habit change has no quick row to show. And below two efforts the control is
- * dropped entirely rather than shown with one segment that does nothing.
- */
-export function effortFilterOptions(
-  rows: ActionRow[],
-): Array<{ value: EffortFilter; label: string }> {
-  const present = EFFORT_ORDER.filter((e) => rows.some((r) => r.effort === e));
-  if (present.length < 2) return [];
-  return [
-    { value: ALL_EFFORTS, label: 'All' },
-    ...present.map((e) => ({ value: e as EffortFilter, label: EFFORT_LABEL[e] })),
-  ];
 }
 
 /**

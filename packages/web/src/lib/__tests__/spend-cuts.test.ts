@@ -7,7 +7,6 @@ import {
   oneTimeCuts,
 } from '../spend-cuts';
 import {
-  effortFilterOptions,
   fromSpendCut,
   impactNote,
   rankActions,
@@ -280,39 +279,6 @@ describe('rankActions', () => {
       wordsOnly('new-high', { effort: 'quick', urgency: 'high', createdAt: '2026-09-01T00:00:00.000Z' }),
     ]);
     expect(ranked.map((r) => r.id)).toEqual(['new-high', 'old-high', 'low']);
-  });
-});
-
-describe('effortFilterOptions', () => {
-  it('renders no control at all when only one effort is present', () => {
-    expect(effortFilterOptions([monthly('a'), monthly('b')])).toEqual([]);
-  });
-
-  it('renders no control when there are no rows', () => {
-    expect(effortFilterOptions([])).toEqual([]);
-  });
-
-  it('leads with All and names only the efforts that exist', () => {
-    // No Moderate segment: a segment that selects nothing is a control that
-    // does nothing.
-    expect(effortFilterOptions([once('fee', 2900), monthly('a', 100)])).toEqual([
-      { value: 'all', label: 'All' },
-      { value: 'quick', label: 'Quick' },
-      { value: 'involved', label: 'Involved' },
-    ]);
-  });
-
-  it('adds Moderate only once a moderate row exists', () => {
-    const labels = effortFilterOptions([
-      once('fee', 2900),
-      monthly('a', 100),
-      wordsOnly('b', { effort: 'moderate' }),
-    ]).map((o) => o.label);
-    expect(labels).toEqual(['All', 'Quick', 'Moderate', 'Involved']);
-  });
-
-  it('ignores an unrated row, which no segment can select', () => {
-    expect(effortFilterOptions([monthly('a'), wordsOnly('b', { effort: null })])).toEqual([]);
   });
 });
 

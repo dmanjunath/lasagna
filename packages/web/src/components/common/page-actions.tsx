@@ -1,17 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useInsights } from '../../hooks/useInsights';
 import { useActionLifecycle } from '../../hooks/useActionLifecycle';
 import { actionArea, areaKey } from '../../lib/action-destination';
-import {
-  ALL_EFFORTS,
-  effortFilterOptions,
-  rankActions,
-  savingsSentence,
-  toActionRow,
-  type EffortFilter,
-} from '../../lib/action-rows';
-import { MaskedText, SegmentedControl } from '../uikit';
+import { rankActions, savingsSentence, toActionRow } from '../../lib/action-rows';
+import { MaskedText } from '../uikit';
 import { ActionItem } from './action-item';
 import { UndoToast } from './undo-toast';
 
@@ -21,15 +14,14 @@ interface PageActionsProps {
   /** Show a "View all →" link (Home page only) */
   viewAllHref?: string;
   /**
-   * Render the complete actions surface: the effort pill and its filter, the
-   * savings sentence, the transactions behind each figure, and the three
-   * lifecycle verbs.
+   * Render the complete actions surface: the effort pill, the savings
+   * sentence, the transactions behind each figure, and the three lifecycle
+   * verbs.
    *
    * Off by default, and the default is load-bearing. Debt, goals and investing
    * embed this section as a short list of model-authored advice, and none of
    * those rows has a figure to sum or a receipt to open, so rolling the whole
-   * surface out to them would add a filter that sorts nothing and two verbs
-   * nobody asked for.
+   * surface out to them would add two verbs nobody asked for.
    */
   full?: boolean;
 }
@@ -122,7 +114,6 @@ function EmbeddedActions({ types, viewAllHref }: PageActionsProps) {
 function FullActions({ types }: PageActionsProps) {
   const { insights, isLoading } = useInsights(types);
   const lifecycle = useActionLifecycle();
-  const [effort, setEffort] = useState<EffortFilter>(ALL_EFFORTS);
 
   const rows = useMemo(() => insights.map(toActionRow), [insights]);
   const live = useMemo(
@@ -130,24 +121,12 @@ function FullActions({ types }: PageActionsProps) {
     [rows, lifecycle.hidden],
   );
 
-  const filterOptions = useMemo(() => effortFilterOptions(live), [live]);
-
-  // Keep the selection valid when the last row of an effort goes.
-  useEffect(() => {
-    if (effort !== ALL_EFFORTS && !filterOptions.some((o) => o.value === effort)) {
-      setEffort(ALL_EFFORTS);
-    }
-  }, [filterOptions, effort]);
-
-  const shown = useMemo(
-    () => rankActions(effort === ALL_EFFORTS ? live : live.filter((r) => r.effort === effort)),
-    [live, effort],
-  );
+  const shown = useMemo(() => rankActions(live), [live]);
 
   /**
    * The sum of exactly the rows on screen, so a reader adding the pills up
-   * lands on this line. `shown` is already effort-filtered and already has the
-   * rows waiting out an undo window removed.
+   * lands on this line. `shown` already has the rows waiting out an undo
+   * window removed.
    */
   const sentence = savingsSentence(shown);
 
@@ -169,18 +148,7 @@ function FullActions({ types }: PageActionsProps) {
       tabIndex={-1}
       className="mb-8 focus:outline-none"
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <h2 className="text-[18px] font-semibold text-content">Actions</h2>
-        {filterOptions.length > 0 && (
-          <SegmentedControl<EffortFilter>
-            aria-label="Filter actions by effort"
-            value={effort}
-            onChange={setEffort}
-            stretch={false}
-            options={filterOptions}
-          />
-        )}
-      </div>
+      <h2 className="text-[18px] font-semibold text-content">Actions</h2>
 
       {sentence && (
         <p className="mt-2 max-w-[70ch] text-[13.5px] leading-[1.5] text-content-secondary">
