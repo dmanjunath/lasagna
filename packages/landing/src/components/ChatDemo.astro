@@ -69,12 +69,13 @@ import { CHATS as THREADS } from "../demo-data";
           `<div class="ln tot"><span>${t.total[0]}</span><span class="v">${t.total[1]}</span></div>`;
         tallest = Math.max(tallest, stage.offsetHeight);
       }
-      stage.style.minHeight = tallest + "px";
+      stage.style.height = tallest + "px";
       q.hidden = true; answer.hidden = true; calc.hidden = true;
       q.textContent = ""; lead.innerHTML = ""; calc.innerHTML = "";
     };
     measure();
-    addEventListener("resize", () => { stage.style.minHeight = ""; measure(); });
+    document.fonts?.ready.then(() => { stage.style.height = ""; measure(); });
+    addEventListener("resize", () => { stage.style.height = ""; measure(); });
 
     let n = 0;
     let running = false;

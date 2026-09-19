@@ -224,6 +224,7 @@ nav.open .nav-toggle .bars i:nth-child(3) { top: 5px; transform: rotate(-45deg);
    under a collapsed one close with a 0fr -> 1fr grid row rather than a height
    animation, which cannot be transitioned. */
 .connect-list { display: grid; align-content: start; gap: 8px; }
+.connect-demo.is-measuring *, .connect-demo.is-measuring *::before { transition: none !important; animation: none !important; }
 .inst-card:not(.is-shown) { display: none; }
 .inst-card { transition: background .3s var(--ease), border-color .3s var(--ease), opacity .3s var(--ease), transform .3s var(--ease); }
 .inst-card.is-new { animation: inst-in .42s var(--ease) both; }
@@ -233,6 +234,9 @@ nav.open .nav-toggle .bars i:nth-child(3) { top: 5px; transform: rotate(-45deg);
 .acct-wrap { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .4s var(--ease), opacity .3s var(--ease); }
 .acct-wrap > .acct-rows { overflow: hidden; min-height: 0; }
 .inst-card:not(.is-new) .acct-wrap { grid-template-rows: 0fr; opacity: 0; }
+/* Without this the collapsed row still contributes its margin, padding and
+   border: 11px of dead space under every collapsed institution. */
+.inst-card:not(.is-new) .acct-rows { margin-top: 0; padding-top: 0; border-top-width: 0; }
 
 /* Net worth line, so the range tabs visibly change a graph. */
 .nwline { display: block; width: 100%; height: 84px; margin: 14px 0 2px; }
@@ -257,7 +261,12 @@ nav.open .nav-toggle .bars i:nth-child(3) { top: 5px; transform: rotate(-45deg);
 .scrub-note { margin: 12px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
 
 /* Chat typing and streaming. */
-.chat-demo .askbox { display: flex; align-items: center; color: var(--content); }
+.chat-demo .askbox {
+  display: flex; align-items: center; color: var(--content);
+  /* One line, always: the question types in character by character and a wrap
+     to a second line grew the whole card mid-animation. */
+  height: 40px; white-space: nowrap; overflow: hidden;
+}
 .caret[hidden] { display: none; }
 .caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--brand); animation: caret 1.05s steps(1) infinite; }
 .chat-demo .calc { opacity: 0; transform: translateY(8px); transition: opacity .35s var(--ease), transform .35s var(--ease); }

@@ -47,9 +47,15 @@
         if (!was) el.classList.remove("is-active");
         return h;
       });
-      stage.style.minHeight = Math.max(...heights) + "px";
+      // `height`, not `min-height`: a min lets a frame that measures taller
+      // than expected grow the card anyway, which is the resize we are trying
+      // to stop.
+      stage.style.height = Math.max(...heights) + "px";
     };
     measure();
+    // Text metrics change when the display face arrives, so a measurement taken
+    // before that is wrong and the card grows the moment it loads.
+    document.fonts?.ready.then(measure);
     addEventListener("resize", measure);
 
     let running = false;

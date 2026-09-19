@@ -55,14 +55,30 @@ import { INSTITUTIONS } from "../demo-data";
     // The card must not resize as institutions arrive, so the list is pinned to
     // its full height up front.
     const lock = () => {
-      list.style.minHeight = "";
-      const shown = items.map((el) => el.className);
-      items.forEach((el) => el.classList.add("is-shown"));
-      const full = list.offsetHeight;
-      items.forEach((el, k) => (el.className = shown[k]));
-      list.style.minHeight = full + "px";
+      list.style.height = "";
+      const saved = items.map((el) => el.className);
+      // Walk every state the loop can reach and keep the tallest. Measuring one
+      // state left the account rows of the others collapsed, so the real
+      // maximum was never seen and the card grew past it in use.
+      // Transitions off while measuring: the collapse is a 0.4s animation, so
+      // reading offsetHeight straight after toggling caught every institution
+      // still expanded and reserved far too much room.
+      root.classList.add("is-measuring");
+      let tallest = 0;
+      for (let step = 0; step < items.length; step++) {
+        items.forEach((el, k) => {
+          el.classList.toggle("is-shown", k <= step);
+          el.classList.toggle("is-new", k === step);
+        });
+        void list.offsetWidth;                 // flush the class change
+        tallest = Math.max(tallest, list.offsetHeight);
+      }
+      root.classList.remove("is-measuring");
+      items.forEach((el, k) => (el.className = saved[k]));
+      list.style.height = tallest + "px";
     };
     lock();
+    document.fonts?.ready.then(lock);
     addEventListener("resize", lock);
 
     let n = 0;

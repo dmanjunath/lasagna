@@ -47,6 +47,20 @@ const IDS = RECORD.filter((r) => r.id).length;
 
     const BEFORE = "Your balances and rates go through untouched. Anything that names you does not.";
     const AFTER = "Nothing here identifies you. This is what the AI receives.";
+
+    // The two notes wrap to different heights, which resized the card halfway
+    // through the loop. Reserve the taller of them and never reflow again.
+    const lockNote = () => {
+      note.style.height = "";
+      const shown = note.textContent;
+      let tallest = 0;
+      for (const s of [BEFORE, AFTER]) { note.textContent = s; tallest = Math.max(tallest, note.offsetHeight); }
+      note.textContent = shown;
+      note.style.height = tallest + "px";
+    };
+    lockNote();
+    document.fonts?.ready.then(lockNote);
+    addEventListener("resize", lockNote);
     const POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_#@$%&*";
     const pick = () => POOL[Math.floor(Math.random() * POOL.length)];
 
