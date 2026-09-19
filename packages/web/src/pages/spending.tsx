@@ -8,6 +8,7 @@ import {
   TrendingDown,
   TrendingUp,
   Receipt,
+  X,
 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { motion } from 'framer-motion';
@@ -24,6 +25,15 @@ import { PageTitle } from '../components/ds/PageTitle';
 import { CashflowBars, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { RulesPanel } from '../components/rules/RulesPanel';
+import { CategoryMultiSelect, useCategoryChips } from '../components/common/CategoryMultiSelect';
+import {
+  EMPTY_SPEND_FILTER,
+  isActive as isSpendFilterActive,
+  spendFilterAllows,
+  spendFilterFromQuery,
+  spendFilterToSearchParams,
+  type SpendFilter,
+} from '../lib/spending-filters';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -356,13 +366,50 @@ export function Spending() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
-  // Period navigation
+  // The scope the address bar arrived with. A shared link has to reproduce both
+  // halves of what the sender was looking at — the categories AND the period —
+  // or the recipient reads the right filter over the wrong month.
+  const arrived = useMemo(() => spendFilterFromQuery(window.location.search), []);
+
+  // Period navigation. The granularity is the period string's length, the way
+  // the chart already derives it; no second parameter to disagree with it.
   const [currentMonth, setCurrentMonth] = useState(() => {
+    const p = arrived.period;
+    if (p && p.length === 7) return new Date(+p.slice(0, 4), +p.slice(5, 7) - 1, 1);
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth() - 1, 1);
   });
-  const [granularity, setGranularity] = useState<'month' | 'year'>('month');
-  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
+  const [granularity, setGranularity] = useState<'month' | 'year'>(
+    arrived.period?.length === 4 ? 'year' : 'month',
+  );
+  const [currentYear, setCurrentYear] = useState(() =>
+    arrived.period?.length === 4 ? Number(arrived.period) : new Date().getFullYear(),
+  );
+
+  // Category scope. Stored as ids only, in two disjoint lists, and the UI keeps
+  // exactly one of them populated: "include or exclude", one mode at a time.
+  const [filter, setFilter] = useState<SpendFilter>(arrived.filter);
+  const [filterMode, setFilterMode] = useState<'include' | 'exclude'>(
+    arrived.filter.exclude.length > 0 ? 'exclude' : 'include',
+  );
+  const filterActive = isSpendFilterActive(filter);
+  // The signature the trend fetch and its delta are keyed on.
+  const scopeKey = `${filter.include.join(',')}|${filter.exclude.join(',')}`;
+  // Checked means "named by the filter" in BOTH modes — the checkbox art never
+  // inverts. Flipping the mode keeps the set and flips its meaning.
+  const selectedIds = filterMode === 'exclude' ? filter.exclude : filter.include;
+  const setSelectedIds = useCallback((ids: string[]) => {
+    setFilter(filterMode === 'exclude' ? { include: [], exclude: ids } : { include: ids, exclude: [] });
+  }, [filterMode]);
+  const handleModeChange = useCallback((m: 'include' | 'exclude') => {
+    setFilterMode(m);
+    setFilter((cur) => {
+      const ids = cur.exclude.length > 0 ? cur.exclude : cur.include;
+      return m === 'exclude' ? { include: [], exclude: ids } : { include: ids, exclude: [] };
+    });
+  }, []);
+  const clearFilter = useCallback(() => setFilter(EMPTY_SPEND_FILTER), []);
+  const { chips: filterChips } = useCategoryChips(selectedIds, setSelectedIds);
 
   // Data state
   const [categories, setCategories] = useState<SpendingCategory[]>([]);
@@ -370,6 +417,10 @@ export function Spending() {
   const [totalIncome, setTotalIncome] = useState(0);
   const [netCashFlow, setNetCashFlow] = useState(0);
   const [periods, setPeriods] = useState<CashflowPeriod[]>([]);
+  // Which category scope the bars above currently describe. The summary is
+  // filtered in this file and so moves in the same paint; the trend is a fetch,
+  // and pairing its old scope with the new chips is the one stale frame here.
+  const [trendScope, setTrendScope] = useState<string | null>(null);
 
   // Linked account detection
   const [hasLinkedAccounts, setHasLinkedAccounts] = useState(false);
@@ -433,6 +484,17 @@ export function Spending() {
   const periodEnd = granularity === 'month' ? endOfMonth(currentMonth) : `${currentYear}-12-31T23:59:59`;
   const periodDisplayLabel = granularity === 'month' ? monthLabel(periodStart) : String(currentYear);
 
+  // Keep the address bar on the scope that is actually on screen, so a filtered
+  // view can be copied out and pasted back, and a reload lands where it left.
+  // Replace rather than push: Back still leaves the page, as it does today.
+  const scopeQuery = spendFilterToSearchParams(filter, selectedPeriod);
+  useEffect(() => {
+    const next = scopeQuery ? `/spending?${scopeQuery}` : '/spending';
+    if (`${window.location.pathname}${window.location.search}` !== next) {
+      navigate(next, { replace: true });
+    }
+  }, [scopeQuery, navigate]);
+
   // Fetch spending summary
   useEffect(() => {
     let active = true;
@@ -466,14 +528,20 @@ export function Spending() {
   // Fetch cashflow periods — powers the bar chart + prior-period delta.
   useEffect(() => {
     let active = true;
-    api.getTrend(granularity === 'month' ? { granularity: 'month', limit: 13 } : { granularity: 'year' })
+    // The same scope the summary rows are filtered by below, so the bars and the
+    // delta pill describe the same money the hero does.
+    const scope = {
+      categories: filter.include.length > 0 ? filter.include : undefined,
+      excludeCategories: filter.exclude.length > 0 ? filter.exclude : undefined,
+    };
+    api.getTrend(granularity === 'month' ? { granularity: 'month', limit: 13, ...scope } : { granularity: 'year', ...scope })
       // Guard the shape: a 200 with an unexpected body (e.g. an API/frontend version
       // skew that omits `periods`) must not set `undefined` — every consumer does
       // periods.find/.length and would hard-crash the page. Default to [].
-      .then((data) => { if (!active) return; setPeriods(data?.periods ?? []); })
-      .catch(() => { if (!active) return; setPeriods([]); });
+      .then((data) => { if (!active) return; setPeriods(data?.periods ?? []); setTrendScope(scopeKey); })
+      .catch(() => { if (!active) return; setPeriods([]); setTrendScope(scopeKey); });
     return () => { active = false; };
-  }, [granularity, refreshKey]);
+  }, [granularity, refreshKey, filter, scopeKey]);
 
   // Page context for chat
   useEffect(() => {
@@ -484,6 +552,38 @@ export function Spending() {
     });
   }, [setPageContext]);
 
+  // The filter is applied ONCE, here, upstream of everything the page states.
+  // Every total, row and bar below reads one filtered array, so there is no
+  // second implementation of "what is in scope" to drift from this one.
+  const filteredCategories = useMemo(
+    () => (filterActive ? categories.filter((c) => spendFilterAllows(c.id, filter)) : categories),
+    [categories, filter, filterActive],
+  );
+
+  const spendingCategories = useMemo(
+    () => filteredCategories.filter((c) => c.groupType !== 'income' && c.groupType !== 'transfer'),
+    [filteredCategories],
+  );
+
+  const incomeCategories = useMemo(
+    () => filteredCategories.filter((c) => c.groupType === 'income'),
+    [filteredCategories],
+  );
+
+  // Re-summed ONLY while a filter is active. /spending-summary drops net-negative
+  // expense categories before it sums and emits every surviving row as abs(total),
+  // so summing the surviving rows on the same predicate reproduces its figures.
+  // Unfiltered, the server's own values are used verbatim — the page then renders
+  // byte-for-byte what it renders today, with no Σ round(row) vs round(Σ) drift.
+  const scopedTotals = useMemo(() => {
+    if (!filterActive) return { spending: totalSpending, income: totalIncome, net: netCashFlow };
+    const cents = (rows: SpendingCategory[]) =>
+      Math.round(rows.reduce((sum, c) => sum + c.total, 0) * 100) / 100;
+    const spending = cents(spendingCategories);
+    const income = cents(incomeCategories);
+    return { spending, income, net: Math.round((income - spending) * 100) / 100 };
+  }, [filterActive, totalSpending, totalIncome, netCashFlow, spendingCategories, incomeCategories]);
+
   // Derived. While the summary refetches after a period switch, the chart data
   // already holds the NEW period's totals — drive the hero from it so the old
   // period's numbers never flash under the new caption. The handoff to the
@@ -491,7 +591,13 @@ export function Spending() {
   // net each category over the period and count the positive ones, on the same
   // exclusions, so they report the same figure for the same window.
   const selPeriodData = periods.find((p) => p.period === selectedPeriod) ?? null;
-  const instant = loadedPeriod?.period !== selectedPeriod && selPeriodData !== null;
+  // Whether the bars on screen describe the scope the chips claim. A scope
+  // change is a refetch, so for one beat `periods` still holds the old scope.
+  const trendFresh = trendScope === scopeKey;
+  // The instant path reads the hero off the TREND during a period switch. Under
+  // a filter that hands the headline back to a figure the chips contradict, so
+  // it is off while filtered and the hero waits for its own filtered summary.
+  const instant = !filterActive && loadedPeriod?.period !== selectedPeriod && selPeriodData !== null;
   // Neither source describes the selection yet: the summary is in flight AND
   // the chart doesn't carry this period — Month → Year, where the year's total
   // is absent from a month `periods` array. The figures on screen are still the
@@ -504,14 +610,18 @@ export function Spending() {
   // While hovering a trend bar, the WHOLE hero (spent + income/net/savings)
   // reflects the hovered period, so the KPIs can never contradict the big
   // number. Off-hover, it's the selected period's totals.
-  const hoveredPeriod = chartHover !== null ? periods[chartHover] ?? null : null;
-  const baseSpending = instant ? selPeriodData.expenses : totalSpending;
-  const baseIncome = instant ? selPeriodData.income : totalIncome;
-  const baseNet = instant ? selPeriodData.net : netCashFlow;
+  const hoveredPeriod = chartHover !== null && trendFresh ? periods[chartHover] ?? null : null;
+  const baseSpending = instant && selPeriodData ? selPeriodData.expenses : scopedTotals.spending;
+  const baseIncome = instant && selPeriodData ? selPeriodData.income : scopedTotals.income;
+  const baseNet = instant && selPeriodData ? selPeriodData.net : scopedTotals.net;
   const displaySpending = hoveredPeriod ? hoveredPeriod.expenses : baseSpending;
   const displayIncome = hoveredPeriod ? hoveredPeriod.income : baseIncome;
   const displayNet = hoveredPeriod ? hoveredPeriod.net : baseNet;
   const savingsRate = displayIncome > 0 ? ((displayIncome - displaySpending) / displayIncome) * 100 : null;
+  // No money either way in the scope on screen. "+$0 surplus" in positive green
+  // claims a surplus out of nothing, so Net flow says what the savings rate
+  // already says in the same case: there is nothing to report.
+  const noFlow = displayIncome === 0 && displaySpending === 0;
   // The insights strip describes recent activity (the default landing period).
   // Hide it when browsing history so its month-specific copy never contradicts
   // the period in view.
@@ -561,16 +671,6 @@ export function Spending() {
     if (g === 'year') setCurrentYear(currentMonth.getFullYear());
   }, [currentMonth]);
 
-  const spendingCategories = useMemo(
-    () => categories.filter((c) => c.groupType !== 'income' && c.groupType !== 'transfer'),
-    [categories],
-  );
-
-  const incomeCategories = useMemo(
-    () => categories.filter((c) => c.groupType === 'income'),
-    [categories],
-  );
-
   // Breakdown table - its own Category/Group toggle, plus a sort shared by both
   // the income and expense sections (default: largest amount first).
   const [tableRollup, setTableRollup] = useState<'category' | 'group'>('category');
@@ -607,20 +707,27 @@ export function Spending() {
     if (categoryIds.length === 0) return;
     navigate(`/transactions?categories=${categoryIds.join(',')}`);
   }, [navigate]);
+  // "View all" hands over the include list verbatim — same parameter, same
+  // format. An exclude scope has no spelling there, and a reader that cannot
+  // say "everything except these" has to land on the WIDER set, never the
+  // inverted one, so it hands over nothing.
+  const viewAllHref = filter.include.length > 0
+    ? `/transactions?categories=${filter.include.join(',')}`
+    : '/transactions';
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
   // Keyed off heroPeriod, not the selection: while the figures still describe
   // the previous period the comparison has to describe it too, or the pill
   // blanks out for a frame and the hero says three things about two periods.
   const priorPeriodDelta = useMemo(() => {
-    if (periods.length < 2 || baseSpending === 0) return null;
+    if (!trendFresh || periods.length < 2 || baseSpending === 0) return null;
     const idx = periods.findIndex((p) => p.period === heroPeriod);
     if (idx < 1) return null;
     const prior = periods[idx - 1];
     if (!prior || prior.expenses === 0) return null;
     const pct = ((baseSpending - prior.expenses) / prior.expenses) * 100;
     return Math.round(pct);
-  }, [periods, baseSpending, heroPeriod]);
+  }, [trendFresh, periods, baseSpending, heroPeriod]);
 
   // Whether the comparison row can be decided at all yet. Until the trend data
   // covers the period the hero describes there is nothing to compare against,
@@ -629,8 +736,8 @@ export function Spending() {
   // in a row the rest of this block works to keep whole. The row reserves its
   // height either way, so holding it empty costs no layout.
   const deltaResolved = useMemo(
-    () => periods.some((p) => p.period === heroPeriod),
-    [periods, heroPeriod],
+    () => trendFresh && periods.some((p) => p.period === heroPeriod),
+    [trendFresh, periods, heroPeriod],
   );
 
   // The chart renders whatever `periods` currently holds, and that lags a
@@ -658,7 +765,18 @@ export function Spending() {
         : hoveredPeriod.period)
     : heroPeriodLabel;
 
-  const noData = !loadingSummary && totalSpending === 0 && totalIncome === 0;
+  // A month with nothing in it. Gated on the filter: "Connect an account" is a
+  // catastrophically wrong answer to "you excluded everything that had spending".
+  const noData = !loadingSummary && !filterActive && totalSpending === 0 && totalIncome === 0;
+  const filteredEmpty =
+    filterActive && !loadingSummary && scopedTotals.spending === 0 && scopedTotals.income === 0;
+  // Whether the breakdown card has anything to put in it. A single income row
+  // just restates the hero's Income KPI and is not a section, so a scope of
+  // only that would otherwise render a heading over an empty card.
+  const breakdownHasRows = spendingCategories.length > 0 || incomeRows.length > 1;
+  // The scope row appears once there is a taxonomy worth scoping, and stays
+  // whenever a filter is on so a shared link is never unexplained.
+  const showScopeRow = hasLoadedSummary && !summaryError && (categories.length > 0 || filterActive);
   const spentMore = priorPeriodDelta !== null && priorPeriodDelta > 0;
 
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
@@ -729,6 +847,55 @@ export function Spending() {
         </div>
       </header>
 
+      {/* ════════ Category scope — the trigger and the filter it applied, side
+           by side. The period controls stay in the header (the hero caption
+           names the period); this is the modifier applied on top. ════════ */}
+      {showScopeRow && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <CategoryMultiSelect
+            variant="filters"
+            selected={selectedIds}
+            onChange={setSelectedIds}
+            mode={{ value: filterMode, onChange: handleModeChange }}
+          />
+          {filterChips.length > 0 && (
+            <>
+              <span className="text-[12.5px] font-semibold text-content-muted">
+                {filterMode === 'exclude' ? 'Except' : 'Only'}
+              </span>
+              {filterChips.map((chip) => (
+                <Badge
+                  key={chip.key}
+                  tone={filterMode === 'exclude' ? 'neutral' : 'brand'}
+                  className="pr-1.5"
+                >
+                  {chip.label}
+                  <button
+                    type="button"
+                    onClick={chip.remove}
+                    aria-label={`Remove ${chip.label} filter`}
+                    className="ui-focus group relative -mx-0.5 inline-flex items-center justify-center rounded-full px-1 max-sm:before:absolute max-sm:before:inset-x-0 max-sm:before:-inset-y-3 max-sm:before:content-['']"
+                  >
+                    <span className="grid h-5 w-5 place-items-center rounded-full transition-colors group-hover:bg-content/10">
+                      <X size={12} />
+                    </span>
+                  </button>
+                </Badge>
+              ))}
+              {filterChips.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={clearFilter}
+                  className="ui-focus rounded-ui-xs text-[12.5px] font-semibold text-content-muted transition-colors hover:text-content"
+                >
+                  Clear all
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* ════════ Loading skeleton ════════ */}
       {loadingSummary && !hasLoadedSummary && (
         <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
@@ -756,7 +923,10 @@ export function Spending() {
            with the three KPIs (income / net / savings) inline at the top and
            the interactive trend below — a single, complete answer. ════════ */}
       {hasLoadedSummary && !noData && (
-        <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+        <section className={cn(
+          'relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7',
+          showScopeRow ? 'mt-4' : 'mt-6',
+        )}>
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0"
@@ -820,9 +990,9 @@ export function Spending() {
               <StatCell label="Income" value={formatCurrency(displayIncome)} sub="received" />
               <StatCell
                 label="Net flow"
-                value={`${displayNet >= 0 ? '+' : ''}${formatCurrency(displayNet)}`}
-                sub={displayNet >= 0 ? 'surplus' : 'deficit'}
-                tone={displayNet >= 0 ? 'pos' : 'neg'}
+                value={noFlow ? '—' : `${displayNet >= 0 ? '+' : ''}${formatCurrency(displayNet)}`}
+                sub={noFlow ? '' : displayNet >= 0 ? 'surplus' : 'deficit'}
+                tone={noFlow ? undefined : displayNet >= 0 ? 'pos' : 'neg'}
               />
               <StatCell
                 label="Savings rate"
@@ -834,7 +1004,10 @@ export function Spending() {
           </div>
 
           {hasChart && (
-            <div className="relative mt-5 pr-2 sm:pr-0">
+            <div className={cn(
+              'relative mt-5 pr-2 sm:pr-0 transition-opacity duration-200',
+              !trendFresh && 'opacity-50',
+            )}>
               <CashflowBars
                 periods={periods}
                 granularity={chartGranularity}
@@ -910,10 +1083,13 @@ export function Spending() {
            legend). Income bars read green, expenses coral. The Category/Group
            toggle + sort drive both sections; a row click opens the transactions
            behind it, filtered. Income is its own section. ═══ */}
-      {hasLoadedSummary && !noData && (totalIncome > 0 || spendingCategories.length > 0) && (
+      {hasLoadedSummary && !noData && (breakdownHasRows || filteredEmpty) && (
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pb-4">
             <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.018em]">Spending breakdown</h2>
+            {/* No rows to break down or sort, so the controls for doing that go
+                 with them rather than sitting over an explanation. */}
+            {!filteredEmpty && (
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl
                 aria-label="Break down by"
@@ -943,11 +1119,24 @@ export function Spending() {
                 <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted" />
               </div>
             </div>
+            )}
           </div>
           <div className={cn(
             'divide-y divide-line overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm transition-opacity duration-200',
             loadingSummary && 'opacity-50',
           )}>
+            {filteredEmpty && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4 text-[13.5px] text-content-muted">
+                <span>No spending matches these filters in {periodDisplayLabel}.</span>
+                <button
+                  type="button"
+                  onClick={clearFilter}
+                  className="ui-focus rounded-ui-xs font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
             {spendingCategories.length > 0 && (
               <BreakdownSection
                 title="Expenses"
@@ -983,10 +1172,12 @@ export function Spending() {
         <TransactionList
           startDate={periodStart}
           endDate={periodEnd}
+          categoryIds={filter.include.length > 0 ? filter.include : undefined}
+          excludeCategoryIds={filter.exclude.length > 0 ? filter.exclude : undefined}
           refreshKey={refreshKey}
           onDataChanged={loadData}
           onCreateRule={(seed) => setRulesPanel({ open: true, seed })}
-          viewAllHref="/transactions"
+          viewAllHref={viewAllHref}
           pageSize={5}
           showPagination={false}
           showSearch={false}

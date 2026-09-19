@@ -53,6 +53,10 @@ const EXPECTED_SPENDING = 750;
 const EXPECTED_INCOME = 4000;
 const REFUNDED_CATEGORY = "Electronics (reconcile.test)";
 
+// Category ids the filtered case needs by hand, captured in beforeAll.
+let groceriesId: string | null = null;
+let diningId: string | null = null;
+
 function makeApp(tenantId: string) {
   const app = new Hono<AuthEnv>();
   app.use("*", async (c, next) => {
@@ -118,6 +122,8 @@ beforeAll(async () => {
       )[0].id;
     const groceries = await category(expenseGroup, "Groceries (reconcile.test)");
     const dining = await category(expenseGroup, "Dining (reconcile.test)");
+    groceriesId = groceries;
+    diningId = dining;
     const electronics = await category(expenseGroup, REFUNDED_CATEGORY);
     const salary = await category(incomeGroup, "Salary (reconcile.test)");
 
@@ -156,9 +162,9 @@ afterAll(async () => {
   await db.delete(tenants).where(eq(tenants.id, tid)).catch(() => {});
 });
 
-async function fetchBoth() {
+async function fetchBoth(scope = "") {
   const app = makeApp(tenantId!);
-  const trendRes = await app.request("/monthly-trend?granularity=month&limit=13");
+  const trendRes = await app.request(`/monthly-trend?granularity=month&limit=13${scope}`);
   const summaryRes = await app.request(
     `/spending-summary?startDate=${encodeURIComponent(START)}&endDate=${encodeURIComponent(END)}`,
   );
@@ -169,6 +175,22 @@ async function fetchBoth() {
   const period = trendBody.periods.find((p: any) => p.period === PERIOD);
   expect(period, `no ${PERIOD} bucket in /monthly-trend`).toBeTruthy();
   return { period, summary };
+}
+
+// What the spending page computes for a scope: the summary rows it keeps,
+// summed on the same predicate the server classifies by. /spending-summary is
+// NOT scoped — the page filters its rows in the browser — so this is the other
+// half of the pair the trend has to agree with.
+function clientFilteredSpending(
+  summary: any,
+  scope: { include?: string[]; exclude?: string[] },
+): number {
+  const rows = summary.categories.filter((cat: any) => {
+    if (scope.include?.length && !scope.include.includes(cat.id)) return false;
+    if (scope.exclude?.length && cat.id !== null && scope.exclude.includes(cat.id)) return false;
+    return cat.groupType !== "income" && cat.groupType !== "transfer";
+  });
+  return Math.round(rows.reduce((sum: number, cat: any) => sum + cat.total, 0) * 100) / 100;
 }
 
 describe("/monthly-trend and /spending-summary reconcile", () => {
@@ -192,6 +214,40 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
     }
     const { period, summary } = await fetchBoth();
     expect(period.income).toBe(summary.totalIncome);
+    expect(period.income).toBe(EXPECTED_INCOME);
+  });
+
+  /**
+   * The scope reaches the page through two different mechanisms — the trend is
+   * filtered in SQL, the summary rows are filtered in the browser — so the two
+   * can drift into stating different numbers for the same scope. They cannot
+   * drift past this.
+   */
+  it("agrees with the client-side scope for an include list", async () => {
+    if (!dbAvailable) {
+      console.warn("SKIP: no DB at DATABASE_URL");
+      return;
+    }
+    const include = [groceriesId!, diningId!];
+    const { period, summary } = await fetchBoth(`&categories=${include.join(",")}`);
+    expect(period.expenses).toBe(clientFilteredSpending(summary, { include }));
+    // Groceries 500.00 + Dining (300.00 - 50.00) = 750.00, unchanged: the two
+    // counted categories are exactly the ones named.
+    expect(period.expenses).toBe(EXPECTED_SPENDING);
+    expect(period.income).toBe(0);
+  });
+
+  it("agrees with the client-side scope for an exclude list", async () => {
+    if (!dbAvailable) {
+      console.warn("SKIP: no DB at DATABASE_URL");
+      return;
+    }
+    const exclude = [groceriesId!];
+    const { period, summary } = await fetchBoth(`&excludeCategories=${exclude.join(",")}`);
+    expect(period.expenses).toBe(clientFilteredSpending(summary, { exclude }));
+    // Everything but Groceries: Dining nets 250.00, Electronics still counts as
+    // neither, and income is untouched by an expense-category exclusion.
+    expect(period.expenses).toBe(250);
     expect(period.income).toBe(EXPECTED_INCOME);
   });
 

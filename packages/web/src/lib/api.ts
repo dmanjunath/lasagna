@@ -977,10 +977,19 @@ export const api = {
     }>("/portfolio/exposure"),
 
   // Transactions
-  getTransactions: (params?: { page?: number; limit?: number; category?: string; startDate?: string; endDate?: string; accountId?: string; search?: string }) => {
+  getTransactions: (params?: { page?: number; limit?: number; category?: string; categories?: string[]; excludeCategories?: string[]; startDate?: string; endDate?: string; accountId?: string; search?: string }) => {
     const searchParams = new URLSearchParams();
     if (params) {
-      Object.entries(params).forEach(([k, v]) => { if (v !== undefined) searchParams.set(k, String(v)); });
+      // Comma-joined, so the list the address bar carries is the list the API
+      // reads (String(array) would join the same way, but not on purpose).
+      Object.entries(params).forEach(([k, v]) => {
+        if (v === undefined) return;
+        if (Array.isArray(v)) {
+          if (v.length > 0) searchParams.set(k, v.join(','));
+          return;
+        }
+        searchParams.set(k, String(v));
+      });
     }
     const qs = searchParams.toString();
     return request<{
@@ -1024,9 +1033,11 @@ export const api = {
     }>(`/transactions/spending-summary${qs ? `?${qs}` : ''}`);
   },
 
-  getTrend: (params: { granularity: 'month' | 'year'; limit?: number }) => {
+  getTrend: (params: { granularity: 'month' | 'year'; limit?: number; categories?: string[]; excludeCategories?: string[] }) => {
     const sp = new URLSearchParams({ granularity: params.granularity });
     if (params.limit !== undefined) sp.set('limit', String(params.limit));
+    if (params.categories?.length) sp.set('categories', params.categories.join(','));
+    if (params.excludeCategories?.length) sp.set('excludeCategories', params.excludeCategories.join(','));
     return request<{ periods: Array<{ period: string; income: number; expenses: number; net: number }> }>(
       `/transactions/monthly-trend?${sp.toString()}`,
     );

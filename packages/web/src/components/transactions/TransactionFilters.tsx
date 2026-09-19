@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronDown, Layers, Search, SlidersHorizontal, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { TxnQueryBody } from '../../lib/api';
 import type { AccountIndexEntry } from '../../lib/use-accounts-index';
 import { Badge } from '../uikit';
 import { cn, formatStoredDay, formatStoredMonth } from '../../lib/utils';
 import { InstIcon } from '../common/InstIcon';
-import { getCategoryDisplay } from '../../lib/categories';
-import { categoryOptionLabel, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
+import { CategoryMultiSelect, useCategoryChips } from '../common/CategoryMultiSelect';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -188,7 +187,9 @@ export function dateRangeLabel(start: string, end: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// MultiSelectDropdown — hand-rolled; outside-click + Escape to close.
+// MultiSelectDropdown — the flat Account picker; hand-rolled, outside-click +
+// Escape to close. Categories are grouped and tri-state, and live in the shared
+// CategoryMultiSelect.
 // ---------------------------------------------------------------------------
 
 function MultiSelectDropdown({
@@ -197,19 +198,13 @@ function MultiSelectDropdown({
   options,
   selected,
   onChange,
-  groupChildren,
 }: {
   label: string;
   pluralLabel: string;
-  /** Items with `heading: true` render as non-selectable section headers.
-      `icon` renders left of the label; `sublabel` renders muted beneath it. */
-  options: Array<{ value: string; label: string; heading?: boolean; icon?: React.ReactNode; sublabel?: string }>;
+  /** `icon` renders left of the label; `sublabel` renders muted beneath it. */
+  options: Array<{ value: string; label: string; icon?: React.ReactNode; sublabel?: string }>;
   selected: string[];
   onChange: (selected: string[]) => void;
-  /** Maps a heading value → its child option values. When present for a heading,
-      it renders as a select-all checkbox (with an indeterminate partial state)
-      that toggles every child at once. */
-  groupChildren?: Map<string, string[]>;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -234,30 +229,12 @@ function MultiSelectDropdown({
     };
   }, [open]);
 
-  // Trigger label — collapse fully-selected groups so it agrees with the chips
-  // and badge (a whole group counts as one, shown by name).
-  const triggerLabel = (() => {
-    if (selected.length === 0) return label;
-    if (!groupChildren) {
-      return selected.length === 1
-        ? (options.find((o) => !o.heading && o.value === selected[0])?.label ?? label)
+  const triggerLabel =
+    selected.length === 0
+      ? label
+      : selected.length === 1
+        ? (options.find((o) => o.value === selected[0])?.label ?? label)
         : `${selected.length} ${pluralLabel}`;
-    }
-    const consumed = new Set<string>();
-    const groupNames: string[] = [];
-    for (const [gid, kids] of groupChildren) {
-      if (kids.length > 0 && kids.every((v) => selected.includes(v))) {
-        kids.forEach((v) => consumed.add(v));
-        groupNames.push(options.find((o) => o.heading && o.value === gid)?.label ?? '');
-      }
-    }
-    const loose = selected.filter((v) => !consumed.has(v));
-    const total = groupNames.length + loose.length;
-    if (total === 1) {
-      return groupNames[0] || (options.find((o) => !o.heading && o.value === loose[0])?.label ?? label);
-    }
-    return `${total} ${pluralLabel}`;
-  })();
 
   return (
     <div className="relative" ref={ref}>
@@ -275,56 +252,11 @@ function MultiSelectDropdown({
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 max-h-[320px] w-full min-w-[200px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised shadow-ui-lg">
           {options.map((opt) => {
-            if (opt.heading) {
-              const children = groupChildren?.get(opt.value);
-              if (!children || children.length === 0) {
-                return (
-                  <div
-                    key={`h-${opt.value}`}
-                    className="px-3 pb-1 pt-2.5 text-[11px] font-semibold text-content-muted"
-                  >
-                    {opt.label}
-                  </div>
-                );
-              }
-              // Selectable group header: a shaded "select all in group" row that
-              // reads as a section — a Layers glyph + bold dark label mark it as
-              // the parent; children render indented beneath. Checked when every
-              // child is selected, indeterminate when only some are.
-              const allSelected = children.every((v) => selected.includes(v));
-              const someSelected = children.some((v) => selected.includes(v));
-              return (
-                <label
-                  key={`h-${opt.value}`}
-                  className="flex min-h-touch cursor-pointer items-center gap-2.5 border-y border-line bg-canvas-sunken px-3 py-2 first:border-t-0 hover:bg-line/70"
-                >
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                    onChange={() => {
-                      onChange(
-                        allSelected
-                          ? selected.filter((v) => !children.includes(v))
-                          : Array.from(new Set([...selected, ...children])),
-                      );
-                    }}
-                    className="h-4 w-4 rounded border-line accent-[rgb(var(--ui-brand))]"
-                  />
-                  <Layers size={13} className="shrink-0 text-content-muted" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-content">{opt.label}</span>
-                </label>
-              );
-            }
             const checked = selected.includes(opt.value);
             return (
               <label
                 key={opt.value}
-                className={cn(
-                  'flex min-h-touch cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-canvas-sunken',
-                  // Indent category rows so they nest under their group header.
-                  groupChildren && 'pl-9',
-                )}
+                className="flex min-h-touch cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-canvas-sunken"
               >
                 <input
                   type="checkbox"
@@ -422,38 +354,12 @@ export function TransactionFilters({
     };
   }, [panelOpen]);
 
-  // Grouped category options — a heading row per group, category ids as values.
-  const pickerGroups = usePickerGroups();
-  const { byId } = useTaxonomy();
-  const categoryOptions = useMemo(
-    () =>
-      pickerGroups.flatMap(({ group, categories }) => [
-        { value: group.id, label: group.name, heading: true as const },
-        ...categories.map((cat) => ({ value: cat.id, label: categoryOptionLabel(cat) })),
-      ]),
-    [pickerGroups],
-  );
-  // Group id → its child category ids, so a group header can select all at once
-  // and a fully-selected group collapses into a single chip.
-  const categoryGroupChildren = useMemo(() => {
-    const m = new Map<string, string[]>();
-    for (const { group, categories } of pickerGroups) m.set(group.id, categories.map((c) => c.id));
-    return m;
-  }, [pickerGroups]);
   // Fully-selected groups collapse to one unit, so the trigger label, the
   // Filters badge, and the chips all agree on how a group selection is counted.
-  const { selectedGroups, looseCatIds } = useMemo(() => {
-    const consumed = new Set<string>();
-    const selectedGroups: Array<{ id: string; name: string; childIds: string[] }> = [];
-    for (const { group, categories } of pickerGroups) {
-      const childIds = categories.map((c) => c.id);
-      if (childIds.length > 0 && childIds.every((id) => filters.categories.includes(id))) {
-        childIds.forEach((id) => consumed.add(id));
-        selectedGroups.push({ id: group.id, name: group.name, childIds });
-      }
-    }
-    return { selectedGroups, looseCatIds: filters.categories.filter((c) => !consumed.has(c)) };
-  }, [pickerGroups, filters.categories]);
+  const { chips: categoryChips, count: categoryCount } = useCategoryChips(
+    filters.categories,
+    (cats) => onChange({ ...filters, categories: cats }),
+  );
   // Account options carry the institution identity so several accounts named
   // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ••1234").
   const accountOptions = accounts.map((a) => ({
@@ -469,7 +375,7 @@ export function TransactionFilters({
   // Active-filter count for the Filters button badge (search lives outside).
   // A whole selected group counts as one, matching the collapsed chips.
   const activeCount =
-    selectedGroups.length + looseCatIds.length +
+    categoryCount +
     filters.accountIds.length +
     (filters.datePreset !== 'all' ? 1 : 0) +
     (filters.amountMin || filters.amountMax ? 1 : 0);
@@ -488,21 +394,8 @@ export function TransactionFilters({
   // A fully-selected group is one chip; leftover loose categories get their own.
   // Brand-tone both so a drill-in from Spending reads as "you're scoped here",
   // distinct from search/account chips.
-  for (const g of selectedGroups) {
-    chips.push({
-      key: `grp-${g.id}`,
-      label: g.name,
-      tone: 'brand',
-      clear: () => onChange({ ...filters, categories: filters.categories.filter((c) => !g.childIds.includes(c)) }),
-    });
-  }
-  for (const cat of looseCatIds) {
-    chips.push({
-      key: `cat-${cat}`,
-      label: byId.get(cat)?.name ?? getCategoryDisplay(cat).label,
-      tone: 'brand',
-      clear: () => onChange({ ...filters, categories: filters.categories.filter((c) => c !== cat) }),
-    });
+  for (const cat of categoryChips) {
+    chips.push({ key: cat.key, label: cat.label, tone: 'brand', clear: cat.remove });
   }
   for (const accId of filters.accountIds) {
     const acc = accounts.find((a) => a.id === accId);
@@ -607,13 +500,10 @@ export function TransactionFilters({
           >
             <div>
               <div className={sectionLabel}>Category</div>
-              <MultiSelectDropdown
-                label="All categories"
-                pluralLabel="categories"
-                options={categoryOptions}
+              <CategoryMultiSelect
+                variant="field"
                 selected={filters.categories}
                 onChange={(cats) => onChange({ ...filters, categories: cats })}
-                groupChildren={categoryGroupChildren}
               />
             </div>
 
@@ -714,9 +604,11 @@ export function TransactionFilters({
                 type="button"
                 onClick={chip.clear}
                 aria-label={`Remove ${chip.label} filter`}
-                className="grid place-items-center"
+                className="ui-focus group relative -mx-0.5 inline-flex items-center justify-center rounded-full px-1 max-sm:before:absolute max-sm:before:inset-x-0 max-sm:before:-inset-y-3 max-sm:before:content-['']"
               >
-                <X size={12} />
+                <span className="grid h-5 w-5 place-items-center rounded-full transition-colors group-hover:bg-content/10">
+                  <X size={12} />
+                </span>
               </button>
             </Badge>
           ))}

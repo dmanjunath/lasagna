@@ -150,6 +150,8 @@ export function TransactionList({
   accountId,
   startDate, endDate,
   category,
+  categoryIds,
+  excludeCategoryIds,
   onClearCategory,
   refreshKey = 0,
   onDataChanged,
@@ -166,6 +168,10 @@ export function TransactionList({
   startDate?: string;
   endDate?: string;
   category?: string | null;
+  /** Category scope applied on top of `category`: keep only these ids. */
+  categoryIds?: string[];
+  /** Category scope applied on top of `category`: drop these ids. */
+  excludeCategoryIds?: string[];
   onClearCategory?: () => void;
   refreshKey?: number;
   onDataChanged?: () => void;
@@ -205,11 +211,16 @@ export function TransactionList({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Stable keys for the two id lists, so a fresh array identity on every parent
+  // render can't restart the fetch effect on a scope that did not change.
+  const categoryIdsKey = (categoryIds ?? []).join(',');
+  const excludeCategoryIdsKey = (excludeCategoryIds ?? []).join(',');
+
   // Reset page to 1 when any filter changes externally or via debounced search.
   useEffect(() => {
     setPage(1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate, accountId, effectiveCategory, debouncedSearch]);
+  }, [startDate, endDate, accountId, effectiveCategory, categoryIdsKey, excludeCategoryIdsKey, debouncedSearch]);
 
   // Clear create-rule prompt on page change.
   useEffect(() => {
@@ -224,6 +235,8 @@ export function TransactionList({
       page,
       limit: pageSize,
       category: effectiveCategory || undefined,
+      categories: categoryIdsKey ? categoryIdsKey.split(',') : undefined,
+      excludeCategories: excludeCategoryIdsKey ? excludeCategoryIdsKey.split(',') : undefined,
       startDate,
       endDate,
       accountId,
@@ -241,7 +254,7 @@ export function TransactionList({
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [page, pageSize, effectiveCategory, startDate, endDate, accountId, debouncedSearch, refreshKey]);
+  }, [page, pageSize, effectiveCategory, categoryIdsKey, excludeCategoryIdsKey, startDate, endDate, accountId, debouncedSearch, refreshKey]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 

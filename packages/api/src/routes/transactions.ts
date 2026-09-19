@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql, desc, asc, notInArray, inArray, transactions, accounts, categories, categoryGroups, type SQL } from "@lasagna/core";
+import { eq, and, or, sql, desc, asc, isNull, notInArray, inArray, transactions, accounts, categories, categoryGroups, type SQL } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { excludedTxnAccountIds } from "../lib/account-balances.js";
@@ -8,6 +8,28 @@ import { validateQueryBody, buildKeysetPredicate, encodeCursor, cursorForRow } f
 import { loadTaxonomy, UUID_RE } from "../lib/taxonomy.js";
 
 export const transactionRoutes = new Hono<AuthEnv>();
+
+// A comma-joined category-id list from the query string. Anything that is not a
+// uuid is dropped rather than passed to Postgres, which would reject the cast.
+// A stale id surviving in a shared link is harmless: it matches no row in an
+// include list and is a no-op in an exclude list.
+function categoryIdsParam(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw.split(",").filter((id) => UUID_RE.test(id));
+}
+
+// The exclude predicate has to spell the NULL case out. `not in (...)` is NULL
+// for an uncategorized row, so a plain notInArray would silently drop every
+// uncategorized transaction — and the page keeps those under an exclude-only
+// scope, so the chart would then disagree with the hero above it.
+function categoryScopeConditions(include: string[], exclude: string[]): SQL[] {
+  const out: SQL[] = [];
+  if (include.length > 0) out.push(inArray(transactions.categoryId, include));
+  if (exclude.length > 0) {
+    out.push(or(isNull(transactions.categoryId), notInArray(transactions.categoryId, exclude))!);
+  }
+  return out;
+}
 
 // GET / - List transactions with pagination and filters
 transactionRoutes.get("/", async (c) => {
@@ -19,8 +41,12 @@ transactionRoutes.get("/", async (c) => {
   const endDate = c.req.query("endDate");
   const accountId = c.req.query("accountId");
   const search = c.req.query("search");
+  // The spending page's category scope, in the spelling its URL already uses.
+  const scopeInclude = categoryIdsParam(c.req.query("categories"));
+  const scopeExclude = categoryIdsParam(c.req.query("excludeCategories"));
 
   const conditions = [eq(transactions.tenantId, session.tenantId)];
+  conditions.push(...categoryScopeConditions(scopeInclude, scopeExclude));
 
   if (category) {
     // Category ids only (tenant-scoped existence check keeps the 400 crisp).
@@ -396,6 +422,12 @@ transactionRoutes.get("/monthly-trend", async (c) => {
   const conditions = [
     eq(transactions.tenantId, session.tenantId),
     sql`${transactions.excludedAt} is null`,
+    // Same scope the spending page applies to /spending-summary's rows, so the
+    // bars and the delta pill describe the same money the hero does.
+    ...categoryScopeConditions(
+      categoryIdsParam(c.req.query("categories")),
+      categoryIdsParam(c.req.query("excludeCategories")),
+    ),
   ];
   if (granularity === "month" && limit != null) {
     const from = new Date(now.getFullYear(), now.getMonth() - (limit - 1), 1);
