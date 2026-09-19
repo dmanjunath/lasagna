@@ -794,7 +794,7 @@ const INSIGHTS_PROMPT = `You are Lasagna's financial insights engine. Analyze th
 CRITICAL RULES:
 1. Every insight MUST include at least one specific dollar amount or percentage from the actual data
 2. Every insight MUST include a comparison (vs last month, vs target, vs a benchmark, vs a threshold)
-3. Every insight MUST end with a concrete next step — "review", "consider", "look into", or "adjust accordingly" are NOT concrete. A concrete step is: "increase X by $Y", "move $X from A to B", "open an account at...", "set up automatic transfer of $X/mo"
+3. Every insight MUST end with a concrete next step the user could take TODAY — "review", "consider", "look into", or "adjust accordingly" are NOT concrete, and neither is an observation dressed as advice. A concrete step is: "increase X by $Y", "move $X from A to B", "open an account at...", "set up automatic transfer of $X/mo". Where the step involves another company's product or pricing (a bundle, a plan, a card, a provider, a rate), NAME the option and what to ask for, and never state a figure, a rate or a discount for it: you have the user's own data and nothing else, so any price you put on somebody else's product is invented.
 4. NEVER generate an insight from a lens if that lens has no data (e.g., skip spending insights if spending arrays are empty)
 5. NEVER make factually incorrect statements — double-check all tax bracket thresholds against the user's actual income
 6. Keep dollar amounts consistent: if the title states a figure, it MUST match the impact field. The figure is either the amount to act on (a balance, a monthly contribution, remaining contribution room) or a NON-TAX benefit (interest avoided, employer match earned, extra investment return). Never state the same figure two different ways.
@@ -1468,6 +1468,32 @@ async function markGenerationAttempt(tenantId: string): Promise<void> {
     });
 }
 
+/**
+ * The workflow that owns the rows this file writes. The actions table has two
+ * producers, and this one is the daily model-authored set.
+ */
+export const INSIGHTS_ENGINE_PRODUCER = "insights-engine";
+
+/**
+ * The rows a generation may throw away: this producer's own, not the table's.
+ *
+ * The producer clause is the load-bearing part. Without it the predicate reads
+ * "every non-dismissed row for the tenant", and the first daily run after the
+ * spend-cuts producer started sharing this table would silently erase every
+ * household's spend cuts — a day after deploy, with nothing in the logs. The
+ * rendered SQL is pinned in lib/__tests__/insights-producer-scope.test.ts.
+ *
+ * Dismissed rows are kept, as they always were: a person who has said "not this
+ * one" must not be told it again tomorrow.
+ */
+export function insightsEngineRowsToReplace(tenantId: string) {
+  return and(
+    eq(insights.tenantId, tenantId),
+    eq(insights.producer, INSIGHTS_ENGINE_PRODUCER),
+    sql`${insights.dismissed} IS NULL`,
+  );
+}
+
 export async function generateInsights(tenantId: string): Promise<number> {
   // Admin pause: disabled tenants get no actions generated (route + cron both
   // funnel through here). Checked OUTSIDE the attempt marker below: a paused
@@ -1554,15 +1580,8 @@ async function runGeneration(tenantId: string): Promise<number> {
     throw e instanceof Error ? e : new Error(msg);
   }
 
-  // Full delete of all non-dismissed insights — ensures numbers stay fresh
-  await db
-    .delete(insights)
-    .where(
-      and(
-        eq(insights.tenantId, tenantId),
-        sql`${insights.dismissed} IS NULL`
-      )
-    );
+  // Replace this producer's non-dismissed rows — ensures numbers stay fresh.
+  await db.delete(insights).where(insightsEngineRowsToReplace(tenantId));
 
   const validCategories = [
     "portfolio",
@@ -1648,6 +1667,9 @@ async function runGeneration(tenantId: string): Promise<number> {
 
     await db.insert(insights).values({
       tenantId,
+      // Written explicitly rather than left to the column default, so the row
+      // and the delete predicate above name the same producer in the same file.
+      producer: INSIGHTS_ENGINE_PRODUCER,
       category,
       urgency,
       effort,

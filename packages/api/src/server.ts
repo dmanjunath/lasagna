@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { getCookie } from "hono/cookie";
 import { resolveCorsOrigin } from "./lib/cors.js";
 import { blocksAsCsrf } from "./lib/csrf.js";
+import { checkOriginAuth, ORIGIN_AUTH_HEADER } from "./lib/origin-auth.js";
 import { COOKIE_NAME } from "./lib/session.js";
 import type { MiddlewareHandler } from "hono";
 import { requireAuth, AuthEnv } from "./middleware/auth.js";
@@ -70,6 +71,40 @@ app.use(
   })
 );
 
+// ── Origin auth: require requests to have come through Cloudflare ──
+// The run.app URL answers the internet directly, so anything Cloudflare
+// enforces is bypassable while that path is open. Cloud Run's ingress setting
+// can't close it (a domain mapping isn't a load balancer), so Cloudflare
+// injects a shared secret header instead — see lib/origin-auth.ts.
+//
+// Two env vars, so this can ship before Cloudflare sends the header:
+//   ORIGIN_AUTH_SECRET   unset  -> off entirely
+//   ORIGIN_AUTH_ENFORCE  !true  -> log only, never reject
+// Mounted on /api/* only. /cron/* is called by Cloud Scheduler on the run.app
+// URL, bypassing Cloudflare by design, and has its own shared-secret guard.
+const originAuthSecret = process.env.ORIGIN_AUTH_SECRET;
+const originAuthEnforce = process.env.ORIGIN_AUTH_ENFORCE === "true";
+app.use("/api/*", async (ctx, next) => {
+  const outcome = checkOriginAuth({
+    method: ctx.req.method,
+    path: ctx.req.path,
+    provided: ctx.req.header(ORIGIN_AUTH_HEADER),
+    expected: originAuthSecret,
+  });
+  if (outcome === "unfronted") {
+    if (originAuthEnforce) {
+      return ctx.json({ error: "Direct origin access is not allowed" }, 403);
+    }
+    // Log-only: this is what you watch before flipping ORIGIN_AUTH_ENFORCE on.
+    // A legitimate caller showing up here means it is not going through
+    // Cloudflare and would break under enforcement.
+    console.warn(
+      `[origin-auth] would block: ${ctx.req.method} ${ctx.req.path} ua=${ctx.req.header("user-agent") ?? "-"}`
+    );
+  }
+  return next();
+});
+
 // ── CSRF: reject cross-site writes that ride on the session cookie ──
 // Runs before auth so a forged request never reaches a handler. Cookie-less
 // requests (webhooks, Bearer clients) are untouched — see lib/csrf.ts.
@@ -134,10 +169,12 @@ app.use("/api/*", async (ctx, next) => {
   const path = ctx.req.path;
 
   // Intercept without DB write — return success so UI doesn't break
-  if (path.match(/^\/api\/insights\/[^/]+\/(dismiss|acted)$/)) {
+  // `snooze` was missing here, so a demo user pressing it got a 403 on an
+  // action the UI offers.
+  if (path.match(/^\/api\/insights\/[^/]+\/(dismiss|acted|snooze)$/)) {
     return ctx.json({ ok: true });
   }
-  if (path === "/api/insights/generate") {
+  if (path === "/api/insights/generate" || path === "/api/insights/refresh-spend-cuts") {
     return ctx.json({ ok: true, generated: 0 });
   }
 

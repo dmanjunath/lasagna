@@ -191,6 +191,12 @@ export const financialProfiles = pgTable("financial_profiles", {
   dependentCount: integer("dependent_count"),   // null = unknown; 0 = none; 1+ = has dependents
   isPSLFEligible: boolean("is_pslf_eligible"),
   lastActionsGeneratedAt: timestamp("last_actions_generated_at", { withTimezone: true }),
+  // When the deterministic "ways to spend less" findings were last worked out,
+  // by any path. A SEPARATE marker from the one above and never shared with it:
+  // that one gates a paid daily model run at 48h, this one gates a free monthly
+  // recomputation, and one marker answering both questions meant a free
+  // regeneration silently closed the paid refresh throttle.
+  lastSpendCutsGeneratedAt: timestamp("last_spend_cuts_generated_at", { withTimezone: true }),
   // Plain-language description of what this household's tax documents show.
   // Regenerated only when the fingerprint (the documents plus the profile
   // fields the summary reads) changes, so a page view costs nothing.
@@ -576,59 +582,100 @@ export const insightEffortEnum = pgEnum("insight_effort", [
   "involved",
 ]);
 
-export const insights = pgTable("insights", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id, { onDelete: "cascade" }),
-  category: insightCategoryEnum("category").notNull(),
-  urgency: insightUrgencyEnum("urgency").notNull().default("medium"),
-  // Nullable, and null is a real answer: every action written before this
-  // existed has no reading, and none can be inferred for them. Home sorts an
-  // unknown effort as if it were `moderate`, so the old rows interleave with
-  // the new instead of all sinking to the bottom or floating to the top.
-  effort: insightEffortEnum("effort"),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  impact: text("impact"), // e.g. "Saves $340/yr" or "+$2,080 free money"
-  impactColor: varchar("impact_color", { length: 10 }), // green, amber, red
-  chatPrompt: text("chat_prompt"), // message to send to AI for deeper discussion
-  dismissed: timestamp("dismissed_at", { withTimezone: true }),
-  actedOn: timestamp("acted_on_at", { withTimezone: true }),
-  snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }),
-  generatedBy: varchar("generated_by", { length: 50 }).notNull().default("system"), // system, ai, manual
-  insightType: text("type"), // page routing: spending|behavioral|debt|tax|portfolio|savings|retirement|general
-  // The step of this person's path that this action serves, named by the path's
-  // own candidate key (`debt:<id>`, `goal:<id>`, `emergency-fund`, ...). Null
-  // when the action serves no step, which is a real answer and not a failure:
-  // a fraud alert or a tax-document nudge belongs on the list whether or not
-  // the path has a rung for it.
-  //
-  // A KEY, not a `financial_path_steps.id`, and that is the load-bearing part.
-  // Regenerating a path supersedes its step rows and inserts a fresh set, so a
-  // row id would point at a step that is no longer on the path the moment the
-  // order is chosen again, and every action would fall out of its group on
-  // every rebuild. The key is what the path itself is stable on: it is what
-  // carries a person's tick and note onto the next path, what `applyStoredOrder`
-  // re-anchors on, and what `markPathStep` addresses. An action attached by key
-  // survives a regeneration for exactly the reason a tick does.
-  //
-  // Nothing enforces it as a foreign key, and nothing needs to. Resolution
-  // happens on read against the ACTIVE path: a key with no step behind it (the
-  // account closed, the goal deleted, the step taken off the path) resolves to
-  // no step, which is what an `on delete set null` would have produced, and the
-  // action is still shown, after every action that has one.
-  pathStepKey: varchar("path_step_key", { length: 100 }),
-  sourceData: text("source_data"), // JSON snapshot of data that triggered this insight
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const insights = pgTable(
+  "insights",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    // Which WORKFLOW owns this row, as opposed to generatedBy, which says who
+    // wrote its words. Two producers write here: `insights-engine` (daily, model
+    // authored) and `spend-cuts` (monthly, deterministic). Every producer-wide
+    // delete is scoped by this column, because a regeneration that replaces "all
+    // non-dismissed rows for the tenant" would otherwise erase the other
+    // producer's set on its next scheduled run.
+    producer: varchar("producer", { length: 32 }).notNull().default("insights-engine"),
+    // The stable identity of the FINDING behind a row, for producers that
+    // recompute the same set on a schedule and must upsert rather than duplicate.
+    // Null on rows whose producer has no such identity (the insights engine
+    // replaces its set wholesale), which is why the unique index below is partial.
+    dedupeKey: text("dedupe_key"),
+    category: insightCategoryEnum("category").notNull(),
+    urgency: insightUrgencyEnum("urgency").notNull().default("medium"),
+    // Nullable, and null is a real answer: every action written before this
+    // existed has no reading, and none can be inferred for them. Home sorts an
+    // unknown effort as if it were `moderate`, so the old rows interleave with
+    // the new instead of all sinking to the bottom or floating to the top.
+    effort: insightEffortEnum("effort"),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    impact: text("impact"), // e.g. "Saves $340/yr" or "+$2,080 free money"
+    impactColor: varchar("impact_color", { length: 10 }), // green, amber, red
+    chatPrompt: text("chat_prompt"), // message to send to AI for deeper discussion
+    dismissed: timestamp("dismissed_at", { withTimezone: true }),
+    actedOn: timestamp("acted_on_at", { withTimezone: true }),
+    snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    generatedBy: varchar("generated_by", { length: 50 }).notNull().default("system"), // system, ai, manual
+    insightType: text("type"), // page routing: spending|behavioral|debt|tax|portfolio|savings|retirement|general
+    // The step of this person's path that this action serves, named by the path's
+    // own candidate key (`debt:<id>`, `goal:<id>`, `emergency-fund`, ...). Null
+    // when the action serves no step, which is a real answer and not a failure:
+    // a fraud alert or a tax-document nudge belongs on the list whether or not
+    // the path has a rung for it.
+    //
+    // A KEY, not a `financial_path_steps.id`, and that is the load-bearing part.
+    // Regenerating a path supersedes its step rows and inserts a fresh set, so a
+    // row id would point at a step that is no longer on the path the moment the
+    // order is chosen again, and every action would fall out of its group on
+    // every rebuild. The key is what the path itself is stable on: it is what
+    // carries a person's tick and note onto the next path, what `applyStoredOrder`
+    // re-anchors on, and what `markPathStep` addresses. An action attached by key
+    // survives a regeneration for exactly the reason a tick does.
+    //
+    // Nothing enforces it as a foreign key, and nothing needs to. Resolution
+    // happens on read against the ACTIVE path: a key with no step behind it (the
+    // account closed, the goal deleted, the step taken off the path) resolves to
+    // no step, which is what an `on delete set null` would have produced, and the
+    // action is still shown, after every action that has one.
+    pathStepKey: varchar("path_step_key", { length: 100 }),
+    sourceData: text("source_data"), // JSON snapshot of data that triggered this insight
+    // The row's own figure, split in two rather than one column plus a "kind"
+    // flag. With monthly_value NULL on a one-off, `sum(monthly_value)` CANNOT
+    // include it, so adding a refund that arrives once into a total labelled "a
+    // month" is structurally impossible instead of conditionally avoided.
+    monthlyValue: numeric("monthly_value", { precision: 19, scale: 2 }),
+    oneTimeValue: numeric("one_time_value", { precision: 19, scale: 2 }),
+    // The facts the figure was computed from, shown to the reader under the copy.
+    evidence: text("evidence"),
+    // Structured detail a producer needs back on read (kind, merchant, category,
+    // the transactions behind the figure). Deliberately a NEW column rather than
+    // converting source_data: that column holds the full scrubbed prompt snapshot
+    // (budgeted to 600k chars), and `ALTER COLUMN ... TYPE jsonb` rewrites every
+    // row under ACCESS EXCLUSIVE and aborts the whole migration on the first
+    // historical row that is not valid JSON. source_data stays text, permanently.
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // One row per finding per household, enforced by the database rather than
+    // by a read-then-write, so a concurrent regeneration upserts instead of
+    // duplicating. Partial: the insights engine writes no dedupe key.
+    uniqueIndex("insights_tenant_dedupe_key_idx")
+      .on(t.tenantId, t.dedupeKey)
+      .where(sql`${t.dedupeKey} IS NOT NULL`),
+    // The table had no tenant index at all. This also serves the
+    // producer-scoped delete each generation runs.
+    index("insights_tenant_producer_idx").on(t.tenantId, t.producer),
+  ],
+);
 
 // ── Category taxonomy (groups → categories) ────────────────────────────────
 // Tenant-owned. System rows carry a systemKey (fixed, unique per tenant);

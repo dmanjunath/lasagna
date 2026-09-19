@@ -110,6 +110,12 @@ Anything a user sees — labels, hints, captions, empty states, layout — must 
 
 **Match the design system, always.** Every new or changed UI element must match both the surrounding page and the design system — the tokens in `packages/web/src/styles/theme.css` (`--ui-*`, with a `.dark` variant) and the primitives in `packages/web/src/components/uikit` (`Select`, `Button`, `Field`, …). Reuse the uikit primitive, or if the context needs a compact/one-off variant, copy its exact visual idiom and tokens (e.g. `appearance-none` + a custom chevron, `bg-panel`/`border-line-strong`/`rounded-ui-md`/`shadow-ui-sm`, the `--ui-brand-ring` focus ring). **Never ship a raw/unstyled native control** (a bare `<select>`/`<input>` with default browser chrome) or a foreign color/radius that isn't a token. Verify the rendered result in **both light and dark**.
 
+**Use `--ui-*` tokens only. The legacy `--color-*` scale is not dark-aware.** `.dark` remaps 44 `--ui-*` tokens and **zero** `--color-*` ones, so `text-text`, `bg-surface` and `border-border` render light-mode colors on a dark canvas — near-black text, white panels. ~38 files still do this (mostly charts); see SCL-75. Never reach for the legacy scale in new code, and prefer converting a file you're already editing.
+
+Two traps when touching theme tokens:
+- The accent themes declare `--color-*` under `:root[data-theme="…"]` (specificity 0,2,0), so a bare `.dark` (0,1,0) **loses silently**. Overrides must be `:root.dark`.
+- Light/dark must be resolved **before** the stylesheet paints. The CSS is a blocking `<link>` whose `:root` block is the light palette, so applying `.dark` from React flashes a full-brightness white frame on dark devices. The inline script in `index.html` owns this; `src/components/uikit/__tests__/mode.test.ts` fails if it drifts from `mode.ts`.
+
 **UI definition of done — the `ui-reviewer` agent gates it, not the user.** UI work is not "done" when it typechecks and the resting state renders. Before claiming any UI change done:
 
 1. **Start from the jobs and the journey, before any pixels.** List the 3-5 things a user comes to this surface to DO, and where they arrive from and go to next. Every job and every next-step must map to an obvious control here, and every drill affordance must reach the destination it implies (a category row opens the transactions behind it, filtered — it does not just set a filter far down the page). A job with no control, or a drill that dead-ends, is a P0 to solve first. Then search the app for where this same data or problem already appears and **reuse that pattern by default** — deviating from an existing sibling is the thing you must justify. (Skipping this is how the spending breakdown first shipped un-sortable, un-drillable, and as a third composition pattern instead of the Portfolio ranked-bar one.)
@@ -143,6 +149,26 @@ When something isn't working, **run the code and inspect actual data** before th
 3. **Check SDK/library types before writing integration code.** Field renames across versions (e.g. `args` → `input` in AI SDK v6) cause silent failures where everything looks fine but values are `undefined`. A 10-second check of the type definitions prevents hours of debugging.
 4. **Test end-to-end with real requests.** Use curl or Playwright against the running server with real auth. Don't claim something is fixed based on reading code alone.
 5. **Start with the simplest hypothesis.** "The data flowing through is wrong" is almost always more likely than "the AI model is hallucinating." Check the plumbing before blaming the model.
+
+## Shipping to the iOS app (OTA)
+
+Installed apps take web-layer updates over the air, so most changes need no App
+Store submission. **See [OTA.md](OTA.md)** for how it works and how to roll back.
+
+The boundary, which decides whether a fix reaches users in minutes or weeks:
+
+| Change | Ships how |
+| --- | --- |
+| Anything in `packages/web/src` or `packages/web/public` | **OTA** |
+| Anything in `packages/web/ios/` — `Assets.xcassets`, storyboards, `Info.plist`, Swift, plugins | **New App Store build** |
+
+A bundle that needs a native capability the installed shell lacks **boots fine
+and fails when the missing plugin is called**, so the in-app auto-rollback can't
+catch it. The publish workflow refuses across a native-surface change for that
+reason — don't `force` past it without being certain.
+
+Publishing is a cron in lasagna-infra plus one dispatchable workflow; nothing in
+the bucket is edited by hand. Rolling back means publishing an earlier sha.
 
 ## Common Commands
 

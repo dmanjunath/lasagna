@@ -1,0 +1,99 @@
+---
+// Drives every illustration on the site.
+//
+// An illustration is a set of frames. One frame is on screen at a time. The
+// driver waits, moves a pointer onto that frame's control, presses it, and
+// swaps to the next frame. That is what makes the panels read as a product
+// being used rather than a screenshot.
+//
+// Markup contract:
+//   [data-demo]                 the card
+//     [data-demo-stage]         wraps the frames, gets pinned to the tallest
+//       [data-demo-frame]       one frame, first gets .is-active
+//         [data-demo-target]    the control the pointer presses
+//     [data-demo-label]         optional text swapped per frame, via
+//                               data-demo-labels="a|b|c" on the card
+//
+// data-demo-ack="done" adds the green tick and tint before the frame leaves.
+// data-demo-hold="2800" overrides the dwell time.
+---
+
+<script>
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  document.querySelectorAll<HTMLElement>("[data-demo]").forEach((root, index) => {
+    const stage = root.querySelector<HTMLElement>("[data-demo-stage]");
+    if (!stage || reduced) return;
+
+    const frames = [...stage.querySelectorAll<HTMLElement>("[data-demo-frame]")];
+    if (frames.length < 2) return;
+
+    const label = root.querySelector<HTMLElement>("[data-demo-label]");
+    const labels = (root.dataset.demoLabels || "").split("|").filter(Boolean);
+    const ack = root.dataset.demoAck === "done";
+    const hold = Number(root.dataset.demoHold || 2800);
+
+    // Only one frame is in flow, so the stage needs an explicit height. Pinning
+    // every frame to the TALLEST left short frames with a large void under
+    // them, so each frame is measured once and the stage animates to the height
+    // of whichever is showing.
+    let i = 0;
+    let heights: number[] = [];
+    const measure = () => {
+      heights = frames.map((el) => {
+        const was = el.classList.contains("is-active");
+        el.classList.add("is-active");
+        const h = el.offsetHeight;
+        if (!was) el.classList.remove("is-active");
+        return h;
+      });
+      stage.style.minHeight = heights[i] + "px";
+    };
+    measure();
+    addEventListener("resize", measure);
+
+    let running = false;
+
+    // On a tall screen several demos come into view together. Without an offset
+    // they beat in unison, which reads as the page restarting.
+    const offset = (index % 5) * 640 + ((index * 37) % 400);
+
+    async function run() {
+      if (running) return;
+      running = true;
+      await wait(offset);
+      for (;;) {
+        const frame = frames[i];
+        const target = frame.querySelector<HTMLElement>("[data-demo-target]");
+        await wait(hold + ((index * 211) % 500));
+
+        if (target) {
+          // The control still shows itself being used, just without a pointer.
+          target.classList.add("is-pressed");
+          await wait(260);
+          target.classList.remove("is-pressed");
+        }
+
+        if (ack) {
+          frame.classList.add("is-done");
+          await wait(620);
+        }
+
+        frame.classList.add("is-leaving");
+        await wait(320);
+        frame.classList.remove("is-active", "is-done", "is-leaving");
+
+        i = (i + 1) % frames.length;
+        stage!.style.minHeight = heights[i] + "px";
+        frames[i].classList.add("is-active");
+        if (label && labels[i]) label.textContent = labels[i];
+      }
+    }
+
+    new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) run(); },
+      { threshold: 0.25 }
+    ).observe(root);
+  });
+</script>

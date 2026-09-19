@@ -1,0 +1,141 @@
+---
+// The chat is the one surface where the interesting part is the typing and the
+// answer arriving, so this runs its own loop instead of swapping frames.
+import { CHATS as THREADS } from "../demo-data";
+
+---
+
+<div class="card chat-demo" data-chat>
+  <div class="card-head">
+    <div class="card-title">Chat</div>
+    <span class="chip-meta">Claude Sonnet</span>
+  </div>
+
+  <div class="chat-stage" data-chat-stage>
+    <p class="ask" data-chat-question hidden></p>
+    <div class="answer" data-chat-answer hidden>
+      <p data-chat-lead></p>
+      <div class="calc" data-chat-calc hidden></div>
+    </div>
+  </div>
+
+  <div class="askbar">
+    <span class="askbox">
+      <span data-chat-input></span><i class="caret" data-chat-caret></i>
+    </span>
+    <span class="btn btn-primary btn-sm" data-chat-send>Send</span>
+  </div>
+</div>
+
+<script define:vars={{ THREADS }}>
+  const root = document.querySelector("[data-chat]");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (root && still) {
+    // No animation, but the card still has to show a real exchange.
+    const t = THREADS[0];
+    const render = (sel, html) => { const el = root.querySelector(sel); el.innerHTML = html; el.hidden = false; };
+    root.querySelector("[data-chat-question]").textContent = t.q;
+    root.querySelector("[data-chat-question]").hidden = false;
+    render("[data-chat-lead]", t.lead);
+    root.querySelector("[data-chat-answer]").hidden = false;
+    render("[data-chat-calc]",
+      t.rows.map(([l, v, neg]) => `<div class="ln"><span>${l}</span><span class="v${neg ? " neg" : ""}">${v}</span></div>`).join("") +
+      `<div class="ln tot"><span>${t.total[0]}</span><span class="v">${t.total[1]}</span></div>`);
+    root.querySelector("[data-chat-calc]").classList.add("is-in");
+    root.querySelector("[data-chat-caret]").hidden = true;
+  }
+
+  if (root && !still) {
+    const q = root.querySelector("[data-chat-question]");
+    const answer = root.querySelector("[data-chat-answer]");
+    const lead = root.querySelector("[data-chat-lead]");
+    const calc = root.querySelector("[data-chat-calc]");
+    const input = root.querySelector("[data-chat-input]");
+    const caret = root.querySelector("[data-chat-caret]");
+    const send = root.querySelector("[data-chat-send]");
+    const stage = root.querySelector("[data-chat-stage]");
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    // Pin the stage to the tallest thread so the card never resizes.
+    const measure = () => {
+      let tallest = 0;
+      for (const t of THREADS) {
+        q.hidden = false; answer.hidden = false; calc.hidden = false;
+        q.textContent = t.q;
+        lead.innerHTML = t.lead;
+        calc.innerHTML =
+          t.rows.map(([l, v, neg]) => `<div class="ln"><span>${l}</span><span class="v${neg ? " neg" : ""}">${v}</span></div>`).join("") +
+          `<div class="ln tot"><span>${t.total[0]}</span><span class="v">${t.total[1]}</span></div>`;
+        tallest = Math.max(tallest, stage.offsetHeight);
+      }
+      stage.style.minHeight = tallest + "px";
+      q.hidden = true; answer.hidden = true; calc.hidden = true;
+      q.textContent = ""; lead.innerHTML = ""; calc.innerHTML = "";
+    };
+    measure();
+    addEventListener("resize", () => { stage.style.minHeight = ""; measure(); });
+
+    let n = 0;
+    let running = false;
+
+    async function run() {
+      if (running) return;
+      running = true;
+      await wait(500);
+      for (;;) {
+        const t = THREADS[n];
+
+        // 1. Type the question.
+        q.hidden = true; answer.hidden = true; calc.hidden = true;
+        q.textContent = ""; lead.innerHTML = ""; calc.innerHTML = "";
+        input.textContent = "";
+        caret.hidden = false;
+        for (const ch of t.q) {
+          input.textContent += ch;
+          await wait(ch === " " ? 14 : 26);
+        }
+        await wait(420);
+
+        // 2. Send.
+        send.classList.add("is-pressed");
+        await wait(280);
+        send.classList.remove("is-pressed");
+
+        // 3. The question moves into the thread, the composer clears.
+        input.textContent = "";
+        caret.hidden = true;
+        q.textContent = t.q;
+        q.hidden = false;
+        await wait(560);
+
+        // 4. The answer streams in a word at a time, then the figures land.
+        answer.hidden = false;
+        const words = t.lead.split(/(\s+)/);
+        let built = "";
+        for (const w of words) {
+          built += w;
+          lead.innerHTML = built + '<i class="caret"></i>';
+          await wait(/\s/.test(w) ? 12 : 42);
+        }
+        lead.innerHTML = built;
+        await wait(260);
+
+        calc.innerHTML =
+          t.rows.map(([l, v, neg]) => `<div class="ln"><span>${l}</span><span class="v${neg ? " neg" : ""}">${v}</span></div>`).join("") +
+          `<div class="ln tot"><span>${t.total[0]}</span><span class="v">${t.total[1]}</span></div>`;
+        calc.hidden = false;
+        requestAnimationFrame(() => calc.classList.add("is-in"));
+
+        await wait(3400);
+        calc.classList.remove("is-in");
+        n = (n + 1) % THREADS.length;
+      }
+    }
+
+    new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) run(); },
+      { threshold: 0.25 }
+    ).observe(root);
+  }
+</script>

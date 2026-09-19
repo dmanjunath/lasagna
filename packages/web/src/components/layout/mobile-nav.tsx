@@ -23,6 +23,11 @@ interface NavSection {
   items: NavItem[];
 }
 
+function matchesPath(path: string, location: string): boolean {
+  if (path === '/') return location === '/';
+  return location === path || location.startsWith(path + '/');
+}
+
 // Same sections as the desktop sidebar (sidebar.tsx), but all expanded: this
 // drawer is dismissed after one tap, so there is nothing to collapse for.
 // Kept lean so the whole menu fits one phone screen without scrolling. Profile
@@ -63,6 +68,9 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+/** Every nav destination, so `isActive` can let the deepest match win. */
+const NAV_PATHS = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.path));
+
 interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
@@ -94,7 +102,14 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
 
   useBodyScrollLock(isOpen || dragging);
 
-  const isActive = (path: string) => path === '/' ? location === '/' : (location === path || location.startsWith(path + '/'));
+
+  // Exact or sub-route match, with the DEEPEST matching entry winning: a plain
+  // prefix match lights two rows at once wherever one nav path is a prefix of
+  // another, and a plain startsWith would also light "/retirement" up on
+  // "/retirement-v2".
+  const isActive = (path: string) =>
+    matchesPath(path, location) &&
+    !NAV_PATHS.some((p) => p.length > path.length && matchesPath(p, location));
 
   const handleNavigate = (path: string) => {
     navigate(path);

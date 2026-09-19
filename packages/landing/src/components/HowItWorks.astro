@@ -1,0 +1,263 @@
+---
+import Icon from "./Icon.astro";
+import Redaction from "./Redaction.astro";
+import ChatDemo from "./ChatDemo.astro";
+import { INSTITUTIONS, ACTIONS, RANGES } from "../demo-data";
+
+const FILTERS = ["All", "Debt", "Savings"];
+const SEG_COLORS = ["var(--viz-cash)", "var(--viz-invest)", "var(--viz-property)"];
+const SEG_NAMES = ["Cash", "Investments", "Property"];
+---
+
+<!-- HOW IT WORKS — five steps, in the order you do them -->
+<section class="band" id="how">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <h2 class="display">How it works</h2>
+      <p>What happens after you sign up.</p>
+    </div>
+
+    <div class="steps">
+      <!-- 1 · CONNECT -->
+      <div class="step rv">
+        <div class="step-rail"><span class="step-num">1</span></div>
+        <div class="copy">
+          <h3 class="display">Connect your accounts</h3>
+          <p>
+            Connect your banks, cards, brokerages and retirement accounts
+            through Plaid. LasagnaFi reads your balances, holdings and
+            transactions, and refreshes them every day so the numbers you see
+            are current.
+          </p>
+          <ul class="pts">
+            <li>The connection is read only</li>
+            <li>Balances, holdings and transactions</li>
+            <li>Refreshed once a day</li>
+          </ul>
+        </div>
+        <div class="step-art">
+          <div class="card" data-demo data-demo-hold="3000" data-demo-labels="1 connected|2 connected|3 connected">
+            <div class="card-head">
+              <div class="card-title">Connected institutions</div>
+              <span class="chip-meta" data-demo-label>1 connected</span>
+            </div>
+            <div class="demo-stage" data-demo-stage>
+              {INSTITUTIONS.map((_, n) => (
+                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                  {INSTITUTIONS.slice(0, n + 1).map((inst, k) => (
+                    <div class:list={["inst-card", { "is-new": k === n }]}>
+                      <div class="inst">
+                        <span class="logo" style={`color:${inst.color}`}>{inst.initial}</span>
+                        <div>
+                          <div class="nm">{inst.name}</div>
+                          <div class="meta">{inst.meta}</div>
+                        </div>
+                        <span class="tot">{inst.total}</span>
+                      </div>
+                      {k === n && (
+                        <div class="acct-rows">
+                          {inst.accounts.map((a) => (
+                            <div class="acct-row">
+                              <div><b>{a.name}</b><em>{a.kind}</em></div>
+                              <div class="right">
+                                <span class:list={["bal", { neg: a.neg }]}>{a.bal}</span>
+                                <span class="chip-meta c-save">Synced</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <span class="btn btn-primary btn-sm full mt" data-demo-target>Add account</span>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 · AGGREGATE + REDACT -->
+      <div class="step rv">
+        <div class="step-rail"><span class="step-num">2</span></div>
+        <div class="copy">
+          <h3 class="display">LasagnaFi removes your identity</h3>
+          <p>
+            Your accounts are merged into a single view of your finances.
+            Before any prompt reaches the AI, your name, institution and account
+            numbers are replaced with tokens, so the model never receives
+            anything that identifies you. Balances, rates and dates pass through
+            unchanged, and the tokens are resolved before you see the answer.
+          </p>
+          <ul class="pts">
+            <li>Names, banks and account numbers are replaced with codes</li>
+            <li>Balances, rates and dates are sent unchanged</li>
+            <li>All of LasagnaFi is open source</li>
+          </ul>
+        </div>
+        <div class="step-art">
+          <Redaction title="What leaves your device" />
+        </div>
+      </div>
+
+      <!-- 3 · ACTIONS -->
+      <div class="step rv">
+        <div class="step-rail"><span class="step-num">3</span></div>
+        <div class="copy">
+          <h3 class="display">Actions are generated</h3>
+          <p>
+            LasagnaFi reads every account together and generates a ranked list
+            of actions across your spending, taxes, retirement, debt and savings.
+            Each action states the dollar amount it is worth and how much effort
+            it takes, so you can start with the ones that pay the most.
+          </p>
+          <ul class="pts">
+            <li>Ordered by the amount of money involved</li>
+            <li>Covers spending, taxes, retirement, debt and savings</li>
+            <li>Each one expands to show the numbers behind it</li>
+          </ul>
+        </div>
+        <div class="step-art">
+          <div class="card" data-demo data-demo-hold="2900">
+            <div class="card-head">
+              <div class="card-title">Actions</div>
+            </div>
+            <div class="demo-stage" data-demo-stage>
+              {FILTERS.map((active, n) => {
+                const next = FILTERS[(n + 1) % FILTERS.length];
+                const shown = active === "All" ? ACTIONS : ACTIONS.filter((a) => a.f === active);
+                return (
+                  <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                    <div class="segrow">
+                      {FILTERS.map((f) => (
+                        <span
+                          class:list={["seg-chip", { on: f === active }]}
+                          {...(f === next ? { "data-demo-target": true } : {})}
+                        >{f}</span>
+                      ))}
+                    </div>
+                    <div class="rows mt">
+                      {shown.map((a) => (
+                        <div class={`row bar ${a.cat}`}>
+                          <span class={`row-icon ${a.cat}`}><Icon name={a.icon} /></span>
+                          <div class="row-body">
+                            <b>{a.title}</b>
+                            <span class="row-chips">
+                              <span class={`chip-meta ${a.cat}`}>{a.f}</span>
+                              <span class="chip-meta">{a.worth}</span>
+                            </span>
+                          </div>
+                          <span class="row-chev"><Icon name="chevron" /></span>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 · CHAT -->
+      <div class="step rv">
+        <div class="step-rail"><span class="step-num">4</span></div>
+        <div class="copy">
+          <h3 class="display">Ask questions in chat</h3>
+          <p>
+            Chat queries your account data to give you answers specific to your
+            situation. Ask why an action was suggested, or anything else about
+            your money, and the answer uses your actual balances, rates and
+            marginal bracket, with the calculation shown.
+          </p>
+          <ul class="pts">
+            <li>Uses your balances, rates and tax brackets</li>
+            <li>Shows the calculation, not only the result</li>
+            <li>Follow-up questions keep the same context</li>
+          </ul>
+        </div>
+        <div class="step-art">
+          <ChatDemo />
+        </div>
+      </div>
+
+      <!-- 5 · MONITOR -->
+      <div class="step rv">
+        <div class="step-rail"><span class="step-num">5</span></div>
+        <div class="copy">
+          <h3 class="display">Track your progress over time</h3>
+          <p>
+            Your net worth recalculates every day as your accounts sync. Actions
+            you finish drop off the list, and new ones appear as your balances
+            change.
+          </p>
+          <ul class="pts">
+            <li>Assets minus debts, as one number</li>
+            <li>Split by cash, investments and property</li>
+            <li>Change over the current month</li>
+          </ul>
+        </div>
+        <div class="step-art">
+          <div class="card" data-demo data-demo-hold="2900">
+            <div class="demo-stage" data-demo-stage>
+              {RANGES.map((r, n) => {
+                const next = RANGES[(n + 1) % RANGES.length].label;
+                return (
+                  <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                    <div class="card-head">
+                      <div class="card-title">Net worth</div>
+                      <div class="segrow tight">
+                        {RANGES.map((o) => (
+                          <span
+                            class:list={["seg-chip", { on: o.label === r.label }]}
+                            {...(o.label === next ? { "data-demo-target": true } : {})}
+                          >{o.label}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div class="nw-figure figure-lg">{r.figure}</div>
+                    <p class="card-desc" style="margin-top:2px">{r.sub}</p>
+                    <svg class="nwline" viewBox="0 0 300 74" preserveAspectRatio="none" aria-hidden="true">
+                      <path
+                        class="fill"
+                        d={`M0,${r.line[0]} ${r.line.map((y, k) => `L${(k * 300) / (r.line.length - 1)},${y}`).join(" ")} L300,74 L0,74 Z`}
+                      />
+                      <path
+                        class="stroke"
+                        d={`M0,${r.line[0]} ${r.line.map((y, k) => `L${(k * 300) / (r.line.length - 1)},${y}`).join(" ")}`}
+                      />
+                    </svg>
+                    <div class="wealth-rows">
+                      <div class="wr">
+                        <span class="wr-label">Change</span>
+                        <span class="chip-num" style="background:var(--positive-soft);color:var(--positive)">{r.delta}</span>
+                      </div>
+                    </div>
+
+                    <div class="own-head">
+                      <span class="card-title">What you own</span>
+                      <span class="chip-meta">$424,000 of assets</span>
+                    </div>
+                    <div class="compbar" aria-hidden="true">
+                      {r.segs.map((w, k) => (
+                        <span class="seg" style={`--w:${w}%;background:${SEG_COLORS[k]}`}></span>
+                      ))}
+                    </div>
+                    <div class="complegend">
+                      {r.segs.map((w, k) => (
+                        <span class="lg">
+                          <i class="d" style={`background:${SEG_COLORS[k]}`}></i>{SEG_NAMES[k]}
+                          <span class="pct">{w}%</span>
+                        </span>
+                      ))}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

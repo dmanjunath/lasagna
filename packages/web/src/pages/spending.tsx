@@ -893,10 +893,13 @@ export function Spending() {
         </div>
       )}
 
-      {/* ════════ Behavioral / spending insights ════════ */}
+      {/* ════════ Actions — written advice about this page and the savings
+           detected in its transactions, in ONE list. Gated on the default
+           period so month-specific copy can never contradict the period in
+           view. ════════ */}
       {onDefaultPeriod && (
         <section className="mt-10">
-          <PageActions types={['spending', 'behavioral']} />
+          <PageActions types={['spending', 'behavioral']} full />
         </section>
       )}
 

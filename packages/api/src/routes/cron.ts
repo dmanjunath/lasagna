@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { timingSafeEqual } from "node:crypto";
-import { runSyncAll, runDailyInsights } from "../lib/cron.js";
+import { runSyncAll, runDailyInsights, runMonthlySpendCuts } from "../lib/cron.js";
 
 // Service-to-service endpoints for Cloud Scheduler. Mounted at /cron (NOT under
 // /api), so the /api/* user-auth and demo guards never apply — these calls
@@ -42,6 +42,17 @@ cronRoutes.post("/insights", async (c) => {
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     console.error("[Cron] /insights failed:", error);
+    return c.json({ ok: false, error }, 500);
+  }
+});
+
+cronRoutes.post("/spend-cuts", async (c) => {
+  try {
+    const result = await runMonthlySpendCuts();
+    return c.json({ ok: true, ...result });
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    console.error("[Cron] /spend-cuts failed:", error);
     return c.json({ ok: false, error }, 500);
   }
 });

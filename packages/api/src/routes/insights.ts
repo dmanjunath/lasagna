@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, desc, insights, accounts, sql } from "@lasagna/core";
+import { eq, and, desc, inArray, insights, accounts, transactions, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import {
@@ -11,8 +11,19 @@ import {
   NO_HELD_SECURITIES,
   type HeldSecurities,
 } from "../lib/insights-engine.js";
+import {
+  claimsRecurrence,
+  generateSpendCuts,
+  lastSpendCutsPolishAt,
+  spendCutTotals,
+  spendCutsWindow,
+  statesUnknownFigure,
+  SPEND_CUTS_PRODUCER,
+  type SpendCutMetadata,
+} from "../lib/spend-cuts.js";
 import { readPathSteps } from "../lib/path-generator.js";
 import { readHouseholdProfile } from "../lib/profile-resolver.js";
+import { UUID_RE } from "../lib/taxonomy.js";
 import { env } from "../lib/env.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
@@ -51,6 +62,12 @@ function loadActiveInsights(tenantId: string) {
         WHEN 'medium' THEN 2
         WHEN 'low' THEN 3
       END`,
+      // Biggest saving first inside one urgency band. Spend-cut rows take their
+      // urgency from the KIND of finding, so without this the largest saving
+      // can sit under the smallest one in the same band. NULLS LAST leaves
+      // every model-authored row (which carries no figure) exactly where it was,
+      // ordered by createdAt below.
+      sql`${insights.monthlyValue} DESC NULLS LAST`,
       desc(insights.createdAt)
     );
 }
@@ -99,9 +116,46 @@ function servable(
     impact: string | null;
     category: string | null;
     insightType: string | null;
+    producer?: string | null;
+    generatedBy?: string | null;
+    evidence?: string | null;
+    monthlyValue?: string | null;
+    oneTimeValue?: string | null;
+    metadata?: unknown;
   },
   held: HeldSecurities,
 ): boolean {
+  // The spend-cuts producer writes deterministic figures with its own two copy
+  // rules, and none of the model-copy rules below apply to it. Both predicates
+  // are imported from lib/spend-cuts.ts so each still has exactly one
+  // definition, on the write path and here.
+  if (r.producer === SPEND_CUTS_PRODUCER) {
+    const meta = (r.metadata ?? {}) as Partial<SpendCutMetadata>;
+    const monthly = r.monthlyValue == null ? null : Number(r.monthlyValue);
+    const oneTime = r.oneTimeValue == null ? null : Number(r.oneTimeValue);
+    if (r.generatedBy === "ai") {
+      if (
+        statesUnknownFigure({
+          description: r.description ?? "",
+          evidence: r.evidence ?? null,
+          monthlySaving: monthly ?? oneTime ?? 0,
+          annualSaving: meta.annualSaving ?? null,
+        })
+      ) {
+        console.warn(`[SpendCuts] Suppressed a row that states a figure the finding does not have`);
+        return false;
+      }
+      if (claimsRecurrence(meta.kind ?? "", r.description ?? "")) {
+        console.warn(`[SpendCuts] Suppressed a row that calls a one-off amount a recurring one`);
+        return false;
+      }
+    }
+    // A row the page would print as "$0". One-off rows carry a null monthly
+    // value and are not asked the question, which is the point of the split.
+    if (monthly != null && Math.round(monthly) < 1) return false;
+    return true;
+  }
+
   const copy = { title: r.title, description: r.description, impact: r.impact };
   if (pricesTaxSaving(copy)) return false;
   // The family is carried through because it decides whether a security NAME is
@@ -131,6 +185,197 @@ async function tenantHasAccounts(tenantId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * Whether the stored spend cuts are old enough to redo.
+ *
+ * The monthly scheduled run is the happy path. If it is missed, the read is
+ * what keeps it correct: anything worked out before this month is redone on the
+ * next look. Monthly rather than daily because these findings barely move — a
+ * duplicate subscription is the same duplicate tomorrow.
+ *
+ * A SECOND marker, never the one the actions backstop reads. That one gates a
+ * paid model call at 48 hours; this one gates a free deterministic recompute at
+ * a calendar month. Sharing one marker is what made a free regeneration close
+ * the paid refresh throttle, and the same reasoning forbids sharing here.
+ */
+function spendCutsStale(last: Date | string | null | undefined, now: Date): boolean {
+  if (!last) return true;
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return new Date(last).getTime() < monthStart.getTime();
+}
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "2026-07-01". UTC, so the link never lands on a different day by timezone. */
+function ymd(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The calendar month a finding measured, or null.
+ *
+ * window.end is the first of the month still running, so the month before it is
+ * the last complete one.
+ */
+function analysisMonth(w: { end: string } | undefined): Date | null {
+  if (!w) return null;
+  const end = new Date(w.end);
+  return new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 1, 1));
+}
+
+/**
+ * What the transactions behind a finding ARE, as a noun phrase.
+ *
+ * The count line prints it, so the two figures a row shows stop reading as a
+ * contradiction: the pill is the excess over this household's own typical
+ * month, while the rows beneath it are the whole month's spend. "The 3
+ * transactions behind this" under a $367 pill, over rows summing to $780.34,
+ * made both numbers look wrong when both were right.
+ */
+function txnScopeFor(meta: Partial<SpendCutMetadata>): string | null {
+  const month = analysisMonth(meta.window);
+  if (meta.kind === "category_above_trend" && meta.categoryName && month) {
+    return `${meta.categoryName} transactions in ${MONTH_NAMES[month.getUTCMonth()]} ${month.getUTCFullYear()}`;
+  }
+  if (meta.merchantName) return `${meta.merchantName} transactions`;
+  return null;
+}
+
+type DayRange = { start: string; end: string };
+
+/**
+ * The first and last day the finding's own transactions fall on, as YYYY-MM-DD,
+ * or null when none of its ids resolved to a row.
+ *
+ * This is what holds a merchant drill to what the row counted. It is a text
+ * search, so the span it carries is the only other thing narrowing it: over the
+ * whole analysis window, a row whose evidence read "one bank fee of $2,900.00 on
+ * Apr 16" landed on three rows totalling $11,800, two of them unrelated
+ * transfers that merely matched the name.
+ */
+function txnDayRange(
+  meta: Partial<SpendCutMetadata>,
+  hydrated: Map<string, { date: string }>,
+): DayRange | null {
+  const days = (meta.txnIds ?? [])
+    .map((id) => hydrated.get(id)?.date.slice(0, 10))
+    .filter((d): d is string => d != null)
+    .sort();
+  if (days.length === 0) return null;
+  return { start: days[0]!, end: days[days.length - 1]! };
+}
+
+/**
+ * Where a spend-cut row drills to, built here rather than in the client so the
+ * label and the URL cannot disagree.
+ *
+ * A category finding's figure describes ONE month, so its link is scoped to that
+ * month. Everything else is a merchant, scoped to the days its own transactions
+ * fall on. That is still a text search, so a same-day match on an unrelated
+ * transaction remains possible — which is why no count appears in a label: it
+ * would be a promise the destination cannot keep.
+ *
+ * The scope is spelled `search`, `categories`, `startDate` and `endDate`,
+ * which are the names /transactions reads and the names it writes back to the
+ * address bar (see filtersFromQuery/filtersToSearchParams in
+ * TransactionFilters). Emitting them here rather than renaming in the client
+ * keeps ONE spelling for this destination: a second set of names is how
+ * "See August's transactions" once landed on nine months of rows.
+ */
+function drillFor(
+  meta: Partial<SpendCutMetadata>,
+  txnDays: DayRange | null,
+): { label: string; href: string } | null {
+  if (!meta.txnIds || meta.txnIds.length === 0) return null;
+  const w = meta.window;
+  if (!w) return { label: "See these in Transactions", href: "/transactions" };
+
+  // The month the detector measured, and its last day.
+  const end = new Date(w.end);
+  const analysisStart = analysisMonth(w)!;
+  const analysisEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 0));
+  const monthName = MONTH_NAMES[analysisStart.getUTCMonth()];
+
+  if (meta.kind === "category_above_trend" && meta.categoryId && meta.categoryName) {
+    const q = new URLSearchParams({
+      categories: meta.categoryId,
+      startDate: ymd(analysisStart),
+      endDate: ymd(analysisEnd),
+    });
+    return {
+      label: `See ${monthName}'s ${meta.categoryName} transactions`,
+      href: `/transactions?${q}`,
+    };
+  }
+  if (meta.merchantName) {
+    // The finding's own days, so the destination reflects what the row counted.
+    // The window is the fallback for a finding whose transactions have since
+    // been deleted, where there is no narrower span left to use.
+    const q = new URLSearchParams({
+      search: meta.merchantName,
+      startDate: txnDays?.start ?? ymd(new Date(w.start)),
+      endDate: txnDays?.end ?? ymd(analysisEnd),
+    });
+    return { label: `See your ${meta.merchantName} transactions`, href: `/transactions?${q}` };
+  }
+  return { label: "See these in Transactions", href: "/transactions" };
+}
+
+/**
+ * The transactions behind the spend-cut rows about to be served, in one query.
+ *
+ * Hydrated here because the receipt is what makes a figure believable, and the
+ * client has no way to turn a list of ids into rows without a second round trip
+ * per action.
+ */
+async function txnsBehindFindings(
+  tenantId: string,
+  ids: string[],
+): Promise<Map<string, { id: string; date: string; merchant: string; amount: number; isIncome: boolean }>> {
+  const out = new Map<string, { id: string; date: string; merchant: string; amount: number; isIncome: boolean }>();
+  if (ids.length === 0) return out;
+  const rows = await db
+    .select({
+      id: transactions.id,
+      date: transactions.date,
+      name: transactions.name,
+      merchantName: transactions.merchantName,
+      amount: transactions.amount,
+    })
+    .from(transactions)
+    .where(and(eq(transactions.tenantId, tenantId), inArray(transactions.id, ids)));
+  for (const r of rows) {
+    const amount = Number(r.amount);
+    out.set(r.id, {
+      id: r.id,
+      date: new Date(r.date).toISOString(),
+      merchant: r.merchantName ?? r.name,
+      amount,
+      isIncome: amount < 0,
+    });
+  }
+  return out;
+}
+
+/**
+ * The top three transactions behind one finding: LARGEST first, not most
+ * recent, because the large rows are what make the figure believable. Date
+ * descending breaks a tie.
+ */
+function topTxnsFor(
+  meta: Partial<SpendCutMetadata>,
+  hydrated: Awaited<ReturnType<typeof txnsBehindFindings>>,
+) {
+  return (meta.txnIds ?? [])
+    .map((id) => hydrated.get(id))
+    .filter((t): t is NonNullable<typeof t> => t != null)
+    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount) || b.date.localeCompare(a.date))
+    .slice(0, 3);
+}
+
 // List active insights (not dismissed, not snoozed, not expired)
 insightsRoutes.get("/", async (c) => {
   const session = c.get("session");
@@ -138,10 +383,13 @@ insightsRoutes.get("/", async (c) => {
   let rows = await loadActiveInsights(session.tenantId);
   // lastActionsGeneratedAt is household bookkeeping on the tenant profile row.
   let profile = await readHouseholdProfile(session.tenantId);
+  // Read once: both backstops gate on it, and the payload reports it so a
+  // pre-connection household can tell "connect an account" from "nothing found".
+  const hasAccounts = await tenantHasAccounts(session.tenantId);
 
   const last = profile?.lastActionsGeneratedAt;
   const stale = !last || Date.now() - new Date(last).getTime() > REGEN_STALE_MS;
-  if (stale && (await tenantHasAccounts(session.tenantId))) {
+  if (stale && hasAccounts) {
     // Advisory xact-lock keyed off the tenant id keeps concurrent stale reads
     // from double-generating. It lives on the transaction's connection and
     // auto-releases on commit/rollback, so it can't leak. If another request
@@ -166,6 +414,37 @@ insightsRoutes.get("/", async (c) => {
     }
   }
 
+  // The second producer's backstop. A SEPARATE transaction from the one above,
+  // not a second statement inside it: both take the same tenant-keyed advisory
+  // lock, so sharing a transaction would mean a held insights lock silently
+  // skipped the spend-cut regeneration for a whole month.
+  //
+  // Deterministic on purpose: generateSpendCuts is called WITHOUT `polish`, so
+  // looking at the page can never bill a model call. The rewritten wording
+  // arrives on the monthly cron or on an explicit refresh press.
+  if (spendCutsStale(profile?.lastSpendCutsGeneratedAt, new Date()) && hasAccounts) {
+    let regenerated = false;
+    try {
+      regenerated = await db.transaction(async (tx) => {
+        const locked = await tx.execute(
+          sql`select pg_try_advisory_xact_lock(hashtext(${session.tenantId})) as locked`
+        );
+        if (!(locked as unknown as Array<{ locked: boolean }>)[0]?.locked) return false;
+        await generateSpendCuts(session.tenantId);
+        return true;
+      });
+    } catch (e) {
+      // A failed regeneration must not fail the read. Stale suggestions are
+      // worth more than an error page.
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[SpendCuts] Backstop regeneration failed: ${msg.slice(0, 300)}`);
+    }
+    if (regenerated) {
+      rows = await loadActiveInsights(session.tenantId);
+      profile = await readHouseholdProfile(session.tenantId);
+    }
+  }
+
   const pathSteps = await readPathSteps(session.tenantId);
   // A key that names no step on the path AS IT STANDS is not an answer, it is a
   // leftover: the path was reordered, or the step was taken off it, or nothing
@@ -178,38 +457,129 @@ insightsRoutes.get("/", async (c) => {
   const held = await heldForRequest(session.tenantId);
   const shown = inPathOrder(rows, pathSteps).filter((r) => servable(r, held));
 
+  // The spend-cut subset, AFTER servable() has had its say. The totals are
+  // computed over exactly this array and never as a SQL aggregate: servable()
+  // suppresses rows, so a database total would count money the reader cannot
+  // see and the headline would not add up to the list beneath it.
+  const spendCutRows = shown.filter((r) => r.producer === SPEND_CUTS_PRODUCER);
+  const metaOf = (r: (typeof shown)[number]) => (r.metadata ?? {}) as Partial<SpendCutMetadata>;
+  const hydrated = await txnsBehindFindings(
+    session.tenantId,
+    [...new Set(spendCutRows.flatMap((r) => metaOf(r).txnIds ?? []))],
+  );
+
+  const window = await spendCutsWindow(session.tenantId);
+  const lastPolish = await lastSpendCutsPolishAt(session.tenantId);
+
   return c.json({
-    insights: shown.map((r) => ({
-      id: r.id,
-      category: r.category,
-      urgency: r.urgency,
-      // Null on every action written before effort existed, and on one the
-      // model declined to rate. The reader decides what an absent answer means.
-      effort: r.effort,
-      type: r.insightType,
-      title: r.title,
-      description: r.description,
-      impact: r.impact,
-      impactColor: taxSafeImpactColor({
+    insights: shown.map((r) => {
+      const meta = metaOf(r);
+      const isSpendCut = r.producer === SPEND_CUTS_PRODUCER;
+      return {
+        id: r.id,
+        // Which workflow wrote this row. `generatedBy` still answers the other
+        // question, which is who wrote its words.
+        producer: r.producer,
         category: r.category,
+        urgency: r.urgency,
+        // Null on every action written before effort existed, and on one the
+        // model declined to rate. The reader decides what an absent answer means.
+        effort: r.effort,
         type: r.insightType,
-        impactColor: r.impactColor,
-      }),
-      chatPrompt: r.chatPrompt,
-      generatedBy: r.generatedBy,
-      createdAt: r.createdAt,
-      // The step of the path this action serves. Null when it serves none, and
-      // null when the key names no step on the path as it stands.
-      pathStepKey: r.pathStepKey && onPath.has(r.pathStepKey) ? r.pathStepKey : null,
-    })),
+        title: r.title,
+        description: r.description,
+        impact: r.impact,
+        impactColor: taxSafeImpactColor({
+          category: r.category,
+          type: r.insightType,
+          impactColor: r.impactColor,
+        }),
+        chatPrompt: r.chatPrompt,
+        generatedBy: r.generatedBy,
+        createdAt: r.createdAt,
+        // The step of the path this action serves. Null when it serves none, and
+        // null when the key names no step on the path as it stands.
+        pathStepKey: r.pathStepKey && onPath.has(r.pathStepKey) ? r.pathStepKey : null,
+        // The figure, as a number rather than as the words in `impact`. Null on
+        // every model-authored row, and monthlyValue null on a one-off.
+        monthlyValue: r.monthlyValue == null ? null : Number(r.monthlyValue),
+        oneTimeValue: r.oneTimeValue == null ? null : Number(r.oneTimeValue),
+        evidence: r.evidence,
+        kind: meta.kind ?? null,
+        merchantName: meta.merchantName ?? null,
+        categoryId: meta.categoryId ?? null,
+        txnIds: meta.txnIds ?? [],
+        // The receipt: the three largest transactions behind the figure, plus
+        // how many there are in total, so the list can say what it is showing
+        // three of.
+        transactions: isSpendCut ? topTxnsFor(meta, hydrated) : [],
+        txnCount: meta.txnIds?.length ?? 0,
+        // What those transactions are, so the count line can name the scope the
+        // rows cover rather than let it read as the pill's own scope.
+        txnScope: isSpendCut ? txnScopeFor(meta) : null,
+        drill: isSpendCut ? drillFor(meta, txnDayRange(meta, hydrated)) : null,
+      };
+    }),
     lastActionsGeneratedAt: profile?.lastActionsGeneratedAt ?? null,
+    // The second producer's freshness marker. Two timestamps, because they
+    // answer two questions, and neither may be read for the other's.
+    lastSpendCutsGeneratedAt: profile?.lastSpendCutsGeneratedAt ?? null,
+    // When this household last asked to PAY for the rewrite, which is the only
+    // thing the refresh throttle may go on.
+    lastPolishAttemptAt: lastPolish?.toISOString() ?? null,
+    spendCuts: spendCutTotals(spendCutRows),
+    analysisWindow: {
+      start: window.start.toISOString(),
+      end: window.end.toISOString(),
+      months: window.months,
+    },
+    hasAccounts,
   });
+});
+
+/**
+ * Regenerate the spend-cut findings on request, paying for the rewrite.
+ *
+ * Throttled off this household's last PAID attempt, so holding the button down
+ * cannot bill a model call per press. Six hours rather than the monthly
+ * staleness rule: a person who has just cancelled a duplicate subscription
+ * should see it go today, but nothing here moves fast enough to be worth asking
+ * twice in an afternoon.
+ *
+ * Deliberately NOT the freshness marker, which the free read backstop also
+ * writes. Sharing one marker meant a household that had simply not been looked
+ * at this month arrived to a dimmed Refresh and a six hour wait.
+ *
+ * One path segment, so it cannot collide with /:id/*.
+ */
+const SPEND_CUTS_REFRESH_THROTTLE_MS = 6 * 60 * 60 * 1000;
+
+insightsRoutes.post("/refresh-spend-cuts", async (c) => {
+  const session = c.get("session");
+
+  const lastPolish = await lastSpendCutsPolishAt(session.tenantId);
+  if (lastPolish && Date.now() - lastPolish.getTime() < SPEND_CUTS_REFRESH_THROTTLE_MS) {
+    return c.json({ error: "throttled" }, 429);
+  }
+
+  try {
+    // The press pays for the rewrite. It is one of the two paths that do.
+    const generated = await generateSpendCuts(session.tenantId, { polish: true });
+    return c.json({ ok: true, generated });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[SpendCuts] Generation failed: ${msg.slice(0, 300)}`);
+    return c.json({ error: "generation_failed" }, 502);
+  }
 });
 
 // Dismiss an insight
 insightsRoutes.post("/:id/dismiss", async (c) => {
   const session = c.get("session");
   const { id } = c.req.param();
+  // Postgres raises on a malformed uuid, which would otherwise surface as a 500
+  // on what is really a bad request.
+  if (!UUID_RE.test(id)) return c.json({ error: "Invalid id" }, 400);
 
   await db
     .update(insights)
@@ -223,6 +593,7 @@ insightsRoutes.post("/:id/dismiss", async (c) => {
 insightsRoutes.post("/:id/acted", async (c) => {
   const session = c.get("session");
   const { id } = c.req.param();
+  if (!UUID_RE.test(id)) return c.json({ error: "Invalid id" }, 400);
 
   await db
     .update(insights)
@@ -236,6 +607,7 @@ insightsRoutes.post("/:id/acted", async (c) => {
 insightsRoutes.post("/:id/snooze", async (c) => {
   const session = c.get("session");
   const { id } = c.req.param();
+  if (!UUID_RE.test(id)) return c.json({ error: "Invalid id" }, 400);
   const { hours = 24 } = (await c.req.json().catch(() => ({}))) as { hours?: number };
 
   const until = new Date(Date.now() + hours * 60 * 60 * 1000);

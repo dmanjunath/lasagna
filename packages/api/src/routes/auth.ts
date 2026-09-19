@@ -10,6 +10,7 @@ import {
 } from "../lib/session.js";
 import { requireAuth, type AuthEnv } from "../middleware/auth.js";
 import { generateInsights } from "../lib/insights-engine.js";
+import { generateSpendCuts } from "../lib/spend-cuts.js";
 import { env } from "../lib/env.js";
 import { authMode } from "../lib/auth/mode.js";
 import * as workos from "../lib/auth/workos.js";
@@ -315,6 +316,10 @@ authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
     void generateInsights(session.tenantId).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[Onboarding complete] insights generation failed: ${msg.slice(0, 300)}`);
+    });
+    void generateSpendCuts(session.tenantId).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Onboarding complete] spend cuts generation failed: ${msg.slice(0, 300)}`);
     });
   }
 

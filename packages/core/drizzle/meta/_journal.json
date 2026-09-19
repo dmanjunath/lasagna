@@ -225,6 +225,13 @@
       "when": 1789681414286,
       "tag": "0031_premium_kat_farrell",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789696617582,
+      "tag": "0032_small_warstar",
+      "breakpoints": true
     }
   ]
 }

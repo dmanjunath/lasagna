@@ -144,7 +144,11 @@ vi.mock("../../lib/insights-engine.js", async (importOriginal) => ({
   generateInsights: () => generateInsights(),
 }));
 vi.mock("../../lib/profile-resolver.js", () => ({
-  readHouseholdProfile: async () => ({ lastActionsGeneratedAt: new Date() }),
+  // Both markers freshly stamped, so neither producer's read backstop fires.
+  readHouseholdProfile: async () => ({
+    lastActionsGeneratedAt: new Date(),
+    lastSpendCutsGeneratedAt: new Date(),
+  }),
 }));
 
 import { PgDialect, accounts, goals, insights } from "@lasagna/core";

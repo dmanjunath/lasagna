@@ -1,63 +1,70 @@
 ---
-import { APP_URL } from "../config";
+import { APP_URL, GITHUB_URL } from "../config";
+import Icon from "./Icon.astro";
+
+// One action on screen at a time. The demo completes it and brings up the next,
+// which is what the product actually asks you to do.
+import { ACTIONS as actions } from "../demo-data";
+
 ---
 
 <a id="top"></a>
 <section class="hero wrap">
   <div class="hero-copy rv">
-    <h1 class="display">Don't know where to start<br /><span class="hl">with your finances?</span></h1>
+    <h1 class="display">Don't know where to start with your finances?</h1>
     <p class="hero-sub">
       Not just a budgeting app, LasagnaFi guides you along your financial journey.
     </p>
     <div class="hero-cta">
-      <a class="btn btn-primary" href={APP_URL}>Get started for free</a>
+      <a class="btn btn-primary btn-lg" href={APP_URL}>Get started for free <Icon name="arrow" size={17} /></a>
+      <a class="btn btn-ghost btn-lg" href={GITHUB_URL}><Icon name="github" size={17} /> See the source code</a>
     </div>
   </div>
 
   <div class="hero-art rv" style="animation-delay:.14s">
-    <div class="wealth card">
-      <div class="c-head">
-        <span class="eyebrow accent">Where your wealth stands</span>
-        <span class="live"><span class="pulse"></span>updated today</span>
+    <div class="card hero-actions" data-demo data-demo-ack="done" data-demo-labels="3 left|2 left|1 left">
+      <div class="card-head">
+        <div class="card-title">Actions</div>
+        <span class="chip-meta" data-demo-label>{actions.length} left</span>
       </div>
 
-      <div class="equation">
-        <div class="eq-term">
-          <span class="lbl">Assets</span>
-          <span class="val tnum" data-count-to="246900" data-count-prefix="$">$0</span>
-        </div>
-        <span class="eq-op">−</span>
-        <div class="eq-term">
-          <span class="lbl">Debt</span>
-          <span class="val neg tnum" data-count-to="64470" data-count-prefix="$">$0</span>
-        </div>
-        <span class="eq-op">=</span>
-        <div class="eq-term net">
-          <span class="lbl">Net worth</span>
-          <span class="val tnum" data-count-to="182430" data-count-prefix="$">$0</span>
-        </div>
+      <div class="demo-stage" data-demo-stage>
+        {actions.map((a, i) => (
+          <article class:list={["demo-item", { "is-active": i === 0 }]} data-demo-frame>
+            <div class={`row open bar ${a.cat}`}>
+              <div class="row-main">
+                <span class={`row-icon ${a.cat}`}><Icon name={a.icon} /></span>
+                <div class="row-body">
+                  <b>{a.title}</b>
+                  <em>{a.sub}</em>
+                  <span class="row-chips">
+                    <span class={`chip-meta ${a.cat}`}>{a.f}</span>
+                    <span class="chip-meta">{a.worth}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="row-detail">
+                <p>{a.detail}</p>
+                <span class="detail-label">The account behind this</span>
+                <div class="evidence">
+                  <span class="ev-icon"><Icon name={a.icon} /></span>
+                  <div><b>{a.evidence.name}</b><em>{a.evidence.meta}</em></div>
+                  <span class:list={["ev-amt", { neg: a.evidence.neg }]}>{a.evidence.amt}</span>
+                </div>
+                <div class="rowbar">
+                  <span class="btn btn-ghost btn-sm">{a.cta}</span>
+                  <span class="btn btn-primary btn-sm" data-demo-target>Mark complete</span>
+                </div>
+              </div>
+
+              <span class="demo-check" aria-hidden="true"><Icon name="check" /></span>
+            </div>
+          </article>
+        ))}
       </div>
 
-      <div class="wealth-delta">
-        <span class="chip pos">▲ $4,120</span> this month
-        <span class="sep">·</span> <span class="tnum">+2.3%</span>
-      </div>
-
-      <div class="compbar" aria-hidden="true">
-        <span class="seg cash" style="--w:14%"></span>
-        <span class="seg invest" style="--w:58%"></span>
-        <span class="seg prop" style="--w:28%"></span>
-      </div>
-      <div class="complegend">
-        <span><i class="d cash"></i>Cash 14%</span>
-        <span><i class="d invest"></i>Investments 58%</span>
-        <span><i class="d prop"></i>Property 28%</span>
-      </div>
-
-      <div class="wealth-foot">
-        <span class="foot-move"><span class="rank">1</span>Next move · <b>Kill the $6,240 card @ 23.9%</b></span>
-        <span class="foot-impact tnum">+$1,490/yr</span>
-      </div>
     </div>
   </div>
 </section>
+

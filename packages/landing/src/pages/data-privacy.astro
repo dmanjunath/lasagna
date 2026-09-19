@@ -1,0 +1,241 @@
+---
+import Layout from "../layouts/Layout.astro";
+import "../styles/landing.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import Motion from "../components/Motion.astro";
+import Demo from "../components/Demo.astro";
+import FinalCTA from "../components/FinalCTA.astro";
+import Icon from "../components/Icon.astro";
+import { GITHUB_URL } from "../config";
+import Redaction from "../components/Redaction.astro";
+
+const CODE = [
+  {
+    tab: "scrub.ts",
+    note: "Identifying fields are swapped for codes, and swapped back on the way out.",
+    lines: [
+      { s: "export function scrub(input: Facts) {", t: "kw" },
+      { s: "  return {", t: "" },
+      { s: "    ...input,", t: "" },
+      { s: "    holder: token(input.holder),", t: "hi" },
+      { s: "    bank:   token(input.bank),", t: "hi" },
+      { s: "    acct:   token(input.acct),", t: "hi" },
+      { s: "    balance: input.balance,   // untouched", t: "cm" },
+      { s: "  };", t: "" },
+      { s: "}", t: "kw" },
+    ],
+  },
+  {
+    tab: "llm-boundary.test.ts",
+    note: "Any code path that reaches the model without scrubbing fails the build.",
+    lines: [
+      { s: "it(\"never imports the model directly\", () => {", t: "kw" },
+      { s: "  const direct = sourceFiles()", t: "" },
+      { s: "    .filter(f => f.imports(\"ai\"))", t: "" },
+      { s: "    .filter(f => f !== \"lib/llm.ts\");", t: "" },
+      { s: "", t: "" },
+      { s: "  expect(direct).toEqual([]);", t: "hi" },
+      { s: "});", t: "kw" },
+      { s: "", t: "" },
+      { s: "PASS  1 test, 0 failures", t: "ok" },
+    ],
+  },
+];
+
+
+const WIPE = [
+  { name: "Connected accounts", sub: "Balances, holdings, transactions", gone: "Deleted" },
+  { name: "Chat history", sub: "Every question and answer", gone: "Deleted" },
+  { name: "Uploaded documents", sub: "Tax forms and statements", gone: "Deleted" },
+  { name: "Bank connections", sub: "The Plaid link itself", gone: "Cut" },
+];
+---
+
+<Layout
+  title="Data Privacy | LasagnaFi"
+  description="How LasagnaFi protects your data: read-only account connections, your identity tokenized before anything reaches the AI, and the whole app open source so you can check it yourself."
+>
+  <Nav />
+
+  <section class="wrap">
+    <div class="page-head rv">
+      <h1 class="display">Data Privacy</h1>
+      <p>
+        What LasagnaFi stores, what actually reaches the AI, and how you can
+        verify every part of it yourself.
+      </p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+
+      <!-- 1 · THE SCRUB -->
+      <div class="feat-row rv">
+        <div class="copy">
+          <h3 class="display">What reaches the AI</h3>
+          <p>
+            Your name, institution and account numbers are tokenized before any
+            prompt leaves your account, so the model never receives anything that
+            identifies you. Balances, rates and dates pass through unchanged,
+            because the answer depends on those numbers, and the tokens are
+            resolved before the answer reaches your screen.
+          </p>
+          <ul class="pts">
+            <li>Names, banks and account numbers are replaced with codes</li>
+            <li>Balances, rates and dates are sent unchanged</li>
+            <li>The AI provider receives nothing that identifies you</li>
+          </ul>
+        </div>
+        <Redaction title="What leaves your device" />
+      </div>
+
+      <!-- 2 · READ ONLY -->
+      <div class="feat-row flip rv">
+        <div class="copy">
+          <h3 class="display">Account connections are read only</h3>
+          <p>
+            Your accounts connect through Plaid with read-only scope, which
+            covers balances, holdings and transactions. No payment, transfer or
+            account change is possible through that connection, and your bank
+            password is never shared with us.
+          </p>
+          <ul class="pts">
+            <li>You sign in at your bank, so LasagnaFi never sees the password</li>
+            <li>Any institution can be disconnected from settings</li>
+            <li>Disconnecting stops the sync immediately</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">What the connection allows</div>
+          </div>
+          <div class="rows">
+            <div class="row bar c-save">
+              <span class="row-icon c-save"><Icon name="check" /></span>
+              <div class="row-body">
+                <b>Read balances, holdings and transactions</b>
+                <em>So your net worth and your actions stay current.</em>
+              </div>
+            </div>
+            <div class="row bar c-debt">
+              <span class="row-icon c-debt"><Icon name="close" /></span>
+              <div class="row-body">
+                <b>Move money, pay a bill, open an account</b>
+                <em>Not possible. The connection has no write access.</em>
+              </div>
+            </div>
+            <div class="row bar c-debt">
+              <span class="row-icon c-debt"><Icon name="close" /></span>
+              <div class="row-body">
+                <b>See your bank password</b>
+                <em>Not possible. You sign in to your bank, not to us.</em>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 · OPEN SOURCE -->
+      <div class="feat-row rv">
+        <div class="copy">
+          <h3 class="display">All of it is open source</h3>
+          <p>
+            All of LasagnaFi is open source, scrub layer included, so you can
+            read exactly what happens to your data. A test fails the build if any
+            code path reaches the model without passing through that layer
+            first.
+          </p>
+          <ul class="pts">
+            <li>MIT licensed, on GitHub</li>
+            <li>A test fails the build on any call that skips the scrub layer</li>
+            <li>The whole app can be run on your own server</li>
+          </ul>
+          <div class="hero-cta" style="margin-top:24px">
+            <a class="btn btn-ghost" href={GITHUB_URL}><Icon name="github" size={17} /> See the source code</a>
+          </div>
+        </div>
+        <div class="card" data-demo data-demo-hold="3000" data-demo-labels="The scrub layer|The test that enforces it">
+          <div class="card-head">
+            <div class="card-title">lasagna</div>
+            <span class="chip-meta" data-demo-label>The scrub layer</span>
+          </div>
+          <div class="demo-stage" data-demo-stage>
+            {CODE.map((file, n) => {
+              const next = CODE[(n + 1) % CODE.length].tab;
+              return (
+                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                  <div class="segrow">
+                    {CODE.map((o) => (
+                      <span
+                        class:list={["seg-chip", { on: o.tab === file.tab }]}
+                        {...(o.tab === next ? { "data-demo-target": true } : {})}
+                      >{o.tab}</span>
+                    ))}
+                  </div>
+                  <pre class="code mt"><code>{file.lines.map((l) => (
+                    <span class:list={["cl", l.t]}>{l.s}</span>
+                  ))}</code></pre>
+                  <p class="code-note">{file.note}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 · DELETION -->
+      <div class="feat-row flip rv">
+        <div class="copy">
+          <h3 class="display">Deleting your account</h3>
+          <p>
+            You can delete your account yourself from settings. It removes your
+            connected accounts, balances, chat history and uploaded documents,
+            and cuts the Plaid connection at the same time.
+          </p>
+          <ul class="pts">
+            <li>Available in settings, no support request needed</li>
+            <li>Bank connections are cut at the same time</li>
+            <li>Your data is not sold or shared with advertisers</li>
+          </ul>
+        </div>
+        <div class="card" data-demo data-demo-hold="3000" data-demo-labels="4 things stored|Nothing left">
+          <div class="card-head">
+            <div class="card-title">What deletion removes</div>
+            <span class="chip-meta" data-demo-label>4 things stored</span>
+          </div>
+          <div class="demo-stage" data-demo-stage>
+            {[false, true].map((wiped, n) => (
+              <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
+                <div class="acct-rows">
+                  {WIPE.map((w) => (
+                    <div class:list={["acct-row", { wiped }]}>
+                      <div><b>{w.name}</b><em>{w.sub}</em></div>
+                      <div class="right">
+                        {wiped
+                          ? <span class="chip-meta c-debt">{w.gone}</span>
+                          : <span class="chip-meta">Stored</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <span
+                  class:list={["btn", "btn-sm", "full", "mt", wiped ? "btn-ghost" : "btn-danger"]}
+                  data-demo-target
+                >{wiped ? "Start again" : "Delete my account"}</span>
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <FinalCTA />
+  <Footer />
+  <Motion />
+  <Demo />
+</Layout>
+

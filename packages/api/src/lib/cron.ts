@@ -3,6 +3,7 @@ import { db } from "./db.js";
 import { eq, gte, accounts, plaidItems, tenants, users, type Plan } from "@lasagna/core";
 import { syncItem } from "./sync.js";
 import { generateInsights } from "./insights-engine.js";
+import { generateSpendCuts } from "./spend-cuts.js";
 import { resolveTenantPlan } from "./billing.js";
 import { runWithRetry } from "./retry-failed.js";
 
@@ -108,6 +109,55 @@ export async function runDailyInsights(): Promise<CronRunResult> {
   }
 }
 
+/**
+ * Rewrites every household's "ways to spend less" findings.
+ *
+ * Every tenant, not only the recently-active ones the insights job filters to:
+ * an idle household costs a handful of queries and generateSpendCuts returns
+ * early for one with no accounts.
+ *
+ * This is one of the two paths that pay to have the wording rewritten, and the
+ * only scheduled one. It is a single model call per household that has a
+ * finding, once a month, and a household with nothing to suggest never makes
+ * one. The read backstop in routes/insights.ts deliberately does not: a page
+ * load must not bill a model call.
+ */
+export async function runMonthlySpendCuts(): Promise<CronRunResult> {
+  console.log("[Cron] Starting monthly spend cuts generation...");
+  try {
+    const targetTenants = await db.select({ id: tenants.id }).from(tenants);
+    console.log(`[Cron] Generating spend cuts for ${targetTenants.length} tenants`);
+
+    // A transient failure here means a household reads last month's findings
+    // for another month. Retry the rejected tenants exactly once so it
+    // self-heals within the run.
+    const { succeededFirstPass, recoveredOnRetry, stillFailedIds, retrySkipped } =
+      await runWithRetry(
+        targetTenants.map(({ id }) => id),
+        (id) => generateSpendCuts(id, { polish: true })
+      );
+    const succeeded = succeededFirstPass + recoveredOnRetry;
+    console.log(
+      `[Cron] Spend cuts generation complete: ${succeeded} succeeded, ${stillFailedIds.length} failed` +
+        (recoveredOnRetry > 0 ? ` (${recoveredOnRetry} recovered on retry)` : "")
+    );
+    if (retrySkipped) {
+      console.error(
+        `[Cron] Retry pass SKIPPED: ${stillFailedIds.length}/${targetTenants.length} tenants failed the first pass, which reads as a broken dependency rather than flakiness`
+      );
+    }
+    if (stillFailedIds.length > 0) {
+      console.error(
+        `[Cron] Spend cuts still failing after retry for tenants: ${stillFailedIds.join(", ")}`
+      );
+    }
+    return { succeeded, failed: stillFailedIds.length, recovered: recoveredOnRetry };
+  } catch (err) {
+    console.error("[Cron] Spend cuts generation error:", err);
+    return { succeeded: 0, failed: 0, recovered: 0 };
+  }
+}
+
 export function startCronJobs() {
   // In prod the daily jobs run via Cloud Scheduler hitting /cron/* (see
   // routes/cron.ts); the in-process scheduler is disabled so they don't run
@@ -123,6 +173,12 @@ export function startCronJobs() {
   // Daily insights generation at 5pm UTC / 1pm ET (after first sync)
   cron.schedule("30 17 * * *", () => runDailyInsights());
 
+  // Monthly spend cuts on the 3rd at 18:00 UTC / 2pm ET, after that day's sync.
+  // The 3rd rather than the 1st because Plaid needs a couple of days to settle
+  // the end of the month, and the findings are computed over complete months.
+  cron.schedule("0 18 3 * *", () => runMonthlySpendCuts());
+
   console.log("[Cron] Plaid sync scheduled for 1:00 PM ET (17:00 UTC) and 7:00 PM ET (23:00 UTC)");
   console.log("[Cron] Daily insights scheduled for 1:30 PM ET (17:30 UTC)");
+  console.log("[Cron] Monthly spend cuts scheduled for the 3rd at 2:00 PM ET (18:00 UTC)");
 }

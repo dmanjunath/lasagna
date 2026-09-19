@@ -3,7 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { Banknote, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Receipt, Search } from 'lucide-react';
 import { api, type TxnQueryRow, type TxnQuerySummary } from '../lib/api';
 import { useAccountsIndex } from '../lib/use-accounts-index';
-import { cn } from '../lib/utils';
+import { cn, formatTxnDay, txnDayKey } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount } from '../components/uikit';
 import { usePageContext } from '../lib/page-context';
@@ -19,7 +19,9 @@ import { TransactionDetail } from '../components/transactions/TransactionDetail'
 import {
   TransactionFilters,
   EMPTY_FILTERS,
+  filtersFromQuery,
   filtersToQuery,
+  filtersToSearchParams,
   type TxnFilters,
 } from '../components/transactions/TransactionFilters';
 import { RulesPanel } from '../components/rules/RulesPanel';
@@ -38,18 +40,20 @@ function formatCurrencyExact(value: number): string {
   }).format(value);
 }
 
+// The heading over a day's rows. The day itself comes from the shared helper,
+// so the heading and the TxnRow dates under it always name the same day.
+// "Today" and "Yesterday" compare against the reader's own calendar, which is
+// the calendar they mean by those two words.
 function dayLabel(iso: string, now: Date = new Date()): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (sameDay(d, now)) return 'Today';
-  if (sameDay(d, yesterday)) return 'Yesterday';
-  if (d.getFullYear() === now.getFullYear()) {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const day = txnDayKey(iso);
+  const localKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (day === localKey(now)) return 'Today';
+  if (day === localKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) {
+    return 'Yesterday';
   }
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const sameYear = day.slice(0, 4) === String(now.getFullYear());
+  return formatTxnDay(iso, sameYear ? undefined : { year: 'numeric' });
 }
 
 type SortKey = 'newest' | 'oldest' | 'largest' | 'smallest';
@@ -74,24 +78,20 @@ function formatCompactCount(n: number): string {
   return new Intl.NumberFormat('en-US').format(n);
 }
 
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 // "Aug 11, 2026" for a single day, else "Jan 3 to Aug 11, 2026" — the year
 // shows once when the span stays inside one calendar year.
+//
+// Read through the same shared helper as the day headings and the rows. These
+// are the earliest and latest of the very transactions listed underneath, so a
+// second date rule here printed a span that contradicted the rows inside it
+// ("Apr 15 to Jun 21" over rows reading Apr 16 and Jun 22).
 function dateRangeLabel(earliest: string | null, latest: string | null): string {
   if (!earliest || !latest) return '';
-  const da = new Date(earliest);
-  const db = new Date(latest);
-  const a = shortDate(earliest);
-  const b = shortDate(latest);
+  const a = formatTxnDay(earliest, { year: 'numeric' });
+  const b = formatTxnDay(latest, { year: 'numeric' });
   if (a === b) return a;
-  if (!Number.isNaN(da.getTime()) && !Number.isNaN(db.getTime()) && da.getFullYear() === db.getFullYear()) {
-    const aNoYear = da.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${aNoYear} to ${b}`;
+  if (txnDayKey(earliest).slice(0, 4) === txnDayKey(latest).slice(0, 4)) {
+    return `${formatTxnDay(earliest)} to ${b}`;
   }
   return `${a} to ${b}`;
 }
@@ -164,14 +164,10 @@ export function Transactions() {
   const displayOf = useCategoryDisplay();
   const toast = useToast();
 
-  // Hydrate the category filter from the URL so a drill from the Spending
-  // breakdown (`/transactions?categories=<id>,<id>`) lands pre-filtered.
-  const [filters, setFilters] = useState<TxnFilters>(() => {
-    const cats = new URLSearchParams(window.location.search).get('categories');
-    return cats
-      ? { ...EMPTY_FILTERS, categories: cats.split(',').filter(Boolean) }
-      : EMPTY_FILTERS;
-  });
+  // Hydrate the filters from the URL so a drill-in lands on the scope it
+  // promised: categories, a date range, and a merchant search
+  // (`/transactions?categories=<id>&startDate=2026-07-01&endDate=2026-07-31`).
+  const [filters, setFilters] = useState<TxnFilters>(() => filtersFromQuery(window.location.search));
   const [sortKey, setSortKey] = useState<SortKey>('newest');
 
   // Paginated list accumulation
@@ -207,6 +203,17 @@ export function Transactions() {
       description: 'All transactions across accounts with search, filters, and sort.',
     });
   }, [setPageContext]);
+
+  // Keep the address bar on the scope that is actually on screen, so a filtered
+  // view can be copied out and pasted back, and a reload lands where it left.
+  // Replace rather than push: Back still leaves the page, as it does today.
+  const filterQuery = filtersToSearchParams(filters);
+  useEffect(() => {
+    const next = filterQuery ? `/transactions?${filterQuery}` : '/transactions';
+    if (`${window.location.pathname}${window.location.search}` !== next) {
+      setLocation(next, { replace: true });
+    }
+  }, [filterQuery, setLocation]);
 
   // One fetch pipeline: page 1 for the current filters/sort. Resets accumulation
   // and refreshes the filter-scoped summary.
@@ -524,8 +531,7 @@ export function Transactions() {
         ) : (
           <div className={cn('transition-opacity duration-200', loadingInitial && 'opacity-50')}>
             {rows.map((tx) => {
-              const d = new Date(tx.date);
-              const dayKey = Number.isNaN(d.getTime()) ? tx.date : d.toDateString();
+              const dayKey = txnDayKey(tx.date);
               const needsHeader = showDayHeaders && dayKey !== lastDayKey;
               lastDayKey = dayKey;
               return (

@@ -92,6 +92,109 @@ export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryB
 }
 
 // ---------------------------------------------------------------------------
+// URL <-> filters. The parameter names are the ones filtersToQuery already
+// emits (search, categories, startDate, endDate), so a caller that scopes a
+// drill-in and the address bar the user ends up with speak the same language.
+// ---------------------------------------------------------------------------
+
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+// startDate/endDate may carry a time (filtersToQuery appends T23:59:59 to the
+// end). Keep the day, drop anything that isn't a real YYYY-MM-DD.
+function isoDay(raw: string | null): string {
+  if (!raw) return '';
+  const day = raw.slice(0, 10);
+  return ISO_DAY.test(day) ? day : '';
+}
+
+// The reading half of filtersToQuery: rebuilds filter state from a URL query
+// string. A date range arrives as a custom range, since the presets are
+// relative to "now" and a caller means the exact span it computed.
+export function filtersFromQuery(queryString: string): TxnFilters {
+  const params = new URLSearchParams(queryString);
+  const filters: TxnFilters = { ...EMPTY_FILTERS };
+
+  const search = params.get('search')?.trim();
+  if (search) filters.search = search;
+
+  const categories = params.get('categories');
+  if (categories) filters.categories = categories.split(',').filter(Boolean);
+
+  const start = isoDay(params.get('startDate'));
+  const end = isoDay(params.get('endDate'));
+  if (start || end) {
+    filters.datePreset = 'custom';
+    filters.customStart = start;
+    filters.customEnd = end;
+  }
+
+  return filters;
+}
+
+// The writing half: the query string that filtersFromQuery reads back to these
+// same filters. Commas stay literal so the emitted URL matches the shape a
+// drill-in builds by hand.
+export function filtersToSearchParams(f: TxnFilters): string {
+  const parts: string[] = [];
+  const search = f.search.trim();
+  if (search) parts.push(`search=${encodeURIComponent(search)}`);
+  if (f.categories.length > 0) {
+    parts.push(`categories=${f.categories.map(encodeURIComponent).join(',')}`);
+  }
+  if (f.datePreset === 'custom') {
+    if (f.customStart) parts.push(`startDate=${f.customStart}`);
+    if (f.customEnd) parts.push(`endDate=${f.customEnd}`);
+  }
+  return parts.join('&');
+}
+
+// "July 2026" when a custom range covers exactly one calendar month, so a drill
+// that promised a month visibly lands on it. Anything else returns null.
+export function wholeMonthLabel(start: string, end: string): string | null {
+  const a = ISO_DAY.exec(start);
+  const b = ISO_DAY.exec(end);
+  if (!a || !b) return null;
+  if (a[1] !== b[1] || a[2] !== b[2]) return null;
+  if (a[3] !== '01') return null;
+  const year = Number(a[1]);
+  const month = Number(a[2]);
+  if (month < 1 || month > 12) return null;
+  const lastDay = new Date(year, month, 0).getDate();
+  if (Number(b[3]) !== lastDay) return null;
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function day(iso: string): Date | null {
+  const m = ISO_DAY.exec(iso);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+/**
+ * "Jan 1 to Aug 31, 2026" — the range a custom scope actually covers.
+ *
+ * The fallback for every span that is not one whole calendar month. The chip
+ * used to read "Custom dates", which told the reader nothing and sat directly
+ * above a tile printing the real range, so the page stated the same scope twice
+ * and only one of the two was worth reading. The year is printed once where both
+ * ends share it.
+ */
+export function dateRangeLabel(start: string, end: string): string | null {
+  const a = day(start);
+  const b = day(end);
+  const full = { month: 'short', day: 'numeric', year: 'numeric' } as const;
+  if (a && b) {
+    if (a.getTime() === b.getTime()) return a.toLocaleDateString('en-US', full);
+    const from = a.getFullYear() === b.getFullYear()
+      ? a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : a.toLocaleDateString('en-US', full);
+    return `${from} to ${b.toLocaleDateString('en-US', full)}`;
+  }
+  if (a) return `From ${a.toLocaleDateString('en-US', full)}`;
+  if (b) return `Through ${b.toLocaleDateString('en-US', full)}`;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // MultiSelectDropdown — hand-rolled; outside-click + Escape to close.
 // ---------------------------------------------------------------------------
 
@@ -428,9 +531,17 @@ export function TransactionFilters({
       'ytd': 'Year to date',
       'custom': 'Custom dates',
     };
+    // The month it landed on where the span is exactly one, the span itself
+    // otherwise. "Custom dates" is only left for a custom preset with no dates
+    // entered yet, where there is no range to name.
+    const spanLabel =
+      filters.datePreset === 'custom'
+        ? wholeMonthLabel(filters.customStart, filters.customEnd) ??
+          dateRangeLabel(filters.customStart, filters.customEnd)
+        : null;
     chips.push({
       key: 'date',
-      label: presetLabels[filters.datePreset] ?? filters.datePreset,
+      label: spanLabel ?? presetLabels[filters.datePreset] ?? filters.datePreset,
       clear: () => onChange({ ...filters, datePreset: 'all', customStart: '', customEnd: '' }),
     });
   }

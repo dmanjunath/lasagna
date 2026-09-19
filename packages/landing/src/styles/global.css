@@ -35,7 +35,9 @@
     --brand-ink:    #047A54;   /* green TEXT on light = AA      */
     --brand-soft:   rgba(5, 178, 121, 0.12);
     --brand-softer: rgba(5, 178, 121, 0.06);
-    --brand-ring:   rgba(5, 178, 121, 0.42);
+    /* The -ink green, not the fill: #05B279 tops out at 2.6:1 on canvas,
+       under the 3:1 WCAG 1.4.11 needs for a focus indicator. This is 4.25:1. */
+    --brand-ring:   rgba(4, 122, 84, 0.9);
 
     /* ── Accent — periwinkle (net-worth graph line) ── */
     --accent:       #6366F1;
@@ -51,6 +53,16 @@
     --caution:       #8C5600;  /* deep amber warning text, AA   */
     --caution-soft:  rgba(245, 158, 11, 0.16);
     --amber:         #F59E0B;  /* wave logo / tangerine viz     */
+    --sky:           #0369A1;  /* spending category text, AA    */
+    --sky-soft:      rgba(14, 165, 233, 0.15);
+    /* Vivid category fills for the 3px row bars. The chip beside a bar uses the
+       dark -ink value for contrast on its tint; the bar is a solid accent, so
+       it uses the vivid one. Same hue, two jobs, as in the app. */
+    --bar-spend:     #0EA5E9;
+    --bar-save:      #05B279;
+    --bar-tax:       #F59E0B;
+    --bar-invest:    #6366F1;
+    --bar-debt:      #F4496E;
 
     /* ── Data-viz categorical ── */
     --viz-cash:     #14B8A6;
@@ -127,38 +139,92 @@
   color: var(--accent-ink);
 }
 
-/* ── Buttons ── */
+/* ── Buttons — the app's idiom: 12px radius, green TINT, dark green text.
+   The app has no solid-green button; see STYLE.md §4. ── */
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 12px 22px;
-  border-radius: 999px;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: var(--r-md);
   font-family: var(--sans);
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 700;
   text-decoration: none;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform 0.18s var(--ease), background 0.18s var(--ease),
-    border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  transition: transform 0.15s var(--ease), background 0.15s var(--ease),
+    border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
   white-space: nowrap;
 }
 .btn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--brand-ring);
 }
-.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(1px); }
 
-.btn-primary { background: var(--brand); color: #fff; box-shadow: var(--shadow-sm); }
-.btn-primary:hover { background: var(--brand-hover); box-shadow: var(--shadow-md); }
+.btn-primary { background: var(--brand-soft); color: var(--brand-ink); }
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--brand-ring);
+}
 
-.btn-ghost { background: var(--panel); color: var(--content); border-color: var(--line); }
-.btn-ghost:hover { border-color: var(--line-strong); background: var(--panel); }
+.btn-ghost { background: var(--canvas-sunken); color: var(--content); border-color: var(--line); }
+.btn-ghost:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--line-strong);
+}
 
-.btn-sm { padding: 9px 16px; font-size: 13.5px; }
+/* Destructive, matching the app's Button variant. */
+.btn-danger { background: var(--negative-soft); color: var(--negative); }
+.btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(190, 20, 62, .4);
+}
+
+.btn-sm { height: 36px; padding: 0 14px; font-size: 13.5px; }
+.btn-lg { height: 48px; padding: 0 24px; font-size: 15px; }
+
+/* ── Chips — STYLE.md §6. Meta and category chips are 8px, NOT pills. ── */
+.chip-meta {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: var(--r-sm);
+  background: var(--canvas-sunken); color: var(--content-2);
+  font-size: 12.5px; font-weight: 600;
+}
+/* Category modifiers sit on .chip-meta and only swap the two colours. */
+.chip-meta.c-spend  { background: var(--sky-soft);      color: var(--sky); }
+.chip-meta.c-save   { background: var(--brand-soft);    color: var(--brand-ink); }
+.chip-meta.c-tax    { background: var(--caution-soft);  color: var(--caution); }
+.chip-meta.c-invest { background: var(--accent-soft);   color: var(--accent-ink); }
+.chip-meta.c-debt   { background: var(--negative-soft); color: var(--negative); }
+.chip-num {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 12px; border-radius: 999px;
+  font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.chip-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+
+/* ── Data label above a figure — the only uppercase text allowed (STYLE.md §7) ── */
+.datalabel {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .btn:hover { transform: none; }
+  .btn:hover, .btn:active { transform: none; }
 }

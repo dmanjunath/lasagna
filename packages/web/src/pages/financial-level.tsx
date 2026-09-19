@@ -338,7 +338,7 @@ function RetirementVerdict({ retirement }: { retirement: NonNullable<PathSummary
   return (
     <Link
       href="/retirement"
-      className={`ui-focus touch-target group inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 rounded-full text-[12.5px] font-bold transition-shadow ${
+      className={`ui-focus touch-target group inline-flex items-center gap-1.5 h-9 pl-3 pr-2.5 rounded-full text-[12.5px] font-bold transition-shadow ${
         onTrack
           ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:shadow-[inset_0_0_0_1.5px_var(--ui-brand-ring)]'
           : 'bg-caution-soft text-caution hover:shadow-[inset_0_0_0_1.5px_rgb(var(--ui-caution)/0.45)]'

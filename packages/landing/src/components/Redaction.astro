@@ -1,0 +1,119 @@
+---
+// The record, redacted field by field. No pointer and no button: the value
+// itself is highlighted and its letters scramble into the code that replaces
+// it, so the swap is the thing you watch.
+import { RECORD } from "../demo-data";
+
+interface Props {
+  /** Omit for an untitled card: the status chip carries the meaning on its own. */
+  title?: string;
+}
+const { title } = Astro.props;
+
+const IDS = RECORD.filter((r) => r.id).length;
+---
+
+<div class="card" data-redact>
+  <div class:list={["card-head", { "no-title": !title }]}>
+    {title && <div class="card-title">{title}</div>}
+    <span class="chip-meta" data-redact-label>Nothing removed yet</span>
+  </div>
+
+  <div class="scol wide">
+    {RECORD.map((r) => (
+      <div class="f">
+        <span class="k">{r.k}</span>
+        {r.id ? (
+          <span class="v red" data-redact-value data-from={r.value} data-to={r.token}>{r.value}</span>
+        ) : (
+          <span class="v">{r.value}</span>
+        )}
+      </div>
+    ))}
+  </div>
+
+  <p class="scrub-note" data-redact-note>
+    Your balances and rates go through untouched. Anything that names you does not.
+  </p>
+</div>
+
+<script define:vars={{ IDS }}>
+  document.querySelectorAll("[data-redact]").forEach((root) => {
+    const values = [...root.querySelectorAll("[data-redact-value]")];
+    const label = root.querySelector("[data-redact-label]");
+    const note = root.querySelector("[data-redact-note]");
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const BEFORE = "Your balances and rates go through untouched. Anything that names you does not.";
+    const AFTER = "Nothing here identifies you. This is what the AI receives.";
+    const POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_#@$%&*";
+    const pick = () => POOL[Math.floor(Math.random() * POOL.length)];
+
+    // Letters lock in left to right, so the code resolves rather than blinking.
+    async function scramble(el, to) {
+      const from = el.dataset.from || "";
+      const len = Math.max(from.length, to.length);
+      const STEPS = 20;
+      for (let f = 0; f <= STEPS; f++) {
+        let out = "";
+        for (let i = 0; i < len; i++) {
+          const lockAt = STEPS * 0.35 + (i / len) * STEPS * 0.6;
+          if (f >= lockAt) out += to[i] ?? "";
+          else out += pick();
+        }
+        el.textContent = out;
+        await wait(32);
+      }
+      el.textContent = to;
+    }
+
+    function reset() {
+      for (const el of values) {
+        el.textContent = el.dataset.from || "";
+        el.classList.remove("is-target", "tok");
+        el.classList.add("red");
+      }
+      label.textContent = "Nothing removed yet";
+      note.textContent = BEFORE;
+    }
+
+    if (reduced) {
+      for (const el of values) {
+        el.textContent = el.dataset.to || "";
+        el.classList.remove("red");
+        el.classList.add("tok");
+      }
+      label.textContent = "Safe to send";
+      note.textContent = AFTER;
+    } else {
+      let running = false;
+      async function run() {
+        if (running) return;
+        running = true;
+        for (;;) {
+          reset();
+          await wait(1500);
+          for (let i = 0; i < values.length; i++) {
+            const el = values[i];
+            el.classList.add("is-target");
+            await wait(420);
+            el.classList.remove("red");
+            await scramble(el, el.dataset.to || "");
+            el.classList.add("tok");
+            el.classList.remove("is-target");
+            label.textContent =
+              i + 1 === IDS ? "Safe to send" : `${i + 1} of ${IDS} removed`;
+            await wait(520);
+          }
+          note.textContent = AFTER;
+          await wait(2600);
+        }
+      }
+      new IntersectionObserver(
+        (entries) => { if (entries.some((e) => e.isIntersecting)) run(); },
+        { threshold: 0.3 }
+      ).observe(root);
+    }
+  });
+</script>

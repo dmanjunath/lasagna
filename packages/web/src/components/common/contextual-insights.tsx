@@ -15,7 +15,7 @@ export function ContextualInsights({
   urgencyFilter,
   maxItems = 3,
 }: ContextualInsightsProps) {
-  const { insights, isLoading, dismiss } = useInsights(types);
+  const { insights, isLoading, dismiss, complete } = useInsights(types);
 
   const filtered = urgencyFilter
     ? insights.filter((i) => i.urgency === urgencyFilter)
@@ -45,6 +45,7 @@ export function ContextualInsights({
               (insight.impactColor as 'green' | 'amber' | 'red') ?? 'amber'
             }
             chatPrompt={insight.chatPrompt ?? insight.title}
+            onComplete={() => complete(insight.id)}
             onDismiss={() => dismiss(insight.id)}
           />
         ))}
