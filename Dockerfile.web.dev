@@ -1,0 +1,21 @@
+FROM node:20-slim
+RUN corepack enable
+
+WORKDIR /app
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/core/package.json packages/core/package.json
+COPY packages/web/package.json packages/web/package.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY tsconfig.json ./
+COPY packages/core packages/core
+COPY packages/web packages/web
+
+EXPOSE 5173
+
+WORKDIR /app/packages/web
+ENV CHOKIDAR_USEPOLLING=true
+ENV WATCHPACK_POLLING=true
+CMD ["pnpm", "dev", "--host", "0.0.0.0"]
