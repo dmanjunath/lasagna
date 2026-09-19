@@ -294,6 +294,10 @@ nav.open .nav-toggle .bars i:nth-child(3) { top: 5px; transform: rotate(-45deg);
 /* The stage is pinned to the tallest frame, so a shorter frame must stretch and
    push its control to the bottom rather than leaving a gap under it. */
 .demo-item.is-active { display: flex; flex-direction: column; animation: demo-in .34s var(--ease) both; }
+/* Hold the first action until the driver says go, so it rises into a card that
+   is already on screen instead of arriving with it. Gated on .js so a reader
+   without scripts still sees the action. */
+.js .demo-stage:not(.is-live) .demo-item.is-active { opacity: 0; animation: none; }
 .demo-item.is-active > .btn.full, .demo-item.is-active > .askbar { margin-top: auto; }
 .demo-item.is-leaving { animation: demo-out .3s var(--ease) both; }
 @keyframes demo-in  { from { opacity: 0; transform: translateY(14px) scale(.985); } }

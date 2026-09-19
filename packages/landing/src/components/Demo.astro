@@ -20,6 +20,8 @@
 
 <script>
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /** Long enough for the card's own reveal to land before its content moves. */
+  const FIRST_ACTION_DELAY = 420;
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   document.querySelectorAll<HTMLElement>("[data-demo]").forEach((root, index) => {
@@ -68,12 +70,12 @@
       if (running) return;
       running = true;
 
-      // Restart the entrance on the frame that rendered server-side, so the
-      // first action arrives the same way the others do.
-      const first = frames[i];
-      first.classList.remove("is-active");
-      void first.offsetWidth;            // reflow, so the animation replays
-      first.classList.add("is-active");
+      // The card arrives first and the action rises into it, which is the
+      // same entrance a later action gets when the one before it completes.
+      // Held by CSS until now: playing it at parse time landed the action at
+      // the same moment as the card, so it read as already being there.
+      await wait(FIRST_ACTION_DELAY);
+      stage!.classList.add("is-live");
 
       await wait(offset);
       for (;;) {
