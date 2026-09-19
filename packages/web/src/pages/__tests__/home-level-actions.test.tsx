@@ -210,6 +210,50 @@ describe('home leads with what can actually be finished', () => {
   });
 });
 
+/**
+ * Home is the only actions surface with no producer filter, so it is the only
+ * embedded one that meets a detected row at all, and it read the wire row
+ * directly. That printed the row's stored `impact` verbatim: green pills reading
+ * "Saves $367/mo" on four rows whose whole offer is to go and look. It was
+ * invisible only because five quicker rows happened to fill the shortlist.
+ */
+describe('home reads a detected row the same way the full surfaces do', () => {
+  const detected = (over: Partial<Insight> = {}): Insight =>
+    action('c1', 'Check what drove Groceries up', {
+      producer: 'spend-cuts',
+      type: 'spending',
+      category: 'general',
+      // The label as the detector stores it today. The old prescriptive one is
+      // passed explicitly below, because the point is that home prints neither.
+      impact: '$367 above usual',
+      monthlyValue: 367.42,
+      oneTimeValue: null,
+      evidence: 'Groceries was $1,132.50 in August 2026, up 86% on your usual $264.71.',
+      ...over,
+    });
+
+  it('prints the figure as an amount, not as the stored words', () => {
+    const html = words(renderActions([detected()]));
+    expect(html).toContain('Check what drove Groceries up');
+    expect(html).toContain('about $367 a month');
+    expect(html).not.toContain('above usual');
+  });
+
+  it('prints no savings claim even when the stored label still carries one', () => {
+    // A row written before the stored wording was fixed, which is what sits in
+    // the table until that household is recomputed.
+    const html = words(renderActions([detected({ impact: 'Saves $367/mo' })]));
+    expect(html).not.toContain('Saves $367/mo');
+    expect(html).not.toContain('Saves');
+    expect(html).toContain('about $367 a month');
+  });
+
+  it('still prints a written row\'s own impact words', () => {
+    const html = words(renderActions([action('a1', 'Raise your HSA payroll election')]));
+    expect(html).toContain('+$120/yr');
+  });
+});
+
 describe('the level section is the ladder, and nothing about actions', () => {
   it('says nothing about actions while standing on a step', () => {
     const html = words(renderLevel(CURRENT, STEPS));

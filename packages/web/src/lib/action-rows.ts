@@ -57,6 +57,8 @@ export interface ApiActionRow {
   pathStepKey: string | null;
   /** Which workflow wrote the row. Absent on a fixture that models only one. */
   producer?: string;
+  /** Which finding this is, for a detected row. Null on a model-authored one. */
+  kind?: string | null;
   monthlyValue?: number | null;
   oneTimeValue?: number | null;
   evidence?: string | null;
@@ -80,6 +82,15 @@ export interface ActionRow {
   evidence: string | null;
   /** The summable figure, or null on a row that has none. */
   amount: ActionAmount | null;
+  /**
+   * Whether `amount` is money this household gets back.
+   *
+   * False on a row with no figure, and false on the awareness row, whose figure
+   * is how far a category ran over its usual month. That is money already
+   * spent, so it is a saving in no period and the savings sentence speaks for
+   * exactly the rows where this is true.
+   */
+  handsMoneyBack: boolean;
   /** The figure in words, for a row that has no numeric one. */
   impact: string | null;
   impactColor: 'green' | 'amber' | 'red';
@@ -116,6 +127,7 @@ export function fromInsight(r: ApiActionRow): ActionRow {
     ...shared(r),
     evidence: null,
     amount: null,
+    handsMoneyBack: false,
     impact: r.impact,
     transactions: [],
     txnCount: 0,
@@ -154,9 +166,24 @@ export function impactNote(title: string, impact: string | null | undefined): st
 }
 
 /**
+ * The one detected kind whose figure is not money back.
+ *
+ * Mirrors `handsMoneyBack` in the API's lib/spend-cuts.ts, which is where the
+ * rule is defined and where the stored row is written from it. The two packages
+ * already keep their own copy of this arithmetic, and the wire carries the kind
+ * precisely so the page can tell the two apart.
+ */
+const AWARENESS_KIND = 'category_above_trend';
+
+/**
  * A detected saving. Its figure is a number in one period, which is what makes
  * it summable, so the `impact` words are dropped: the pill prints the figure and
  * printing both would say the same thing twice.
+ *
+ * The awareness row keeps them. Its figure is not money back in any period, so
+ * the money-shaped label is the wrong sentence for it, and the server already
+ * stores the right one ("$367 above usual"). Carrying it here is what lets the
+ * pill print that instead of composing a second wording at the call site.
  */
 export function fromSpendCut(r: ApiActionRow): ActionRow {
   const amount: ActionAmount | null =
@@ -165,11 +192,13 @@ export function fromSpendCut(r: ApiActionRow): ActionRow {
       : r.oneTimeValue != null
         ? { value: r.oneTimeValue, period: 'once' }
         : null;
+  const handsMoneyBack = amount != null && r.kind !== AWARENESS_KIND;
   return {
     ...shared(r),
     evidence: r.evidence ?? null,
     amount,
-    impact: null,
+    handsMoneyBack,
+    impact: handsMoneyBack ? null : (r.impact ?? null),
     transactions: r.transactions ?? [],
     txnCount: r.txnCount ?? 0,
     txnScope: r.txnScope ?? null,
@@ -229,26 +258,37 @@ export function rankActions(rows: ActionRow[]): ActionRow[] {
 }
 
 /**
- * What the rows on screen come to, in one sentence, split by period.
+ * What the rows that hand money back come to, in one sentence, split by period.
  *
  * Every figure in it is the sum of the row pills beneath it, as those pills
  * print them, so a reader adding the list up lands on this line. The two
  * periods are stated apart and NEVER added together.
  *
- * Null for fewer than two rows with a figure: a summary of one thing is that
- * thing printed twice. The count is every row shown, so it always matches the
- * screen, and a row with no figure contributes nothing to the money.
+ * It counts and totals the money-back rows ONLY. An awareness row's figure is
+ * how far a category ran over its usual month, which is money already spent:
+ * folded in, it made four rows that ask you to go and look read as "$1,146 a
+ * month" of savings on offer, which is the same false promise their own pills
+ * had just stopped making. Where the two are mixed the sentence says how many
+ * of the rows it speaks for, so it never stands in for the whole list.
+ *
+ * Null for fewer than two money-back rows: a summary of one thing is that thing
+ * printed twice. Null, too, where none of them hands anything back, because
+ * "you save about $0" is not a truer claim than silence.
  */
 export function savingsSentence(shown: ActionRow[]): string | null {
-  if (shown.filter((r) => r.amount != null).length < 2) return null;
+  const paying = shown.filter((r) => r.handsMoneyBack);
+  if (paying.length < 2) return null;
 
-  const monthly = displayedTotal(monthlyCuts(shown));
-  const once = displayedTotal(oneTimeCuts(shown));
+  const monthly = displayedTotal(monthlyCuts(paying));
+  const once = displayedTotal(oneTimeCuts(paying));
   const figures: string[] = [];
   if (monthly > 0) figures.push(`about ${wholeMoney(monthly)} a month`);
   if (once > 0) figures.push(`about ${wholeMoney(once)} once`);
   if (figures.length === 0) return null;
 
+  if (paying.length < shown.length) {
+    return `${paying.length} of these save you ${figures.join(', plus ')}.`;
+  }
   const lead = shown.length === 2 ? 'Do both of these' : `Do all ${shown.length} of these`;
   return `${lead} and you save ${figures.join(', plus ')}.`;
 }

@@ -59,6 +59,15 @@ interface ActionItemProps {
    */
   amount?: ActionAmount;
   /**
+   * Whether `amount` is money this household gets back, as `ActionRow` decides
+   * it. False on the awareness row, whose figure is how far a category ran over
+   * its usual month, which is money already spent.
+   *
+   * Absent on the pages that pass no `amount` at all, where it would decide
+   * nothing.
+   */
+  handsMoneyBack?: boolean;
+  /**
    * How much work the action asks for. No pill at all when it is not passed:
    * an unrated action must not be presented as a quick one.
    */
@@ -165,11 +174,21 @@ function txnCountLine(shown: number, total: number, scope?: string): string {
  *
  * The reduced surface has no sentence and no numeric figures at all, so its
  * rows keep printing the model's words there.
+ *
+ * A figure that is NOT money back prints the row's own words instead of the
+ * money-shaped label: "$367 above usual", not "about $367 a month". The
+ * sentence above the list already counts only the rows that hand money back
+ * ("3 of these save you…"), and while every pill read alike there was no way to
+ * tell which 3 it meant. The test is `handsMoneyBack`, never the kind string, so
+ * the rule stays where `ActionRow` defines it.
  */
 function rowFigure(
-  { amount, impact, full }: Pick<ActionItemProps, 'amount' | 'impact' | 'full'>,
+  { amount, impact, full, handsMoneyBack }: Pick<
+    ActionItemProps,
+    'amount' | 'impact' | 'full' | 'handsMoneyBack'
+  >,
 ): string | null {
-  if (amount) return amountLabel(amount);
+  if (amount) return handsMoneyBack === false ? impact || null : amountLabel(amount);
   return full ? null : impact || null;
 }
 
@@ -204,6 +223,7 @@ function DenseRowInner({
   area,
   evidence,
   amount,
+  handsMoneyBack,
   effort,
   full,
   expandable,
@@ -211,7 +231,7 @@ function DenseRowInner({
 }: ActionItemProps & { expandable?: boolean; expanded?: boolean }) {
   const cat = catForTag(tag);
   const Icon = cat.icon;
-  const figure = rowFigure({ amount, impact, full });
+  const figure = rowFigure({ amount, impact, full, handsMoneyBack });
   // What the model's words add to the title, where they add anything at all.
   // Body text, because they are not a summable figure, and dropped entirely
   // where they only restate the title's own number.
@@ -455,7 +475,9 @@ function AccordionActionItem(props: ActionItemProps) {
                   type="button"
                   onClick={() =>
                     openChat(
-                      `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${amount ? amountLabel(amount) : impact}\n\n${chatPrompt}`
+                      // Same rule as the pill: an awareness row states what it
+                      // is above usual, so chat is not told it saves that much.
+                      `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${rowFigure({ ...props, full: false }) ?? ''}\n\n${chatPrompt}`
                     )
                   }
                   // Same inset ring as the row header and the three verbs. Both

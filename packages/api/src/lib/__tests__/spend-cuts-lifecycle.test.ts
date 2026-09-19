@@ -400,6 +400,63 @@ describe("a hostile rewrite changes nothing", () => {
   });
 });
 
+/**
+ * The one kind with no remedy must not read like the four that have one.
+ *
+ * Both of these are the STORED row rather than a rendering of it, which is the
+ * level the bug lived at: the home shortlist printed `impact` straight off the
+ * wire and so printed "Saves $367/mo" on a row whose whole offer is to go and
+ * look. Fixing only that reader would have left the same sentence in the table
+ * for the next one to find.
+ */
+describe("an awareness row promises nothing", () => {
+  const awareness = () => insightRowForFinding(TENANT, BY_KIND.category_above_trend, WINDOW);
+
+  it("labels the category row with the magnitude and never with a saving", () => {
+    expect(awareness().impact).toBe("$1,200 above usual");
+    expect(awareness().impact).not.toMatch(/sav/i);
+  });
+
+  it("stores it in the caution tone, never the colour of money gained", () => {
+    // Green is what this column means by money gained. Stored green, a reader
+    // of the raw row paints "$1,200 above usual" as a saving, which is the same
+    // mistake `impact` made one column over.
+    expect(awareness().impactColor).toBe("amber");
+    expect(awareness().impactColor).not.toBe("green");
+  });
+
+  it("keeps green on every kind that does hand money back", () => {
+    for (const kind of ALL_KINDS.filter((k) => k !== "category_above_trend")) {
+      expect(insightRowForFinding(TENANT, BY_KIND[kind], WINDOW).impactColor).toBe("green");
+    }
+  });
+
+  it("still labels the kinds that do hand money back as savings", () => {
+    expect(insightRowForFinding(TENANT, BY_KIND.fee, WINDOW).impact).toBe("Saves $6/mo");
+    expect(insightRowForFinding(TENANT, BY_KIND.price_increase, WINDOW).impact).toBe("Saves $3/mo");
+    expect(insightRowForFinding(TENANT, BY_KIND.duplicate_service, WINDOW).impact).toBe("Saves $12/mo");
+    expect(insightRowForFinding(TENANT, BY_KIND.one_time_fee, WINDOW).impact).toBe("$2,900 back once");
+  });
+
+  it("rates it as one sitting, because opening the month is all it asks", () => {
+    expect(awareness().effort).toBe("quick");
+  });
+
+  it("leaves the size letter alone, because the copy rule reads it", () => {
+    // POLISH_SYSTEM forbids a rewrite of an "l" suggestion setting a target or
+    // saying what the household ought to spend. Moving the letter to match the
+    // effort would switch that rule off without a word.
+    expect(BY_KIND.category_above_trend.size).toBe("l");
+    expect(awareness().metadata.size).toBe("l");
+  });
+
+  it("still reads every other kind's effort off its letter", () => {
+    expect(insightRowForFinding(TENANT, BY_KIND.fee, WINDOW).effort).toBe("quick");
+    expect(insightRowForFinding(TENANT, BY_KIND.price_increase, WINDOW).effort).toBe("quick");
+    expect(insightRowForFinding(TENANT, BY_KIND.duplicate_service, WINDOW).effort).toBe("moderate");
+  });
+});
+
 describe("the figure a row carries is split by period, not flagged", () => {
   it("leaves monthly null on a one-off, so no sum over it can include the amount", () => {
     const row = insightRowForFinding(TENANT, BY_KIND.one_time_fee, WINDOW);
@@ -418,8 +475,25 @@ describe("the figure a row carries is split by period, not flagged", () => {
 
   it("totals the two periods separately", () => {
     const rows = ALL_KINDS.map((k) => insightRowForFinding(TENANT, BY_KIND[k], WINDOW));
-    // 5.83 + 2.50 + 11.50 + 1200 for the monthly kinds, and the $2,900 refund
-    // kept out of a figure labelled "a month".
-    expect(spendCutTotals(rows)).toEqual({ monthly: 1219.83, oneTime: 2900 });
+    // 5.83 + 2.50 + 11.50 for the monthly kinds that hand money back, and the
+    // $2,900 refund kept out of a figure labelled "a month".
+    expect(spendCutTotals(rows)).toEqual({ monthly: 19.83, oneTime: 2900 });
+  });
+
+  it("leaves the awareness magnitude out of the total, because it is money already spent", () => {
+    const paying = ALL_KINDS.filter((k) => k !== "category_above_trend").map((k) =>
+      insightRowForFinding(TENANT, BY_KIND[k], WINDOW),
+    );
+    const all = ALL_KINDS.map((k) => insightRowForFinding(TENANT, BY_KIND[k], WINDOW));
+    // The awareness row is on the page and carries a $1,200 figure. Adding it
+    // in is what made four "go and look" rows read as savings on offer.
+    expect(all.length).toBe(paying.length + 1);
+    expect(spendCutTotals(all)).toEqual(spendCutTotals(paying));
+    expect(spendCutTotals(all).monthly).not.toBe(1219.83);
+  });
+
+  it("has nothing to total where every row is an awareness row", () => {
+    const rows = [insightRowForFinding(TENANT, BY_KIND.category_above_trend, WINDOW)];
+    expect(spendCutTotals(rows)).toEqual({ monthly: 0, oneTime: 0 });
   });
 });

@@ -1132,6 +1132,120 @@ export function pricesTaxSaving(copy: InsightCopy): boolean {
   );
 }
 
+// Deterministic backstop for CRITICAL rules 3 and 14, and the last line of rule
+// 3 in particular: a remedy is written from the reader's own data, so any price,
+// rate or discount put on somebody else's product is invented. The two rows that
+// forced this were live and stored: a title reading "Review the $14,047 rental
+// property maintenance spike in August" over a body saying "no action needed",
+// and a body reading "If these are high-APR cards (15-25%), you're potentially
+// paying $700-$1,400/yr in interest."
+//
+// Neither existing guard could reach them. `pricesTaxSaving` is tax-scoped by
+// construction, and the spend-cuts figure guard only asks whether a number
+// appears in that row's own receipt, which an invented rate on a third party's
+// card is not: it is not a number about this household at all.
+//
+// Both predicates below are PURE and neither reads the environment, so the rule
+// is unit-testable, and BOTH paths call them for the reason the tax rule above
+// documents at length: a row stored before the rule existed keeps saying the
+// banned thing until that household regenerates, which is a cron away at best.
+
+// Verbs that ask the reader to LOOK. Rule 3 names "review", "consider" and "look
+// into"; the rest are the same move under another word. Every one of them is an
+// observation, and none of them is a step somebody can finish, which is what
+// rule 14 asks a title to be.
+const OBSERVATION_VERBS = [
+  "review", "reviewing",
+  "consider", "considering",
+  // "look into", "look at", "look over".
+  "look",
+  "monitor", "monitoring",
+  "assess", "assessing",
+  "evaluate", "evaluating",
+  "examine", "examining",
+  "revisit", "reassess",
+  "explore", "research",
+  "watch", "track",
+  "understand",
+];
+
+// Anchored at the start, because rule 14 binds on how a title OPENS. "Pay down
+// the card you review every month" is a move, and a matcher that fired anywhere
+// in the sentence would take it.
+const OBSERVATION_TITLE = new RegExp(
+  `^\\s*(?:(?:${OBSERVATION_VERBS.join("|")})\\b|keep an eye on\\b)`,
+  "i",
+);
+
+/** True when the title only asks the reader to look, so the row is not an action. */
+export function observesRatherThanActs(copy: InsightCopy): boolean {
+  return OBSERVATION_TITLE.test(copy.title ?? "");
+}
+
+// A MOVE from one figure to another, which is the opposite of a span and is
+// exactly what rule 14 asks a title to be: "Raise your savings rate from 12% to
+// 15% of income" names two figures that both exist and asks for the change
+// between them. Taken out of the sentence before the spans below are looked for,
+// so the "to" in it can never read as one.
+const MOVE_BETWEEN_FIGURES =
+  /\bfrom\s+\$?\s?\d[\d,]*(?:\.\d+)?\s*%?\s+to\s+\$?\s?\d[\d,]*(?:\.\d+)?\s*%?/gi;
+
+// A span of money. Only whitespace may sit between the two figures, which is what
+// keeps a sentence naming two real amounts out of it: "Pay down your $3,076 card
+// to stop $736/yr in interest" states two figures from their data and is not a
+// span.
+//
+// The dash form takes a bare second figure ("$700-1,400"), because a dash
+// straight after an amount is a range and nothing else. The "to" form demands the
+// currency on both sides, because "to" is also how a count is named and "Move
+// $5,000 to 3 different funds" must not read as a span.
+const MONEY_SPAN_DASH = /\$\s?[\d,]+(?:\.\d+)?\s*-\s*\$?\s?[\d,]+(?:\.\d+)?/i;
+const MONEY_SPAN_TO = /\$\s?[\d,]+(?:\.\d+)?\s+to\s+\$\s?[\d,]+(?:\.\d+)?/i;
+
+// A span of percent: "15-25%", "15% to 25%", "5 to 7%". Same whitespace-only
+// rule, so "Raise your 401(k) to 4%" and "jumped 129% to $89" are not spans.
+const PERCENT_SPAN = /\d[\d,]*(?:\.\d+)?\s*%?\s*(?:-|to)\s*\d[\d,]*(?:\.\d+)?\s*%/i;
+
+// What makes a span of percent a claim about somebody's pricing rather than a
+// general allocation guideline. "Benchmark: 60-70% US" names no rate and is left
+// alone, where "high-APR cards (15-25%)" names one.
+const RATE_NOUN = /\b(?:apr|apy|interest|rates?|yield)\b/i;
+
+/**
+ * True when the copy states a SPAN instead of a figure, so the row is guessing.
+ *
+ * A span is the tell. Every number these rows are allowed to state is read off
+ * one household's own data, and that data yields one number: one balance, one
+ * contribution, one percentage change against their own usual month. A span is
+ * what a model writes when it has no number and is pricing something it cannot
+ * see, which in practice is always a third party's product.
+ *
+ * A DESCRIPTIVE percentage survives, and must: "up 129% on last month" is
+ * computed from their own transactions and says only what happened. That is the
+ * same line lib/spend-cut-detector.ts draws on its own percentage, and it is
+ * drawn in the same place. Prescriptive stays banned, descriptive does not. So
+ * does a move between two real figures, which reads "from X to Y" and is the
+ * shape rule 14 asks for.
+ *
+ * A span of percent is only condemned beside a rate word, so general allocation
+ * guidance ("a globally diversified allocation holds roughly 30 to 40 percent
+ * outside the US") is untouched. A span of MONEY is condemned outright: there is
+ * no honest reading of one.
+ */
+export function statesAGuessedSpan(copy: InsightCopy): boolean {
+  const text = `${copy.title ?? ""}. ${copy.description ?? ""}. ${copy.impact ?? ""}`;
+  // Sentence by sentence, so a rate word in one sentence cannot condemn a span
+  // in the next, which is the same scoping the tax patterns above use. The
+  // boundary needs the whitespace after it: splitting on a bare period cuts
+  // "24.99%" and "$1,400.50" in half and loses the very span being looked for.
+  for (const sentence of text.split(/[.!?]+(?=\s|$)/)) {
+    const claim = sentence.replace(MOVE_BETWEEN_FIGURES, " ");
+    if (MONEY_SPAN_DASH.test(claim) || MONEY_SPAN_TO.test(claim)) return true;
+    if (PERCENT_SPAN.test(claim) && RATE_NOUN.test(sentence)) return true;
+  }
+  return false;
+}
+
 /**
  * A portfolio action states general allocation guidance in a hosted deployment,
  * not the reader's own holdings and figures. The prompt asks for that, and the
@@ -1628,6 +1742,17 @@ async function runGeneration(tenantId: string): Promise<number> {
       // matcher over-reaching, and the title alone never says which.
       const insText = `${ins.title ?? ""} ${ins.description ?? ""} ${ins.impact ?? ""}`;
       console.log(`[Insights] Dropping insight that prices a tax saving: ${insText.slice(0, 240)}`);
+      continue;
+    }
+
+    // Rules 3 and 14, also before the cap and for the same reason.
+    if (observesRatherThanActs(ins)) {
+      console.log(`[Insights] Dropping insight whose title only observes: "${ins.title?.slice(0, 120)}"`);
+      continue;
+    }
+    if (statesAGuessedSpan(ins)) {
+      const insText = `${ins.title ?? ""} ${ins.description ?? ""} ${ins.impact ?? ""}`;
+      console.log(`[Insights] Dropping insight that states a guessed span: ${insText.slice(0, 240)}`);
       continue;
     }
 

@@ -129,9 +129,9 @@ function FullActions({ types }: PageActionsProps) {
   const shown = useMemo(() => rankActions(live), [live]);
 
   /**
-   * The sum of exactly the rows on screen, so a reader adding the pills up
-   * lands on this line. `shown` already has the rows waiting out an undo
-   * window removed.
+   * The sum of exactly the rows on screen that hand money back, so a reader
+   * adding those pills up lands on this line. `shown` already has the rows
+   * waiting out an undo window removed.
    */
   const sentence = savingsSentence(shown);
 
@@ -186,6 +186,10 @@ function FullActions({ types }: PageActionsProps) {
                 chatPrompt={row.chatPrompt}
                 evidence={row.evidence ?? undefined}
                 amount={row.amount ?? undefined}
+                // Which of these the sentence above is speaking for. A row it
+                // leaves out prints its own words in the pill rather than a
+                // money-shaped label that would read as one of the savings.
+                handsMoneyBack={row.handsMoneyBack}
                 effort={row.effort ?? undefined}
                 transactions={row.transactions}
                 txnCount={row.txnCount}

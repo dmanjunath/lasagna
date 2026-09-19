@@ -5,15 +5,19 @@ import { type AuthEnv } from "../middleware/auth.js";
 import {
   generateInsights,
   heldSecurityNames,
+  observesRatherThanActs,
   personalizesPortfolio,
   pricesTaxSaving,
+  statesAGuessedSpan,
   taxSafeImpactColor,
   NO_HELD_SECURITIES,
   type HeldSecurities,
 } from "../lib/insights-engine.js";
 import {
   claimsRecurrence,
+  effortForSpendCut,
   generateSpendCuts,
+  impactLabelForSpendCut,
   lastSpendCutsPolishAt,
   spendCutTotals,
   spendCutsWindow,
@@ -158,6 +162,12 @@ function servable(
 
   const copy = { title: r.title, description: r.description, impact: r.impact };
   if (pricesTaxSaving(copy)) return false;
+  // Rules 3 and 14. Suppressed rather than trimmed to the offending sentence: a
+  // row whose title only asks you to look has no move left once the observation
+  // is taken out, and a body that priced somebody else's card cannot be repaired
+  // into one that does not. Silence is the honest failure here.
+  if (observesRatherThanActs(copy)) return false;
+  if (statesAGuessedSpan(copy)) return false;
   // The family is carried through because it decides whether a security NAME is
   // looked for at all: outside the holdings families the same words are shops
   // and cards, so a debt or spending action keeps its "Visa" and its "Target".
@@ -484,11 +494,23 @@ insightsRoutes.get("/", async (c) => {
         urgency: r.urgency,
         // Null on every action written before effort existed, and on one the
         // model declined to rate. The reader decides what an absent answer means.
-        effort: r.effort,
+        //
+        // A detected row's effort and label are DERIVED here rather than read off
+        // the columns, from the one definition in lib/spend-cuts.ts, exactly as
+        // the two copy guards above are re-applied on the way out. These rows are
+        // recomputed once a month, so a row stored before either rule changed
+        // would otherwise keep its old wording for up to a month: "Involved" on a
+        // row titled "Check what drove Groceries up", and "Saves $367/mo" on a row
+        // that hands nothing back.
+        effort: isSpendCut && meta.kind && meta.size
+          ? effortForSpendCut(meta.kind, meta.size)
+          : r.effort,
         type: r.insightType,
         title: r.title,
         description: r.description,
-        impact: r.impact,
+        impact: isSpendCut && meta.kind
+          ? impactLabelForSpendCut(meta.kind, Number(r.monthlyValue ?? r.oneTimeValue ?? 0))
+          : r.impact,
         impactColor: taxSafeImpactColor({
           category: r.category,
           type: r.insightType,

@@ -538,6 +538,64 @@ function wholeMoney(n: number): string {
 }
 
 /**
+ * How much work the row asks of the person.
+ *
+ * The size letter answers this for every kind that carries a remedy, because the
+ * letter measures the change that remedy asks for. The awareness kind carries no
+ * remedy at all, so there is no change to measure and the letter cannot answer
+ * it: the only move the row offers is to open that month and look, which is one
+ * sitting whatever figure sits beside it. Rendered from the letter alone, a row
+ * titled "Check what drove Groceries up" wore an "Involved" pill, which
+ * described months of work nobody was being asked to do.
+ *
+ * The letter itself is left as it is, and deliberately: POLISH_SYSTEM reads
+ * `size === "l"` to forbid the rewrite setting a target or saying what the
+ * household ought to spend, and that rule protects exactly this kind. Moving the
+ * letter would switch it off silently.
+ *
+ * Exported and read on the SERVE path as well as here, the way routes/insights.ts
+ * already re-applies the two copy guards. These rows are recomputed once a month,
+ * so a row written before this changed would otherwise keep its "Involved" pill
+ * for up to a month after the fix deployed.
+ */
+export function effortForSpendCut(
+  kind: SpendCutKind,
+  size: SpendCutSize,
+): "quick" | "moderate" | "involved" {
+  return kind === "category_above_trend" ? "quick" : EFFORT_BY_SIZE[size];
+}
+
+/**
+ * Whether this kind's figure is money the household gets back.
+ *
+ * THE answer to that question, so the label, the colour and every total read it
+ * rather than each deciding again. Four kinds hand money back. The awareness
+ * kind's figure is the size of a gap to go and look at, so it is money back in
+ * no period at all and belongs in no savings total.
+ */
+export function handsMoneyBack(kind: SpendCutKind): boolean {
+  return kind !== "category_above_trend";
+}
+
+/**
+ * The words in a spend-cut row's `impact` label, from its kind and its figure.
+ *
+ * `impact` is a LABEL and not a datum: monthly_value (or one_time_value) is the
+ * column to read for a number, and this is the sentence printed beside it. Four
+ * of the five kinds hand money back, so they say so. The awareness kind hands
+ * nothing back, so it states the magnitude of the gap and promises nothing.
+ *
+ * Read on the serve path as well as here, for the same reason as the effort
+ * above: a stored "Saves $367/mo" on a row whose whole offer is to go and look is
+ * not something to leave readable until the next monthly recompute.
+ */
+export function impactLabelForSpendCut(kind: SpendCutKind, figure: number): string {
+  if (kind === "category_above_trend") return `${wholeMoney(figure)} above usual`;
+  if (kind === "one_time_fee") return `${wholeMoney(figure)} back once`;
+  return `Saves ${wholeMoney(figure)}/mo`;
+}
+
+/**
  * The chat this action opens with. A deterministic template that names the
  * merchant or the category and carries NO figure: the numbers are on the row
  * already, and a prompt that restates one is a second place for them to drift.
@@ -590,7 +648,7 @@ export interface SpendCutInsightRow {
   title: string;
   description: string;
   impact: string;
-  impactColor: "green";
+  impactColor: "green" | "amber";
   chatPrompt: string;
   monthlyValue: string | null;
   oneTimeValue: string | null;
@@ -649,17 +707,17 @@ export function insightRowForFinding(
     category: "general",
     insightType: "spending",
     urgency: URGENCY_BY_KIND[f.kind],
-    effort: EFFORT_BY_SIZE[f.size],
+    effort: effortForSpendCut(f.kind, f.size),
     title: copy.title,
     description: copy.description,
     // Rendered from the numeric column beside it, never written by a model.
-    // `impact` now has two authors with two idioms, so it is a LABEL and not a
-    // datum: monthly_value (or one_time_value) is the column to read for a
-    // number.
-    impact: oneOff
-      ? `${wholeMoney(f.monthlySaving)} back once`
-      : `Saves ${wholeMoney(f.monthlySaving)}/mo`,
-    impactColor: "green",
+    impact: impactLabelForSpendCut(f.kind, f.monthlySaving),
+    // Green is the colour of money gained. The awareness kind gains none, so it
+    // is stored in the caution tone instead. The label beside it already says
+    // "above usual", and a column that still said green is exactly how the same
+    // claim reached a pill once: a reader of the raw row would paint a gap in
+    // the colour of a saving.
+    impactColor: handsMoneyBack(f.kind) ? "green" : "amber",
     chatPrompt: chatPromptForFinding(f),
     // The split is the safety property. A one-off leaves monthly_value NULL, so
     // no sum over that column can quietly fold money back once into a total
@@ -694,19 +752,31 @@ export function insightRowForFinding(
 }
 
 /**
- * What the spend-cut rows add up to, over exactly the rows handed in.
+ * What the spend-cut rows HAND BACK, over exactly the rows handed in.
  *
  * Pure, and deliberately not a SQL aggregate: the read path suppresses rows
  * after they are selected, so a total computed in the database would count
  * money the reader cannot see and the headline would not add up to the list
  * beneath it.
+ *
+ * An awareness row is skipped, by `handsMoneyBack` and not by a second rule of
+ * its own. Its figure is how far a category ran over its usual month, which is
+ * money already spent: summed in here it turned four rows that ask you to go
+ * and look into "$1,146 a month" of savings nobody was being offered.
  */
 export function spendCutTotals(
-  rows: Array<{ monthlyValue: string | number | null; oneTimeValue: string | number | null }>,
+  rows: Array<{
+    monthlyValue: string | number | null;
+    oneTimeValue: string | number | null;
+    /** The stored metadata. Its `kind` is what says whether the figure is a saving. */
+    metadata?: unknown;
+  }>,
 ): { monthly: number; oneTime: number } {
   let monthly = 0;
   let oneTime = 0;
   for (const r of rows) {
+    const kind = (r.metadata as Partial<SpendCutMetadata> | null | undefined)?.kind;
+    if (kind && !handsMoneyBack(kind)) continue;
     if (r.monthlyValue != null) monthly += Number(r.monthlyValue);
     if (r.oneTimeValue != null) oneTime += Number(r.oneTimeValue);
   }

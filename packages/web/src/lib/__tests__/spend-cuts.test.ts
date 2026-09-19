@@ -28,6 +28,7 @@ function row(id: string, over: Partial<ActionRow> = {}): ActionRow {
     chatPrompt: 'c',
     evidence: null,
     amount: { value: 10, period: 'monthly' },
+    handsMoneyBack: true,
     impact: null,
     impactColor: 'green',
     effort: 'involved',
@@ -51,7 +52,22 @@ function once(id: string, value: number, over: Partial<ActionRow> = {}): ActionR
 
 /** A model-authored action. It has advice in words and no figure to sum. */
 function wordsOnly(id: string, over: Partial<ActionRow> = {}): ActionRow {
-  return row(id, { amount: null, impact: '+$120/yr', ...over });
+  return row(id, { amount: null, handsMoneyBack: false, impact: '+$120/yr', ...over });
+}
+
+/**
+ * An awareness row: a figure, and nothing handed back for it.
+ *
+ * "Check what drove Utilities up" carries $367, which is how far the category
+ * ran over its usual month. That money is already spent.
+ */
+function awareness(id: string, value: number, over: Partial<ActionRow> = {}): ActionRow {
+  return row(id, {
+    amount: { value, period: 'monthly' },
+    handsMoneyBack: false,
+    effort: 'quick',
+    ...over,
+  });
 }
 
 /**
@@ -195,8 +211,8 @@ describe('a one-off refund is never inside a monthly figure', () => {
 });
 
 /**
- * The sentence under the heading. Every figure in it is the sum of the pills
- * beneath it, and the count is every row on screen, so a reader can check the
+ * The sentence under the heading. Every figure in it is the sum of the pills it
+ * speaks for, and it says how many rows that is, so a reader can check the
  * whole claim without leaving the section.
  */
 describe('savingsSentence', () => {
@@ -223,12 +239,32 @@ describe('savingsSentence', () => {
     );
   });
 
-  it('counts every row shown, including the ones with no figure', () => {
-    // The count has to match the screen, and a row with no figure is still a row
-    // the reader has to do. It simply contributes no money.
+  it('says how many rows it speaks for, where it does not speak for them all', () => {
+    // A row that hands nothing back is still a row the reader has to do, so the
+    // sentence must not read as if it covered the list. It names its own count.
     expect(savingsSentence([monthly('a', 100), monthly('b', 50), wordsOnly('c')])).toBe(
-      'Do all 3 of these and you save about $150 a month.',
+      '2 of these save you about $150 a month.',
     );
+  });
+
+  it('totals the money-back pills and no others', () => {
+    // The awareness figures are the largest on screen and sit in no total: 367
+    // and 337 are money already spent, so the sentence is 100 + 50 and says so.
+    const set = [
+      awareness('utilities', 366.76),
+      monthly('a', 100),
+      awareness('groceries', 337.17),
+      monthly('b', 50),
+    ];
+    const sentence = savingsSentence(set);
+    expect(sentence).toBe('2 of these save you about $150 a month.');
+    // The claim equals the sum of exactly the pills it speaks for, as printed.
+    const claimed = set.filter((r) => r.handsMoneyBack).map(displayedSaving);
+    expect(claimed.reduce((t, n) => t + n, 0)).toBe(150);
+    expect(sentence).toContain('$150');
+    // And the awareness magnitudes, which the old arithmetic put in it.
+    expect(displayedTotal(monthlyCuts(set))).toBe(854);
+    expect(sentence).not.toContain('854');
   });
 
   it('says nothing about one figure, because that is the row printed twice', () => {
@@ -239,6 +275,81 @@ describe('savingsSentence', () => {
 
   it('says nothing where no row carries a figure at all', () => {
     expect(savingsSentence([wordsOnly('a'), wordsOnly('b')])).toBeNull();
+  });
+
+  it('makes no savings claim where every row is an awareness row', () => {
+    // Nothing is on offer, so there is nothing true to say. Not "$0", and not a
+    // count of rows with an empty promise attached to it.
+    const set = [
+      awareness('utilities', 366.76),
+      awareness('saas', 337.17),
+      awareness('groceries', 228.88),
+      awareness('gas', 213.32),
+    ];
+    expect(savingsSentence(set)).toBeNull();
+  });
+
+  it('makes no savings claim where only one row hands money back', () => {
+    // The set that shipped: four awareness rows and one refundable bank fee. It
+    // read "Do all 5 of these and you save about $1,146 a month, plus about
+    // $2,900 once", and every dollar of that $1,146 was money already spent.
+    const set = [
+      awareness('utilities', 366.76),
+      awareness('saas', 337.17),
+      awareness('groceries', 228.88),
+      awareness('gas', 213.32),
+      once('fee', 2900),
+    ];
+    expect(savingsSentence(set)).toBeNull();
+  });
+});
+
+/**
+ * Which rows the sentence is allowed to speak for, read off the wire.
+ *
+ * The kind is what separates a figure that is money back from one that is the
+ * size of a gap, and the server sends it for exactly this reason.
+ */
+describe('a row is only a saving when its kind hands money back', () => {
+  function wire(over: Partial<ApiActionRow>): ApiActionRow {
+    return {
+      id: 'x',
+      category: 'general',
+      urgency: 'low',
+      effort: 'quick',
+      type: 'spending',
+      title: 't',
+      description: 'd',
+      impact: null,
+      impactColor: 'green',
+      chatPrompt: null,
+      generatedBy: 'system',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      pathStepKey: null,
+      producer: 'spend-cuts',
+      monthlyValue: null,
+      oneTimeValue: null,
+      ...over,
+    };
+  }
+
+  it('keeps the awareness row out, figure and all', () => {
+    const row = toActionRow(wire({ kind: 'category_above_trend', monthlyValue: 366.76 }));
+    // It keeps its figure, which the pill and the receipt both need.
+    expect(row.amount).toEqual({ value: 366.76, period: 'monthly' });
+    expect(row.handsMoneyBack).toBe(false);
+  });
+
+  it('lets every kind that does hand money back in', () => {
+    for (const kind of ['fee', 'price_increase', 'duplicate_service']) {
+      expect(toActionRow(wire({ kind, monthlyValue: 12.5 })).handsMoneyBack).toBe(true);
+    }
+    expect(toActionRow(wire({ kind: 'one_time_fee', oneTimeValue: 2900 })).handsMoneyBack).toBe(true);
+  });
+
+  it('counts a model-authored row as handing nothing back, because it has no figure', () => {
+    expect(toActionRow(wire({ producer: 'insights-engine', impact: '+$120/yr' })).handsMoneyBack)
+      .toBe(false);
   });
 });
 

@@ -7,6 +7,7 @@ import { HiddenAmount, MaskedText } from '../components/uikit';
 import { useInsights, type Insight } from '../hooks/useInsights';
 import { api, type FinancialPath } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
+import { toActionRow, type ActionRow } from '../lib/action-rows';
 import { useChatStore } from '../lib/chat-store';
 import { Button, Skeleton, useToast } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
@@ -848,6 +849,13 @@ const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, 
  * as a muted run, and the grouping proper lives on the actions page. Five rows
  * on a dashboard read as "here is what to look at", where a full set of page
  * groups would be a second copy of that page.
+ *
+ * Read through `toActionRow`, the same normalisation /insights and /spending
+ * read, because home is the only surface with no producer filter and so the only
+ * embedded one that meets a detected row at all. Handed the wire row directly it
+ * printed that row's stored `impact` verbatim, which put "Saves $367/mo" on a
+ * row whose whole point is that it asks you to look, and it was masked only by
+ * five quicker rows happening to fill the shortlist.
  */
 export function ActionsSection({
   actions, loading, generating, onGenerate, onOpen, onComplete, onDismiss,
@@ -857,15 +865,16 @@ export function ActionsSection({
   generating: boolean;
   onGenerate: () => void | Promise<void>;
   /** Open the page this action belongs to, as the other surfaces do. */
-  onOpen: (action: Insight) => void;
+  onOpen: (action: ActionRow) => void;
   onComplete: (id: string) => void;
   onDismiss: (id: string) => void;
 }) {
   const shown = useMemo(() => {
-    const byEffort = (i: Insight) =>
+    const byEffort = (i: ActionRow) =>
       i.effort ? EFFORT_RANK[i.effort] ?? UNRATED_EFFORT_RANK : UNRATED_EFFORT_RANK;
-    const byUrgency = (i: Insight) => URGENCY_RANK[i.urgency] ?? URGENCY_RANK.medium;
-    return [...actions]
+    const byUrgency = (i: ActionRow) => URGENCY_RANK[i.urgency] ?? URGENCY_RANK.medium;
+    return actions
+      .map(toActionRow)
       .sort(
         (a, b) =>
           byEffort(a) - byEffort(b) ||
@@ -907,8 +916,12 @@ export function ActionsSection({
               area={actionArea(a.type, a.category)}
               description={a.description}
               impact={a.impact ?? ''}
-              impactColor={(a.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
-              chatPrompt={a.chatPrompt ?? a.title}
+              amount={a.amount ?? undefined}
+              // Same rule as the full surface: a figure that is not money back
+              // prints the row's own words, not a money-shaped label.
+              handsMoneyBack={a.handsMoneyBack}
+              impactColor={a.impactColor}
+              chatPrompt={a.chatPrompt}
               onContextClick={actionArea(a.type, a.category).link ? () => onOpen(a) : undefined}
               onComplete={() => onComplete(a.id)}
               onDismiss={() => onDismiss(a.id)}

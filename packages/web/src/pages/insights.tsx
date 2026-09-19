@@ -385,6 +385,10 @@ export function Insights() {
                     chatPrompt={row.chatPrompt}
                     evidence={row.evidence ?? undefined}
                     amount={row.amount ?? undefined}
+                    // Whether this row's figure is money back. A row where it is
+                    // not prints its own words in the pill rather than a
+                    // money-shaped label that would read as a saving.
+                    handsMoneyBack={row.handsMoneyBack}
                     effort={row.effort ?? undefined}
                     transactions={row.transactions}
                     txnCount={row.txnCount}
