@@ -10,10 +10,12 @@ process.env.ENCRYPTION_KEY ??= "test-encryption-key-0123456789ab";
 // sync/LLM/DB work — we only assert the shared-secret guard behavior.
 const runSyncAll = vi.fn(async (_proOnly?: boolean) => ({ succeeded: 0, failed: 0, recovered: 0 }));
 const runDailyInsights = vi.fn(async () => ({ succeeded: 0, failed: 0, recovered: 0 }));
+const runMonthlySpendCuts = vi.fn(async () => ({ succeeded: 0, failed: 0, recovered: 0 }));
 
 vi.mock("../../lib/cron.js", () => ({
   runSyncAll: (proOnly?: boolean) => runSyncAll(proOnly),
   runDailyInsights: () => runDailyInsights(),
+  runMonthlySpendCuts: () => runMonthlySpendCuts(),
   startCronJobs: vi.fn(),
 }));
 
@@ -95,5 +97,47 @@ describe("/cron shared-secret guard", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true });
     expect(runDailyInsights).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The guard is a `use("*")` on this router, so a new path inherits it. Asserted
+// per path anyway: a route registered on the wrong app is the one mistake that
+// would put an unguarded job on the internet, and it looks identical from here.
+describe("POST /cron/spend-cuts", () => {
+  it("returns 503 when CRON_SECRET is unset (fail closed)", async () => {
+    delete process.env.CRON_SECRET;
+    const res = await app.request("/cron/spend-cuts", { method: "POST" });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ error: "cron secret not configured" });
+    expect(runMonthlySpendCuts).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 with a missing X-Cron-Secret header", async () => {
+    process.env.CRON_SECRET = "s3cret-value";
+    const res = await app.request("/cron/spend-cuts", { method: "POST" });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ error: "unauthorized" });
+    expect(runMonthlySpendCuts).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 with a wrong X-Cron-Secret header", async () => {
+    process.env.CRON_SECRET = "s3cret-value";
+    const res = await app.request("/cron/spend-cuts", {
+      method: "POST",
+      headers: { "X-Cron-Secret": "nope" },
+    });
+    expect(res.status).toBe(401);
+    expect(runMonthlySpendCuts).not.toHaveBeenCalled();
+  });
+
+  it("passes the guard with the correct secret and runs the monthly job", async () => {
+    process.env.CRON_SECRET = "s3cret-value";
+    const res = await app.request("/cron/spend-cuts", {
+      method: "POST",
+      headers: { "X-Cron-Secret": "s3cret-value" },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, succeeded: 0, failed: 0, recovered: 0 });
+    expect(runMonthlySpendCuts).toHaveBeenCalledTimes(1);
   });
 });

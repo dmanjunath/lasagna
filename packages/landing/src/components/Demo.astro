@@ -39,7 +39,7 @@
     // them, so each frame is measured once and the stage animates to the height
     // of whichever is showing.
     let i = 0;
-    let heights = [];
+    let heights: number[] = [];
     const measure = () => {
       heights = frames.map((el) => {
         const was = el.classList.contains("is-active");
@@ -85,7 +85,7 @@
         frame.classList.remove("is-active", "is-done", "is-leaving");
 
         i = (i + 1) % frames.length;
-        stage.style.minHeight = heights[i] + "px";
+        stage!.style.minHeight = heights[i] + "px";
         frames[i].classList.add("is-active");
         if (label && labels[i]) label.textContent = labels[i];
       }

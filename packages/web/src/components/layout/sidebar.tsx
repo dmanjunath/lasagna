@@ -26,6 +26,11 @@ interface NavSection {
   defaultOpen?: boolean;
 }
 
+function matchesPath(path: string, location: string): boolean {
+  if (path === '/') return location === '/';
+  return location === path || location.startsWith(path + '/');
+}
+
 const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Overview',
@@ -64,6 +69,9 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+/** Every nav destination, so `isActive` can let the deepest match win. */
+const NAV_PATHS = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.path));
+
 const SECTIONS_OPEN_KEY = 'lasagna-sidebar-sections-open-v2';
 
 interface SidebarProps {
@@ -90,11 +98,15 @@ export function Sidebar({ className }: SidebarProps) {
     }
   }, [userMenuOpen]);
 
+  // Exact or sub-route match, with the DEEPEST matching entry winning: a plain
+  // prefix match lights two rows at once wherever one nav path is a prefix of
+  // another, and a plain startsWith would also light "/retirement" up on
+  // "/retirement-v2".
   const isActive = (path: string) => {
-    if (path === '/') return location === '/';
-    // Exact or sub-route match — a plain startsWith would light "/retirement"
-    // up on "/retirement-v2" too.
-    return location === path || location.startsWith(path + '/');
+    if (!matchesPath(path, location)) return false;
+    return !NAV_PATHS.some(
+      (p) => p.length > path.length && matchesPath(p, location),
+    );
   };
 
   // Sections open unless they declare defaultOpen: false; user toggles persist

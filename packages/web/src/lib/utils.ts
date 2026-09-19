@@ -61,6 +61,39 @@ export function exactSyncTime(iso: string): string | null {
   });
 }
 
+/**
+ * A stored transaction date, printed as the calendar day it names.
+ *
+ * `transactions.date` is a `timestamp with time zone` holding midnight UTC, so
+ * the value carries a calendar DATE, not a moment. Read in the viewer's own
+ * zone it renders the day BEFORE anywhere west of UTC, which is how a receipt
+ * reading "on Apr 16, 2026" ended up above a row reading "Apr 15". Formatted in
+ * UTC, which is both how it is stored and how the server computes the windows
+ * these dates are counted in.
+ *
+ * Shared so the day heading and the rows beneath it cannot disagree. Any other
+ * surface printing a stored transaction date should read it from here too.
+ */
+export function formatTxnDay(iso: string, opts?: Intl.DateTimeFormatOptions): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...opts,
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * The same calendar day as a sortable `YYYY-MM-DD`, for grouping rows under one
+ * heading and for comparing one against today.
+ */
+export function txnDayKey(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 10);
+}
+
 export function formatRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();

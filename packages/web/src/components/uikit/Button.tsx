@@ -3,7 +3,12 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-const button = cva(
+/**
+ * The button's paint, exported so a control that must be an <a> can wear it
+ * without nesting a <button> inside a <Link> — which emitted invalid HTML, two
+ * tab stops for one control, and the UA's default blue on the outer anchor.
+ */
+export const button = cva(
   [
     'ui-focus relative inline-flex items-center justify-center gap-2 select-none',
     'font-semibold whitespace-nowrap rounded-ui-md',

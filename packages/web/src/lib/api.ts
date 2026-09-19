@@ -1,6 +1,7 @@
 import type { Plan, PlanType, PlanStatus, PlanEdit, FinancialPlan, FinancialPlanSummary, FinancialPlanDocument, PlanAssumptions, ChatThread, Message, TaxDocument, TaxDocumentSummary, UploadResult, TaxInputResult, ExtractionResult } from "./types.js";
 import { isNativeApp, getNativeToken } from "./native.js";
 import type { GoalDetails } from "@lasagna/core/goal-target";
+import type { ApiActionRow } from "./action-rows";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -859,25 +860,12 @@ export const api = {
     request<{ ok: true; itemId: string; tenantId: string }>(`/admin/items/${itemId}/resync`, { method: "POST" }),
 
   // Insights
+  // Both producers, in one array, told apart by `producer`. A spend-cut row
+  // carries a numeric figure, a receipt, the transactions behind it and where it
+  // drills to; a model-authored row carries its advice in words.
   getInsights: () =>
     request<{
-      insights: Array<{
-        id: string;
-        category: string;
-        urgency: string;
-        /** How much work the action is. Null when nothing rated it. */
-        effort: 'quick' | 'moderate' | 'involved' | null;
-        type: string | null;
-        title: string;
-        description: string;
-        impact: string | null;
-        impactColor: string | null;
-        chatPrompt: string | null;
-        generatedBy: string;
-        createdAt: string;
-        /** The step of the path this action serves. Null when it serves none. */
-        pathStepKey: string | null;
-      }>;
+      insights: ApiActionRow[];
       lastActionsGeneratedAt: string | null;
     }>("/insights"),
 
@@ -922,6 +910,12 @@ export const api = {
 
   generateInsights: () =>
     request<{ ok: boolean; generated: number }>("/insights/generate", { method: "POST" }),
+
+  // Redoes the detected savings and pays for the rewrite. Throttled per
+  // household server-side, which answers 429, so a refusal is a real answer and
+  // has to reach the caller rather than be swallowed into a silent no-op.
+  refreshSpendCuts: () =>
+    request<{ ok: boolean; generated: number }>("/insights/refresh-spend-cuts", { method: "POST" }),
 
   // Portfolio
   getPortfolioComposition: () =>

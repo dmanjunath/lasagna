@@ -1,29 +1,15 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { useLocation } from 'wouter';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-  RefreshCw,
-  CheckCircle2,
-  Check,
-  ChevronDown,
-  Sparkles,
-  ArrowRight,
-  Receipt,
-  Flame,
-  TrendingUp,
-  PiggyBank,
-  CreditCard,
-  Target,
-  X,
-} from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, CheckCircle2, Check, Sparkles } from 'lucide-react';
 import { api } from '../lib/api';
 import { useInsights } from '../hooks/useInsights';
-import { useChatStore } from '../lib/chat-store';
-import { actionArea, areaKey, groupByArea, TONE_STYLE, type AreaTone } from '../lib/action-destination';
+import { useActionLifecycle } from '../hooks/useActionLifecycle';
+import { actionArea, areaKey, groupByArea } from '../lib/action-destination';
 import { formatRelativeTime } from '../lib/utils';
-import { maskCurrencyInText } from '../lib/hide-amounts';
-import { Badge, Button, MaskedText, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
+import { toActionRow } from '../lib/action-rows';
+import { Button, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
+import { ActionItem } from '../components/common/action-item';
+import { UndoToast } from '../components/common/undo-toast';
 
 // ---------------------------------------------------------------------------
 // Urgency → display group mapping (faithful to the API's urgency field)
@@ -58,88 +44,6 @@ const URGENCY_ORDER: Array<{ key: UrgencyGroup; title: string }> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Category (type) → tag, accent bar, icon. Where an action OPENS lives in
-// lib/action-destination, because a step's panel on the path opens the same
-// action and the two must agree.
-// ---------------------------------------------------------------------------
-
-type CatStyle = {
-  icon: typeof Receipt;
-  /** soft tag background + text color */
-  tagBg: string;
-  tagFg: string;
-  /** left accent bar color */
-  bar: string;
-};
-
-const CATEGORY: Record<string, CatStyle> = {
-  tax: {
-    icon: Receipt,
-    tagBg: 'var(--ui-caution-soft)',
-    tagFg: 'rgb(var(--ui-caution))',
-    bar: 'var(--ui-viz-3)',
-  },
-  debt: {
-    icon: Flame,
-    tagBg: 'var(--ui-negative-soft)',
-    tagFg: 'rgb(var(--ui-negative))',
-    bar: 'var(--ui-viz-4)',
-  },
-  portfolio: {
-    icon: TrendingUp,
-    tagBg: 'var(--ui-info-soft)',
-    tagFg: 'rgb(var(--ui-info))',
-    bar: 'var(--ui-viz-2)',
-  },
-  retirement: {
-    icon: Target,
-    tagBg: 'var(--ui-brand-soft)',
-    tagFg: 'rgb(var(--ui-brand))',
-    bar: 'rgb(var(--ui-brand))',
-  },
-  savings: {
-    icon: PiggyBank,
-    tagBg: 'var(--ui-brand-soft)',
-    tagFg: 'rgb(var(--ui-brand))',
-    bar: 'rgb(var(--ui-brand))',
-  },
-  spending: {
-    icon: CreditCard,
-    tagBg: 'var(--ui-canvas-sunken)',
-    tagFg: 'rgb(var(--ui-content-secondary))',
-    bar: 'rgb(var(--ui-content-faint))',
-  },
-  behavioral: {
-    icon: CreditCard,
-    tagBg: 'var(--ui-canvas-sunken)',
-    tagFg: 'rgb(var(--ui-content-secondary))',
-    bar: 'rgb(var(--ui-content-faint))',
-  },
-  general: {
-    icon: Sparkles,
-    tagBg: 'var(--ui-canvas-sunken)',
-    tagFg: 'rgb(var(--ui-content-secondary))',
-    bar: 'rgb(var(--ui-content-faint))',
-  },
-};
-
-function catFor(type: string | null, category: string | null): CatStyle {
-  return CATEGORY[type ?? ''] ?? CATEGORY[category ?? ''] ?? CATEGORY.general;
-}
-
-// impactColor (red / amber / green) → impact value color
-function impactColorVar(color: string | null): string {
-  if (color === 'red') return 'rgb(var(--ui-negative))';
-  if (color === 'amber') return 'rgb(var(--ui-caution))';
-  return 'rgb(var(--ui-positive))';
-}
-function impactSoftVar(color: string | null): string {
-  if (color === 'red') return 'var(--ui-negative-soft)';
-  if (color === 'amber') return 'var(--ui-caution-soft)';
-  return 'var(--ui-positive-soft)';
-}
-
-// ---------------------------------------------------------------------------
 // Category filters (mockup: All / Taxes / Debt / Investing / Spending).
 // Only the filters with real matching insights are rendered.
 // ---------------------------------------------------------------------------
@@ -157,268 +61,17 @@ type FilterValue = string;
 const ALL_FILTER = 'all';
 
 // ---------------------------------------------------------------------------
-// Action card — the locked home "three moves" anatomy, Bright actions skin
-// ---------------------------------------------------------------------------
-
-interface ActionCardProps {
-  index: number;
-  type: string | null;
-  category: string | null;
-  title: string;
-  description: string;
-  impact: string | null;
-  impactColor: string | null;
-  chatPrompt: string;
-  calm?: boolean;
-  showArea: boolean;
-  onPrimary: () => void;
-  onAsk: () => void;
-  onSkip: () => void;
-}
-
-// Shared skin for the Dense + Accordion (collapsed) row so the two are
-// pixel-identical.
-function denseArticleCls(calm: boolean): string {
-  return `relative overflow-hidden rounded-ui-md transition-[box-shadow,border-color] ${
-    calm
-      ? 'border border-dashed border-line bg-transparent hover:bg-panel hover:border-solid hover:shadow-ui-sm'
-      : 'border border-line bg-panel shadow-ui-sm hover:border-line-strong hover:shadow-ui-md'
-  }`;
-}
-
-// Shared dense row. The row that wraps it owns the click; this draws only what
-// the row shows when it is closed.
-function InsightsDenseRow({
-  cat,
-  Icon,
-  title,
-  area,
-  showArea,
-  impact,
-  impactColor,
-  onAsk,
-  onSkip,
-  expandable,
-  expanded,
-}: {
-  cat: CatStyle;
-  Icon: typeof Receipt;
-  title: string;
-  /** The page this action is about, named and toned. Its tone is the row's one
-   *  colour, worn by the edge and both pills alike. Undefined when a page
-   *  filter is on and every row on screen is already that page. */
-  area: { label: string; tone: AreaTone };
-  /** False when a page filter is on and every row on screen is that page, so
-   *  the tag would repeat the chip above it once per row. */
-  showArea: boolean;
-  impact: string | null;
-  impactColor: string | null;
-  onAsk: () => void;
-  onSkip: () => void;
-  expandable?: boolean;
-  expanded?: boolean;
-}) {
-  // Accordion rows expand for detail, so on phones the title wraps to two lines
-  // and the per-row icons drop out (they live in the opened body), leaving the
-  // chevron. Plain dense rows keep their inline icons.
-  return (
-    <div className="flex items-center gap-3 pl-4 pr-2 py-2.5">
-      {/* The chip wears the row's colour, as it does on home. Flat sunken grey
-          measured 1.12:1 against the card and read as a hole. */}
-      <span
-        className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm"
-        style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
-        aria-hidden
-      >
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-
-      <div className="flex-1 min-w-0 flex items-center gap-1.5 text-left">
-        <span className="min-w-0">
-          <h3 className="text-[14px] font-semibold leading-tight text-content"><MaskedText text={title} /></h3>
-          {/* The page and the figure sit together, in one fill and one shape,
-              so they read as a pair rather than as two unrelated chips at
-              opposite ends of the row. */}
-          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {showArea && (
-              <span
-                className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none"
-                style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
-              >
-                {area.label}
-              </span>
-            )}
-            {impact && (
-              // No `whitespace-nowrap`: the card clips its overflow, so a long
-              // figure was guillotined mid-word on a phone rather than wrapping.
-              <span
-                className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum"
-                style={{ background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }}
-              >
-                <MaskedText text={impact} />
-              </span>
-            )}
-          </span>
-        </span>
-        {/* Dense navigates (→); Accordion toggles, so it shows no title arrow. */}
-        {!expandable && (
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-content-faint" />
-        )}
-      </div>
-
-
-      {/* Accordion affordance — points down to expand, flips up when open. */}
-      {expandable && (
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-content-faint transition-transform ${expanded ? 'rotate-180' : ''}`}
-          aria-hidden
-        />
-      )}
-    </div>
-  );
-}
-
-function ActionCard({
-  index,
-  type,
-  category,
-  title,
-  description,
-  impact,
-  impactColor,
-  chatPrompt,
-  calm = false,
-  showArea,
-  onPrimary,
-  onAsk,
-  onSkip,
-}: ActionCardProps) {
-  void chatPrompt;
-  const cat = catFor(type, category);
-  const Icon = cat.icon;
-  const area = actionArea(type, category);
-  const hasDestination = area.link !== null;
-  const [expanded, setExpanded] = useState(false);
-
-  // One accordion row per action: a collapsed row that toggles the details
-  // underneath.
-  return (
-      <motion.article
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: Math.min(index, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-        className={denseArticleCls(calm)}
-      >
-        {/* The edge wears the row's colour, the same one the two pills wear. */}
-        <span
-          className="absolute left-0 top-0 bottom-0 w-1"
-          style={{ background: TONE_STYLE[area.tone].solid }}
-          aria-hidden
-        />
-        {/* The whole row toggles, as it does on home. The chevron used to sit
-            outside the only clickable element, so the row's one visible
-            affordance did nothing when clicked. */}
-        <div
-          role="button"
-          tabIndex={0}
-          aria-expanded={expanded}
-          // Without this the name is the row's whole text content, so a screen
-          // reader read "…back to normalSpending$14,047 spike" as one word.
-          aria-label={maskCurrencyInText(title)}
-          onClick={() => setExpanded((v) => !v)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v); }
-          }}
-          // Inset ring: the article clips overflow, so an outward ring vanishes.
-          className="cursor-pointer rounded-ui-md focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]"
-        >
-        <InsightsDenseRow
-          cat={cat}
-          Icon={Icon}
-          title={title}
-          area={area}
-          showArea={showArea}
-          impact={impact}
-          impactColor={impactColor}
-          onAsk={onAsk}
-          onSkip={onSkip}
-          expandable
-          expanded={expanded}
-        />
-        </div>
-
-        <AnimatePresence initial={false}>
-          {expanded && (
-            <motion.div
-              key="body"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              style={{ overflow: 'hidden' }}
-            >
-              {/* Aligned to the title, not to the icon, so the body hangs under
-                the row it belongs to. Capped to a readable measure: it ran ~130
-                characters a line at 1280 with nothing to stop it. */}
-            <div className="pl-[52px] pr-4 pb-3">
-                <p className="max-w-[70ch] text-[13px] leading-[1.5] text-content-secondary">
-                  <MaskedText text={description} />
-                </p>
-                <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                  {/* Only offered when the area has a page behind it. The
-                      catch-all has none, and "Open Overview" navigated to the
-                      page the reader was already standing on. */}
-                  {hasDestination && (
-                    <Button size="sm" onClick={onPrimary} trailingIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-                      Open {area.label}
-                    </Button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={onAsk}
-                    className="touch-target inline-flex items-center gap-1.5 h-8 px-2.5 rounded-ui-md text-[12.5px] font-semibold text-content-muted hover:bg-brand-softer hover:text-brand transition-colors group"
-                  >
-                    <Sparkles className="h-[14px] w-[14px]" />
-                    Ask Lasagna about this
-                    <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onSkip}
-                    className="touch-target h-8 px-3 rounded-ui-md text-[12.5px] font-semibold text-content-muted hover:bg-canvas-sunken hover:text-content-secondary transition-colors"
-                  >
-                    Skip
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.article>
-    );
-}
-
-// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
 export function Insights() {
   const [activeFilter, setActiveFilter] = useState<FilterValue>(ALL_FILTER);
-  const [, navigate] = useLocation();
-  const { openChat } = useChatStore();
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  // Pending dismissal awaiting the undo window. No restore endpoint exists, so
-  // "undo" works by deferring the (one-way) server dismiss until the window
-  // elapses — until then nothing has been committed and we can simply reverse.
-  const [pendingUndo, setPendingUndo] = useState<string | null>(null);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingUndoRef = useRef<string | null>(null);
 
   const { insights, lastActionsGeneratedAt, isLoading: insightsLoading, refresh } = useInsights();
+  const lifecycle = useActionLifecycle();
 
-  const UNDO_WINDOW_MS = 6000;
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
   const msSinceLastGen = lastActionsGeneratedAt
     ? Date.now() - lastActionsGeneratedAt.getTime()
@@ -426,11 +79,19 @@ export function Insights() {
   const refreshReady = msSinceLastGen >= REFRESH_COOLDOWN_MS;
   const isLoading = insightsLoading;
 
+  /**
+   * The one refresh control in the app, and it redoes BOTH producers.
+   *
+   * The detected savings are throttled on their own marker, six hours against
+   * this button's three, so a refusal there is expected and must not stop the
+   * written actions from regenerating.
+   */
   const handleRefresh = async () => {
     if (!refreshReady) return;
     setRefreshing(true);
     setRefreshError(null);
     try {
+      await api.refreshSpendCuts().catch(() => {});
       await refresh();
     } catch {
       setRefreshError("Couldn't refresh actions right now. Please try again later.");
@@ -439,56 +100,11 @@ export function Insights() {
     }
   };
 
-  const setPending = (id: string | null) => {
-    pendingUndoRef.current = id;
-    setPendingUndo(id);
-  };
-
-  const handleDismiss = (id: string) => {
-    // Flush any in-flight dismissal first so its server commit isn't lost when
-    // a second action is dismissed before the previous window elapses.
-    if (undoTimerRef.current) {
-      clearTimeout(undoTimerRef.current);
-      if (pendingUndoRef.current) api.dismissInsight(pendingUndoRef.current).catch(() => {});
-    }
-    setDismissed((prev) => new Set([...prev, id]));
-    setPending(id);
-    undoTimerRef.current = setTimeout(() => {
-      api.dismissInsight(id).catch(() => {});
-      undoTimerRef.current = null;
-      setPending(null);
-    }, UNDO_WINDOW_MS);
-  };
-
-  const handleUndo = () => {
-    if (undoTimerRef.current) {
-      clearTimeout(undoTimerRef.current);
-      undoTimerRef.current = null;
-    }
-    const id = pendingUndoRef.current;
-    if (id) {
-      setDismissed((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-    setPending(null);
-  };
-
-  // On unmount, commit any pending dismissal so it isn't silently dropped.
-  useEffect(() => {
-    return () => {
-      if (undoTimerRef.current) {
-        clearTimeout(undoTimerRef.current);
-        if (pendingUndoRef.current) api.dismissInsight(pendingUndoRef.current).catch(() => {});
-      }
-    };
-  }, []);
-
+  // One model for both producers, so the row below does not have to know which
+  // workflow wrote it.
   const activeInsights = useMemo(
-    () => insights.filter((i) => !dismissed.has(i.id)),
-    [insights, dismissed],
+    () => insights.map(toActionRow).filter((r) => !lifecycle.hidden.has(r.id)),
+    [insights, lifecycle.hidden],
   );
 
   // Only the pages that actually have an action, in the canonical page order.
@@ -561,13 +177,12 @@ export function Insights() {
 
   const totalActive = activeInsights.length;
 
-  const askAbout = (title: string, description: string, chatPrompt: string) =>
-    openChat(
-      `Walk me through this action:\n\nTitle: ${title}\nDescription: ${description}\n\n${chatPrompt}`,
-    );
-
   return (
-    <div className="mx-auto max-w-[1160px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
+    <div
+      ref={lifecycle.rootRef}
+      tabIndex={-1}
+      className="mx-auto max-w-[1160px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content focus:outline-none"
+    >
       {/* ════════ Header ════════ */}
       <header className="flex items-start justify-between gap-6 flex-wrap animate-fade-in">
         <div>
@@ -591,12 +206,15 @@ export function Insights() {
         {!isLoading && (
           <div className="flex flex-col items-end gap-2">
             <Button
-              variant="ghost"
+              // `primary` rather than a ghost wearing four override classes:
+              // ghost's own `hover:text-content` outlived the override, so
+              // hovering turned the label and icon near-black on the mint pill.
+              // This variant IS the brand-soft pill.
+              variant="primary"
               size="sm"
               onClick={handleRefresh}
               disabled={refreshing || !refreshReady}
               title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}
-              className="bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm font-bold"
               leadingIcon={
                 <RefreshCw
                   className="h-[15px] w-[15px]"
@@ -744,29 +362,46 @@ export function Insights() {
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
-              {band.actions.map((insight, idx) => (
-                <ActionCard
-                  key={insight.id}
-                  index={idx}
-                  type={insight.type}
-                  category={insight.category}
-                  title={insight.title}
-                  description={insight.description}
-                  impact={insight.impact}
-                  impactColor={insight.impactColor}
-                  chatPrompt={insight.chatPrompt ?? insight.title}
-                  calm={insight.urgency === 'low'}
-                  showArea={activeFilter === ALL_FILTER}
-                  onPrimary={() => {
-                    const { link } = actionArea(insight.type, insight.category);
-                    if (link) navigate(link);
-                  }}
-                  onAsk={() =>
-                    askAbout(insight.title, insight.description, insight.chatPrompt ?? insight.title)
-                  }
-                  onSkip={() => handleDismiss(insight.id)}
-                />
-              ))}
+              {band.actions.map((row) => {
+                const area = actionArea(row.type, row.category);
+                return (
+                  <ActionItem
+                    key={row.id}
+                    full
+                    rowId={row.id}
+                    title={row.title}
+                    tag={(row.type ?? row.category ?? 'general').toUpperCase()}
+                    // The label is dropped when a page filter is on and every
+                    // row on screen is already that page, so the tag would
+                    // repeat the chip above it once per row. The tone stays.
+                    area={
+                      activeFilter === ALL_FILTER
+                        ? { label: area.label, tone: area.tone }
+                        : { tone: area.tone }
+                    }
+                    description={row.description}
+                    impact={row.impact ?? ''}
+                    impactColor={row.impactColor}
+                    chatPrompt={row.chatPrompt}
+                    evidence={row.evidence ?? undefined}
+                    amount={row.amount ?? undefined}
+                    effort={row.effort ?? undefined}
+                    transactions={row.transactions}
+                    txnCount={row.txnCount}
+                    txnScope={row.txnScope ?? undefined}
+                    // The server's drill where there is one, or the page this
+                    // action is about. The catch-all area has no page, and
+                    // "Open Overview" used to navigate nowhere.
+                    destination={
+                      row.drill ??
+                      (area.link ? { label: `Open ${area.label}`, href: area.link } : undefined)
+                    }
+                    onComplete={() => lifecycle.act(row.id, 'completed')}
+                    onSnooze={() => lifecycle.act(row.id, 'snoozed')}
+                    onDismiss={() => lifecycle.act(row.id, 'dismissed')}
+                  />
+                );
+              })}
             </div>
           </section>
         ))}
@@ -796,29 +431,12 @@ export function Insights() {
         </section>
       )}
 
-      {/* ════════ Undo affordance ════════ */}
-      <AnimatePresence>
-        {pendingUndo && (
-          <motion.div
-            initial={{ opacity: 0, x: '-50%', y: 12 }}
-            animate={{ opacity: 1, x: '-50%', y: 0 }}
-            exit={{ opacity: 0, x: '-50%', y: 12 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            role="status"
-            className="fixed bottom-6 left-1/2 z-[60] flex items-center gap-4 px-[18px] py-3 rounded-ui-md shadow-ui-md text-[14px]"
-            style={{ background: 'rgb(var(--ui-content))', color: 'rgb(var(--ui-panel))' }}
-          >
-            <span className="font-semibold">Action skipped</span>
-            <button
-              type="button"
-              onClick={handleUndo}
-              className="font-bold underline underline-offset-[3px]"
-            >
-              Undo
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <UndoToast
+        ref={lifecycle.undoRef}
+        message={lifecycle.message}
+        failure={lifecycle.failure}
+        onUndo={lifecycle.undo}
+      />
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

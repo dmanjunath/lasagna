@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Search, X, DollarSign, Banknote } from 'lucide-react';
 import { Link } from 'wouter';
 import { api } from '../../lib/api';
-import { cn } from '../../lib/utils';
+import { cn, formatTxnDay } from '../../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 import { HiddenAmount, Badge, EmptyState, Skeleton, useToast } from '../uikit';
 import { categoryOptionLabel, useCategoryDisplay, usePickerGroups } from '../../lib/taxonomy';
@@ -21,12 +21,6 @@ function formatCurrencyExact(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +129,7 @@ export function TxnRow({
         <div className={cn('mt-0.5 flex min-w-0 items-center gap-2.5 text-[12.5px] text-content-muted sm:gap-3', excluded && 'opacity-50')}>
           {categoryNode}
           {excluded && <Badge tone="neutral" className="shrink-0">Excluded</Badge>}
-          <span className="ui-tnum shrink-0 whitespace-nowrap">{shortDate(date)}</span>
+          <span className="ui-tnum shrink-0 whitespace-nowrap">{formatTxnDay(date)}</span>
           {accountName && <span className="hidden truncate sm:inline">{accountName}</span>}
         </div>
       </div>

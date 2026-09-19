@@ -193,6 +193,9 @@ function AppRoutes() {
 
                     {/* Standard pages */}
                     <Route path="/spending" component={Spending} />
+                    {/* "Ways to spend less" is one section of /spending now.
+                        A bookmark, and a stale installed bundle, must not 404. */}
+                    <Route path="/spending/cuts"><Redirect to="/spending" /></Route>
                     <Route path="/transactions" component={Transactions} />
                     <Route path="/goals" component={Goals} />
                     <Route path="/debt" component={Debt} />
