@@ -22,8 +22,9 @@ type Face = { id: string; label: string; stack: string; href?: string; note: str
 const SHIPPED: Face = {
   id: 'instrument',
   label: 'Instrument Sans',
-  stack: '"Instrument Sans"',
-  note: 'current',
+  // Figures resolve to Figtree through the LF Numerals unicode-range face.
+  stack: '"LF Numerals", "Instrument Sans"',
+  note: 'current, figures in Figtree',
 };
 
 const FACES: Face[] = [

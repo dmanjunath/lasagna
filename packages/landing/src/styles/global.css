@@ -10,6 +10,26 @@
    Astro can't import across packages, so the token VALUES are copied here.
    Legacy aliases (--ink / --sauce / --serif …) are kept for LegalLayout.
    ============================================================================ */
+/* ── Figures are set in Figtree, everything else in Instrument Sans ───────
+   A unicode-range face rather than a class on every money element: the browser
+   resolves the family per glyph, so digits and currency marks come from Figtree
+   and letters fall through to Instrument Sans. One declaration covers every
+   heading and figure in the app and on the site, with no call sites to edit.
+
+   The src is Figtree's latin woff2 from Google's CDN, taken from the css2 API.
+   If that URL is ever rotated the digits simply fall back to Instrument Sans,
+   which is a visual regression and not a broken page. Refresh it with:
+     curl 'https://fonts.googleapis.com/css2?family=Figtree:wght@400..800' */
+@font-face {
+  font-family: "LF Numerals";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/figtree/v9/_Xms-HUzqDCFdgfMm4S9DaRvzig.woff2) format("woff2");
+  /* digits, $ % + , - . / and the true minus sign */
+  unicode-range: U+0024, U+0025, U+002B-002F, U+0030-0039, U+2212;
+}
+
 @layer base {
   :root {
     /* ── Surfaces ── */
@@ -86,7 +106,7 @@
     --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
     /* ── Type — same faces as the app ── */
-    --display: "Instrument Sans", system-ui, sans-serif;
+    --display: "LF Numerals", "Instrument Sans", system-ui, sans-serif;
     --sans:    "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
     --mono:    "JetBrains Mono", ui-monospace, monospace;
 
