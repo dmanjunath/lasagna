@@ -12,7 +12,7 @@ import {
 import { Link, useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { api } from '../lib/api';
-import { cn } from '../lib/utils';
+import { cn, formatStoredMonth } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount } from '../components/uikit';
 import { useAuth } from '../lib/auth';
@@ -39,8 +39,10 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function monthLabel(date: Date): string {
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+// Takes the `YYYY-MM-01` the month query is built from, not a Date, so the
+// label names the month the query covers.
+function monthLabel(monthStart: string): string {
+  return formatStoredMonth(monthStart, { month: 'long' });
 }
 
 function startOfMonth(d: Date): string {
@@ -429,7 +431,7 @@ export function Spending() {
     : String(currentYear);
   const periodStart = granularity === 'month' ? startOfMonth(currentMonth) : `${currentYear}-01-01`;
   const periodEnd = granularity === 'month' ? endOfMonth(currentMonth) : `${currentYear}-12-31T23:59:59`;
-  const periodDisplayLabel = granularity === 'month' ? monthLabel(currentMonth) : String(currentYear);
+  const periodDisplayLabel = granularity === 'month' ? monthLabel(periodStart) : String(currentYear);
 
   // Fetch spending summary
   useEffect(() => {
@@ -652,7 +654,7 @@ export function Spending() {
   // the caption correcting itself a beat later, the thing the hero must not do.
   const heroCaption = hoveredPeriod
     ? (granularity === 'month'
-        ? monthLabel(new Date(+hoveredPeriod.period.slice(0, 4), +hoveredPeriod.period.slice(5, 7) - 1, 1))
+        ? monthLabel(`${hoveredPeriod.period}-01`)
         : hoveredPeriod.period)
     : heroPeriodLabel;
 
@@ -694,7 +696,7 @@ export function Spending() {
                 <ChevronLeft size={18} />
               </button>
               <span className="ui-tnum min-w-[76px] px-1 text-center text-[13.5px] font-bold tracking-[-0.01em] text-content sm:min-w-[92px]">
-                {currentMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                {formatStoredMonth(periodStart)}
               </span>
               <button
                 type="button"

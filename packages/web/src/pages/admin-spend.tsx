@@ -3,7 +3,7 @@ import { Link } from 'wouter';
 import { api } from '../lib/api';
 import { Button, Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
-import { cn } from '../lib/utils';
+import { cn, formatStoredDay } from '../lib/utils';
 
 type Spend = Awaited<ReturnType<typeof api.adminGetSpend>>;
 
@@ -15,7 +15,7 @@ const usd = (v: string | number, digits = 2) => {
   return `$${n.toFixed(n > 0 && n < 0.01 ? 4 : digits)}`;
 };
 const fmtDay = (iso: string, withYear = false) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(withYear && { year: 'numeric' }), timeZone: 'UTC' });
+  formatStoredDay(iso, withYear ? { year: 'numeric' } : undefined);
 const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
 
 /** Stacked bars (LLM = viz-2 periwinkle, Plaid = viz-1 teal) — plain divs, no chart lib. */

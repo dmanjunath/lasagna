@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { useChatStore } from '../lib/chat-store';
 import { api } from '../lib/api';
+import { formatInstant } from '../lib/utils';
 import type { ChatThread, Message } from '../lib/types';
 import {
   Page,
@@ -673,7 +674,7 @@ function HistoryListView({
           const isActive = t.id === activeId;
           const title = stripMarkdown(t.title || t.firstMessage || 'Untitled conversation');
           const preview = t.firstMessage && t.title ? stripMarkdown(t.firstMessage) : null;
-          const when = new Date(t.updatedAt).toLocaleDateString('en-US', {
+          const when = formatInstant(t.updatedAt, {
             month: 'short',
             day: 'numeric',
             year: new Date(t.updatedAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,

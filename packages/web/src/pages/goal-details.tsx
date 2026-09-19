@@ -9,7 +9,7 @@ import {
 import { api } from '../lib/api';
 import { AlertCircle } from 'lucide-react';
 import { Button, Field, Input, Label, MaskedText, MoneyInput as UiMoneyInput, SegmentedControl, Skeleton, type InputProps } from '../components/uikit';
-import { cn } from '../lib/utils';
+import { cn, formatStoredMonth } from '../lib/utils';
 import { formatCurrency } from './goal-shared';
 
 // ---------------------------------------------------------------------------
@@ -972,11 +972,7 @@ export function GoalDetailFields({
 // ── The readout ───────────────────────────────────────────────────────────
 
 function monthYear(iso: string): string {
-  return new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+  return formatStoredMonth(iso, { month: 'long' });
 }
 
 /** The monthly amount that reaches `target` by `deadline`, or null when the

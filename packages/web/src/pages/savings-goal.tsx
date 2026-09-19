@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, type ReactElement } from 'rea
 import { useRoute, useLocation } from 'wouter';
 import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn } from '../lib/utils';
+import { cn, formatInstant, formatStoredMonth } from '../lib/utils';
 import { Badge, Button, EmptyState, MaskedText, MoneyInput, PageMeta, PageMetaItem, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
@@ -73,7 +73,7 @@ function humanizeType(type: string): string {
 
 function shortDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatInstant(iso, { month: 'short', day: 'numeric' });
 }
 
 // A far-off deadline in raw days ("1268 days left") is hard to reconcile with
@@ -346,7 +346,7 @@ export function SavingsGoal() {
   let deadlineCountdown: string | null = null;
   let deadlineDaysLeft: number | null = null;
   if (goal.deadline) {
-    deadlineMonth = new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    deadlineMonth = formatStoredMonth(goal.deadline);
     if (!isArchived) {
       deadlineDaysLeft = Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       deadlineCountdown = humanizeDaysLeft(deadlineDaysLeft);
@@ -363,7 +363,7 @@ export function SavingsGoal() {
       const monthsNeeded = Math.ceil(remaining / monthlyPlan);
       const eta = new Date();
       eta.setMonth(eta.getMonth() + monthsNeeded);
-      const etaMonth = eta.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const etaMonth = formatInstant(eta, { month: 'short', year: 'numeric' });
       if (goal.deadline && deadlineDaysLeft !== null && deadlineDaysLeft > 0) {
         paceLine = eta.getTime() <= new Date(goal.deadline).getTime()
           ? `${formatCurrency(monthlyPlan)}/mo planned, on track for ${deadlineMonth}`
@@ -712,7 +712,7 @@ export function SavingsGoal() {
             <div className="mt-3.5 text-[13.5px] font-semibold text-content-secondary ui-tnum">
               {isArchived && !complete ? (
                 <span>
-                  Marked complete{goal.completedAt ? ` on ${new Date(goal.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''} with{' '}
+                  Marked complete{goal.completedAt ? ` on ${formatInstant(goal.completedAt, { month: 'short', day: 'numeric', year: 'numeric' })}` : ''} with{' '}
                   <span className="font-bold text-content">{formatCurrency(current)}</span> saved
                 </span>
               ) : complete ? (

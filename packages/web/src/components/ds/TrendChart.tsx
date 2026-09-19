@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartHover } from './ChartHover';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
+import { formatStoredDate, formatStoredDay } from '../../lib/utils';
 
 // ── Shared interactive trend chart ─────────────────────────────────────────
 // Extracted verbatim from simple-money's NetWorthChart so the Money page and
@@ -209,9 +210,7 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
           count={points.length}
           onHoverChange={setHoverIdx}
           getValue={(i) => fmtUsd(points[i].value)}
-          getLabel={(i) =>
-            new Date(points[i].date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          }
+          getLabel={(i) => formatStoredDay(points[i].date, { year: 'numeric' })}
           getCurvePoint={(i) => ({ x: xAt(i), y: yAt(points[i].value) })}
         />
       )}
@@ -272,7 +271,7 @@ export function pickXLabels(points: TrendPoint[], range: Range): Array<{ idx: nu
   let lastLabel = '';
   for (let i = 0; i < want; i++) {
     const idx = Math.round(i * step);
-    const label = new Date(points[idx].date).toLocaleString('en-US', fmt);
+    const label = formatStoredDate(points[idx].date, fmt);
     if (label === lastLabel) continue;
     out.push({ idx, label });
     lastLabel = label;

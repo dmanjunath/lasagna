@@ -3,7 +3,7 @@ import { ChevronDown, Layers, Search, SlidersHorizontal, X } from 'lucide-react'
 import type { TxnQueryBody } from '../../lib/api';
 import type { AccountIndexEntry } from '../../lib/use-accounts-index';
 import { Badge } from '../uikit';
-import { cn } from '../../lib/utils';
+import { cn, formatStoredDay, formatStoredMonth } from '../../lib/utils';
 import { InstIcon } from '../common/InstIcon';
 import { getCategoryDisplay } from '../../lib/categories';
 import { categoryOptionLabel, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
@@ -161,12 +161,7 @@ export function wholeMonthLabel(start: string, end: string): string | null {
   if (month < 1 || month > 12) return null;
   const lastDay = new Date(year, month, 0).getDate();
   if (Number(b[3]) !== lastDay) return null;
-  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
-function day(iso: string): Date | null {
-  const m = ISO_DAY.exec(iso);
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  return formatStoredMonth(start, { month: 'long' });
 }
 
 /**
@@ -179,18 +174,16 @@ function day(iso: string): Date | null {
  * ends share it.
  */
 export function dateRangeLabel(start: string, end: string): string | null {
-  const a = day(start);
-  const b = day(end);
+  const a = ISO_DAY.test(start) ? start : null;
+  const b = ISO_DAY.test(end) ? end : null;
   const full = { month: 'short', day: 'numeric', year: 'numeric' } as const;
   if (a && b) {
-    if (a.getTime() === b.getTime()) return a.toLocaleDateString('en-US', full);
-    const from = a.getFullYear() === b.getFullYear()
-      ? a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      : a.toLocaleDateString('en-US', full);
-    return `${from} to ${b.toLocaleDateString('en-US', full)}`;
+    if (a === b) return formatStoredDay(a, full);
+    const from = a.slice(0, 4) === b.slice(0, 4) ? formatStoredDay(a) : formatStoredDay(a, full);
+    return `${from} to ${formatStoredDay(b, full)}`;
   }
-  if (a) return `From ${a.toLocaleDateString('en-US', full)}`;
-  if (b) return `Through ${b.toLocaleDateString('en-US', full)}`;
+  if (a) return `From ${formatStoredDay(a, full)}`;
+  if (b) return `Through ${formatStoredDay(b, full)}`;
   return null;
 }
 

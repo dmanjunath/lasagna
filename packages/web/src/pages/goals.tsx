@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, Check, Target, ArrowRight, ChevronRight, Clock, Sparkles, RotateCw, Repeat } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn } from '../lib/utils';
+import { cn, formatStoredMonth } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, EmptyState, Field, Input, Label, MaskedText, MoneyInput, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from '../components/uikit';
@@ -98,7 +98,7 @@ function targetDateLabel(deadline: string | null): string | null {
   const d = new Date(deadline);
   if (Number.isNaN(d.getTime())) return null;
   if (d.getTime() < Date.now()) return 'Past target date';
-  return `Target ${d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
+  return `Target ${formatStoredMonth(deadline)}`;
 }
 
 // ---------------------------------------------------------------------------

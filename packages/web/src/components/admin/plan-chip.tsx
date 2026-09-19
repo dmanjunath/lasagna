@@ -1,5 +1,7 @@
+import { formatInstant } from '../../lib/utils';
+
 const fmtDate = (v: string | null) =>
-  v ? new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  v ? formatInstant(v, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
 /** Effective-plan chip, shared by the user list and the detail page so the two can't disagree. */
 export function PlanChip({ planSource, compedUntil }: { planSource: 'paid' | 'comped' | 'demo' | 'free'; compedUntil: string | null }) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAccountsIndex } from '../../lib/use-accounts-index';
-import { cn } from '../../lib/utils';
+import { cn, formatStoredDate } from '../../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 import { HiddenAmount, Badge, Button, Field, Input, Modal, Textarea } from '../uikit';
 import { InstIcon } from '../common/InstIcon';
@@ -39,9 +39,7 @@ function formatCurrencyExact(value: number): string {
 }
 
 function longDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  return formatStoredDate(iso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 export function TransactionDetail({ open, tx, onClose, onSaved }: {

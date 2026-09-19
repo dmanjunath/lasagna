@@ -3,7 +3,7 @@ import { useRoute, useLocation } from 'wouter';
 import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp, Lock } from 'lucide-react';
 import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
-import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
+import { cn, stripAccountMask, exactSyncTime, formatStoredDay, formatStoredMonth, localDayKey } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
 import { Badge, Button, Field, Input, PageMeta, PageMetaItem, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
@@ -328,11 +328,16 @@ export function AccountDetail() {
   const displayName = titleCase(stripAccountMask(acct.name, acct.mask));
   const needsAttention = status === 'error' || status === 'item_login_required';
 
-  // Snapshots → ascending TrendPoints for the shared interactive chart.
+  // Snapshots → ascending TrendPoints for the shared interactive chart. This
+  // endpoint returns raw rows, so `snapshotAt` is the moment the balance was
+  // read, not a bucketed day. Order on that moment, then key it to the viewer's
+  // own calendar day, so a balance recorded at 11pm stays on that evening and
+  // every reader below is handling a genuine stored day.
   const allPoints: TrendPoint[] = snapshots
     .map((s) => ({ date: s.snapshotAt, value: parseFloat(s.balance ?? '0') }))
     .filter((p) => Number.isFinite(p.value))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map((p) => ({ ...p, date: localDayKey(p.date) }));
   const chartPoints = filterByRange(allPoints, range);
   const hasHistory = allPoints.length >= 2;
 
@@ -396,7 +401,7 @@ export function AccountDetail() {
   const metaDate = (v: unknown) => {
     if (typeof v !== 'string') return null;
     const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return Number.isNaN(d.getTime()) ? null : formatStoredMonth(v);
   };
   const aprVal = metaNum(meta.interestRatePercentage) ?? (acct.apr != null ? metaNum(acct.apr) : null);
   const minPmtVal = metaNum(meta.minimumPaymentAmount);
@@ -409,8 +414,8 @@ export function AccountDetail() {
     if (years == null || years <= 0) return null;
     const d = new Date(meta.originationDate);
     if (Number.isNaN(d.getTime())) return null;
-    d.setFullYear(d.getFullYear() + Math.round(years));
-    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    d.setUTCFullYear(d.getUTCFullYear() + Math.round(years));
+    return formatStoredMonth(d.toISOString());
   })();
   const payoffVal = metaDate(meta.maturityDate) ?? metaDate(meta.expectedPayoffDate) ?? derivedPayoff;
   const facts: Array<{ label: string; value: string }> = [
@@ -760,7 +765,8 @@ export function AccountDetail() {
             <div className="mt-3 flex min-h-7 items-center gap-2.5 flex-wrap">
               {hoveredPoint ? (
                 <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                  {new Date(hoveredPoint.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {/* A local day key, converted from the snapshot instant where the points are built. */}
+                  {formatStoredDay(hoveredPoint.date, { year: 'numeric' })}
                 </span>
               ) : hasHistory && heroChange !== 0 ? (
                 <>

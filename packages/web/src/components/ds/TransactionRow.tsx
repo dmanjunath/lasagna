@@ -3,6 +3,7 @@ import { Banknote } from 'lucide-react';
 import { Favicon } from './AccountRow';
 import { faviconUrl, merchantDomainFor } from './institutions';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../../lib/hide-amounts';
+import { formatStoredDay, storedDayKey } from '../../lib/utils';
 import { HiddenAmount } from '../uikit/HiddenAmount';
 
 export interface TransactionRowProps {
@@ -32,17 +33,19 @@ const defaultFmt = (n: number) =>
     ? HIDDEN_AMOUNT
     : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// The date is a stored calendar day, so it prints as that day everywhere.
+// "Today" and "Yesterday" compare against the reader's own calendar, which is
+// the calendar they mean by those two words.
 function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const today = new Date();
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-  if (sameDay(d, today)) return 'Today';
-  if (sameDay(d, yesterday)) return 'Yesterday';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const day = storedDayKey(iso);
+  const now = new Date();
+  const localKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (day === localKey(now)) return 'Today';
+  if (day === localKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) {
+    return 'Yesterday';
+  }
+  return formatStoredDay(iso);
 }
 
 /**

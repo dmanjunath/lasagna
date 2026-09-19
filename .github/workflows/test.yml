@@ -30,3 +30,9 @@ jobs:
       - run: pnpm lint --max-warnings 0
 
       - run: pnpm --filter @lasagna/core test
+
+      # Behind UTC, where a calendar day stored as midnight UTC used to print as
+      # the day before. The runner is UTC, which hides exactly that class of bug.
+      - run: pnpm --filter @lasagna/web test
+        env:
+          TZ: America/Los_Angeles

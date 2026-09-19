@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
+import { formatInstant } from "../../lib/utils.js";
 import { Button, PageMeta, PageMetaItem, Skeleton } from "../../components/uikit";
 import { useConfirm } from "../../components/ds";
 import { PageTitle } from "../../components/ds/PageTitle";
@@ -313,7 +314,7 @@ function PlanCard({
               {plan.status}
             </span>
             <span className="ui-tnum">
-              Updated {new Date(plan.updatedAt).toLocaleDateString()}
+              Updated {formatInstant(plan.updatedAt, { month: "numeric", day: "numeric", year: "numeric" })}
             </span>
           </span>
           <span className="inline-flex items-center gap-1 text-[13px] font-bold text-content-muted transition-colors group-hover:text-[rgb(var(--ui-brand-ink))]">

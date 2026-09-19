@@ -6,6 +6,7 @@ import { Badge, Button, Modal, Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
 import { PlanChip } from '../components/admin/plan-chip';
 import { useAuth } from '../lib/auth';
+import { formatInstant } from '../lib/utils';
 import { RowMenu } from '../components/admin/row-menu';
 import { DeleteTenantModal } from '../components/admin/delete-tenant-modal';
 
@@ -14,7 +15,7 @@ type Totals = Awaited<ReturnType<typeof api.adminGetUsers>>['totals'];
 type SortKey = 'createdAt' | 'lastLoginAt' | 'accountCount' | 'spend30d' | 'lastSyncAt' | 'lastActionsGeneratedAt';
 
 const fmtDate = (v: string | null) =>
-  v ? new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  v ? formatInstant(v, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 // Stale = never run, or last run more than a day ago (matches the server's 24h totals).
 const DAY_MS = 24 * 60 * 60 * 1000;
 const isStale = (v: string | null) => v === null || Date.now() - new Date(v).getTime() > DAY_MS;

@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth";
 import { DisplayFontPicker } from "../components/settings/display-font-picker";
 import { api } from "../lib/api";
 import { useBilling, startUpgrade, openPortal } from "../lib/billing";
-import { formatMoney, cn } from "../lib/utils";
+import { formatMoney, cn, exactSyncTime, formatInstant, formatStoredDate } from "../lib/utils";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   User,
@@ -255,7 +255,7 @@ export function Settings() {
   const canEdit = !isDemoMode;
 
   const personalRows: DetailRow[] = [
-    { label: "Date of birth", value: profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set", muted: !profile?.dateOfBirth },
+    { label: "Date of birth", value: profile?.dateOfBirth ? formatStoredDate(profile.dateOfBirth, { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set", muted: !profile?.dateOfBirth },
     { label: "Age", value: age, muted: age === "Not set" },
     { label: "Retirement age", value: retirementAge, muted: retirementAge === "Not set", money: true },
     { label: "Filing status", value: filingStatus, muted: !profile?.filingStatus },
@@ -730,7 +730,7 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
                   <div className="min-w-0">
                     <p className="truncate text-[14px] font-semibold text-content">{inv.email}</p>
                     <p className="mt-0.5 text-[12px] font-medium text-content-muted">
-                      Pending, expires {new Date(inv.expiresAt).toLocaleDateString()}
+                      Pending, expires {formatInstant(inv.expiresAt, { month: "short", day: "numeric", year: "numeric" })}
                     </p>
                   </div>
                 </div>
@@ -760,7 +760,7 @@ function PasswordSecurityCard() {
   if (isDemo || !user) return null;
 
   const hasPassword = user.hasPassword;
-  const lastLogin = user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "—";
+  const lastLogin = (user.lastLoginAt && exactSyncTime(user.lastLoginAt)) || "—";
 
   const save = async () => {
     setBusy(true);
@@ -956,8 +956,8 @@ function PasskeysCard() {
                   {cr.deviceName || "Passkey"}
                 </p>
                 <p className="mt-0.5 text-[12.5px] font-medium text-content-muted">
-                  Added {new Date(cr.createdAt).toLocaleDateString()}
-                  {cr.lastUsedAt ? `, last used ${new Date(cr.lastUsedAt).toLocaleDateString()}` : ""}
+                  Added {formatInstant(cr.createdAt, { month: "short", day: "numeric", year: "numeric" })}
+                  {cr.lastUsedAt ? `, last used ${formatInstant(cr.lastUsedAt, { month: "short", day: "numeric", year: "numeric" })}` : ""}
                 </p>
               </div>
               <Button
@@ -1557,7 +1557,7 @@ function PlanCard() {
   // browser sheet.
   const isPro = status?.plan === "pro";
   const periodDate = status?.currentPeriodEnd
-    ? new Date(status.currentPeriodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    ? formatInstant(status.currentPeriodEnd, { month: "long", day: "numeric", year: "numeric" })
     : null;
   const cancelScheduled = !!status?.cancelAtPeriodEnd;
   // When a cancellation is scheduled, the subscription is still active (Pro)

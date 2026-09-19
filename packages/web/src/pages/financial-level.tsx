@@ -11,7 +11,7 @@ import { api } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
 import { useInsights, type Insight } from '../hooks/useInsights';
-import { stripAccountMask } from '../lib/utils';
+import { formatInstant, stripAccountMask } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import type { LucideIcon } from 'lucide-react';
@@ -129,7 +129,7 @@ const UPDATE_CAUSE: Record<string, string> = {
 };
 
 function updatedLine(updatedAt: string, reason: string): string {
-  const on = new Date(updatedAt).toLocaleDateString('en-US', {
+  const on = formatInstant(updatedAt, {
     month: 'long', day: 'numeric', year: 'numeric',
   });
   if (reason === 'no_active_path') return `Built for you on ${on}.`;

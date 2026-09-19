@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
+import { formatInstant } from '../../lib/utils';
 import { Button, Input, Field, Modal, Select } from '../uikit';
 
 type CardUser = {
@@ -13,7 +14,7 @@ type CardUser = {
 };
 
 const fmtDate = (v: string | null) =>
-  v ? new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  v ? formatInstant(v, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
 /** Always-editable identity + auth actions for one user. Re-mount (via key) after saves. */
 export function UserAccountCard({ u, selfId, authMode, onChanged }: {

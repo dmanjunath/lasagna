@@ -6,6 +6,7 @@ import type { ChatMessage, ThreadData } from '../../lib/chat-store';
 import { getCategoryFromRoute } from '../../lib/route-categories';
 import { useConfirm } from '../ds/Confirm';
 import { api } from '../../lib/api';
+import { formatInstant } from '../../lib/utils';
 
 // Shown in place of an assistant reply when the request fails. The catch that
 // produces it cannot tell a dropped connection from a server error, so the copy
@@ -194,7 +195,7 @@ export function useGlobalChat() {
     };
 
     const now = new Date();
-    const timestamp = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const timestamp = formatInstant(now, { hour: 'numeric', minute: '2-digit' });
 
     const localId = `thread-${Date.now()}`;
     const preferredLevel = getPreferredModelLevel();
@@ -352,7 +353,7 @@ export function useGlobalChat() {
         createdAt: new Date().toISOString(),
       };
       const now = new Date();
-      const timestamp = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const timestamp = formatInstant(now, { hour: 'numeric', minute: '2-digit' });
       const localId = `thread-${Date.now()}`;
       const preferredLevel = getPreferredModelLevel();
       const newThread = {
@@ -404,7 +405,7 @@ export function useGlobalChat() {
             id: t.id,
             question: t.title || t.firstMessage || 'Conversation',
             answerPreview: t.firstAssistantSnippet ? stripMarkdown(t.firstAssistantSnippet).slice(0, 200) : '',
-            timestamp: new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            timestamp: formatInstant(t.createdAt, { month: 'short', day: 'numeric' }),
             tags: (t.tags as string[]) || [],
           },
           messages: [] as ChatMessage[],

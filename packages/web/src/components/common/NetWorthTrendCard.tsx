@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TrendingUp } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, formatStoredDay } from '../../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 import { HiddenAmount, SegmentedControl } from '../uikit';
 import { filterByRange, type Range, type TrendPoint } from '../ds';
@@ -12,7 +12,7 @@ const fmtUsd = (n: number, frac = 0) =>
     : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: frac, minimumFractionDigits: frac });
 
 const fmtDate = (iso: string, withYear = false) =>
-  new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
+  formatStoredDay(iso, withYear ? { year: 'numeric' } : undefined);
 
 const RANGES: Range[] = ['1M', '6M', '1Y', 'All'];
 

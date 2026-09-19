@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
 import { useBodyScrollLock } from '../lib/hooks/use-body-scroll-lock';
+import { formatInstant } from '../lib/utils';
 import { AnimatePresence, motion } from "framer-motion";
 import {
   FileText,
@@ -264,7 +265,7 @@ function shortenMiddle(name: string, max = 34): string {
 }
 
 function formatDocDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return formatInstant(iso, {
     month: "short",
     day: "numeric",
     year: "numeric",

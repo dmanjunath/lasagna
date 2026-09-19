@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CreditCard, Landmark, Pencil, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn, formatMoney } from '../lib/utils';
+import { cn, formatMoney, formatInstant, formatStoredMonth } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
@@ -64,7 +64,7 @@ function addMonths(months: number): string {
   if (months >= 999) return 'Never (at minimum)';
   const d = new Date();
   d.setMonth(d.getMonth() + months);
-  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  return formatInstant(d, { month: 'short', year: 'numeric' });
 }
 
 /** Calculate total interest paid (simple per-debt sum, no waterfall cascade) */
@@ -530,9 +530,7 @@ function AccountCard({
 }) {
   const high = d.apr > 20;
   const share = maxBalance > 0 ? Math.max(4, (Math.abs(d.balance) / maxBalance) * 100) : 0;
-  const payoff = d.payoffDate
-    ? new Date(d.payoffDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-    : d.suggestedPayoffDate;
+  const payoff = d.payoffDate ? formatStoredMonth(d.payoffDate) : d.suggestedPayoffDate;
   return (
     <div className={cn("flex flex-col rounded-ui-xl border border-line bg-panel p-4 shadow-ui-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md", className)}>
       <div className="flex items-start gap-3">

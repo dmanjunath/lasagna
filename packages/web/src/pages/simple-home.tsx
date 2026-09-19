@@ -12,6 +12,7 @@ import { Button, Skeleton, useToast } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
 import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 import { NetWorthTrendCard } from '../components/common/NetWorthTrendCard';
+import { formatStoredDay } from '../lib/utils';
 
 // Shared style for "go to this page" affordances on the home page, so every page
 // link reads as the same soft-brand button as the hero's Open Money.
@@ -119,9 +120,6 @@ function formatMoneyShort(n: number): string {
   if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}K`;
   return `${sign}$${Math.round(abs)}`;
 }
-
-const formatDateShort = (d: Date) =>
-  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 function greetingForHour(h: number) {
   if (h < 5) return 'Good evening'; // overnight reads as late night, not morning
@@ -1328,7 +1326,7 @@ function NetWorthChart({
               }}
             >
               <div className="text-[11px] font-semibold text-content-muted">
-                {new Date(hovered.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {formatStoredDay(hovered.date, { year: 'numeric' })}
               </div>
               <div className="text-[13.5px] font-extrabold text-content ui-tnum">{fmtUsd(hovered.value)}</div>
             </div>
@@ -1640,7 +1638,7 @@ function RecentActivity({ txns }: { txns: RecentTxn[] }) {
                 <div className="min-w-0">
                   <div className="text-[13.5px] font-bold truncate">{t.name}</div>
                   <div className="mt-0.5 text-[11.5px] font-semibold text-content-muted">
-                    {formatDateShort(new Date(`${t.date.slice(0, 10)}T00:00:00`))}
+                    {formatStoredDay(t.date)}
                     {t.pending ? ', pending' : ''}
                   </div>
                 </div>

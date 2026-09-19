@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type FeatureFlag } from '../lib/api';
 import { Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
-import { cn } from '../lib/utils';
+import { cn, formatInstant } from '../lib/utils';
 
 /**
  * Deployment-wide switches.
@@ -82,7 +82,7 @@ export function AdminFlags() {
                 <p className="mt-2 text-[12px] font-medium text-content-faint">
                   <code className="font-mono">{flag.key}</code>{' '}
                   {flag.updatedAt
-                    ? ` changed ${new Date(flag.updatedAt).toLocaleDateString('en-US', {
+                    ? ` changed ${formatInstant(flag.updatedAt, {
                         month: 'short', day: 'numeric', year: 'numeric',
                       })}`
                     : ' never changed'}

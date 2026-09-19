@@ -3,7 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { Banknote, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Receipt, Search } from 'lucide-react';
 import { api, type TxnQueryRow, type TxnQuerySummary } from '../lib/api';
 import { useAccountsIndex } from '../lib/use-accounts-index';
-import { cn, formatTxnDay, txnDayKey } from '../lib/utils';
+import { cn, formatStoredDay, storedDayKey } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount } from '../components/uikit';
 import { usePageContext } from '../lib/page-context';
@@ -45,7 +45,7 @@ function formatCurrencyExact(value: number): string {
 // "Today" and "Yesterday" compare against the reader's own calendar, which is
 // the calendar they mean by those two words.
 function dayLabel(iso: string, now: Date = new Date()): string {
-  const day = txnDayKey(iso);
+  const day = storedDayKey(iso);
   const localKey = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   if (day === localKey(now)) return 'Today';
@@ -53,7 +53,7 @@ function dayLabel(iso: string, now: Date = new Date()): string {
     return 'Yesterday';
   }
   const sameYear = day.slice(0, 4) === String(now.getFullYear());
-  return formatTxnDay(iso, sameYear ? undefined : { year: 'numeric' });
+  return formatStoredDay(iso, sameYear ? undefined : { year: 'numeric' });
 }
 
 type SortKey = 'newest' | 'oldest' | 'largest' | 'smallest';
@@ -87,11 +87,11 @@ function formatCompactCount(n: number): string {
 // ("Apr 15 to Jun 21" over rows reading Apr 16 and Jun 22).
 function dateRangeLabel(earliest: string | null, latest: string | null): string {
   if (!earliest || !latest) return '';
-  const a = formatTxnDay(earliest, { year: 'numeric' });
-  const b = formatTxnDay(latest, { year: 'numeric' });
+  const a = formatStoredDay(earliest, { year: 'numeric' });
+  const b = formatStoredDay(latest, { year: 'numeric' });
   if (a === b) return a;
-  if (txnDayKey(earliest).slice(0, 4) === txnDayKey(latest).slice(0, 4)) {
-    return `${formatTxnDay(earliest)} to ${b}`;
+  if (storedDayKey(earliest).slice(0, 4) === storedDayKey(latest).slice(0, 4)) {
+    return `${formatStoredDay(earliest)} to ${b}`;
   }
   return `${a} to ${b}`;
 }
@@ -531,7 +531,7 @@ export function Transactions() {
         ) : (
           <div className={cn('transition-opacity duration-200', loadingInitial && 'opacity-50')}>
             {rows.map((tx) => {
-              const dayKey = txnDayKey(tx.date);
+              const dayKey = storedDayKey(tx.date);
               const needsHeader = showDayHeaders && dayKey !== lastDayKey;
               lastDayKey = dayKey;
               return (

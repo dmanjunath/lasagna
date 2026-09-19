@@ -14,6 +14,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import type { PlanType, PlanStatus } from "../../lib/types.js";
 import { api, API_BASE, authHeaders } from "../../lib/api.js";
+import { exactSyncTime, formatInstant } from "../../lib/utils.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { Badge, Button, PageMeta, PageMetaItem, type BadgeProps } from "../../components/uikit";
 import { EditableTitle } from "../../components/ui/editable-title.js";
@@ -294,7 +295,7 @@ export function PlanDetailPage() {
                     {plan.status}
                   </Badge>
                   <PageMetaItem className="ui-tnum">
-                    Updated {new Date(plan.updatedAt).toLocaleDateString()}
+                    Updated {formatInstant(plan.updatedAt, { month: "numeric", day: "numeric", year: "numeric" })}
                   </PageMetaItem>
                 </PageMeta>
               </div>
@@ -418,7 +419,7 @@ export function PlanDetailPage() {
                             {edit.changeDescription || "Plan updated"}
                           </p>
                           <p className="mt-0.5 text-[12.5px] font-semibold text-content-muted ui-tnum">
-                            {new Date(edit.createdAt).toLocaleString()} • by {edit.editedBy}
+                            {exactSyncTime(edit.createdAt)} • by {edit.editedBy}
                           </p>
                         </div>
                         {import.meta.env.VITE_DEMO_MODE !== "true" && (

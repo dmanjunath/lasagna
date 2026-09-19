@@ -6,7 +6,7 @@ import {
   Layers, ChevronDown, ChevronUp, ArrowRight, Zap,
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
-import { formatRelativeTime } from '../../lib/utils';
+import { formatRelativeTime, formatStoredDay, formatStoredMonth } from '../../lib/utils';
 import type { PriorityStep, PrioritySummary, MockInsight, MockDebt } from './types';
 import {
   getPrimaryLayer,
@@ -159,11 +159,11 @@ function Sparkline({
   const hx = hoverIdx !== null ? pts[hoverIdx][0] : null;
   const hy = hoverIdx !== null ? pts[hoverIdx][1] : null;
   const hv = hoverIdx !== null ? values[hoverIdx] : null;
-  const hd = hoverIdx !== null && dates[hoverIdx] ? new Date(dates[hoverIdx]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+  const hd = hoverIdx !== null && dates[hoverIdx] ? formatStoredDay(dates[hoverIdx], { year: 'numeric' }) : null;
   const mid = (max + min) / 2;
 
-  const firstDateStr = dates[0] ? new Date(dates[0]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
-  const lastDateStr = dates[dates.length - 1] ? new Date(dates[dates.length - 1]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+  const firstDateStr = dates[0] ? formatStoredMonth(dates[0]) : '';
+  const lastDateStr = dates[dates.length - 1] ? formatStoredMonth(dates[dates.length - 1]) : '';
 
   const axisColor = '#7A5C3F';
 

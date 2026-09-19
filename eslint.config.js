@@ -4,6 +4,9 @@ import tsParser from "@typescript-eslint/parser";
 import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
 
+const DATE_FORMAT_MESSAGE =
+  "A stored date (a transaction date, a deadline, a statement or maturity date, a month bucket) is a calendar day held as midnight UTC: read in the host's zone it prints the day before, west of UTC. Use formatStoredDay / formatStoredMonth from lib/utils. For a real moment (createdAt, lastSyncedAt, an activity event) use formatInstant / exactSyncTime, which render in the viewer's zone on purpose.";
+
 export default [
   {
     ignores: [
@@ -109,5 +112,42 @@ export default [
       // couple of analytics views. Off, consistent with the rules above.
       "react-hooks/purity": "off",
     },
+  },
+  // A stored date read in the host's zone prints the day before, west of UTC —
+  // so every date formatter in the web app goes through one of the two named
+  // helpers, which say out loud whether the value is a calendar day or a
+  // moment. The opt-out is the differently-named helper, not an allowlist.
+  // These selectors don't touch the money `toLocaleString` calls: those pass
+  // `style`/`currency`/`*FractionDigits`, never a date component.
+  {
+    files: ["packages/web/src/**/*.ts", "packages/web/src/**/*.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[property.name=/^toLocale(Date|Time)String$/]",
+          message: DATE_FORMAT_MESSAGE,
+        },
+        {
+          selector:
+            'MemberExpression[object.type="NewExpression"][object.callee.name="Date"][property.name="toLocaleString"]',
+          message: DATE_FORMAT_MESSAGE,
+        },
+        {
+          selector:
+            'CallExpression[callee.property.name="toLocaleString"] > ObjectExpression:has(Property[key.name=/^(year|month|day|weekday|hour|minute|second|dateStyle|timeStyle)$/])',
+          message: DATE_FORMAT_MESSAGE,
+        },
+        {
+          selector: 'MemberExpression[object.name="Intl"][property.name="DateTimeFormat"]',
+          message: DATE_FORMAT_MESSAGE,
+        },
+      ],
+    },
+  },
+  // The helpers themselves are the one place allowed to reach for Intl.
+  {
+    files: ["packages/web/src/lib/utils.ts"],
+    rules: { "no-restricted-syntax": "off" },
   },
 ];

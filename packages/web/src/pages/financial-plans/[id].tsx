@@ -6,7 +6,7 @@ import { watchReport } from "../../lib/report-watcher.js";
 import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { SegmentedControl } from "../../components/uikit/SegmentedControl.js";
 import { vizColor } from "../../components/uikit/viz.js";
-import { formatMoney, splitParagraphs } from "../../lib/utils.js";
+import { exactSyncTime, formatInstant, formatMoney, splitParagraphs } from "../../lib/utils.js";
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../lib/hide-amounts.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { BrandMark } from "../../components/common/BrandMark.js";
@@ -70,7 +70,7 @@ function typeLabel(type: string): string {
 // The byline under the masthead + on the print cover, single-sourced so screen
 // and PDF read identically. Comma separator per UX.md (no middots or dashes).
 function planByline(userName: string | null, generatedAt: string): string {
-  const date = new Date(generatedAt).toLocaleDateString();
+  const date = formatInstant(generatedAt, { month: "numeric", day: "numeric", year: "numeric" });
   return userName ? `Prepared for ${userName}, generated ${date}` : `Generated ${date}`;
 }
 
@@ -78,7 +78,7 @@ function planByline(userName: string | null, generatedAt: string): string {
 // "Prepared for {name}" and the date on separate rows, unlike the compact
 // masthead byline). A long-form month/day/year reads more like a report.
 function planCoverDate(generatedAt: string): string {
-  return new Date(generatedAt).toLocaleDateString(undefined, {
+  return formatInstant(generatedAt, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -1136,7 +1136,7 @@ function FreeformReportView({
         {(report.history?.length ?? 0) > 0 && (
           <p className="mt-2 text-[12px] text-content-faint">
             {report.history!.length} revision{report.history!.length === 1 ? "" : "s"} applied,
-            last updated {new Date(report.generatedAt).toLocaleString()}
+            last updated {exactSyncTime(report.generatedAt)}
           </p>
         )}
       </div>

@@ -4,7 +4,7 @@ import { ArrowLeft, PauseCircle, PlayCircle, RefreshCw, Trash2 } from 'lucide-re
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Button, Modal, Skeleton } from '../components/uikit';
-import { cn } from '../lib/utils';
+import { cn, formatInstant } from '../lib/utils';
 import { AdminShell } from '../components/admin/admin-shell';
 import { PlanChip } from '../components/admin/plan-chip';
 import { CompControl } from '../components/admin/comp-control';
@@ -14,7 +14,7 @@ import { DeleteTenantModal } from '../components/admin/delete-tenant-modal';
 type TenantDetail = Awaited<ReturnType<typeof api.adminGetTenantDetail>>;
 
 const fmtDate = (v: string | null) =>
-  v ? new Date(v).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  v ? formatInstant(v, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 // Sub-cent amounts are common here — "$0.00" would hide real spend.
 const fmtUsd = (v: string | number) => {
   const n = Number(v);
@@ -308,7 +308,7 @@ export function AdminUser() {
                       {ev.source}{ev.model ? `, ${ev.model.split('/').pop()}` : ''}
                     </span>
                     <span className="text-content-muted ui-tnum shrink-0">
-                      {fmtUsd(ev.costUsd)}, {new Date(ev.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtUsd(ev.costUsd)}, {formatInstant(ev.createdAt, { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                 ))}
