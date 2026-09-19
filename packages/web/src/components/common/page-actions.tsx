@@ -113,12 +113,17 @@ function EmbeddedActions({ types, viewAllHref }: PageActionsProps) {
  */
 function FullActions({ types }: PageActionsProps) {
   const { insights, isLoading } = useInsights(types);
-  const lifecycle = useActionLifecycle();
+  // Destructured rather than read off `lifecycle.x` in the markup: the
+  // react-hooks/refs rule taints the whole object because it carries rootRef
+  // and undoRef alongside plain state, and then flags `message`/`failure`/
+  // `undo` as ref reads during render. They are not.
+  const { hidden, everActed, act, undo, undoRef, rootRef, message, failure } =
+    useActionLifecycle();
 
   const rows = useMemo(() => insights.map(toActionRow), [insights]);
   const live = useMemo(
-    () => rows.filter((r) => !lifecycle.hidden.has(r.id)),
-    [rows, lifecycle.hidden],
+    () => rows.filter((r) => !hidden.has(r.id)),
+    [rows, hidden],
   );
 
   const shown = useMemo(() => rankActions(live), [live]);
@@ -140,11 +145,11 @@ function FullActions({ types }: PageActionsProps) {
   // its own failure and its own connect-an-account state, and each of those is
   // directly above this section.
   if (isLoading) return null;
-  if (live.length === 0 && !lifecycle.everActed) return null;
+  if (live.length === 0 && !everActed) return null;
 
   return (
     <div
-      ref={lifecycle.rootRef}
+      ref={rootRef}
       tabIndex={-1}
       className="mb-8 focus:outline-none"
     >
@@ -189,9 +194,9 @@ function FullActions({ types }: PageActionsProps) {
                 // the page they are already on, so "Open Spending" would be a
                 // button that navigates nowhere.
                 destination={row.drill ?? undefined}
-                onComplete={() => lifecycle.act(row.id, 'completed')}
-                onSnooze={() => lifecycle.act(row.id, 'snoozed')}
-                onDismiss={() => lifecycle.act(row.id, 'dismissed')}
+                onComplete={() => act(row.id, 'completed')}
+                onSnooze={() => act(row.id, 'snoozed')}
+                onDismiss={() => act(row.id, 'dismissed')}
               />
             );
           })}
@@ -199,10 +204,10 @@ function FullActions({ types }: PageActionsProps) {
       )}
 
       <UndoToast
-        ref={lifecycle.undoRef}
-        message={lifecycle.message}
-        failure={lifecycle.failure}
-        onUndo={lifecycle.undo}
+        ref={undoRef}
+        message={message}
+        failure={failure}
+        onUndo={undo}
       />
     </div>
   );
