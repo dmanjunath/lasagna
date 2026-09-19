@@ -6,7 +6,7 @@ import { startUpgrade } from '../lib/billing';
 import { cn, stripAccountMask, exactSyncTime, formatStoredDay, formatStoredMonth, localDayKey } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
-import { Badge, Button, Field, Input, PageMeta, PageMetaItem, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
+import { Button, Field, Input, PageMeta, PageMetaItem, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { InstIcon } from '../components/common/InstIcon';
@@ -412,7 +412,8 @@ export function AccountDetail() {
   const facts: Array<{ label: string; value: string }> = [
     { label: 'Type', value: typeLabel },
     {
-      label: isManual ? 'Source' : 'Synced',
+      // Past tense while frozen: the last sync is history, not a running state.
+      label: isManual ? 'Source' : acct.frozen ? 'Last synced' : 'Synced',
       value: isManual ? 'Manual entry' : lastSyncedAt ? relativeTime(lastSyncedAt) : 'Connected',
     },
   ];
@@ -585,6 +586,12 @@ export function AccountDetail() {
     }
   };
 
+  // Checkout failures were swallowed here while /accounts surfaces them.
+  const handleUpgrade = () => {
+    setActionError(null);
+    startUpgrade().catch(() => setActionError('Could not start checkout. Please try again.'));
+  };
+
   const handleSync = async () => {
     setActionPending(true);
     setActionError(null);
@@ -636,6 +643,8 @@ export function AccountDetail() {
   // manual/synced split for older item payloads.
   const valueSource: ValueSource =
     (acct as { valueSource?: ValueSource }).valueSource ?? (isManual ? 'manual' : 'synced');
+  // A frozen account stopped syncing, so its last sync is past tense.
+  const syncedPrefix = acct.frozen ? 'Last synced' : 'Synced';
 
   return (
     <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
@@ -657,15 +666,11 @@ export function AccountDetail() {
               {displayName}
             </h1>
             {/* Type lives in the key-facts strip below — keep it out of here to
-                avoid repeating it three times (title + pill + Type row). */}
+                avoid repeating it three times (title + pill + Type row), and
+                "Frozen" lives in the banner below, which also says why. */}
             <PageMeta>
               <PageMetaItem>{institution}</PageMetaItem>
               {acct.mask && <PageMetaItem className="ui-tnum">••{acct.mask}</PageMetaItem>}
-              {acct.frozen && (
-                <Badge tone="info">
-                  <Lock size={11} strokeWidth={2.2} aria-hidden="true" /> Frozen
-                </Badge>
-              )}
             </PageMeta>
           </div>
         </div>
@@ -673,7 +678,9 @@ export function AccountDetail() {
           <Button variant="secondary" size="sm" onClick={openSettings} leadingIcon={<Pencil size={14} />}>
             Edit
           </Button>
-          {!isManual && (
+          {/* Frozen accounts 403 on /sync, so the button would only ever produce
+              an error under a banner that already explains why. */}
+          {!isManual && !acct.frozen && (
             <Button
               variant="secondary"
               size="sm"
@@ -693,18 +700,34 @@ export function AccountDetail() {
       </header>
 
       {acct.frozen && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 rounded-ui-md border border-info/30 bg-info-soft px-4 py-3">
-          <span className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-info">
-            <Lock size={13} strokeWidth={2.2} aria-hidden="true" />
-            Frozen: over the Free plan's account limit, so it isn't syncing.
-          </span>
-          <button
-            type="button"
-            onClick={() => { startUpgrade().catch(() => {}); }}
-            className="ui-focus shrink-0 rounded-ui-sm text-[13px] font-bold text-brand hover:underline"
-          >
-            Upgrade to resume →
-          </button>
+        <div className="mt-4 rounded-ui-md border border-info/30 bg-info-soft px-4 py-3">
+          <p className="inline-flex items-start gap-1.5 text-[13.5px] font-semibold text-info">
+            <Lock size={13} strokeWidth={2.2} className="mt-[3px] shrink-0" aria-hidden="true" />
+            Frozen: {institution} is past the Free plan's institution limit, so this account isn't syncing.
+          </p>
+          {/* Links inherit the banner's info ink: `text-brand` is the fill token
+              and only reaches 2.2:1 on this tint. Bold + underline carry the
+              affordance. py/-my grow the inline hit box to ~31px without
+              changing the line box (an inline link can't reach 44px inside a
+              wrapped paragraph without swallowing the line below it). */}
+          <p className="mt-1 text-[12.5px] font-medium text-info">
+            <button
+              type="button"
+              onClick={handleUpgrade}
+              className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-info underline underline-offset-2 hover:opacity-80"
+            >
+              Upgrade to resume
+            </button>
+            , or{' '}
+            <button
+              type="button"
+              onClick={() => setLocation('/accounts')}
+              className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-info underline underline-offset-2 hover:opacity-80"
+            >
+              disconnect an institution
+            </button>{' '}
+            you no longer use to free its slot.
+          </p>
         </div>
       )}
 
@@ -748,7 +771,11 @@ export function AccountDetail() {
           <div>
             <div className="flex items-center gap-2.5">
               <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
-              {valueSource && <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />}
+              {/* A green "Synced" badge on a frozen account contradicts the banner
+                  above it — same rule as the account rows on /accounts. */}
+              {valueSource && !acct.frozen && (
+                <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />
+              )}
             </div>
             <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
               <MaskedText text={fmtUsd(heroValue)} />
@@ -771,12 +798,12 @@ export function AccountDetail() {
                     aria-label={`Last synced ${exactSyncTime(lastSyncedAt)}`}
                     className="ui-focus rounded-ui-xs text-[13px] font-medium text-content-muted"
                   >
-                    {`Synced ${relativeTime(lastSyncedAt)}`}
+                    {`${syncedPrefix} ${relativeTime(lastSyncedAt)}`}
                   </span>
                 </Tooltip>
               ) : (
                 <span className="text-[13px] font-medium text-content-muted">
-                  {isManual ? 'Manually tracked' : lastSyncedAt ? `Synced ${relativeTime(lastSyncedAt)}` : 'Connected'}
+                  {isManual ? 'Manually tracked' : lastSyncedAt ? `${syncedPrefix} ${relativeTime(lastSyncedAt)}` : 'Connected'}
                 </span>
               )}
             </div>
@@ -1123,7 +1150,7 @@ export function AccountDetail() {
                 </span>
               )}
               {/* Sync / delete also surfaced here for mobile (header actions are desktop-only). */}
-              {!isManual && (
+              {!isManual && !acct.frozen && (
                 <Button
                   variant="secondary"
                   disabled={actionPending}

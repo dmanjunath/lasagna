@@ -15,7 +15,8 @@ export const FREE_MODEL_LEVEL = "free";
 export const PRO_MANUAL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
 export interface PlanLimits {
-  maxAccounts: number;
+  /** Distinct linked institutions (banks). Every account at one bank is one slot. */
+  maxInstitutions: number;
   manualSync: boolean;
   autoSyncRunsPerDay: number;
   /** Allowed chat model levels, or "all" for every level. */
@@ -23,12 +24,12 @@ export interface PlanLimits {
 }
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
-  free: { maxAccounts: 3, manualSync: false, autoSyncRunsPerDay: 1, models: [FREE_MODEL_LEVEL] },
-  pro: { maxAccounts: 50, manualSync: true, autoSyncRunsPerDay: 2, models: "all" },
+  free: { maxInstitutions: 2, manualSync: false, autoSyncRunsPerDay: 1, models: [FREE_MODEL_LEVEL] },
+  pro: { maxInstitutions: 50, manualSync: true, autoSyncRunsPerDay: 2, models: "all" },
 };
 
-export function maxAccounts(plan: Plan): number {
-  return PLAN_LIMITS[plan].maxAccounts;
+export function maxInstitutions(plan: Plan): number {
+  return PLAN_LIMITS[plan].maxInstitutions;
 }
 
 export function canManualSync(plan: Plan): boolean {

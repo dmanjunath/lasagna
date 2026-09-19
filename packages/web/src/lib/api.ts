@@ -769,7 +769,7 @@ export const api = {
       subscriptionStatus: string | null;
       currentPeriodEnd: string | null;
       cancelAtPeriodEnd: boolean;
-      usage: { accounts: number; maxAccounts: number };
+      usage: { institutions: number; maxInstitutions: number };
       models: { allowed: string[]; all: string[] };
     }>("/billing/status"),
 

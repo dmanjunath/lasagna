@@ -1,6 +1,7 @@
 import { Hono } from "hono";
-import { eq, countFn as count, tenants, users, accounts, maxAccounts, allowedModelLevels } from "@lasagna/core";
+import { eq, tenants, users, maxInstitutions, allowedModelLevels } from "@lasagna/core";
 import { db } from "../lib/db.js";
+import { countInstitutions, loadInstitutionSlots } from "../lib/account-limits.js";
 import { getStripe, setPlanByStripeCustomer } from "../lib/stripe.js";
 import { resolveTenantPlan, checkoutReturnUrls } from "../lib/billing.js";
 import { MODEL_LEVELS } from "../agent/index.js";
@@ -16,17 +17,24 @@ billingRoutes.get("/status", async (c) => {
     where: eq(tenants.id, session.tenantId),
     columns: { subscriptionStatus: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
   });
-  const [{ value: accountCount }] = await db
-    .select({ value: count() })
-    .from(accounts)
-    .where(eq(accounts.tenantId, session.tenantId));
+  // Counted off the same rows the freeze recompute reads, so the meter can never
+  // report a number that disagrees with what is actually frozen.
+  const institutions = countInstitutions(await loadInstitutionSlots(session.tenantId));
 
   return c.json({
     plan,
     subscriptionStatus: tenant?.subscriptionStatus ?? null,
     currentPeriodEnd: tenant?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: tenant?.cancelAtPeriodEnd ?? false,
-    usage: { accounts: Number(accountCount), maxAccounts: maxAccounts(plan) },
+    // `accounts`/`maxAccounts` mirror the institution figures for web bundles
+    // predating the switch to an institution limit, which read only those two
+    // names. Safe to drop once no such bundle is in the wild.
+    usage: {
+      institutions,
+      maxInstitutions: maxInstitutions(plan),
+      accounts: institutions,
+      maxAccounts: maxInstitutions(plan),
+    },
     models: {
       allowed: allowedModelLevels(plan, MODEL_LEVELS as readonly string[]),
       all: MODEL_LEVELS as readonly string[],

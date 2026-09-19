@@ -219,11 +219,12 @@ export function Accounts() {
   const confirm = useConfirm();
   const [, navigate] = useLocation();
   const { tenant } = useAuth();
-  const { status: billing } = useBilling();
+  const { status: billing, loading: billingLoading } = useBilling();
   const isFree = tenant?.plan === "free";
-  // Free + over the account cap: surface which accounts are still active
-  // (the rest render as frozen).
-  const overLimit = isFree && !!billing && billing.usage.accounts > billing.usage.maxAccounts;
+  // Free + over the institution cap: turns the usage bar to caution and swaps
+  // the nudge for the frozen count and the two ways out.
+  const overLimit =
+    isFree && !!billing && billing.usage.institutions > billing.usage.maxInstitutions;
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
@@ -975,9 +976,16 @@ export function Accounts() {
     headerTags.push(
       <PageMetaItem key="accounts" className="ui-tnum">{`${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}</PageMetaItem>,
     );
-  if (items.length > 0)
+  // Straight from /billing/status, which counts it off the same rows the freeze
+  // recompute reads: institutions holding at least one account, manual excluded,
+  // two items at one bank counted once. Counting `items` here instead is how the
+  // header came to read "2 institutions" over a meter reading "1 of 2".
+  // Pro only: the free plan's usage meter states this same number *plus* the
+  // cap a row below, so a second reading here carries strictly less.
+  const institutionCount = billing?.usage.institutions ?? null;
+  if (!isFree && institutionCount !== null && institutionCount > 0)
     headerTags.push(
-      <PageMetaItem key="institutions" className="ui-tnum">{`${items.length} institution${items.length !== 1 ? "s" : ""}`}</PageMetaItem>,
+      <PageMetaItem key="institutions" className="ui-tnum">{`${institutionCount} institution${institutionCount !== 1 ? "s" : ""}`}</PageMetaItem>,
     );
   if (totalTracked > 0)
     headerTags.push(
@@ -988,8 +996,14 @@ export function Accounts() {
       <PageMetaItem key="synced" className="ui-tnum">{`Synced ${formatRelativeTime(lastSync)}`}</PageMetaItem>,
     );
 
+  // Always denominated by the CAP and clamped, so the bar fills as you connect
+  // banks and stays full past the cap. Denominating by the total made connecting
+  // a third bank drain a full meter to two thirds.
   const usedPct = billing
-    ? Math.max(0, Math.min(100, (billing.usage.accounts / Math.max(1, billing.usage.maxAccounts)) * 100))
+    ? Math.min(100, (billing.usage.institutions / Math.max(1, billing.usage.maxInstitutions)) * 100)
+    : 0;
+  const frozenInstitutions = billing
+    ? Math.max(0, billing.usage.institutions - billing.usage.maxInstitutions)
     : 0;
 
   return (
@@ -999,10 +1013,14 @@ export function Accounts() {
         <div className="min-w-0">
           <PageTitle>Accounts</PageTitle>
           <PageMeta className="mt-0 md:mt-1.5">
-            {loading ? (
-              // Widths of the four runs below, so the placeholder wraps where
-              // they wrap and the header holds still on load.
-              <PageMetaSkeleton widths={['w-20', 'w-[76px]', 'w-32', 'w-[105px]']} />
+            {loading || (!isFree && billingLoading) ? (
+              // Widths of the runs below, so the placeholder wraps where they
+              // wrap and the header holds still on load. Only Pro waits for
+              // billing, since only Pro carries a run that comes from it —
+              // otherwise that run inserts mid-row after the rest has painted.
+              <PageMetaSkeleton
+                widths={isFree ? ['w-20', 'w-32', 'w-[105px]'] : ['w-20', 'w-[76px]', 'w-32', 'w-[105px]']}
+              />
             ) : (
               headerTags
             )}
@@ -1034,51 +1052,55 @@ export function Accounts() {
         )}
       </header>
 
-      {/* Plan usage meter — free plan only, where the cap is meaningful. Over the
-          cap we flip to coral and show which are syncing ("M of N"), with an
-          upgrade nudge as the cap fills. */}
-      {billing && isFree && (
+      {/* Plan usage meter — free plan only, and only once something is linked:
+          "0 of 2" tells a first-run user nothing and pushes the connect CTA
+          down. One cap-denominated reading in every state; past the cap the
+          fill turns amber and the nudge names what that costs. */}
+      {billing && isFree && billing.usage.institutions > 0 && (
         <div className="mt-5 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3.5 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <span className="text-[13px] font-semibold text-content-muted">
-              Free plan account limit
-            </span>
-            <span className="text-[13.5px] font-bold ui-tnum">
-              {overLimit ? (
-                <span className="inline-flex items-center gap-1.5 text-content">
-                  <Zap size={13} strokeWidth={2.5} className="shrink-0 text-[rgb(var(--ui-brand-ink))]" aria-hidden="true" />
-                  {billing.usage.maxAccounts} of {billing.usage.accounts} syncing
-                </span>
-              ) : (
-                <span className="text-content">
-                  {billing.usage.accounts} of {billing.usage.maxAccounts} used
-                </span>
-              )}
+            <span className="text-[13px] font-semibold text-content-muted">Free plan</span>
+            {/* Never flips its denominator: the numerator is what you have linked,
+                the denominator is always your cap. */}
+            <span className="text-[13.5px] font-bold text-content ui-tnum">
+              {billing.usage.institutions} of {billing.usage.maxInstitutions} institutions used
             </span>
           </div>
           <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-canvas-sunken">
             <div
               className="h-full rounded-full transition-[width] duration-500 ease-ui"
               style={{
-                // Over the cap the meter shows synced-of-total (e.g. 3 of 22 → ~14%),
-                // not a full bar — a full bar would read as maxed and contradict "3".
-                width: `${overLimit ? (billing.usage.maxAccounts / Math.max(1, billing.usage.accounts)) * 100 : usedPct}%`,
-                background: "rgb(var(--ui-brand))",
+                width: `${usedPct}%`,
+                background: overLimit ? "var(--ui-viz-3)" : "rgb(var(--ui-brand))",
               }}
             />
           </div>
-          {billing.usage.accounts >= billing.usage.maxAccounts && (
+          {billing.usage.institutions >= billing.usage.maxInstitutions && (
             <p className="mt-2.5 text-[12.5px] font-medium text-content-muted">
-              {overLimit
-                ? "Some accounts are frozen. "
-                : "You've reached your plan limit. "}
-              <button
-                type="button"
-                className="ui-focus rounded-ui-sm font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2 hover:opacity-80"
-                onClick={handleUpgrade}
-              >
-                {overLimit ? "Upgrade to sync them all" : "Upgrade for unlimited"}
-              </button>
+              {overLimit ? (
+                <>
+                  {`${frozenInstitutions} institution${frozenInstitutions === 1 ? " is" : "s are"} frozen and not syncing. `}
+                  <button
+                    type="button"
+                    className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2 hover:opacity-80"
+                    onClick={handleUpgrade}
+                  >
+                    Upgrade to sync them all
+                  </button>
+                  {", or disconnect an institution you no longer use to free its slot."}
+                </>
+              ) : (
+                <>
+                  {"You've reached your plan limit. "}
+                  <button
+                    type="button"
+                    className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2 hover:opacity-80"
+                    onClick={handleUpgrade}
+                  >
+                    Upgrade for 50 institutions
+                  </button>
+                </>
+              )}
             </p>
           )}
         </div>
@@ -1203,7 +1225,6 @@ export function Accounts() {
                 onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Unknown Bank")}
                 allAccounts={allAccounts}
                 isFree={isFree}
-                overLimit={overLimit}
                 onEstimateResolved={() => loadItems(false)}
               />
             ))}
@@ -1233,7 +1254,6 @@ export function Accounts() {
                 onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
                 allAccounts={allAccounts}
                 isFree={isFree}
-                overLimit={overLimit}
                 onEstimateResolved={() => loadItems(false)}
               />
             ))}
@@ -1783,7 +1803,6 @@ function InstitutionArticle({
   onDisconnect,
   allAccounts,
   isFree,
-  overLimit,
   onEstimateResolved,
 }: {
   refCallback: (el: HTMLElement | null) => void;
@@ -1800,12 +1819,17 @@ function InstitutionArticle({
   onDisconnect: () => void;
   allAccounts: Account[];
   isFree: boolean;
-  overLimit: boolean;
   onEstimateResolved: () => void;
 }) {
   const isError = isItemError(item);
+  // The limit is per institution, so a frozen institution is frozen whole. Say so
+  // on the header — "Synced 1d ago" on an institution that stopped syncing is a
+  // lie — and then the rows beneath don't have to repeat it.
+  const allFrozen = item.accounts.length > 0 && item.accounts.every((a) => a.frozen === true);
   const statusLabel = isManual
     ? "Manual entry"
+    : allFrozen
+    ? "Frozen, not syncing"
     : isError
     ? "Needs attention"
     : item.lastSyncedAt
@@ -1856,8 +1880,17 @@ function InstitutionArticle({
             {institutionName}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-content-muted">
-            <span className={cn("inline-flex items-center gap-1 font-semibold", isError && "text-caution")}>
-              {isError && <AlertTriangle size={11} strokeWidth={2.4} aria-hidden="true" />}
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 font-semibold",
+                allFrozen ? "text-info" : isError && "text-caution",
+              )}
+            >
+              {allFrozen ? (
+                <Lock size={11} strokeWidth={2.4} aria-hidden="true" />
+              ) : isError ? (
+                <AlertTriangle size={11} strokeWidth={2.4} aria-hidden="true" />
+              ) : null}
               {statusLabel}
             </span>
             <span>{item.accounts.length} account{item.accounts.length === 1 ? "" : "s"}</span>
@@ -1899,7 +1932,7 @@ function InstitutionArticle({
                 <AccountRow
                   key={account.id}
                   account={account}
-                  overLimit={overLimit}
+                  institutionFrozen={allFrozen}
                   lastSyncedAt={item.lastSyncedAt}
                   onEstimateResolved={onEstimateResolved}
                   linkedAccountName={account.propertyAccountId
@@ -1912,14 +1945,18 @@ function InstitutionArticle({
 
           {!isDemoMode && !isManual && (
             <div className="flex flex-wrap items-center gap-1 border-t border-line px-4 py-2.5 sm:px-5">
-              <button
-                type="button"
-                onClick={onAddAccounts}
-                className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-softer"
-              >
-                <Plus size={14} />
-                Add accounts
-              </button>
+              {/* Adding accounts to a frozen institution does nothing for the
+                  user: they would freeze too. Disconnecting is the useful action. */}
+              {!allFrozen && (
+                <button
+                  type="button"
+                  onClick={onAddAccounts}
+                  className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-softer"
+                >
+                  <Plus size={14} />
+                  Add accounts
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onDisconnect}
@@ -1942,8 +1979,10 @@ function InstitutionArticle({
 // there); no per-row overflow menu.
 // ---------------------------------------------------------------------------
 
-function AccountRow({ account, overLimit, linkedAccountName, lastSyncedAt, onEstimateResolved }: {
-  account: Account; overLimit: boolean;
+function AccountRow({ account, institutionFrozen, linkedAccountName, lastSyncedAt, onEstimateResolved }: {
+  account: Account;
+  /** The whole institution is frozen and its header says so — don't repeat it. */
+  institutionFrozen: boolean;
   linkedAccountName: string | null;
   /** Institution-level last-sync ISO — feeds the "Synced" badge hover tooltip. */
   lastSyncedAt: string | null;
@@ -1952,6 +1991,7 @@ function AccountRow({ account, overLimit, linkedAccountName, lastSyncedAt, onEst
   const balance = account.balance !== null ? parseFloat(account.balance) : null;
   const isNegative = balance !== null && balance < 0;
   const isFrozen = account.frozen === true;
+  const showFrozen = isFrozen && !institutionFrozen;
   const [, setLocation] = useLocation();
   const openSettings = () => setLocation("/accounts/" + account.id);
 
@@ -1997,7 +2037,7 @@ function AccountRow({ account, overLimit, linkedAccountName, lastSyncedAt, onEst
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          {isFrozen && <Lock size={12} className="shrink-0 text-content-muted" />}
+          {showFrozen && <Lock size={12} className="shrink-0 text-content-muted" />}
           <span className="truncate text-[14.5px] font-bold leading-tight" title={stripAccountMask(account.name, account.mask)}>
             {stripAccountMask(account.name, account.mask)}
           </span>
@@ -2022,15 +2062,11 @@ function AccountRow({ account, overLimit, linkedAccountName, lastSyncedAt, onEst
               (isNegative ? "−" : "") + formatCurrency(String(Math.abs(balance)), account.currency)
             )}
           </div>
-          {isFrozen ? (
+          {showFrozen ? (
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
               <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
             </span>
-          ) : overLimit ? (
-            <span className="mt-1 inline-flex items-center rounded-full bg-positive-soft px-2 py-0.5 text-[11px] font-bold text-positive">
-              Active
-            </span>
-          ) : estimating ? (
+          ) : isFrozen ? null : estimating ? (
             <span
               role="status"
               aria-live="polite"

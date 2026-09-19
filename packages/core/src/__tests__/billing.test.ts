@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   PLAN_LIMITS,
   FREE_MODEL_LEVEL,
-  maxAccounts,
+  maxInstitutions,
   canManualSync,
   isModelAllowed,
   allowedModelLevels,
@@ -11,9 +11,14 @@ import {
 } from "../billing.js";
 
 describe("billing policy", () => {
-  it("free allows 3 accounts, pro allows 50", () => {
-    assert.equal(maxAccounts("free"), 3);
-    assert.equal(maxAccounts("pro"), 50);
+  it("free allows 2 institutions, pro allows 50", () => {
+    assert.equal(maxInstitutions("free"), 2);
+    assert.equal(maxInstitutions("pro"), 50);
+  });
+
+  it("exposes the institution cap on PLAN_LIMITS itself", () => {
+    assert.equal(PLAN_LIMITS.free.maxInstitutions, 2);
+    assert.equal(PLAN_LIMITS.pro.maxInstitutions, 50);
   });
 
   it("only pro can manual sync", () => {

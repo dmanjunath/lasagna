@@ -313,7 +313,7 @@ export const accounts = pgTable("accounts", {
   excludeFromNetWorth: boolean("exclude_from_net_worth").notNull().default(false),
   excludeTransactions: boolean("exclude_transactions").notNull().default(false),
   invertBalance: boolean("invert_balance").notNull().default(false), // flip the sign of the balance at point of use
-  // Over the tenant's plan account limit → read-only: not synced, shown locked.
+  // At an institution beyond the tenant's plan limit → read-only: not synced, shown locked.
   frozen: boolean("frozen").notNull().default(false),
   // Credit cards only: the user designates the card as paid in full every month.
   // A fallback for banks that do not report statement/payment data — it makes the

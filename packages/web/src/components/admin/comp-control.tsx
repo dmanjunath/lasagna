@@ -63,7 +63,7 @@ export function CompControl({ tenantId, email, comped, onDone }: {
       <Modal open={confirming} onClose={() => setConfirming(false)} title={comped ? 'Revoke complimentary Pro?' : 'Grant complimentary Pro?'}>
         <p className="text-[13.5px] text-content-secondary leading-[1.55]">
           {comped ? (
-            <>Remove complimentary Pro from <b className="text-content">{email}</b>? Pro features stop immediately and accounts over the free limit are frozen again.</>
+            <>Remove complimentary Pro from <b className="text-content">{email}</b>? Pro features stop immediately and accounts at institutions past the Free plan limit are frozen again.</>
           ) : (
             <>Give <b className="text-content">{email}</b> Pro free for <b className="text-content ui-tnum">{parsedDays} days</b>? It expires on its own and does not affect Stripe billing.</>
           )}

@@ -1486,13 +1486,13 @@ function DeleteAccountCard() {
 // ─── Plan & billing ──────────────────────────────────────────────────────────
 
 const PRO_FEATURES = [
-  "50 connected accounts",
+  "50 connected institutions",
   'Manual "Sync now"',
   "Premium AI models",
 ];
 
 const FREE_FEATURES = [
-  "3 connected accounts",
+  "2 connected institutions",
   "Daily auto-sync",
   "Basic AI model",
 ];

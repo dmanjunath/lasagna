@@ -353,7 +353,8 @@ export async function syncItem(itemId: string): Promise<void> {
       .set({ lastSyncedAt: new Date() })
       .where(eq(plaidItems.id, item.id));
 
-    // Enforce the tenant's account limit (oldest stay active, newest freeze).
+    // Enforce the tenant's institution limit (accounts at the oldest
+    // institutions stay active, the rest freeze).
     // In its own try so an enforcement failure can't flip the already-succeeded
     // sync to "error". Runs in syncItem (not syncAllForTenant) so the initial
     // connect path covers it; the cron's per-item redundancy is idempotent/cheap.

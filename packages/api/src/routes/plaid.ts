@@ -186,11 +186,11 @@ plaidRoutes.post("/webhook", async (c) => {
 plaidRoutes.get("/items", async (c) => {
   const session = c.get("session");
 
-  // Keep freeze state current on every read: free tenants keep their oldest
-  // `maxAccounts` active and freeze the rest. Idempotent (only writes on
-  // change), so this is a no-op once settled — but it ensures the
-  // active/frozen split is correct even for tenants that haven't synced since
-  // the limit was introduced.
+  // Keep freeze state current on every read: free tenants keep accounts at
+  // their oldest `maxInstitutions` institutions active and freeze the rest.
+  // Idempotent (only writes on change), so this is a no-op once settled — but
+  // it ensures the active/frozen split is correct even for tenants that
+  // haven't synced since the limit was introduced.
   const plan = await resolveTenantPlan(session.tenantId);
   await recomputeFrozenAccounts(session.tenantId, plan);
 
