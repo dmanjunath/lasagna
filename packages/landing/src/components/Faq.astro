@@ -10,73 +10,68 @@
 
     <div class="faq rv">
       <details class="faq-item" open>
-        <summary>What does LasagnaFi do?</summary>
-        <p>It reads the accounts you connect and gives you a ranked list of what to do with your money next, each one carrying the figure that makes it worth doing. Open an action to see why it is there and the transactions behind it, or ask about it in chat.</p>
-      </details>
-
-      <details class="faq-item">
         <summary>What do I need to do to get started?</summary>
-        <p>Sign up with your email, answer a short profile step (your name, your income, and how much risk you are comfortable with), then connect one account. That is enough for LasagnaFi to generate your first actions. No card is asked for, and you can add more accounts whenever you want.</p>
+        <p>Sign up with your email, fill in a short profile (your name, your income, and how much risk you are comfortable with), then connect your accounts.</p>
       </details>
 
       <details class="faq-item">
         <summary>Which accounts can I connect?</summary>
-        <p>Banks, credit cards, brokerages, retirement accounts and loans at US institutions, through Plaid. For anything Plaid does not reach, such as a house or a private account, you can enter the balance by hand and it counts towards your net worth like any other account.</p>
+        <p>Banks, credit cards, brokerages, retirement accounts and loans at US institutions, through Plaid. For a house, enter the address and LasagnaFi looks up a value estimate for it, or enter your own figure and it keeps that instead. If no estimate comes back, or Plaid does not reach an account at all, you enter the value by hand and it counts towards your net worth like any other account.</p>
       </details>
 
       <details class="faq-item">
         <summary>Can LasagnaFi move my money?</summary>
-        <p>No. The connection Plaid opens is read only, covering balances, holdings and transactions, and it carries no payment or transfer permission. To move money you sign in at your own bank, the same way you do today.</p>
+        <p>No. The connection Plaid opens is read only, so nothing here can make a payment or a transfer. Moving money is something you do at your own bank.</p>
       </details>
 
       <details class="faq-item">
         <summary>Do you see my bank password?</summary>
-        <p>No. That stays between you and Plaid. Plaid opens its own window for the bank login and hands back balances and transactions, so the password does not reach us.</p>
+        <p>No. The bank login happens in a window Plaid opens, so the password does not reach us.</p>
+      </details>
+
+      <details class="faq-item">
+        <summary>How does LasagnaFi use AI?</summary>
+        <p>A model writes the explanation behind an action, and the reply when you ask about it in chat. Chat answers from your own accounts and transactions rather than from general knowledge. Ways to spend less are found by code reading your transactions, and the step each one asks you to take comes from a fixed list rather than from a model. It is not allowed to quote a price or a rate for another company.</p>
       </details>
 
       <details class="faq-item">
         <summary>What does the AI see?</summary>
-        <p>Your balances, rates, dates and transaction descriptions, with your name and your account names swapped for tokens, your account numbers stripped, and the bank they sit at left out. Chat, insights and the planning tools run through one function that does that swap. Two things skip it, because they cannot be tokenized and still work: a document you upload, and text you paste in to import.</p>
+        <p>Your balances, rates, dates and transaction descriptions. It does not see your name, your email, your account numbers, or the names on your accounts. Two things are exceptions, because they cannot work any other way: a document you upload, and text you paste in to import.</p>
       </details>
 
       <details class="faq-item">
         <summary>What about a tax document I upload?</summary>
-        <p>A photo or PDF cannot be tokenized, because the model reads the image of the page. Anything printed on it, including your name and Social Security number, is visible to it. Those documents go to a model inside our own Google Cloud project rather than to an outside AI company, and Google's terms forbid training on them. We delete the file once it has been read, and keep the figures from it.</p>
+        <p>A photo or PDF cannot be anonymized. Anything printed on it, including your name and your Social Security number, is visible to the model that reads it. We delete the file once it has been read, and keep the figures from it.</p>
       </details>
 
       <details class="faq-item">
         <summary>Who else gets my data?</summary>
-        <p>The services that make the app run, each getting what its job needs: Plaid for the account connection, WorkOS for sign-in, Stripe for payment, Google Cloud for the servers, OpenRouter for the AI models, and Umami for anonymous usage counts. Our privacy policy has the current list. No advertiser is on it, and nothing is sold.</p>
+        <p>The services that run the app: Plaid for the account connection, WorkOS for sign-in, Stripe for payment, Google Cloud for the servers, OpenRouter for the AI models, and Umami for anonymous usage counts. Our privacy policy has the current list. No advertiser is on it, and nothing is sold.</p>
       </details>
 
       <details class="faq-item">
         <summary>What happens when I delete my account?</summary>
-        <p>The account owner has a Delete account button in Settings, and does not need to email anyone. It cancels any subscription, disconnects your banks at Plaid, and removes your accounts, transactions, chat history and uploaded figures. Backups roll off after that, and Plaid and Stripe keep their own records under their own policies.</p>
+        <p>The account owner has a Delete account button in Settings. It cancels any subscription, disconnects your banks at Plaid, and removes your accounts, transactions, chat history and uploaded figures. Backups roll off after that, and Plaid and Stripe keep their own records under their own policies.</p>
       </details>
 
       <details class="faq-item">
         <summary>Is this financial advice?</summary>
-        <p>No. LasagnaFi is not a registered investment advisor, and nothing in it is financial, investment, tax or legal advice. It shows you your own numbers, ranks what looks worth doing, and lays out the assumptions a projection rests on so you can check them. For a decision that matters, talk to a licensed professional.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>What does the free plan include?</summary>
-        <p>Up to <b>2</b> connected institutions, every planning tool including tax and retirement, and chat on the standard model. Your accounts refresh once a day. Accounts you enter by hand do not use up a slot.</p>
+        <p>No. LasagnaFi is not a registered investment advisor, and nothing in it is financial, investment, tax or legal advice. For a decision that matters, talk to a licensed professional.</p>
       </details>
 
       <details class="faq-item">
         <summary>Does the free plan run out?</summary>
-        <p>No, it is not a trial. If you connect more institutions than your plan covers, the ones past the limit stop refreshing instead of disappearing, and they start again the moment you upgrade.</p>
+        <p>No, it is not a trial. If you connect more institutions than your plan covers, the ones past the limit keep their last known balance instead of disappearing, and they update again when you upgrade. Accounts you enter by hand do not use up a slot.</p>
       </details>
 
       <details class="faq-item">
         <summary>Is there an app for my phone?</summary>
-        <p>The hosted app runs in your phone's browser, with a layout built for that size, so there is nothing to install.</p>
+        <p>The hosted app runs in your phone's browser, so there is nothing to install.</p>
       </details>
 
       <details class="faq-item">
         <summary>Can I run it myself?</summary>
-        <p>Yes. The whole app is MIT licensed on GitHub and runs on Docker, with your data on your own server. You supply your own Plaid and AI keys.</p>
+        <p>Yes. The app is MIT licensed on GitHub and runs on Docker. You supply your own Plaid and AI keys.</p>
       </details>
     </div>
   </div>
