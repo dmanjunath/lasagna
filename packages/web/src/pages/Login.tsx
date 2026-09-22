@@ -21,6 +21,11 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false); // signup: reveal optional password
+  // Set when the server rejects a signup for a missing password. Local auth
+  // mode requires one while WorkOS mode does not, and the logged-out client
+  // has no way to read which mode the server is in, so it learns from the
+  // rejection rather than leaving "optional" on screen next to "required".
+  const [passwordRequired, setPasswordRequired] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,6 +45,10 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
       setError("Cannot reach the server. Please check your connection.");
     } else if (err instanceof Error) {
       setError(err.message);
+      // An error that names the password is unreadable while the field is still
+      // collapsed behind "Set a password (optional)": the user is told a field
+      // is required and cannot see it. Reveal it and put the cursor in it.
+      if (/password/i.test(err.message)) { setPasswordRequired(true); setShowPassword(true); }
     } else {
       setError("Something went wrong. Please try again.");
     }
@@ -147,6 +156,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
     setError("");
     setPassword("");
     setShowPassword(false);
+    setPasswordRequired(false);
     setStep("email");
     setAcceptedTos(false);
     setAcceptedPrivacy(false);
@@ -196,9 +206,16 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
                 Lasagna<span className="text-brand">Fi</span>
               </h1>
             </div>
-            <p className="mt-1 text-[13.5px] sm:text-[14px] text-content-secondary">
-              {isSignup ? "Create your account. Personal finance, layered." : "Welcome back. Let's check on your money."}
-            </p>
+            {/* Signup carries no subtitle, and renders none rather than an
+                empty one that still takes its line box. Everything it could say
+                is already said by the fields and the button, and most people
+                arrive here straight off the marketing site, which has just
+                explained the product. "Welcome back" is true only of login. */}
+            {!isSignup && (
+              <p className="mt-1 text-[13.5px] sm:text-[14px] text-content-secondary">
+                Welcome back. Let's check on your money.
+              </p>
+            )}
           </div>
 
           {isDemo && (
@@ -263,21 +280,32 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
                 onClick={() => setShowPassword(true)}
                 className="text-sm text-brand hover:text-brand-hover underline underline-offset-2"
               >
-                Set a password (optional)
+                {passwordRequired ? "Set a password" : "Set a password (optional)"}
               </button>
             )}
 
             {passwordVisible && (
-              <Field label="Password" hint={isSignup ? "Optional, at least 10 characters" : undefined}>
+              <Field
+                label="Password"
+                hint={
+                  isSignup
+                    ? passwordRequired
+                      ? "At least 10 characters"
+                      : "Optional, at least 10 characters"
+                    : undefined
+                }
+              >
                 <Input
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required={!isSignup}
+                  required={!isSignup || passwordRequired}
                   minLength={isSignup ? 10 : 6}
                   autoComplete={isSignup ? "new-password" : "current-password"}
-                  autoFocus={!isSignup && !isDemo}
+                  // Mounts the moment signup reveals the field, so this lands the
+                  // cursor in it whether the user opened it or an error did.
+                  autoFocus={(!isSignup && !isDemo) || (isSignup && showPassword)}
                 />
               </Field>
             )}

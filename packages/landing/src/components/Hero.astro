@@ -1,5 +1,5 @@
 ---
-import { APP_URL, GITHUB_URL } from "../config";
+import { SIGNUP_URL, GITHUB_URL } from "../config";
 import Icon from "./Icon.astro";
 
 // One action on screen at a time. The demo completes it and brings up the next,
@@ -16,7 +16,7 @@ import { ACTIONS as actions } from "../demo-data";
       Not just a budgeting app, LasagnaFi guides you along your financial journey.
     </p>
     <div class="hero-cta">
-      <a class="btn btn-primary btn-lg" href={APP_URL}>Get started for free <Icon name="arrow" size={17} /></a>
+      <a class="btn btn-primary btn-lg" href={SIGNUP_URL}>Get started for free <Icon name="arrow" size={17} /></a>
       <a class="btn btn-ghost btn-lg" href={GITHUB_URL}><Icon name="github" size={17} /> See the source code</a>
     </div>
   </div>

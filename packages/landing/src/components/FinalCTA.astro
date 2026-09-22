@@ -1,5 +1,5 @@
 ---
-import { APP_URL, GITHUB_URL } from "../config";
+import { SIGNUP_URL, GITHUB_URL } from "../config";
 import WaveMark from "./WaveMark.astro";
 import Icon from "./Icon.astro";
 ---
@@ -11,7 +11,7 @@ import Icon from "./Icon.astro";
     <h2 class="display">See your next move in five minutes.</h2>
     <p>Connect one account and LasagnaFi generates your first list of actions in about five minutes. Free to start, and open source if you would rather self-host.</p>
     <div class="hero-cta">
-      <a class="btn btn-primary btn-lg" href={APP_URL}>Get started for free <Icon name="arrow" size={17} /></a>
+      <a class="btn btn-primary btn-lg" href={SIGNUP_URL}>Get started for free <Icon name="arrow" size={17} /></a>
       <a class="btn btn-ghost btn-lg" href={GITHUB_URL}><Icon name="github" size={17} /> See the source code</a>
     </div>
   </div>

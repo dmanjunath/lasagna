@@ -132,8 +132,11 @@ function AppRoutes() {
     return <BootCover />;
   }
 
+  // /signup opens the create-account form directly. Every "Get started" on the
+  // marketing site points here, so arriving strangers must not land on a form
+  // that greets them as returning users.
   if (!user) {
-    return <Login />;
+    return <Login defaultSignup={location.startsWith('/signup')} />;
   }
 
   // Consent gate — relies on hasAcceptedTerms from /me (AuthProvider), not the
@@ -234,6 +237,9 @@ function AppRoutes() {
                     {/* Other redirects */}
                     <Route path="/actions"><Redirect to="/insights" /></Route>
                     <Route path="/login"><Redirect to="/" /></Route>
+                    {/* Signed in already, so the marketing site's entry point
+                        has nothing left to do. */}
+                    <Route path="/signup"><Redirect to="/" /></Route>
                     <Route path="/priorities"><Redirect to="/financial-level" /></Route>
                     <Route path="/tax-history"><Redirect to="/tax" /></Route>
                     <Route path="/settings"><Redirect to="/profile" /></Route>

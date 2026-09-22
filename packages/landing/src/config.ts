@@ -13,4 +13,8 @@ export const UMAMI_WEBSITE_ID: string | null =
 
 export const GITHUB_URL = "https://github.com/dmanjunath/lasagna";
 export const APP_URL = "https://app.lasagnafi.com";
+// Every call to action on this site is aimed at someone who does not have an
+// account yet, so they go here rather than to APP_URL, which opens the sign-in
+// form and greets a first-time visitor with "Welcome back".
+export const SIGNUP_URL = `${APP_URL}/signup`;
 export const DEMO_URL = "https://demo.lasagnafi.com";
