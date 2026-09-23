@@ -591,11 +591,15 @@ export function Goals() {
           <div className="mt-8">
             <EmptyState
               icon={<Target className="h-8 w-8" />}
-              title="No goals yet"
-              description="Setting financial goals is the first step toward achieving them. Create a goal to start tracking your progress."
+              title={completedGoals.length > 0 ? 'No active goals' : 'No goals yet'}
+              description={
+                completedGoals.length > 0
+                  ? 'Everything you have set is finished. Start another whenever you are ready.'
+                  : 'Setting financial goals is the first step toward achieving them. Create a goal to start tracking your progress.'
+              }
               action={!isDemo ? (
                 <Button onClick={() => setShowCreate(true)} leadingIcon={<Plus className="h-4 w-4" />}>
-                  Create your first goal
+                  {completedGoals.length > 0 ? 'Create a goal' : 'Create your first goal'}
                 </Button>
               ) : undefined}
             />
@@ -669,67 +673,57 @@ export function Goals() {
         </section>
       )}
 
-      {/* ════════ Completed archive ════════ */}
-      {!loading && (
+      {/* ════════ Completed archive ════════
+          Nothing at all yet means the page already says so once, above, with
+          the one action that changes it. A second panel headed "Completed",
+          holding only a note that there is nothing completed, is a heading, a
+          label and two lines of copy that together tell the user nothing they
+          did not just read. Gated on the completed list, not on having any goals
+          at all: a user months into active goals with none finished yet is the
+          normal case, and the panel says exactly as little to them. */}
+      {!loading && completedGoals.length > 0 && (
         <section className="mt-12">
-          <div className="flex items-end justify-between gap-4">
-            <h2 className="text-[18px] font-semibold text-content">Completed</h2>
-            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">
-              {completedGoals.length > 0 ? `${completedGoals.length} archived` : 'archive'}
-            </span>
-          </div>
-          {completedGoals.length > 0 ? (
-            <ul className="mt-3">
-              {completedGoals.map((goal) => {
-                // Honest archive: show what was actually saved, and only claim
-                // "reached" when the goal really hit its target.
-                const saved = parseFloat(goal.currentAmount);
-                const tgt = parseFloat(goal.targetAmount);
-                const reached = tgt > 0 && saved >= tgt;
-                const closedPct = tgt > 0 ? Math.round((saved / tgt) * 100) : 0;
-                // Skip the category when it just repeats the goal's name
-                // ("Emergency fund / Reached. Emergency fund").
-                const category = goal.category ? goal.category.replace(/_/g, ' ') : null;
-                const showCategory = category && category.toLowerCase() !== goal.name.trim().toLowerCase();
-                return (
-                  <li
-                    key={goal.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Open ${goal.name}`}
-                    onClick={() => open(goal.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(goal.id); } }}
-                    className="group flex items-center gap-3 border-t border-line py-3.5 cursor-pointer min-h-touch focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                  >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
-                      {iconFor(goal.icon, 16)}
+          <h2 className="text-[18px] font-semibold text-content">Completed</h2>
+          <ul className="mt-3">
+            {completedGoals.map((goal) => {
+              // Honest archive: show what was actually saved, and only claim
+              // "reached" when the goal really hit its target.
+              const saved = parseFloat(goal.currentAmount);
+              const tgt = parseFloat(goal.targetAmount);
+              const reached = tgt > 0 && saved >= tgt;
+              const closedPct = tgt > 0 ? Math.round((saved / tgt) * 100) : 0;
+              // Skip the category when it just repeats the goal's name
+              // ("Emergency fund / Reached. Emergency fund").
+              const category = goal.category ? goal.category.replace(/_/g, ' ') : null;
+              const showCategory = category && category.toLowerCase() !== goal.name.trim().toLowerCase();
+              return (
+                <li
+                  key={goal.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${goal.name}`}
+                  onClick={() => open(goal.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(goal.id); } }}
+                  className="group flex items-center gap-3 border-t border-line py-3.5 cursor-pointer min-h-touch focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
+                    {iconFor(goal.icon, 16)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-semibold text-content-muted">{goal.name}</span>
+                    <span className="text-[11.5px] font-semibold text-content-muted">
+                      {reached ? 'Reached' : `Completed at ${closedPct}%`}
+                      {showCategory && <>. {category.replace(/^./, (c) => c.toUpperCase())}</>}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] font-semibold text-content-muted">{goal.name}</span>
-                      <span className="text-[11.5px] font-semibold text-content-muted">
-                        {reached ? 'Reached' : `Completed at ${closedPct}%`}
-                        {showCategory && <>. {category.replace(/^./, (c) => c.toUpperCase())}</>}
-                      </span>
-                    </span>
-                    <span className="text-[13px] font-bold text-content-muted ui-tnum">
-                      {formatCurrency(saved)}
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div className="mt-3 flex items-center gap-3 border-t border-line py-3.5 opacity-70">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-muted">
-                <Target className="h-4 w-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[14px] font-semibold text-content-muted">No completed goals yet</span>
-                <span className="text-[11.5px] font-semibold text-content-muted">finished goals will land here as a record</span>
-              </span>
-            </div>
-          )}
+                  </span>
+                  <span className="text-[13px] font-bold text-content-muted ui-tnum">
+                    {formatCurrency(saved)}
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
     </div>

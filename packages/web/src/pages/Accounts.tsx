@@ -197,7 +197,7 @@ const ADD_OPTIONS: AddOption[] = [
   },
   {
     label: "Other",
-    hint: "Jewellery, watches, cars & more",
+    hint: "Jewelry, watches, cars & more",
     emoji: "💎",
     route: "manual",
     types: accountTypesIn("other"),
