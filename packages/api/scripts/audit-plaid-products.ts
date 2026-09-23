@@ -13,7 +13,7 @@
  */
 
 if (!process.env.DATABASE_URL) {
-  console.error("DATABASE_URL is required, e.g. DATABASE_URL=postgresql://user:pass@localhost:5432/lasagna");
+  console.error("DATABASE_URL is required, e.g. DATABASE_URL=postgresql://user:pass@localhost:5439/lasagna");
   process.exit(1);
 }
 

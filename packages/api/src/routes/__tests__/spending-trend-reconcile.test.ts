@@ -10,11 +10,11 @@
  * summation: the trend would report 880.00 where the summary reports 750.00.
  *
  * Requires a running Postgres reachable via DATABASE_URL. Run from the repo root:
- *   DATABASE_URL=postgresql://lasagna:lasagna@localhost:5432/lasagna \
+ *   DATABASE_URL=postgresql://lasagna:lasagna@localhost:5439/lasagna \
  *     pnpm -F @lasagna/api test spending-trend-reconcile
  *
  * The default .env DATABASE_URL uses the docker-internal host `db:5432`, which
- * isn't resolvable from a host-run test — point DATABASE_URL at localhost:5432.
+ * isn't resolvable from a host-run test — point DATABASE_URL at localhost:5439.
  * If the DB is unreachable the tests self-skip (they do not fail), so a run
  * without a DB stays green.
  *

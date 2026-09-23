@@ -5,7 +5,7 @@
  * Happy-path test: requires a seeded DB at DATABASE_URL. Self-skips if absent.
  *
  * Run:
- *   cd packages/api && DATABASE_URL=postgresql://lasagna:lasagna@localhost:5432/lasagna \
+ *   cd packages/api && DATABASE_URL=postgresql://lasagna:lasagna@localhost:5439/lasagna \
  *     npx vitest run retirement-sim
  */
 

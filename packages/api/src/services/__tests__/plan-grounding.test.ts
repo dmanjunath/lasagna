@@ -7,11 +7,11 @@ import { resolvePersonContext } from "../plan-grounding.js";
 // Requires a running, seeded Postgres reachable via DATABASE_URL. Run from the
 // repo root:
 //   pnpm db:seed
-//   DATABASE_URL=postgresql://lasagna:lasagna@localhost:5432/lasagna \
+//   DATABASE_URL=postgresql://lasagna:lasagna@localhost:5439/lasagna \
 //     pnpm -F @lasagna/api test plan-grounding
 //
 // The default .env DATABASE_URL uses the docker-internal host `db:5432`, which
-// isn't resolvable from a host-run test — point DATABASE_URL at localhost:5432.
+// isn't resolvable from a host-run test — point DATABASE_URL at localhost:5439.
 // If the DB is unreachable or no seeded tenant has a real-estate account, the
 // suite self-skips (it does not fail) so CI without a DB stays green.
 //

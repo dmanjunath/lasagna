@@ -8,7 +8,7 @@ import { createSimulationTools } from "../tools/simulation.js";
 
 // ── DB integration ────────────────────────────────────────────────────────────
 // Requires a running, seeded Postgres reachable via DATABASE_URL.
-//   DATABASE_URL=postgresql://lasagna:lasagna@localhost:5432/lasagna \
+//   DATABASE_URL=postgresql://lasagna:lasagna@localhost:5439/lasagna \
 //     cd packages/api && npx vitest run simulation-tools
 //
 // Self-skips if no DB reachable so CI without a DB stays green.
