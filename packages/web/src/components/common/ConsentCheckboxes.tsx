@@ -18,7 +18,7 @@ export function ConsentCheckboxes({
           type="checkbox"
           checked={values.acceptedTos}
           onChange={(e) => onChange("acceptedTos", e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
+          className="ui-focus mt-0.5 h-4 w-4 rounded-[4px] accent-[rgb(var(--ui-brand))]"
         />
         <span className="text-content-secondary leading-snug">
           I agree to the{" "}
@@ -37,7 +37,7 @@ export function ConsentCheckboxes({
           type="checkbox"
           checked={values.acceptedPrivacy}
           onChange={(e) => onChange("acceptedPrivacy", e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
+          className="ui-focus mt-0.5 h-4 w-4 rounded-[4px] accent-[rgb(var(--ui-brand))]"
         />
         <span className="text-content-secondary leading-snug">
           I agree to the{" "}
@@ -56,7 +56,7 @@ export function ConsentCheckboxes({
           type="checkbox"
           checked={values.acceptedNotRia}
           onChange={(e) => onChange("acceptedNotRia", e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-[rgb(var(--ui-brand))]"
+          className="ui-focus mt-0.5 h-4 w-4 rounded-[4px] accent-[rgb(var(--ui-brand))]"
         />
         <span className="text-content-secondary leading-snug">
           I understand that LasagnaFi is <strong className="font-semibold text-content">not a registered

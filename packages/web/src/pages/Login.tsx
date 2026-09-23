@@ -89,6 +89,10 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
 
   // Password sign-in (login password step, or demo combined form).
   const handlePasswordLogin = async () => {
+    if (!password) {
+      setError("Password is required");
+      return;
+    }
     setLoading(true);
     try {
       const res = await login(email, password);
@@ -124,6 +128,16 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
       setError("Please accept all agreements before creating an account.");
       return;
     }
+    // The server told us once already that this deployment needs a password.
+    if (passwordRequired && !password) {
+      setError("Password is required");
+      setShowPassword(true);
+      return;
+    }
+    if (password && password.length < 10) {
+      setError("Password must be at least 10 characters");
+      return;
+    }
     setLoading(true);
     try {
       const res = await signup(email, password, name || undefined, { acceptedTos, acceptedPrivacy, acceptedNotRia });
@@ -140,6 +154,17 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    // The browser used to do this. noValidate turned it off for every field at
+    // once, and the server does not check the format either: normalizeEmail only
+    // trims and lowercases, so "abc" was accepted as an address.
+    if (!email.trim()) {
+      setError("Email is required");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Enter a valid email address");
+      return;
+    }
     if (isSignup) return handleSignup();
     if (isDemo || step === "password") return handlePasswordLogin();
     return handleEmailContinue();
@@ -152,6 +177,11 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
   };
 
   const toggleSignup = () => {
+    // Keep the address bar honest. Without this, switching to sign-in on
+    // /signup leaves the URL saying signup, and a reload throws the user back
+    // onto the form they just left. Outside the updater: StrictMode may call
+    // that twice, and navigation is not something to do twice.
+    navigate(isSignup ? "/" : "/signup", { replace: true });
     setIsSignup((v) => !v);
     setError("");
     setPassword("");
@@ -177,6 +207,14 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
     !!window.PublicKeyCredential &&
     hasRegisteredPasskey();
   const showSocial = !isDemo && (isSignup || step === "email") && (showGoogle || showPasskey);
+
+  // An error belonging to a field: the field shows it and paints itself invalid,
+  // and the banner below stays quiet rather than saying the same sentence twice.
+  // Gated on passwordVisible, not showPassword, because the latter is a
+  // signup-only reveal flag and this has to work on the login step too.
+  const passwordFieldError =
+    passwordVisible && /^Password (is required|must be)/.test(error) ? error : undefined;
+  const emailFieldError = /^(Email is required|Enter a valid email)/.test(error) ? error : undefined;
 
   const submitLabel = loading
     ? "Processing…"
@@ -235,7 +273,10 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          {/* noValidate: every check below reports through the styled Field and
+              banner. Left on, the browser speaks too, in its own chrome and its
+              own words, over the top of ours. */}
+          <form onSubmit={handleSubmit} noValidate className="space-y-3">
             {isSignup && (
               <Field label="Name" hint={requireName ? undefined : "Optional"}>
                 <Input
@@ -248,14 +289,14 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               </Field>
             )}
 
-            <Field label="Email">
+            <Field label="Email" error={emailFieldError} alert>
               <Input
                 type="email"
                 enterKeyHint="go"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                onChange={(e) => { setEmail(e.target.value); if (error) setError(""); }}
+                invalid={!!emailFieldError}
                 autoComplete="email"
                 // On the login password step the email is locked in; edit via the link below.
                 readOnly={!isSignup && !isDemo && step === "password"}
@@ -267,7 +308,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               <button
                 type="button"
                 onClick={resetToLoginEmail}
-                className="-mt-1.5 text-xs text-content-secondary hover:text-content underline underline-offset-2"
+                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-xs text-content-secondary hover:text-content underline underline-offset-2"
               >
                 Use a different email
               </button>
@@ -278,15 +319,22 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               <button
                 type="button"
                 onClick={() => setShowPassword(true)}
-                className="text-sm text-brand hover:text-brand-hover underline underline-offset-2"
+                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-sm text-brand hover:text-brand-hover underline underline-offset-2"
               >
-                {passwordRequired ? "Set a password" : "Set a password (optional)"}
+                Set a password (optional)
               </button>
             )}
 
             {passwordVisible && (
               <Field
                 label="Password"
+                // Field renders this inline, sets aria-invalid and wires
+                // aria-describedby, so the message sits on the control it names
+                // rather than in a banner below three checkboxes. `alert`
+                // because this form validates on submit, with focus on the
+                // button, so describedby alone would never be read out.
+                error={passwordFieldError}
+                alert
                 hint={
                   isSignup
                     ? passwordRequired
@@ -299,9 +347,8 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
                   type="password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required={!isSignup || passwordRequired}
-                  minLength={isSignup ? 10 : 6}
+                  onChange={(e) => { setPassword(e.target.value); if (error) setError(""); }}
+                  invalid={!!passwordFieldError}
                   autoComplete={isSignup ? "new-password" : "current-password"}
                   // Mounts the moment signup reveals the field, so this lands the
                   // cursor in it whether the user opened it or an error did.
@@ -321,8 +368,10 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               />
             )}
 
-            {error && (
-              <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
+            {error && error !== passwordFieldError && error !== emailFieldError && (
+              // Submitting can move focus to the field an error names, so without
+              // this a screen reader is never told what went wrong.
+              <div role="alert" className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
                 <AlertCircle className="w-4 h-4 text-negative flex-shrink-0" />
                 <span className="text-negative text-sm">{error}</span>
               </div>
@@ -345,7 +394,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               <button
                 type="button"
                 onClick={() => navigate("/forgot-password")}
-                className="text-sm text-content-secondary hover:text-content underline underline-offset-2"
+                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-sm text-content-secondary hover:text-content underline underline-offset-2"
               >
                 Forgot password?
               </button>
@@ -354,7 +403,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
                   type="button"
                   onClick={handleEmailACode}
                   disabled={loading}
-                  className="text-sm text-brand hover:text-brand-hover underline underline-offset-2"
+                  className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-sm text-brand hover:text-brand-hover underline underline-offset-2"
                 >
                   Email a code instead ↩
                 </button>
@@ -406,7 +455,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               <button
                 type="button"
                 onClick={toggleSignup}
-                className="text-brand hover:text-brand-hover transition-colors font-medium"
+                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-brand hover:text-brand-hover transition-colors font-medium"
               >
                 {isSignup ? "Sign in" : "Sign up"}
               </button>
