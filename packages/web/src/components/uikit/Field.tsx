@@ -160,6 +160,7 @@ export function Field({
   hint,
   error,
   required,
+  alert = false,
   children,
   className,
 }: {
@@ -168,6 +169,13 @@ export function Field({
   hint?: ReactNode;
   error?: ReactNode;
   required?: boolean;
+  /**
+   * Announce the error the moment it appears, for a field validated on submit
+   * where focus may be on the button rather than the field. Off by default:
+   * most forms here validate as you type, and an assertive region interrupts a
+   * screen reader mid-keystroke, repeatedly, while the user is still typing.
+   */
+  alert?: boolean;
   children: ReactNode;
   className?: string;
 }) {
@@ -196,7 +204,11 @@ export function Field({
       )}
       {control}
       {error ? (
-        <p id={descId} className="flex items-center gap-1.5 text-[12px] font-medium text-negative">
+        <p
+          role={alert ? 'alert' : undefined}
+          id={descId}
+          className="flex items-center gap-1.5 text-[12px] font-medium text-negative"
+        >
           <AlertCircle className="h-3.5 w-3.5" aria-hidden />
           {error}
         </p>

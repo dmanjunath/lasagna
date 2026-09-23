@@ -11,7 +11,11 @@ import { cn } from '../../lib/utils';
 export const button = cva(
   [
     'ui-focus relative inline-flex items-center justify-center gap-2 select-none',
-    'font-semibold whitespace-nowrap rounded-ui-md',
+    // No font weight here. Every variant sets its own, so this only ever
+    // applied to a raw `button({...})` call that skipped cn()/twMerge: source
+    // order let it beat the variant's font-bold and an anchor-as-button came
+    // out 600 while the real <Button> beside it was 700.
+    'whitespace-nowrap rounded-ui-md',
     'transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-ui',
     'disabled:pointer-events-none disabled:opacity-50',
     'active:translate-y-px',

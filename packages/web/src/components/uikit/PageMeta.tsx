@@ -87,7 +87,7 @@ export function PageMetaSkeleton({ widths }: { widths: string[] }) {
     <>
       {widths.map((w, i) => (
         <span key={i} className="inline-flex h-[1.45em] items-center">
-          <Skeleton className={cn('h-3.5 rounded-ui-sm', w)} />
+          <Skeleton as="span" className={cn('h-3.5 rounded-ui-sm', w)} />
         </span>
       ))}
     </>

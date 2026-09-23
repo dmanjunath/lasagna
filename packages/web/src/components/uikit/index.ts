@@ -1,5 +1,5 @@
 // LasagnaFi Design System v3 — public surface.
-export { Button } from './Button';
+export { Button, button } from './Button';
 export type { ButtonProps } from './Button';
 export { Surface, CardHeader } from './Surface';
 export type { SurfaceProps } from './Surface';
