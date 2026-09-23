@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { TrendingUp } from 'lucide-react';
+import { AlertCircle, TrendingUp } from 'lucide-react';
 import { cn, formatStoredDay } from '../../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
-import { HiddenAmount, SegmentedControl } from '../uikit';
+import { HiddenAmount, SegmentedControl, Skeleton } from '../uikit';
 import { filterByRange, type Range, type TrendPoint } from '../ds';
 import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../ds/TrendChart';
 
@@ -217,9 +217,32 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
  */
 export function NetWorthTrendCard({
   history, netWorth, className, titleClassName, defaultRange = '6M', action,
+  historyLoading = false, historyError = false, valueLoading = false,
 }: {
   history: TrendPoint[];
   netWorth: number;
+  /**
+   * History is still in flight. Without this the card meets an empty `history`
+   * and states "Building your trend", which is a claim about the data rather
+   * than about the request, and it is wrong for the seconds before the request
+   * lands. Off by default: a caller that resolves history before mounting the
+   * card never needs it.
+   */
+  historyLoading?: boolean;
+  /**
+   * The history request failed. Without this the card falls back to "Building
+   * your trend", which tells the user they have too little history when in fact
+   * we could not ask. It is the same untruth `historyLoading` exists to prevent,
+   * one state further along.
+   */
+  historyError?: boolean;
+  /**
+   * The net-worth figure itself has not arrived. Lets the host render this card
+   * as its own first-paint skeleton instead of hand-building a second copy of
+   * this layout beside it, which is how the two drifted apart and cost the page
+   * a 34px jump the moment the real card replaced the stand-in.
+   */
+  valueLoading?: boolean;
   /** Margin/placement from the page that hosts the card. */
   className?: string;
   /**
@@ -324,6 +347,11 @@ export function NetWorthTrendCard({
               is not rendered at all. */}
           <h2 className={cn('min-w-0 flex-1 truncate', titleClassName)}>Net worth</h2>
           {action}
+          {(historyLoading || valueLoading) && !hasRanges && (
+            // Holds the picker's place while history is in flight. Without it
+            // the control arrives as a new row and pushes the chart down.
+            <Skeleton className="h-[38px] w-full sm:w-[187px] rounded-ui-md" />
+          )}
           {hasRanges && (
             <SegmentedControl
               aria-label="Time range"
@@ -345,9 +373,17 @@ export function NetWorthTrendCard({
           {/* The mask is the COMPONENT here, not the string `fmtUsd` would
               return: a bare "$•••••" inherits the editorial face, whose bullets
               squash into ellipses at this size and read as broken text. */}
-          <span className="font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum">
-            {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(displayValue)}
-          </span>
+          {valueLoading ? (
+            // Sized off the same type scale as the figure it stands in for, so
+            // the line it sits on does not change height when the value lands.
+            <span className="font-editorial text-[32px] sm:text-[40px] leading-[1.05] block">
+              <Skeleton className="h-[1em] w-[260px] max-w-full rounded-[11px]" />
+            </span>
+          ) : (
+            <span className="font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum">
+              {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(displayValue)}
+            </span>
+          )}
           {/* Chip and caption are direct children of the row, not a nested
               flex box of their own. Nested, the pair wrapped as a unit onto a
               line of its own and then wrapped AGAIN inside it, so the longer
@@ -355,6 +391,12 @@ export function NetWorthTrendCard({
               and pushed the chart down under the finger doing the scrubbing.
               Flat, the caption is the only thing that moves, onto a full-width
               line that holds it at every width. */}
+          {(historyLoading || valueLoading) && periodDelta === null && (
+            // Holds the row the delta chip and its "since" line will occupy.
+            // They depend on history, so without this the header grows by a
+            // whole line at the moment history arrives.
+            <Skeleton className="h-7 w-[218px] rounded-full" />
+          )}
           {periodDelta !== null && sinceLabel && (
             <>
               {/* Masked, the chip is a tinted arrow around a second copy of the
@@ -390,6 +432,30 @@ export function NetWorthTrendCard({
       {hasChart ? (
         <div className="relative mt-4 pr-2 sm:pr-0">
           <NetWorthChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+        </div>
+      ) : historyLoading ? (
+        // CHART_H, not a guess: a skeleton that reserves the wrong height moves
+        // every card below this one when the real chart replaces it.
+        <Skeleton style={{ height: CHART_H }} className="mt-4 w-full rounded-ui-md" />
+      ) : historyError ? (
+        <div
+          role="status"
+          style={{ minHeight: CHART_H }}
+          className="mt-4 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 text-center"
+        >
+          <div>
+            <div className="mx-auto mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-negative-soft text-negative">
+              <AlertCircle size={20} />
+            </div>
+            <div className="text-[15px] font-semibold">Couldn't load your trend</div>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="ui-focus mt-1.5 inline-flex min-h-touch items-center rounded-ui-sm text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       ) : (
         <div role="status" className="mt-4 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-10 text-center">

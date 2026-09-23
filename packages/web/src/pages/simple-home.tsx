@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ArrowRight, Check, ChevronRight, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, ChevronRight, Sparkles, Wallet } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText } from '../components/uikit';
@@ -9,7 +9,7 @@ import { api, type FinancialPath } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
 import { toActionRow, type ActionRow } from '../lib/action-rows';
 import { useChatStore } from '../lib/chat-store';
-import { Button, Skeleton, useToast } from '../components/uikit';
+import { Button, button, EmptyState, Skeleton, useToast } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
 import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 import { NetWorthTrendCard } from '../components/common/NetWorthTrendCard';
@@ -166,10 +166,30 @@ export function SimpleHome() {
   const [levelSteps, setLevelSteps] = useState<{ id: string; order: number; title: string; status: string; rateShaped: boolean }[]>([]);
   const [levelCurrentId, setLevelCurrentId] = useState<string>('');
   const [levelLoading, setLevelLoading] = useState(true);
+  // One flag per request, not one for the page. Every card on Home now paints
+  // when its own data lands: a slow endpoint costs its own card a skeleton and
+  // nothing else. `loading` is balances only, because that is what decides
+  // between the dashboard, the empty state and the failure state.
   const [loading, setLoading] = useState(true);
+  const [goalsLoading, setGoalsLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  // A request that failed is not the same fact as a list that is empty, and
+  // every one of these cards says something about the user's money. "No
+  // transactions yet" when the call 500s is the same class of untruth as the
+  // $0 net worth this page used to print over a failed balances fetch.
+  const [historyFailed, setHistoryFailed] = useState(false);
+  const [goalsFailed, setGoalsFailed] = useState(false);
+  const [txnsFailed, setTxnsFailed] = useState(false);
+  const [flowFailed, setFlowFailed] = useState(false);
+  // An empty balances list means two different things: nobody has connected
+  // anything, or the request failed and we do not know. The catch below
+  // flattens both to [], so without this the page tells a tenant with 22
+  // accounts to connect their first one the moment the endpoint 500s.
+  const [balancesFailed, setBalancesFailed] = useState(false);
   const [monthFlow, setMonthFlow] = useState<MonthFlow | null>(null);
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
   const [sideLoading, setSideLoading] = useState(true);
+  const [txnsLoading, setTxnsLoading] = useState(true);
 
   const firstName =
     user?.name?.split(' ')[0] ||
@@ -273,67 +293,103 @@ export function SimpleHome() {
     const BIG_CATEGORIES = new Set(['housing', 'debt_payment', 'transportation', 'insurance', 'utilities']);
     const BILL_MIN_AMOUNT = 200;
 
-    Promise.all([
-      api.getBalances().catch(() => ({ balances: [] as any[] })),
-      api.getGoals().catch(() => ({ goals: [] })),
-      loadPath().finally(() => setLevelLoading(false)),
-      api.getRecurring().catch(() => ({ recurring: [] as any[] })),
-      api.getNetWorthHistory().catch(() => ({ history: [] as { date: string; value: number }[] })),
-    ]).then(([balanceData, goalsData, , recurringData, historyData]) => {
-      setNwHistory(historyData.history || []);
-      const next: NetBreakdown = {
-        cash: 0, cashCount: 0,
-        investments: 0, investmentsCount: 0,
-        assets: 0, assetsCount: 0,
-        realEstateValue: 0, alternativeValue: 0,
-        debts: 0, debtsCount: 0,
-        creditCards: 0, creditCardsCount: 0,
-        loans: 0, loansCount: 0,
-        netWorth: 0,
-      };
-      const map = new Map<string, { name: string; balance: number }>();
-      for (const b of balanceData.balances) {
-        // Effective balance = raw with the user's invert override applied, matching
-        // the server's net-worth math. Skip accounts excluded from net worth so the
-        // headline reconciles with the graph and the Money page.
-        const v = b.effectiveBalance ?? (b.invertBalance ? -1 : 1) * parseFloat(b.balance ?? '0');
-        map.set(b.accountId, { name: b.name, balance: Number.isNaN(v) ? 0 : v });
-        if (Number.isNaN(v) || b.excludeFromNetWorth) continue;
-        if (b.type === 'depository') { next.cash += v; next.cashCount++; }
-        else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
-        else if (b.type === 'real_estate') { next.assets += v; next.assetsCount++; next.realEstateValue += v; }
-        else if (b.type === 'alternative') { next.assets += v; next.assetsCount++; next.alternativeValue += v; }
-        else if (b.type === 'credit') { next.debts += Math.abs(v); next.debtsCount++; next.creditCards += Math.abs(v); next.creditCardsCount++; }
-        else if (b.type === 'loan') { next.debts += Math.abs(v); next.debtsCount++; next.loans += Math.abs(v); next.loansCount++; }
-      }
-      next.netWorth = next.cash + next.investments + next.assets - next.debts;
-      setBreakdown(next);
-      setAccountsById(map);
+    // Four requests, four independent paints. They used to sit in one
+    // Promise.all, so the hero waited on the slowest of them even when its own
+    // balances had landed. On a cold Cloud Run instance that is the difference
+    // between a net worth on screen and four skeletons.
+    void loadPath().finally(() => setLevelLoading(false));
 
-      setGoals(goalsData.goals as Goal[]);
+    // Balances: the headline, the composition, and which of the three page
+    // states renders. Its failure is the one the page has to tell apart from
+    // "nothing connected", so it keeps its own flag.
+    api.getBalances()
+      .then(({ balances }) => {
+        const next: NetBreakdown = {
+          cash: 0, cashCount: 0,
+          investments: 0, investmentsCount: 0,
+          assets: 0, assetsCount: 0,
+          realEstateValue: 0, alternativeValue: 0,
+          debts: 0, debtsCount: 0,
+          creditCards: 0, creditCardsCount: 0,
+          loans: 0, loansCount: 0,
+          netWorth: 0,
+        };
+        const map = new Map<string, { name: string; balance: number }>();
+        for (const b of balances) {
+          // Effective balance = raw with the user's invert override applied, matching
+          // the server's net-worth math. Skip accounts excluded from net worth so the
+          // headline reconciles with the graph and the Money page.
+          const v = b.effectiveBalance ?? (b.invertBalance ? -1 : 1) * parseFloat(b.balance ?? '0');
+          map.set(b.accountId, { name: b.name, balance: Number.isNaN(v) ? 0 : v });
+          if (Number.isNaN(v) || b.excludeFromNetWorth) continue;
+          if (b.type === 'depository') { next.cash += v; next.cashCount++; }
+          else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
+          else if (b.type === 'real_estate') { next.assets += v; next.assetsCount++; next.realEstateValue += v; }
+          else if (b.type === 'alternative') { next.assets += v; next.assetsCount++; next.alternativeValue += v; }
+          else if (b.type === 'credit') { next.debts += Math.abs(v); next.debtsCount++; next.creditCards += Math.abs(v); next.creditCardsCount++; }
+          else if (b.type === 'loan') { next.debts += Math.abs(v); next.debtsCount++; next.loans += Math.abs(v); next.loansCount++; }
+        }
+        next.netWorth = next.cash + next.investments + next.assets - next.debts;
+        setBreakdown(next);
+        setAccountsById(map);
+      })
+      .catch(() => {
+        setBalancesFailed(true);
+        // Still set it: `breakdown` is what tells the page the request is over,
+        // and the failure branch reads balancesFailed rather than these numbers.
+        setBreakdown({
+          cash: 0, cashCount: 0,
+          investments: 0, investmentsCount: 0,
+          assets: 0, assetsCount: 0,
+          realEstateValue: 0, alternativeValue: 0,
+          debts: 0, debtsCount: 0,
+          creditCards: 0, creditCardsCount: 0,
+          loans: 0, loansCount: 0,
+          netWorth: 0,
+        });
+      })
+      .finally(() => setLoading(false));
 
-      const now = Date.now();
-      const sevenDays = 7 * 24 * 60 * 60 * 1000;
-      const upcoming = (recurringData.recurring || [])
-        .filter((r: any) => r.nextDueDate && BIG_CATEGORIES.has(r.category))
-        .map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          amount: parseFloat(r.amount),
-          dueDate: new Date(r.nextDueDate!),
-          accountId: r.accountId,
-        }))
-        .filter((r: any) => r.amount >= BILL_MIN_AMOUNT)
-        .filter((r: any) => {
-          const ms = r.dueDate.getTime() - now;
-          return ms >= -24 * 60 * 60 * 1000 && ms <= sevenDays;
-        })
-        .sort((a: any, b: any) => a.dueDate.getTime() - b.dueDate.getTime())[0];
-      if (upcoming) {
-        const daysAway = Math.round((upcoming.dueDate.getTime() - now) / (24 * 60 * 60 * 1000));
-        setUpcomingBill({ ...upcoming, daysAway });
-      }
-    }).finally(() => setLoading(false));
+    // Trend history: its own card, and it already re-resolves its range when
+    // history lands after first paint.
+    api.getNetWorthHistory()
+      .then(({ history }) => setNwHistory(history || []))
+      .catch(() => { setNwHistory([]); setHistoryFailed(true); })
+      .finally(() => setHistoryLoading(false));
+
+    // Goals rail.
+    api.getGoals()
+      .then(({ goals }) => setGoals(goals as Goal[]))
+      .catch(() => { setGoals([]); setGoalsFailed(true); })
+      .finally(() => setGoalsLoading(false));
+
+    // The upcoming-bill note. Marginalia: absent until there is one, so it
+    // needs no loading state of its own.
+    api.getRecurring()
+      .then(({ recurring }) => {
+        const now = Date.now();
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        const upcoming = (recurring || [])
+          .filter((r: any) => r.nextDueDate && BIG_CATEGORIES.has(r.category))
+          .map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            amount: parseFloat(r.amount),
+            dueDate: new Date(r.nextDueDate!),
+            accountId: r.accountId,
+          }))
+          .filter((r: any) => r.amount >= BILL_MIN_AMOUNT)
+          .filter((r: any) => {
+            const ms = r.dueDate.getTime() - now;
+            return ms >= -24 * 60 * 60 * 1000 && ms <= sevenDays;
+          })
+          .sort((a: any, b: any) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+        if (upcoming) {
+          const daysAway = Math.round((upcoming.dueDate.getTime() - now) / (24 * 60 * 60 * 1000));
+          setUpcomingBill({ ...upcoming, daysAway });
+        }
+      })
+      .catch(() => {});
   }, [loadPath]);
 
   // Side rail: month-to-date spending/cash-flow plus the latest transactions.
@@ -351,12 +407,32 @@ export function SimpleHome() {
       Math.min(now.getDate(), prevMonthLastDay.getDate()),
     );
 
+    // Recent activity is its own request and its own card. It rode along in the
+    // spending Promise.all, so a slow spending summary blanked a list that does
+    // not depend on it.
+    api.getTransactions({ limit: 4 })
+      .then(({ transactions }) =>
+        setRecentTxns(
+          (transactions || []).map((t: any) => ({
+            id: t.id,
+            name: t.merchantName || t.name,
+            date: t.date,
+            amount: parseFloat(t.amount),
+            pending: !!t.pending,
+          })),
+        ),
+      )
+      .catch(() => { setRecentTxns([]); setTxnsFailed(true); })
+      .finally(() => setTxnsLoading(false));
+
+    // The two summaries stay paired: they are this month against the same point
+    // last month, and the card states the comparison, not either half alone.
     Promise.all([
       api.getSpendingSummary({ startDate: monthStart, endDate: `${ymd(now)}T23:59:59` }).catch(() => null),
       api.getSpendingSummary({ startDate: prevStart, endDate: `${ymd(prevSameDay)}T23:59:59` }).catch(() => null),
-      api.getTransactions({ limit: 4 }).catch(() => ({ transactions: [] as any[] })),
     ])
-      .then(([cur, prev, txns]) => {
+      .then(([cur, prev]) => {
+        if (!cur) setFlowFailed(true);
         if (cur) {
           const topCats = cur.categories
             .filter((c) => c.groupType === 'expense' && c.total > 0)
@@ -376,15 +452,6 @@ export function SimpleHome() {
             topCats,
           });
         }
-        setRecentTxns(
-          (txns.transactions || []).map((t: any) => ({
-            id: t.id,
-            name: t.merchantName || t.name,
-            date: t.date,
-            amount: parseFloat(t.amount),
-            pending: !!t.pending,
-          })),
-        );
       })
       .finally(() => setSideLoading(false));
   }, []);
@@ -449,6 +516,18 @@ export function SimpleHome() {
   const hasComposition =
     breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0);
 
+  // Three states, exactly one of which may render. Derived from one value on
+  // purpose: reading them off separate booleans let the failure panel paint on
+  // top of a live dashboard, which then headlined a $0 net worth and a -100%
+  // pill built from a fetch that had failed.
+  //
+  // accountsById holds a row per account before any net-worth exclusion is
+  // applied, so an empty one means no accounts at all, not "none that count".
+  const homeState: 'failed' | 'empty' | 'dashboard' =
+    balancesFailed && accountsById.size === 0 ? 'failed'
+    : accountsById.size === 0 ? 'empty'
+    : 'dashboard';
+
   return (
     <div className="cq-inline mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* Greeting */}
@@ -458,22 +537,26 @@ export function SimpleHome() {
         </h1>
       </header>
 
-      {/* First-paint skeleton — the trend card's own shell and spacing, block
-          for block, so it reserves the height the card really renders at and
-          the page does not jump when the data lands. */}
+      {/* First paint. The trend card renders ITSELF as the skeleton rather than
+          a second hand-built copy of its layout beside it: the copy had drifted
+          into reserving a header 34px taller than the real one, so the card
+          shrank and every section below it walked up the page the moment
+          balances landed. One layout, so it cannot drift again. */}
       {loading && !breakdown && (
         <div className="mt-7 home-hero-grid gap-7 items-start">
-          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
-            <div className="flex flex-wrap flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <Skeleton className="h-[19.5px] w-[68px]" />
-                <Skeleton className="mt-2 h-[37.23px] sm:h-[50.95px] w-[256px] rounded-[11px]" />
-                <Skeleton className="mt-3.5 h-7 w-[218px] rounded-full" />
-              </div>
-              <Skeleton className="h-[50px] w-full sm:h-[37.5px] sm:w-[187px] rounded-ui-md" />
-            </div>
-            <Skeleton className="mt-5 h-[250px] w-full rounded-ui-md" />
-          </div>
+          <NetWorthTrendCard
+            history={[]}
+            netWorth={0}
+            valueLoading
+            historyLoading
+            titleClassName="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]"
+            defaultRange="1M"
+            action={
+              <Link href="/money" className={pageLinkCls}>
+                Open Money <ArrowRight className="h-4 w-4" />
+              </Link>
+            }
+          />
           <div className="flex flex-col gap-[18px]">
             <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
               <Skeleton className="h-4 w-52" />
@@ -487,19 +570,61 @@ export function SimpleHome() {
         </div>
       )}
 
+      {/* Nothing connected, or nothing loaded. The page-scale EmptyState:
+          this is the whole screen, not a placeholder in a slot, so it takes the
+          solid panel every other card on this page wears. Centred in the
+          content region rather than left as a band at the top. */}
+      {breakdown && homeState !== 'dashboard' && (
+        <div className="mt-7 flex min-h-[58vh] items-center justify-center">
+          {homeState === 'empty' ? (
+            <EmptyState
+              variant="page"
+              className="w-full max-w-[560px]"
+              icon={<Wallet size={24} />}
+              title="Connect your first account"
+              description="Link a bank, card or brokerage to see your net worth, spending and next steps here."
+              action={
+                /* ?autoLink=true opens the connect flow on arrival: /accounts
+                   otherwise greets them with this same headline and asks for a
+                   second click to start the same task. */
+                <Link href="/accounts?autoLink=true" className={button({ variant: 'primary' })}>
+                  Connect an account
+                </Link>
+              }
+            />
+          ) : (
+            <EmptyState
+              variant="page"
+              tone="negative"
+              className="w-full max-w-[560px]"
+              icon={<AlertCircle className="h-7 w-7" />}
+              title="Couldn't load your accounts"
+              description="Your accounts are safe. This is on our side, so trying again usually works."
+              action={
+                <Button variant="primary" onClick={() => window.location.reload()}>
+                  Try again
+                </Button>
+              }
+            />
+          )}
+        </div>
+      )}
+
       {/* ════════ MAIN GRID — 2/3 (TREND + ACTIONS) + 1/3 (BREAKDOWN/CHAT/GOALS) ════════
           Container-query grid: two columns only when the page is wide enough
           for the trend chart to keep its detail — otherwise the aside wraps
           under and the breakdown card gets the full width for its equation.
           The net-worth figure leads the trend card itself, so it is on the
           first screen at every width without reordering the grid. */}
-      {breakdown && (
+      {breakdown && homeState === 'dashboard' && (
         <div className="mt-7 home-hero-grid gap-7 items-start">
 
           {/* ░░░░ LEFT COLUMN (2/3) — net-worth trend + the action queue ░░░░ */}
           <div className="min-w-0 flex flex-col gap-7">
             <NetWorthTrendCard
               history={nwHistory}
+              historyLoading={historyLoading}
+              historyError={historyFailed}
               netWorth={breakdown.netWorth}
               titleClassName="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]"
               defaultRange="1M"
@@ -562,32 +687,73 @@ export function SimpleHome() {
               prompts={suggestedPrompts}
               onPick={(q) => openChat(q)}
             />
-            <GoalsRail goals={goals} loading={loading} />
+            {goalsFailed ? (
+              <CardLoadError title="Couldn't load your goals" />
+            ) : (
+              <GoalsRail goals={goals} loading={goalsLoading} />
+            )}
             {sideLoading ? (
               <>
                 <Skeleton className="h-[180px] w-full rounded-ui-xl" />
                 <Skeleton className="h-[150px] w-full rounded-ui-xl" />
-                <Skeleton className="h-[210px] w-full rounded-ui-xl" />
               </>
+            ) : flowFailed ? (
+              <CardLoadError title="Couldn't load this month's spending" />
             ) : (
               <>
                 {monthFlow && <SpendingPulse flow={monthFlow} />}
                 {monthFlow && <CashFlowPulse flow={monthFlow} />}
-                <RecentActivity txns={recentTxns} />
               </>
+            )}
+            {txnsLoading ? (
+              <Skeleton className="h-[210px] w-full rounded-ui-xl" />
+            ) : txnsFailed ? (
+              <CardLoadError title="Couldn't load recent activity" />
+            ) : (
+              <RecentActivity txns={recentTxns} />
             )}
           </aside>
         </div>
       )}
 
       {/* Upcoming bill — a single marginalia note when one is due soon */}
-      {upcomingBill && (
+      {homeState === 'dashboard' && upcomingBill && (
         <MarginaliaBill
           bill={upcomingBill}
           account={upcomingBill.accountId ? accountsById.get(upcomingBill.accountId) ?? null : null}
         />
       )}
     </div>
+  );
+}
+
+/**
+ * A side-rail card whose data did not load. Says so, rather than letting the
+ * card's own empty copy claim the user has none of the thing.
+ *
+ * Reload rather than a per-card retry: these fetches run once on mount and are
+ * not exposed as callable refetchers, and a page the user is already looking at
+ * reloading is a smaller surprise than a card that silently repopulates.
+ */
+function CardLoadError({ title }: { title: string }) {
+  return (
+    <Card className="p-6">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-negative-soft text-negative">
+          <AlertCircle className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[14px] font-semibold text-content">{title}</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="ui-focus mt-1 inline-flex min-h-touch items-center rounded-ui-sm text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
