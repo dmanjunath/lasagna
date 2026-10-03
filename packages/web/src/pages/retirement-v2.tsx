@@ -203,6 +203,11 @@ function InfoPopover({ label, children }: { label: string; children: React.React
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Links the portalled panel back to its trigger. Without it a screen reader
+  // heard "expanded" from aria-expanded and then found nothing: the panel is a
+  // role="tooltip" rendered into <body>, not a disclosure region inside the
+  // button, so aria-expanded was describing a relationship that did not exist.
+  const panelId = React.useId();
   const PANEL_W = 260;
 
   useLayoutEffect(() => {
@@ -240,14 +245,19 @@ function InfoPopover({ label, children }: { label: string; children: React.React
         type="button"
         onClick={() => setOpen(v => !v)}
         aria-label={label}
-        aria-expanded={open}
-        className="ui-focus inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors"
+        aria-describedby={open ? panelId : undefined}
+        /* 20x20 is under the 44px touch minimum, and one of these is now the
+           hero's primary explainer. The pseudo-element widens the hit area on
+           phones only, leaving the rendered icon exactly where it was — same
+           idiom as the transactions filter triggers. */
+        className="ui-focus relative inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors max-sm:before:absolute max-sm:before:-inset-3 max-sm:before:content-['']"
       >
         <Info className="h-[13px] w-[13px]" />
       </button>
       {open && pos && createPortal(
         <div
           ref={panelRef}
+          id={panelId}
           role="tooltip"
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
           className="ui-root z-[110] rounded-ui-md border border-line bg-panel-raised px-3 py-2.5 text-[12px] leading-[1.5] font-medium text-content-secondary shadow-ui-lg"
@@ -1983,11 +1993,11 @@ export function RetirementV2() {
         .rv2-table th { text-align: right; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: rgb(var(--ui-content-muted)); border-bottom: 1px solid var(--ui-line); white-space: nowrap; }
         .rv2-table th:first-child, .rv2-table td:first-child { text-align: left; }
         .rv2-table td { text-align: right; padding: 6px 12px; font-variant-numeric: tabular-nums; font-size: 12.5px; border-top: 1px solid var(--ui-hairline); color: rgb(var(--ui-content-secondary)); white-space: nowrap; }
-        /* Second KPI row: Monte Carlo, Historical backtest, Sustainable draw.
-           Three columns on desktop; stacks to one column on narrow phones. */
-        .rv2-kpi-grid2 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; }
-        @media (max-width: 640px) {
-          .rv2-kpi-grid2 { grid-template-columns: 1fr; }
+        /* "Checked against": the backtest and the sustainable draw, side by
+           side on desktop and stacked on narrow phones. */
+        .rv2-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; }
+        @media (max-width: 900px) {
+          .rv2-checks { grid-template-columns: 1fr; }
         }
         /* Pinned chance-of-success strip. Rendered as the page's last child
            and stuck to the bottom of the scrollport; on mobile it clears the
@@ -2027,7 +2037,22 @@ export function RetirementV2() {
             0 30px 66px rgba(20, 33, 61, 0.20),
             inset 0 1px 0 rgb(255 255 255 / 0.7);
         }
-        .ret-pin__tier1 { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+        /* Bottom-aligned so the 13.5px checks sit on the same baseline shelf as
+           the 18px figures. Top-aligned, they floated above them and read as a
+           rendering slip rather than a deliberate demotion. */
+        .ret-pin__tier1 { display: flex; align-items: end; gap: 22px; flex-wrap: wrap; }
+        /* Four metrics stop fitting one row well before the phone breakpoint.
+           Wrapped flex stranded "Sustainable draw" alone on row 2, where being
+           the only item on its line read as the promoted figure — the exact
+           hierarchy this bar exists to state. A fixed 2x2 grid keeps the
+           promoted pair together on row 1 at every width below 834px. */
+        @media (max-width: 834px) {
+          .ret-pin__tier1 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 16px;
+          }
+        }
         .ret-pin__tier2 {
           font-size: 11.5px;
           line-height: 1.45;
@@ -2035,10 +2060,8 @@ export function RetirementV2() {
         }
         .ret-pin__metric { display: flex; flex-direction: column; gap: 1px; line-height: 1.1; }
         .ret-pin__label {
-          font-size: 10px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
+          font-size: 11.5px;
+          font-weight: 600;
           color: rgb(var(--ui-content-muted));
         }
         .ret-pin__pct {
@@ -2047,6 +2070,13 @@ export function RetirementV2() {
           line-height: 1;
           letter-spacing: -0.02em;
           color: rgb(var(--ui-content));
+        }
+        /* The corroborating figures: same row, demoted weight. */
+        .ret-pin__pct--check {
+          font-size: 13.5px;
+          font-weight: 700;
+          letter-spacing: 0;
+          color: rgb(var(--ui-content-secondary));
         }
         /* Dark app theme: same raised surface (resolves darker via the token),
            but the halo goes near-black so the bar still carves itself out of the
@@ -2063,7 +2093,6 @@ export function RetirementV2() {
           /* Sit above the fixed mobile tab bar (~68px + safe-area inset). */
           .ret-pin { bottom: calc(env(safe-area-inset-bottom) + 76px); }
           .ret-pin__inner { gap: 6px; padding: 8px 14px; }
-          .ret-pin__tier1 { gap: 16px; }
         }
       `}</style>
 
@@ -2180,28 +2209,42 @@ export function RetirementV2() {
                 />
               </Badge>
             ) : (
-              <Badge
-                tone={verdictTone(outlook)}
-                size="md"
-                className="ui-tnum transition-opacity"
-                style={{ opacity: mcRecomputing ? 0.55 : 1 }}
-                data-testid="rv2-outlook-badge"
-              >
-                {shownMcChance} vs {TARGET_SUCCESS}% target
-                {mcRecomputing && (
-                  <span
-                    aria-label="recomputing"
-                    className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
-                  />
-                )}
-              </Badge>
+              /* The Monte Carlo figure reads beside the verdict word because it
+                 IS the verdict's input. It used to sit in a third equal-weight
+                 tile below, alongside the backtest and the sustainable draw,
+                 with nothing on the page saying which of the three was the
+                 answer — and the chat had already started quoting the backtest. */
+              <span className="inline-flex items-center gap-1.5" data-testid="rv2-kpi-mc">
+                <Badge
+                  tone={verdictTone(outlook)}
+                  size="md"
+                  className="ui-tnum transition-opacity"
+                  style={{ opacity: mcRecomputing ? 0.55 : 1 }}
+                  data-testid="rv2-outlook-badge"
+                >
+                  Monte Carlo {shownMcChance} vs {TARGET_SUCCESS}% target
+                  {mcRecomputing && (
+                    <span
+                      aria-label="recomputing"
+                      className="inline-block h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin"
+                    />
+                  )}
+                </Badge>
+                <InfoPopover label="What is Monte Carlo?">
+                  Runs 1,000 randomized market scenarios and reports how often your money lasts to age {lifeExp}. It reflects good and bad luck, including a bad run of early returns.
+                </InfoPopover>
+              </span>
             )}
           </div>
           {!resultsPending && (
             <p className="mt-3 text-[13.5px] leading-[1.55] text-content-secondary max-w-[62ch]" data-testid="rv2-outlook-explain">
+              {/* The badge above names the run, so this states the rule once
+                  instead of re-attributing it. It also leads with the figure
+                  rather than the words "On track", which read as a correction
+                  of the headline when the headline says "At risk". */}
               {outlook === 'on_track'
-                ? `The outlook reads the Monte Carlo run: on track means a chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}.`
-                : `The outlook reads the Monte Carlo run: on track means a chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}. Retiring later, spending less or saving more each month would close the gap.`}
+                ? `A chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}, counts as on track.`
+                : `A chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}, would count as on track. Retiring later, spending less or saving more each month would close the gap.`}
             </p>
           )}
           <div className="mt-4 sm:hidden">
@@ -2209,7 +2252,7 @@ export function RetirementV2() {
           </div>
           <div className="rv2-kpi-grid mt-6 pt-5 border-t border-line">
             <div className="min-w-0" data-testid="rv2-kpi-years">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Years to retirement</div>
+              <div className="text-[12px] font-semibold text-content-muted">Years to retirement</div>
               <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
                 {Math.max(0, effRetireAge - currentAge)}
               </div>
@@ -2217,7 +2260,7 @@ export function RetirementV2() {
             </div>
             <div className="min-w-0" data-testid="rv2-kpi-spend">
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Monthly spending</span>
+                <span className="text-[12px] font-semibold text-content-muted">Monthly spending</span>
                 <button
                   type="button"
                   onClick={editSpending}
@@ -2234,7 +2277,7 @@ export function RetirementV2() {
               <div className="mt-1.5 text-[12px] font-medium text-content-muted">in today's dollars</div>
             </div>
             <div className="min-w-0" data-testid="rv2-kpi-length">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Length of retirement</div>
+              <div className="text-[12px] font-semibold text-content-muted">Length of retirement</div>
               <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
                 {Math.max(0, lifeExp - effRetireAge)}<span className="text-[14px] font-bold text-content-muted"> yrs</span>
               </div>
@@ -2242,49 +2285,39 @@ export function RetirementV2() {
             </div>
           </div>
 
-          {/* Second KPI row — the three "how confident" readouts, each with a
-              tap-to-open explainer so the method-specific numbers are legible
-              without leaving the hero. */}
-          <div className="rv2-kpi-grid2 mt-6 pt-5 border-t border-line">
-            <div className="min-w-0" data-testid="rv2-kpi-mc">
-              <div className="inline-flex items-center gap-1.5">
-                <Badge tone="neutral" size="sm">Monte Carlo</Badge>
-                <InfoPopover label="What is Monte Carlo?">
-                  Runs 1,000 randomized market scenarios and reports how often your money lasts to age {lifeExp}. It reflects good and bad luck, including a bad run of early returns.
-                </InfoPopover>
+          {/* The other two readouts, kept but quieter. They are corroboration,
+              not the answer, so they no longer render at the same size and
+              weight as the figure the verdict is read from. Explainers stay. */}
+          <div className="mt-6 pt-5 border-t border-line">
+            <div className="text-[12px] font-semibold text-content-muted">Checked against</div>
+            <div className="rv2-checks mt-2.5">
+              <div className="min-w-0" data-testid="rv2-kpi-hist">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="inline-flex items-center gap-1 text-[13px] font-medium text-content-secondary">
+                    Historical backtest
+                    <InfoPopover label="What is Historical backtest?">
+                      Replays every real market start year since 1928 and reports the share of those actual histories your plan would have survived.
+                    </InfoPopover>
+                  </span>
+                  <span className="text-[15px] font-bold text-content ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
+                </div>
+                <div className="mt-0.5 text-[12px] font-medium text-content-muted ui-tnum">{btResult ? `over ${btResult.startYearCount} start-years since 1928` : ''}</div>
               </div>
-              {/* No badge beside the number: this IS the figure the verdict
-                  above was read from, and judging it a second time here is what
-                  let a KPI read "Good" under a headline that said otherwise. */}
-              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
-                {mcResult ? `${Math.round(mcResult.successRate * 100)}%` : '…'}
-              </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted">chance your money lasts</div>
-            </div>
-            <div className="min-w-0" data-testid="rv2-kpi-hist">
-              <div className="inline-flex items-center gap-1.5">
-                <Badge tone="neutral" size="sm">Historical backtest</Badge>
-                <InfoPopover label="What is Historical backtest?">
-                  Replays every real market start year since 1928 and reports the share of those actual histories your plan would have survived.
-                </InfoPopover>
-              </div>
-              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
-                {histRate !== null ? `${histRate}%` : '…'}
-              </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">{btResult ? `${btResult.startYearCount} start-years since 1928` : ''}</div>
-            </div>
-            <div className="min-w-0" data-testid="rv2-kpi-draw">
-              <div className="inline-flex items-center gap-1.5">
-                <Badge tone="neutral" size="sm">Sustainable draw</Badge>
-                <InfoPopover label="What is Sustainable draw?">
-                  A rule-of-thumb safe monthly spend, {Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement (set by your retirement age). It is a guideline, not one of the simulations above.
-                </InfoPopover>
-              </div>
-              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content" data-testid="rv2-safe-spend">
-                <MaskedText text={formatMoney(sustainableDraw, true)} /><span className="text-[14px] font-bold text-content-muted">/mo</span>
-              </div>
-              <div className="mt-1.5 text-[12px] font-medium text-content-muted">
-                ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
+              <div className="min-w-0" data-testid="rv2-kpi-draw">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="inline-flex items-center gap-1 text-[13px] font-medium text-content-secondary">
+                    Sustainable draw
+                    <InfoPopover label="What is Sustainable draw?">
+                      A rule-of-thumb safe monthly spend, {Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement (set by your retirement age). It is a guideline, not one of the simulations above.
+                    </InfoPopover>
+                  </span>
+                  <span className="text-[15px] font-bold text-content ui-tnum" data-testid="rv2-safe-spend">
+                    <MaskedText text={formatMoney(sustainableDraw, true)} /><span className="text-[12px] font-bold text-content-muted">/mo</span>
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[12px] font-medium text-content-muted ui-tnum">
+                  ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
+                </div>
               </div>
             </div>
           </div>
@@ -2691,21 +2724,21 @@ export function RetirementV2() {
               : `In today's dollars. Monte Carlo with 1,000 paths, age ${currentAge} to ${bands.p50.length ? currentAge + bands.p50.length - 1 : lifeExp}.`
         }
         right={
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:block text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">Projection</span>
-            <div className="w-[150px]">
-              <MethodDropdown
-                value={method}
-                onChange={setMethod}
-                ariaLabel="Projection method"
-                triggerTestId="rv2-method-trigger"
-                options={[
-                  { value: 'mc', label: 'Monte Carlo' },
-                  { value: 'hist', label: 'Historical' },
-                  { value: 'blend', label: 'Blended return' },
-                ]}
-              />
-            </div>
+          /* No "Projection" kicker: the section is already titled, the
+             description already names the method, and the control carries its
+             own accessible name. */
+          <div className="w-[150px]">
+            <MethodDropdown
+              value={method}
+              onChange={setMethod}
+              ariaLabel="Projection method"
+              triggerTestId="rv2-method-trigger"
+              options={[
+                { value: 'mc', label: 'Monte Carlo' },
+                { value: 'hist', label: 'Historical' },
+                { value: 'blend', label: 'Blended return' },
+              ]}
+            />
           </div>
         }
       >
@@ -2952,17 +2985,22 @@ export function RetirementV2() {
               <span className="ret-pin__label">Outlook</span>
               <span className="ret-pin__pct font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>
             </span>
+            {/* Only the figure the outlook is read from sits at full size. The
+                backtest and the sustainable draw stay on the row as the checks
+                they are, at a smaller weight — same hierarchy as the hero,
+                which is what stops the bar re-opening the "which of these three
+                is the answer?" question the hero just settled. */}
             <span className="ret-pin__metric">
               <span className="ret-pin__label">Monte Carlo</span>
               <span className="ret-pin__pct font-editorial ui-tnum">{shownMcChance}</span>
             </span>
             <span className="ret-pin__metric">
-              <span className="ret-pin__label">Historical</span>
-              <span className="ret-pin__pct font-editorial ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
+              <span className="ret-pin__label">Historical backtest</span>
+              <span className="ret-pin__pct ret-pin__pct--check ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
             </span>
             <span className="ret-pin__metric">
               <span className="ret-pin__label">Sustainable draw</span>
-              <span className="ret-pin__pct font-editorial ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} /><span className="text-[12px] font-bold text-content-muted">/mo</span></span>
+              <span className="ret-pin__pct ret-pin__pct--check ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} />/mo</span>
             </span>
           </div>
           <div className="ret-pin__tier2 ui-tnum flex flex-wrap gap-x-3 gap-y-1">

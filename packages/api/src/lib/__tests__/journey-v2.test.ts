@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPathContextDefaults } from '../path-context.js';
+import { buildPathContextDefaults as zeroedContext, type PathContext } from '../path-context.js';
 import {
   buildJourneyCatalog,
   buildJourneyPayload,
@@ -10,6 +10,17 @@ import {
 } from '../journey-v2.js';
 import { sizePath } from '../path-sizing.js';
 import type { DebtAccount } from '../debt-accounts.js';
+
+/**
+ * Every household below has connected accounts: the balances the fixtures set
+ * are read off them. `sizePath` holds every step at not_started until at least
+ * one account exists (a household with nothing linked has zero of everything,
+ * which reads as every "get this to zero" milestone already met), so the count
+ * is stated once here rather than in each fixture. A test about the empty case
+ * passes `accountCount: 0` explicitly.
+ */
+const buildPathContextDefaults = (overrides: Partial<PathContext> = {}): PathContext =>
+  zeroedContext({ accountCount: 1, ...overrides });
 
 function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): DebtAccount {
   return {
@@ -90,6 +101,85 @@ describe('the catalog', () => {
       debtAccounts: [debt({ id: 'paid', name: 'Cleared Card', balance: 0 })],
     });
     expect(buildJourneyCatalog(ctx).map((c) => c.key)).not.toContain('debt:paid');
+  });
+});
+
+// ── A card that clears every statement (SCL-153) ─────────────────────────────
+//
+// The journey made "Pay off CREDIT CARD ending 3302" somebody's current
+// priority because no APR was on file, so it treated the card as expensive. The
+// debt page filed the same card as costing nothing, because its statement is
+// settled every month. Chat sided with the journey, so two of three surfaces
+// said act and one said ignore.
+//
+// Behaviour is evidence and a missing rate is an assumption, so behaviour wins.
+
+describe('a card that clears every statement', () => {
+  const transactor = () =>
+    debt({
+      id: 'transactor',
+      name: 'Everyday Card',
+      mask: '3302',
+      balance: 1_840,
+      // The missing rate is exactly what made the journey call this urgent.
+      apr: null,
+      lastStatementBalance: 1_600,
+      lastPaymentAmount: 1_600,
+    });
+
+  const keysFor = (accounts: DebtAccount[]) =>
+    buildJourneyCatalog(buildPathContextDefaults({ debtAccounts: accounts })).map((c) => c.key);
+
+  it('gets no payoff step, even carrying a balance and with no rate on file', () => {
+    expect(keysFor([transactor()])).not.toContain('debt:transactor');
+  });
+
+  it('gets none on the user\'s own designation either, when the bank reports nothing', () => {
+    const own = debt({ id: 'own', name: 'Store Card', balance: 900, paidInFullMonthly: true });
+    expect(keysFor([own])).not.toContain('debt:own');
+  });
+
+  it('still emits one for a card we watched carry a balance', () => {
+    const revolver = debt({
+      id: 'revolver', name: 'Blue Card', balance: 4_000,
+      lastStatementBalance: 3_000, lastPaymentAmount: 150,
+    });
+    expect(keysFor([revolver])).toContain('debt:revolver');
+  });
+
+  it('still emits one for a card nobody has reported on, rather than guessing', () => {
+    // No statement, no payment, no designation. Unknown is treated as carrying,
+    // which is the milder failure: it offers a step somebody may not need.
+    const unknown = debt({ id: 'unknown', name: 'Silent Card', balance: 2_000 });
+    expect(keysFor([unknown])).toContain('debt:unknown');
+  });
+
+  it('is not counted at the debt-free finish line either', () => {
+    // Otherwise the contradiction simply moves: no payoff step, and a milestone
+    // one card below it reading "Clear the $1,840 you owe".
+    const ctx = buildPathContextDefaults({ debtAccounts: [transactor()] });
+    const { steps } = journeyCandidates(
+      answer({ steps: [{ key: 'debt-free', why: 'a' }] }),
+      buildJourneyCatalog(ctx),
+    );
+    const [sized] = sizePath(steps, ctx);
+    expect(sized.current).toBe(0);
+    expect(sized.action).toBe('');
+  });
+
+  it('leaves a loan at the finish line, which has no statement to clear', () => {
+    const ctx = buildPathContextDefaults({
+      debtAccounts: [
+        transactor(),
+        debt({ id: 'car', name: 'Car Loan', type: 'loan', balance: 18_000, apr: 6.9 }),
+      ],
+    });
+    const { steps } = journeyCandidates(
+      answer({ steps: [{ key: 'debt-free', why: 'a' }] }),
+      buildJourneyCatalog(ctx),
+    );
+    const [sized] = sizePath(steps, ctx);
+    expect(sized.current).toBe(18_000);
   });
 });
 
@@ -328,7 +418,10 @@ describe('the payload', () => {
   it('says "not on file" for a question nobody answered, never zero', () => {
     const p = payload(buildPathContextDefaults({ dependentCount: null, employerMatchPct: null }));
     expect(p.profile.dependents).toBe('not on file');
-    expect(p.profile.employerMatchPercent).toBe('no plan on file');
+    // "not on file", not "no plan on file": onboarding records 0 when someone
+    // says there is no match and null when they say they are not sure, so the
+    // null case must not name a fact about their employer's plan.
+    expect(p.profile.employerMatchPercent).toBe('not on file');
   });
 
   // The bug this exists to stop: a starter fund reading Done carried the line

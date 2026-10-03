@@ -57,8 +57,13 @@ function selectChain() {
 vi.mock("../../lib/db.js", () => ({
   db: {
     select: () => selectChain(),
+    // The claim takes the lock AND stamps the freshness marker, in one short
+    // transaction, so the generation can run outside it.
     transaction: async (fn: (tx: unknown) => Promise<boolean>) =>
-      fn({ execute: async () => [{ locked: true }] }),
+      fn({
+        execute: async () => [{ locked: true }],
+        insert: () => ({ values: () => ({ onConflictDoUpdate: async () => undefined }) }),
+      }),
   },
 }));
 

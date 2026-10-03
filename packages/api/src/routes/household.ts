@@ -5,7 +5,7 @@ import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { COOKIE_NAME } from "../lib/session.js";
 import { removeUserRow } from "../lib/auth/remove-user.js";
-import { normalizeEmail } from "../lib/normalize-email.js";
+import { isValidEmail, normalizeEmail } from "../lib/normalize-email.js";
 import { cookieFlagsFor } from "./auth.js";
 import {
   createInvite,
@@ -17,8 +17,6 @@ import { sendInviteEmail } from "../lib/auth/invite-email.js";
 
 export const householdRoutes = new Hono<AuthEnv>();
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 // The household admin actions (invite/list/revoke) are restricted to the
 // tenant's single owner; members/viewers get 403.
 
@@ -28,7 +26,7 @@ householdRoutes.post("/invites", async (c) => {
   if (session.role !== "owner") return c.json({ error: "Forbidden" }, 403);
   const body = await c.req.json<{ email?: string }>().catch(() => ({}) as { email?: string });
   const email = normalizeEmail(body.email);
-  if (!EMAIL_RE.test(email)) return c.json({ error: "Invalid email address" }, 400);
+  if (!isValidEmail(email)) return c.json({ error: "Invalid email address" }, 400);
 
   // No silent merge: an email that already has an account can't be invited.
   const existing = await db.query.users.findFirst({ where: eq(users.email, email), columns: { id: true } });

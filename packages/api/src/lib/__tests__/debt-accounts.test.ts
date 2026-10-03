@@ -40,7 +40,7 @@ vi.mock("../db.js", () => ({
   },
 }));
 
-const { resolveDebtAccounts, resolveDebtApr, creditCardPaysInFull } = await import(
+const { resolveDebtAccounts, resolveDebtApr, creditCardPaysInFull, debtBehaviour } = await import(
   "../debt-accounts.js"
 );
 
@@ -242,6 +242,53 @@ describe("a card paid in full is a transactor, not a balance to plan around", ()
 
   it("still never applies the manual designation to a loan", () => {
     expect(creditCardPaysInFull(card({ type: "loan", paidInFullMonthly: true }))).toBe(false);
+  });
+});
+
+describe("debtBehaviour separates what we watched from what we never saw", () => {
+  // `creditCardPaysInFull` folds two different answers into one `false`, and the
+  // journey read that false as "expensive, pay it off first". The three-way
+  // answer is what both surfaces branch on now.
+  it("calls a settled statement clears-monthly", () => {
+    expect(debtBehaviour(card({ lastStatementBalance: 1200, lastPaymentAmount: 1200 }))).toBe(
+      "clears-monthly",
+    );
+    expect(debtBehaviour(card({ paidInFullMonthly: true }))).toBe("clears-monthly");
+  });
+
+  it("calls a statement we watched go unpaid revolving", () => {
+    expect(debtBehaviour(card({ lastStatementBalance: 5000, lastPaymentAmount: 200 }))).toBe(
+      "revolving",
+    );
+  });
+
+  it("calls a card the bank reports nothing about unknown, not revolving", () => {
+    expect(debtBehaviour(card({ lastStatementBalance: null, lastPaymentAmount: null }))).toBe(
+      "unknown-behaviour",
+    );
+    expect(debtBehaviour(card({ lastStatementBalance: 3000, lastPaymentAmount: null }))).toBe(
+      "unknown-behaviour",
+    );
+    expect(debtBehaviour(card({ lastStatementBalance: null, lastPaymentAmount: 4000 }))).toBe(
+      "unknown-behaviour",
+    );
+  });
+
+  it("calls every loan revolving, having no statement to clear", () => {
+    expect(debtBehaviour(card({ type: "loan" }))).toBe("revolving");
+    expect(debtBehaviour(card({ type: "loan", paidInFullMonthly: true }))).toBe("revolving");
+  });
+
+  it("is the one definition creditCardPaysInFull answers from", () => {
+    const cases = [
+      card({ lastStatementBalance: 1200, lastPaymentAmount: 1200 }),
+      card({ lastStatementBalance: 5000, lastPaymentAmount: 200 }),
+      card({ lastStatementBalance: null, lastPaymentAmount: null }),
+      card({ type: "loan", paidInFullMonthly: true }),
+    ];
+    for (const c of cases) {
+      expect(creditCardPaysInFull(c)).toBe(debtBehaviour(c) === "clears-monthly");
+    }
   });
 });
 

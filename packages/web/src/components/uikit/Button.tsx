@@ -17,7 +17,15 @@ export const button = cva(
     // out 600 while the real <Button> beside it was 700.
     'whitespace-nowrap rounded-ui-md',
     'transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-ui',
-    'disabled:pointer-events-none disabled:opacity-50',
+    // A disabled control must not look like a live one. Fading the variant to
+    // 50% kept its tint and its ink, so on the signup form the dead "Create
+    // Account" and the live "Continue" measured the same background and the
+    // same text colour, and only an opacity a user cannot see told them apart.
+    // Drop the semantic colour entirely instead: a disabled button is not a
+    // quieter version of the action, it is not the action.
+    'disabled:pointer-events-none',
+    'disabled:bg-canvas-sunken disabled:text-content-faint',
+    'disabled:border-line disabled:shadow-none disabled:ring-0 disabled:translate-y-0',
     'active:translate-y-px',
   ],
   {

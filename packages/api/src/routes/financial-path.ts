@@ -3,7 +3,7 @@ import { z } from "zod";
 import { type AuthEnv } from "../middleware/auth.js";
 import { buildPathContext, type PathContext } from "../lib/path-context.js";
 import { buildPathCandidates, type PathCandidate } from "../lib/path-candidates.js";
-import { isRateShaped, stepIsMeasured, type SizedStep } from "../lib/path-sizing.js";
+import { stepIsMeasured, type SizedStep } from "../lib/path-sizing.js";
 import {
   generatePath,
   invalidatePath,
@@ -46,7 +46,9 @@ export function serializeStep(step: SizedStep, index: number, reason = '') {
     // A rate step never holds the "you are here" pointer, so the page cannot
     // key its instruction off that pointer alone or the step would never state
     // one. It says which steps those are rather than the page re-deriving it.
-    rateShaped: isRateShaped(step.kind),
+    // `sizePath` decides it, because a household with nothing connected has no
+    // rate to be standing against.
+    rateShaped: step.rateShaped,
     fact: step.fact,
     notes: step.notes,
     note: step.note,
@@ -135,7 +137,7 @@ export function pathSummary(
  */
 export function currentStepKey(steps: SizedStep[]): string {
   return (
-    steps.find((s) => s.status !== 'complete' && !isRateShaped(s.kind))?.key ??
+    steps.find((s) => s.status !== 'complete' && !s.rateShaped)?.key ??
     steps.find((s) => s.status !== 'complete')?.key ??
     steps[steps.length - 1]?.key ??
     ''
@@ -365,7 +367,7 @@ async function readStoredJourney(tenantId: string, userId: string): Promise<Path
       // engine spends it on `why` instead, so there is no second line to give.
       reason: '',
       status: step.status,
-      rateShaped: isRateShaped(step.kind),
+      rateShaped: step.rateShaped,
       current: step.current,
       target: step.target,
       monthlyFunding: step.monthlyFunding,
@@ -410,7 +412,7 @@ export async function readStoredPath(
       why: step.why,
       reason: reasons.get(step.key) ?? '',
       status: step.status,
-      rateShaped: isRateShaped(step.kind),
+      rateShaped: step.rateShaped,
       current: step.current,
       target: step.target,
       monthlyFunding: step.monthlyFunding,

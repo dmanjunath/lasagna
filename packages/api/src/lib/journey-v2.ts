@@ -43,6 +43,7 @@ import {
   type PathStepKind,
 } from './path-candidates.js';
 import { isTypedGoalCategory } from '@lasagna/core';
+import { debtBehaviour } from './debt-accounts.js';
 import type { PathContext } from './path-context.js';
 import { emergencyFundTarget, sizePath } from './path-sizing.js';
 import type { PathReadiness } from '../services/retirement-readiness.js';
@@ -265,6 +266,13 @@ export function buildJourneyCatalog(ctx: PathContext): PathCandidate[] {
 
   for (const account of ctx.debtAccounts) {
     if (Math.round(account.balance) <= 0) continue;
+    // A card that clears every statement costs nothing to carry, so there is no
+    // payoff to step through: its balance is this month's spending. The same
+    // rule v1's candidate builder applies, read off the same classifier, because
+    // the journey and /debt disagreeing about one card is worse than either of
+    // them being wrong on its own. It said "pay this off first" (no rate on
+    // file, so treat it as expensive) over a debt page saying it cost nothing.
+    if (debtBehaviour(account) === 'clears-monthly') continue;
     const debtKind = classifyDebtKind(account);
     const facts: DebtFacts = {
       accountId: account.id,
@@ -372,9 +380,13 @@ export function buildJourneyPayload(
       employmentType: ctx.employmentType,
       riskTolerance: ctx.riskTolerance,
       retirementAge: ctx.retirementAgeSet ? ctx.retirementAge : 'not set',
-      employerMatchPercent: ctx.employerMatchPct ?? 'no plan on file',
+      // Null is "they did not tell us", not "the answer is no". Onboarding now
+      // records 0 when someone says there is no match and null when they say
+      // they are not sure, so calling null "no plan on file" would state a fact
+      // nobody gave us, to a model that will reason from it.
+      employerMatchPercent: ctx.employerMatchPct ?? 'not on file',
       hasHighDeductibleHealthPlan: ctx.hasHDHP ?? 'not on file',
-      pslfEligible: ctx.isPSLFEligible,
+      pslfEligible: ctx.isPSLFEligible ?? 'not on file',
     },
     cashFlow: {
       monthlyIncome: money(ctx.monthlyIncome),

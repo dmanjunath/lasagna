@@ -7,11 +7,13 @@ interface TabItem {
   name: string;
   icon: LucideIcon;
   path: string;
+  /** Extra routes this tab owns — see the same field in sidebar.tsx. */
+  match?: string[];
 }
 
 const tabs: TabItem[] = [
   { name: 'Home', icon: LayoutDashboard, path: '/' },
-  { name: 'Money',     icon: Wallet,          path: '/money' },
+  { name: 'Money',     icon: Wallet,          path: '/money', match: ['/accounts'] },
   { name: 'Spending',  icon: CreditCard,      path: '/spending' },
   { name: 'Goals',     icon: Target,          path: '/goals' },
   { name: 'Chat',      icon: MessageSquare,   path: '/chat' },
@@ -21,7 +23,8 @@ export function MobileTabBar() {
   const [location, navigate] = useLocation();
 
   const isActive = (tab: TabItem) => {
-    return tab.path === '/' ? location === '/' : location.startsWith(tab.path);
+    if (tab.path === '/') return location === '/';
+    return [tab.path, ...(tab.match ?? [])].some((p) => location.startsWith(p));
   };
 
   return (

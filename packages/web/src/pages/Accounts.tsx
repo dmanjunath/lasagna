@@ -7,6 +7,7 @@ import {
   Pencil,
   AlertTriangle,
   Sparkles,
+  Home,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -17,14 +18,13 @@ import {
   Zap,
 } from "lucide-react";
 import { api } from "../lib/api.js";
-import { useAuth } from "../lib/auth";
 import { HIDDEN_AMOUNT, isAmountsHidden } from "../lib/hide-amounts";
 import { HiddenAmount, MoneyInput } from "../components/uikit";
 import { isNativeApp } from "../lib/native";
 import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
-import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountTypeOption } from "../lib/account-types";
-import { Alert, Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Select, Skeleton } from "../components/uikit";
+import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountCategory, type AccountTypeOption } from "../lib/account-types";
+import { Alert, Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Select, Skeleton, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { PageTitle } from "../components/ds/PageTitle";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
@@ -120,24 +120,14 @@ function isItemError(item: PlaidItem): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Add-account picker — the top-level choices the modal opens on.
+// Add-account picker — the two forms behind the connect button.
 // ---------------------------------------------------------------------------
-
-// How selecting a top-level option routes:
-//   "plaid"       → connect-or-manual choice (Plaid is the preferred path)
-//   "realEstate"  → straight into the real-estate form (address + estimate)
-//   "manual"      → straight into the manual form
-// ("Describe to add" is its own button below the list — it creates nothing here.)
-type AddRoute = "plaid" | "realEstate" | "manual";
 
 interface AddOption {
   label: string;
-  hint: string;
-  emoji: string;
-  route: AddRoute;
   // The account types this option can create. More than one renders a Select at
-  // the top of the manual form, labelled `typeLabel`, because the specific type
-  // is what decides the tax bucket, the debt maths and the rest of the fields.
+  // the top of the form, labelled `typeLabel`, because the specific type is what
+  // decides the tax bucket, the debt maths and the rest of the fields.
   types: AccountTypeOption[];
   typeLabel?: string;
   // Set where the type answer actually adds fields below it, so the form is
@@ -148,16 +138,6 @@ interface AddOption {
   growsWithType?: boolean;
 }
 
-// The "Manual" card is a deliberate catch-all: one untyped account for anything
-// with a balance. It names no specific kind, so it isn't in the catalog.
-const MANUAL_CATCH_ALL: AccountTypeOption = {
-  label: "Manual account",
-  type: "depository",
-  subtype: null,
-  isDebt: false,
-  category: "bank",
-};
-
 // A monthly payment is asked for on an amortising loan only. A card's minimum is
 // a percentage of its balance, and a mortgage with a rate amortises over its
 // term, so for those the estimate is already right. For an auto or student loan
@@ -165,51 +145,50 @@ const MANUAL_CATCH_ALL: AccountTypeOption = {
 // estimate (api/lib/debt-accounts).
 const asksMinPayment = (t: AccountTypeOption) => t.type === "loan" && t.subtype !== "mortgage";
 
-const ADD_OPTIONS: AddOption[] = [
-  {
-    label: "Bank & Investments",
-    hint: "Checking, savings, cash & brokerage",
-    emoji: "💵",
-    route: "plaid",
-    typeLabel: "Account type",
-    types: accountTypesIn("bank"),
-  },
-  {
-    label: "Debt",
-    hint: "Credit cards, Klarna, Afterpay, mortgage",
-    emoji: "💳",
-    route: "plaid",
-    typeLabel: "Debt type",
-    types: accountTypesIn("debt"),
-    // Picking a type adds the interest rate, a mortgage adds the property link,
-    // and the amortising loans add a monthly payment.
-    growsWithType: true,
-  },
-  {
-    label: "Real Estate",
-    hint: "Home or rental. We'll estimate its value",
-    emoji: "🏡",
-    route: "realEstate",
-    typeLabel: "Property type",
-    types: accountTypesIn("realEstate"),
-    // A rental adds rent, insurance and maintenance.
-    growsWithType: true,
-  },
-  {
-    label: "Other",
-    hint: "Jewelry, watches, cars & more",
-    emoji: "💎",
-    route: "manual",
-    types: accountTypesIn("other"),
-  },
-  {
-    label: "Manual",
-    hint: "Add any account with a balance yourself",
-    emoji: "✏️",
-    route: "manual",
-    types: [MANUAL_CATCH_ALL],
-  },
-];
+// Connecting through Plaid works the type out for us, so a type is only ever
+// asked for on the two by-hand paths: one form for anything with a balance, and
+// one for a property (which is valued from an address instead).
+const MANUAL_OPTION: AddOption = {
+  label: "Add a balance manually",
+  typeLabel: "Account type",
+  types: [...accountTypesIn("bank"), ...accountTypesIn("other"), ...accountTypesIn("debt")],
+  // A debt type adds the interest rate, a mortgage adds the property link, and
+  // the amortising loans add a monthly payment.
+  growsWithType: true,
+};
+
+const PROPERTY_OPTION: AddOption = {
+  label: "Add a property",
+  typeLabel: "Property type",
+  types: accountTypesIn("realEstate"),
+  // A rental adds rent, insurance and maintenance.
+  growsWithType: true,
+};
+
+// Deep links (?add=<type>[:<subtype>]) resolve against these, most specific
+// first: MANUAL_OPTION holds no property types, so a property falls through.
+const ADD_OPTIONS: AddOption[] = [MANUAL_OPTION, PROPERTY_OPTION];
+
+// The manual form's type list spans three categories at once, which the removed
+// category step used to scope. Grouping is what keeps a checking account from
+// sitting in one flat run beside a mortgage.
+const CATEGORY_LABELS: Record<AccountCategory, string> = {
+  bank: "Bank & investments",
+  other: "Other assets",
+  debt: "Debt",
+  realEstate: "Property",
+};
+
+/** The option's types in catalog order, split into their categories. */
+function typeGroups(types: AccountTypeOption[]): { category: AccountCategory; types: AccountTypeOption[] }[] {
+  const groups: { category: AccountCategory; types: AccountTypeOption[] }[] = [];
+  for (const t of types) {
+    const last = groups[groups.length - 1];
+    if (last?.category === t.category) last.types.push(t);
+    else groups.push({ category: t.category, types: [t] });
+  }
+  return groups;
+}
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -217,14 +196,16 @@ const ADD_OPTIONS: AddOption[] = [
 
 export function Accounts() {
   const confirm = useConfirm();
+  const toast = useToast();
   const [, navigate] = useLocation();
-  const { tenant } = useAuth();
   const { status: billing, loading: billingLoading } = useBilling();
-  const isFree = tenant?.plan === "free";
-  // Free + over the institution cap: turns the usage bar to caution and swaps
-  // the nudge for the frozen count and the two ways out.
-  const overLimit =
-    isFree && !!billing && billing.usage.institutions > billing.usage.maxInstitutions;
+  // One source of truth for the plan. tenants.plan is the raw column, and only
+  // /billing/status resolves a comped grant on top of it — reading the column
+  // here showed a comped tenant the free chrome while the sidebar, which reads
+  // billing, correctly showed Pro. An unknown plan reads as free, so a Pro-only
+  // affordance (Sync all, the per-institution sync button) is never shown and
+  // then taken away when billing lands a moment later.
+  const isFree = billing ? billing.plan === "free" : true;
   const [items, setItems] = useState<PlaidItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
@@ -237,18 +218,12 @@ export function Accounts() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const itemRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  // Add-account modal state. The modal is a small wizard:
-  //   nothing set          → top-level picker (step 1)
-  //   methodChoice set     → connect/manual choice (step 2a)
-  //   formOption set       → the manual form (step 2b)
-  // Back clears one pointer at a time, so the render order below walks the user
-  // back through exactly the steps they came in by.
+  // Add-account modal state. Connect is the whole of step 1; the two by-hand
+  // forms are the only second step, and Back returns to step 1.
   const [showManualModal, setShowManualModal] = useState(false);
-  // A Plaid-eligible category awaiting the connect-vs-manual choice.
-  const [methodChoice, setMethodChoice] = useState<AddOption | null>(null);
-  // The category whose manual form is open, and the specific type chosen in it.
-  // activeType stays null until the user picks one (a category with a single
-  // type picks it for them) — nothing is submitted under a guessed type.
+  // The form that is open, and the specific type chosen in it. activeType stays
+  // null until the user picks one (a form with a single type picks it for them)
+  // — nothing is submitted under a guessed type.
   const [formOption, setFormOption] = useState<AddOption | null>(null);
   const [activeType, setActiveType] = useState<AccountTypeOption | null>(null);
   // The category the values currently in the fields were typed under. Back keeps
@@ -569,12 +544,21 @@ export function Accounts() {
     loadItems();
   };
 
+  // The cap warning in the add dialog names upgrading as the way out, so it has
+  // to offer it: on a phone the only other route is behind this modal's scrim.
+  const [upgrading, setUpgrading] = useState(false);
   const handleUpgrade = async () => {
-    setError("");
+    setUpgrading(true);
     try {
       await startUpgrade();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start upgrade");
+      // Toast, not the page banner: this is fired from inside the add dialog,
+      // and the banner renders behind its scrim — blurred and half-clipped, so
+      // a failed tap looked like nothing happened at all. Toast is z-[100] over
+      // the modal's z-[90], and it is what plan-usage.tsx does for this call.
+      toast({ tone: "negative", title: err instanceof Error ? err.message : "Failed to start upgrade" });
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -625,7 +609,6 @@ export function Accounts() {
   // create — Back moves the step pointer and keeps everything typed.
   const resetManualForm = () => {
     setFormOption(null);
-    setMethodChoice(null);
     setActiveType(null);
     setTypedUnder(null);
     setEstimating(null);
@@ -692,26 +675,25 @@ export function Accounts() {
     }
   };
 
-  // Step 1 → step 2. Each top-level option routes to its own next step:
-  //   plaid      → connect-or-manual choice (Plaid preferred)
-  //   realEstate → straight into the property form
-  //   manual     → straight into the manual form
+  // Step 1 → the chosen form. Coming back to step 1 keeps the fields, so
+  // switching to the other form is the one moment they stop applying.
   const selectOption = (opt: AddOption) => {
-    // Coming back to step 1 keeps the fields, so switching category is the one
-    // moment they stop applying.
     if (typedUnder && typedUnder !== opt.label) {
       clearFormFields();
       setActiveType(null);
       setPendingLinkedId(null);
       setAddCounterpartAfter(false);
     }
-    if (opt.route === "plaid") {
-      setMethodChoice(opt);
-      setTypedUnder(opt.label);
-    } else {
-      // realEstate + manual both drop straight into the form.
-      enterManualForm(opt);
-    }
+    enterManualForm(opt);
+  };
+
+  // Close the dialog and hand straight off to Plaid. Connecting asks no type
+  // question: Plaid already knows what each account is.
+  const startConnect = () => {
+    leaveAddRun();
+    setShowManualModal(false);
+    resetManualForm();
+    handleLink();
   };
 
   const startDescribe = () => {
@@ -720,6 +702,14 @@ export function Accounts() {
     resetManualForm();
     navigate("/quick-import");
   };
+
+  // The quieter ways in, under the connect button. Equal weight to each other:
+  // none of them is the recommended path, and the newest is not the loudest.
+  const secondaryAdds = [
+    { label: "Add a balance manually", icon: Pencil, run: () => selectOption(MANUAL_OPTION) },
+    { label: "Add a property", icon: Home, run: () => selectOption(PROPERTY_OPTION) },
+    { label: "Describe your accounts in plain English", icon: Sparkles, run: startDescribe },
+  ];
 
   // Poll the async value estimate for a freshly-created property (~10s cadence,
   // ~5min cap). Ends on ready/failed; on ready, refreshes the account list so
@@ -979,13 +969,24 @@ export function Accounts() {
   // Straight from /billing/status, which counts it off the same rows the freeze
   // recompute reads: institutions holding at least one account, manual excluded,
   // two items at one bank counted once. Counting `items` here instead is how the
-  // header came to read "2 institutions" over a meter reading "1 of 2".
-  // Pro only: the free plan's usage meter states this same number *plus* the
-  // cap a row below, so a second reading here carries strictly less.
+  // header came to read "2 institutions" over a meter reading "1 of 2" — and is
+  // why the sections below state no counts of their own.
+  // Free carries the cap with it. Deferring to the sidebar meter was desktop-only
+  // reasoning: on a phone that meter is behind the hamburger, so this page said
+  // nothing about the plan at all while institutions sat frozen.
   const institutionCount = billing?.usage.institutions ?? null;
-  if (!isFree && institutionCount !== null && institutionCount > 0)
+  if (institutionCount !== null && institutionCount > 0)
     headerTags.push(
-      <PageMetaItem key="institutions" className="ui-tnum">{`${institutionCount} institution${institutionCount !== 1 ? "s" : ""}`}</PageMetaItem>,
+      <PageMetaItem key="institutions" className="ui-tnum">
+        {/* Word for word what the sidebar meter says, including its refusal to
+            print "4 of 2" past the cap — two readings of one number must not
+            disagree with each other. */}
+        {!isFree || !billing
+          ? `${institutionCount} institution${institutionCount !== 1 ? "s" : ""}`
+          : institutionCount > billing.usage.maxInstitutions
+            ? `${institutionCount} institutions, ${billing.usage.maxInstitutions} syncing`
+            : `${institutionCount} of ${billing.usage.maxInstitutions} institutions`}
+      </PageMetaItem>,
     );
   if (totalTracked > 0)
     headerTags.push(
@@ -996,16 +997,6 @@ export function Accounts() {
       <PageMetaItem key="synced" className="ui-tnum">{`Synced ${formatRelativeTime(lastSync)}`}</PageMetaItem>,
     );
 
-  // Always denominated by the CAP and clamped, so the bar fills as you connect
-  // banks and stays full past the cap. Denominating by the total made connecting
-  // a third bank drain a full meter to two thirds.
-  const usedPct = billing
-    ? Math.min(100, (billing.usage.institutions / Math.max(1, billing.usage.maxInstitutions)) * 100)
-    : 0;
-  const frozenInstitutions = billing
-    ? Math.max(0, billing.usage.institutions - billing.usage.maxInstitutions)
-    : 0;
-
   return (
     <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 md:pt-10 pb-6 sm:pb-28 text-content">
       {/* ── Page header — mirrors /money: title, live caption, action cluster ── */}
@@ -1013,14 +1004,12 @@ export function Accounts() {
         <div className="min-w-0">
           <PageTitle>Accounts</PageTitle>
           <PageMeta className="mt-0 md:mt-1.5">
-            {loading || (!isFree && billingLoading) ? (
+            {loading || billingLoading ? (
               // Widths of the runs below, so the placeholder wraps where they
-              // wrap and the header holds still on load. Only Pro waits for
-              // billing, since only Pro carries a run that comes from it —
-              // otherwise that run inserts mid-row after the rest has painted.
-              <PageMetaSkeleton
-                widths={isFree ? ['w-20', 'w-32', 'w-[105px]'] : ['w-20', 'w-[76px]', 'w-32', 'w-[105px]']}
-              />
+              // wrap and the header holds still on load. The plan decides
+              // whether there is an institutions run at all, and the plan is not
+              // known until billing lands, so this waits for it.
+              <PageMetaSkeleton widths={['w-20', 'w-32', 'w-[105px]']} />
             ) : (
               headerTags
             )}
@@ -1051,60 +1040,6 @@ export function Accounts() {
           </div>
         )}
       </header>
-
-      {/* Plan usage meter — free plan only, and only once something is linked:
-          "0 of 2" tells a first-run user nothing and pushes the connect CTA
-          down. One cap-denominated reading in every state; past the cap the
-          fill turns amber and the nudge names what that costs. */}
-      {billing && isFree && billing.usage.institutions > 0 && (
-        <div className="mt-5 rounded-ui-lg border border-line bg-panel shadow-ui-sm px-4 py-3.5 sm:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <span className="text-[13px] font-semibold text-content-muted">Free plan</span>
-            {/* Never flips its denominator: the numerator is what you have linked,
-                the denominator is always your cap. */}
-            <span className="text-[13.5px] font-bold text-content ui-tnum">
-              {billing.usage.institutions} of {billing.usage.maxInstitutions} institutions used
-            </span>
-          </div>
-          <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-canvas-sunken">
-            <div
-              className="h-full rounded-full transition-[width] duration-500 ease-ui"
-              style={{
-                width: `${usedPct}%`,
-                background: overLimit ? "var(--ui-viz-3)" : "rgb(var(--ui-brand))",
-              }}
-            />
-          </div>
-          {billing.usage.institutions >= billing.usage.maxInstitutions && (
-            <p className="mt-2.5 text-[12.5px] font-medium text-content-muted">
-              {overLimit ? (
-                <>
-                  {`${frozenInstitutions} institution${frozenInstitutions === 1 ? " is" : "s are"} frozen and not syncing. `}
-                  <button
-                    type="button"
-                    className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2 hover:opacity-80"
-                    onClick={handleUpgrade}
-                  >
-                    Upgrade to sync them all
-                  </button>
-                  {", or disconnect an institution you no longer use to free its slot."}
-                </>
-              ) : (
-                <>
-                  {"You've reached your plan limit. "}
-                  <button
-                    type="button"
-                    className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2 hover:opacity-80"
-                    onClick={handleUpgrade}
-                  >
-                    Upgrade for 50 institutions
-                  </button>
-                </>
-              )}
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Error banner */}
       {error && (
@@ -1206,7 +1141,7 @@ export function Accounts() {
       {/* Linked institutions */}
       {!loading && linkedItems.length > 0 && (
         <section className="mt-9">
-          <SectionHeader title="Connected institutions" meta={`${linkedItems.length} linked`} />
+          <SectionHeader title="Connected institutions" />
           <div className="mt-4 space-y-[18px]">
             {linkedItems.map((item) => (
               <InstitutionArticle
@@ -1235,7 +1170,7 @@ export function Accounts() {
       {/* Manual accounts */}
       {!loading && manualAccounts.length > 0 && (
         <section className="mt-9">
-          <SectionHeader title="Manual accounts" meta={`${manualAccounts.length} tracked`} />
+          <SectionHeader title="Manual accounts" />
           <div className="mt-4 space-y-[18px]">
             {manualItems.map((item) => (
               <InstitutionArticle
@@ -1277,22 +1212,17 @@ export function Accounts() {
       <Modal
         open={showManualModal}
         onClose={closeAddModal}
-        // Back walks one step: form → connect-vs-manual (or straight to the
-        // picker when the category never offered it) → picker. It only moves the
-        // step, so nothing typed is lost either way. It does leave the run,
-        // though: the step it came from is the one an in-flight create belongs
-        // to, and that create must not land on the step being walked to.
-        // `null` rather than undefined: this dialog has steps, so the header
-        // holds the Back slot open even where there's nowhere back to, and the
-        // title doesn't slide sideways between steps.
+        // Back walks one step: form → connect. It only moves the step, so
+        // nothing typed is lost. It does leave the run, though: the step it came
+        // from is the one an in-flight create belongs to, and that create must
+        // not land on the step being walked to. `null` rather than undefined:
+        // this dialog has steps, so the header holds the Back slot open even
+        // where there's nowhere back to, and the title doesn't slide sideways
+        // between steps.
         onBack={
-          estimating
+          estimating || !formOption
             ? null
-            : formOption
-              ? () => { leaveAddRun(); setFormOption(null); }
-              : methodChoice
-                ? () => { leaveAddRun(); setMethodChoice(null); }
-                : null
+            : () => { leaveAddRun(); setFormOption(null); }
         }
         // The type answer re-shapes the form beneath it, so the panel grows
         // downward instead of recentring under what's already filled in.
@@ -1302,12 +1232,7 @@ export function Accounts() {
         // else, including a category whose every type renders the same fields,
         // sizes to its content.
         stableTopOnPhone={!!formOption?.growsWithType && !estimating}
-        title={formOption?.label ?? methodChoice?.label ?? "Add an account"}
-        description={
-          formOption || methodChoice
-            ? undefined
-            : "Pick an account type to connect it or enter it manually."
-        }
+        title={formOption?.label ?? "Add an account"}
         footer={
           formOption && estimating ? (
             <Button variant="primary" onClick={closeAddModal}>
@@ -1384,10 +1309,15 @@ export function Accounts() {
                   autoFocus
                 >
                   <option value="" disabled>Choose a type…</option>
-                  {formOption.types.map((t) => {
-                    const key = accountTypeKey(t.type, t.subtype);
-                    return <option key={key} value={key}>{t.label}</option>;
-                  })}
+                  {typeGroups(formOption.types).map((group, _i, all) =>
+                    all.length === 1 ? (
+                      group.types.map((t) => <TypeOption key={accountTypeKey(t.type, t.subtype)} type={t} />)
+                    ) : (
+                      <optgroup key={group.category} label={CATEGORY_LABELS[group.category]}>
+                        {group.types.map((t) => <TypeOption key={accountTypeKey(t.type, t.subtype)} type={t} />)}
+                      </optgroup>
+                    ),
+                  )}
                 </Select>
               </Field>
             )}
@@ -1587,99 +1517,75 @@ export function Accounts() {
               </div>
             )}
           </div>
-        ) : methodChoice ? (
-          // Step 2a — a Plaid-eligible category: connect automatically or by hand.
-          <div className="flex flex-col gap-4">
-            <button
-              type="button"
-              onClick={() => { leaveAddRun(); setShowManualModal(false); resetManualForm(); handleLink(); }}
-              disabled={linking}
-              className="ui-focus group flex items-start gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand hover:shadow-ui-sm disabled:opacity-60"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
-                <Zap size={17} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-bold text-content">Connect via Plaid</span>
-                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
-                  Securely link your institution so balances and transactions update on their own.
-                </span>
-              </span>
-              <span className="mt-1 text-content-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => enterManualForm(methodChoice)}
-              className="ui-focus group flex items-start gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3.5 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
-                <Pencil size={16} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-bold text-content">Enter manually</span>
-                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
-                  Add a balance yourself: a snapshot you can update anytime.
-                </span>
-              </span>
-              <span className="mt-1 text-content-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
-            </button>
-          </div>
         ) : (
-          // Step 1 — the six top-level choices.
-          <div className="flex flex-col gap-2.5">
-            {ADD_OPTIONS.map((opt) => (
-              <button
-                key={opt.label}
-                type="button"
-                onClick={() => selectOption(opt)}
-                className="ui-focus group flex min-h-touch items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-4 py-3 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-ui-sm"
+          // Step 1 — connecting is the whole answer for most people, and it asks
+          // no type question: Plaid already knows what each account is. The ways
+          // in for what Plaid cannot reach sit under it, equal to each other.
+          <div className="flex flex-col gap-5">
+            {/* At the cap, the next institution connects and then sits frozen.
+                The plan meter lives in the sidebar, which on a phone is behind
+                the hamburger — so without this the first the user hears of it is
+                after handing over their bank credentials. */}
+            {isFree && billing && billing.usage.institutions >= billing.usage.maxInstitutions && (
+              <Alert
+                tone="caution"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleUpgrade}
+                    loading={upgrading}
+                    disabled={upgrading}
+                    // Reserves the slot the spinner takes, so the label does not
+                    // shift right mid-flight. Same reason plan-usage does it.
+                    leadingIcon={<Sparkles size={15} />}
+                  >
+                    Upgrade
+                  </Button>
+                }
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-[17px] leading-none">
-                  {opt.emoji}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] font-bold text-content">{opt.label}</span>
-                  <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
-                    {opt.hint}
-                  </span>
-                </span>
-                <span className="text-content-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
-              </button>
-            ))}
+                {`You're at your free plan limit of ${billing.usage.maxInstitutions} institutions. A new one won't sync until you upgrade.`}
+              </Alert>
+            )}
 
-            {/* Describe to add — the AI-magical path, set apart from the rest. */}
-            <button
-              type="button"
-              onClick={startDescribe}
-              className="ui-focus group relative mt-1.5 flex min-h-touch items-center gap-3.5 overflow-hidden rounded-ui-lg border border-brand/40 px-4 py-3 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-brand hover:shadow-ui-md"
-              style={{
-                background:
-                  "radial-gradient(120% 140% at 0% 0%, var(--ui-accent-softer), transparent 60%)," +
-                  "radial-gradient(120% 140% at 100% 100%, var(--ui-brand-softer), transparent 62%)",
-              }}
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={startConnect}
+              disabled={linking}
+              leadingIcon={<Zap size={17} />}
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
-                <Sparkles size={17} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="text-[14px] font-bold text-content">Describe to add</span>
-                  <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.08em] text-brand">
-                    AI
-                  </span>
-                </span>
-                <span className="mt-0.5 block text-[12.5px] leading-relaxed text-content-muted">
-                  Type your accounts in plain English. We'll add them for you
-                </span>
-              </span>
-              <span className="text-brand transition-transform group-hover:translate-x-0.5" aria-hidden="true">→</span>
-            </button>
+              Connect your bank or card
+            </Button>
+
+            <div className="flex flex-col">
+              {secondaryAdds.map(({ label, icon: Icon, run }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => run()}
+                  className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md px-2 text-left text-[13.5px] font-semibold text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
+                >
+                  <Icon size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" aria-hidden="true" />
+                  <span className="flex-1">{label}</span>
+                  <ChevronRight
+                    size={15}
+                    className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </Modal>
     </div>
   );
+}
+
+function TypeOption({ type }: { type: AccountTypeOption }) {
+  return <option value={accountTypeKey(type.type, type.subtype)}>{type.label}</option>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1751,13 +1657,10 @@ function FirstConnectEmptyState({
 // Section header - heading + right-aligned count
 // ---------------------------------------------------------------------------
 
-function SectionHeader({ title, meta }: { title: string; meta: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <h2 className="text-[18px] font-semibold text-content">{title}</h2>
-      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{meta}</span>
-    </div>
-  );
+// No count: each section's own cards state theirs, and the page header already
+// carries the totals.
+function SectionHeader({ title }: { title: string }) {
+  return <h2 className="text-[18px] font-semibold text-content">{title}</h2>;
 }
 
 // ---------------------------------------------------------------------------

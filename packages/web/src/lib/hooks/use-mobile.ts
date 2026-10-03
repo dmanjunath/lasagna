@@ -7,10 +7,13 @@ export function useIsMobile() {
 
   useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    // mql.matches, not window.innerWidth. The query was already built and then
+    // ignored, and innerWidth grows with horizontal overflow, so one wide page
+    // was enough to report a phone as desktop and render the full sidebar on it.
+    const onChange = () => setIsMobile(mql.matches);
 
     mql.addEventListener('change', onChange);
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    setIsMobile(mql.matches);
 
     return () => mql.removeEventListener('change', onChange);
   }, []);

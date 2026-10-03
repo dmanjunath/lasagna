@@ -4,11 +4,17 @@ import { cn } from '../../lib/utils';
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   invalid?: boolean;
+  /**
+   * Tighter side padding and a chevron closer to the edge, for selects that
+   * share one narrow row (a month / day / year date). Everything else is
+   * identical, and the default is the full-width spacing.
+   */
+  compact?: boolean;
 }
 
 /** Native select styled to match the field system, with a custom chevron. */
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { className, invalid, children, ...props },
+  { className, invalid, compact, children, ...props },
   ref,
 ) {
   return (
@@ -17,7 +23,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         ref={ref}
         aria-invalid={invalid || undefined}
         className={cn(
-          'h-11 min-h-touch w-full appearance-none rounded-ui-md bg-panel pl-3.5 pr-10 text-sm text-content',
+          'h-11 min-h-touch w-full appearance-none rounded-ui-md bg-panel text-sm text-content',
+          compact ? 'pl-3 pr-7' : 'pl-3.5 pr-10',
           'border border-line-strong shadow-ui-sm transition-[border-color,box-shadow] duration-150 ease-ui',
           'focus:outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)]',
           'disabled:cursor-not-allowed disabled:opacity-60',
@@ -29,7 +36,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         {children}
       </select>
       <ChevronDown
-        className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted"
+        className={cn(
+          'pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted',
+          compact ? 'right-2' : 'right-3.5',
+        )}
         aria-hidden
       />
     </div>

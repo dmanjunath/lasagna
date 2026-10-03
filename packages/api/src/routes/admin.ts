@@ -5,7 +5,7 @@ import { resolveTenantPlan, classifyPlanSource, isTenantDisabled, type PlanSourc
 import { recomputeFrozenAccounts } from "../lib/account-limits.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { removeUserRow } from "../lib/auth/remove-user.js";
-import { normalizeEmail } from "../lib/normalize-email.js";
+import { isValidEmail, normalizeEmail } from "../lib/normalize-email.js";
 import * as workos from "../lib/auth/workos.js";
 import { authMode } from "../lib/auth/mode.js";
 import { env } from "../lib/env.js";
@@ -364,7 +364,7 @@ adminRoutes.patch("/users/:userId", async (c) => {
 
   if (body.email !== undefined) {
     const email = normalizeEmail(body.email);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!isValidEmail(email)) {
       return c.json({ error: "Invalid email address" }, 400);
     }
     // WorkOS-linked identities are matched by email as a fallback — changing

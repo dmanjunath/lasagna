@@ -255,7 +255,18 @@ vi.mock('../../lib/db.js', () => ({
 
 import { PgDialect, financialPaths, financialPathSteps } from '@lasagna/core';
 import type { ReadinessVerdict } from '@lasagna/core/retirement-verdict';
-import { buildPathContextDefaults, type PathContext } from '../../lib/path-context.js';
+import { buildPathContextDefaults as zeroedContext, type PathContext } from '../../lib/path-context.js';
+
+/**
+ * Every household below has connected accounts: the balances the fixtures set
+ * are read off them. `sizePath` holds every step at not_started until at least
+ * one account exists (a household with nothing linked has zero of everything,
+ * which reads as every "get this to zero" milestone already met), so the count
+ * is stated once here rather than in each fixture. A test about the empty case
+ * passes `accountCount: 0` explicitly.
+ */
+const buildPathContextDefaults = (overrides: Partial<PathContext> = {}): PathContext =>
+  zeroedContext({ accountCount: 1, ...overrides });
 import { buildPathCandidates } from '../../lib/path-candidates.js';
 import { invalidatePath, markPathStep, readActivePath } from '../../lib/path-generator.js';
 import { currentStepKey, markAndReadPath, readFinancialPath } from '../financial-path.js';

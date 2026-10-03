@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Search } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { Badge, Button, Modal, Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth';
 import { formatInstant } from '../lib/utils';
 import { RowMenu } from '../components/admin/row-menu';
 import { DeleteTenantModal } from '../components/admin/delete-tenant-modal';
+import { DisplayFontPicker } from '../components/settings/display-font-picker';
 
 type AdminUser = Awaited<ReturnType<typeof api.adminGetUsers>>['users'][number];
 type Totals = Awaited<ReturnType<typeof api.adminGetUsers>>['totals'];
@@ -40,6 +41,7 @@ export function Admin() {
   const [rowBusy, setRowBusy] = useState('');       // tenantId being paused/resumed
   const [actionError, setActionError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [faceOpen, setFaceOpen] = useState(false);
 
   // Tenants containing an admin user can't be deleted (server enforces too).
   const adminTenants = useMemo(() => new Set(rows.filter((r) => r.isAdmin).map((r) => r.tenantId)), [rows]);
@@ -95,6 +97,9 @@ export function Admin() {
   };
 
   const sortMark = (k: SortKey) => (sortKey === k ? (sortDesc ? ' ↓' : ' ↑') : '');
+  // The arrow is the only sort cue, and it is decorative text.
+  const sortAria = (k: SortKey): 'ascending' | 'descending' | 'none' =>
+    sortKey === k ? (sortDesc ? 'descending' : 'ascending') : 'none';
 
   // Plan buckets count tenants (billing is per tenant), so a multi-user tenant
   // isn't double-counted — hence the "tenants" labels.
@@ -130,7 +135,7 @@ export function Admin() {
   return (
     <AdminShell subtitle="Users, activity, and complimentary Pro grants. Billing itself lives in Stripe.">
       {/* Totals */}
-      <div className="mt-7 grid grid-cols-3 sm:grid-cols-6 gap-x-6 gap-y-5">
+      <div className="mt-7 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-5">
         {loading
           ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-ui-md" />)
           : stats.map((s) => (
@@ -140,6 +145,29 @@ export function Admin() {
                 <div className={`mt-1 font-editorial text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum${s.caution && s.value > 0 ? ' text-caution' : ''}`}>{s.value}</div>
               </div>
             ))}
+      </div>
+
+      {/* Operator-only display-face trial, behind a disclosure. Below the table
+          it sat ~12,000px down and could not be found; above it open, its 418px
+          (704px on a phone) pushed the first user row off a 900px viewport, so
+          the page opened on zero users. A 44px row keeps it findable at a
+          fortieth of the cost. */}
+      <div className="mt-7">
+        <button
+          type="button"
+          onClick={() => setFaceOpen((v) => !v)}
+          aria-expanded={faceOpen}
+          aria-controls="admin-display-face"
+          className="ui-focus touch-target flex items-center gap-2 rounded-ui-sm text-[13.5px] font-semibold text-content-muted transition-colors hover:text-content"
+        >
+          Display face
+          <ChevronDown size={14} className={faceOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+        </button>
+        {faceOpen && (
+          <div id="admin-display-face" className="mt-3">
+            <DisplayFontPicker />
+          </div>
+        )}
       </div>
 
       {/* Search */}
@@ -157,41 +185,54 @@ export function Admin() {
         </div>
       </div>
 
-      {actionError && <p className="mt-3 text-[12.5px] text-negative">{actionError}</p>}
+      {actionError && <p role="alert" className="mt-3 text-[12.5px] text-negative">{actionError}</p>}
 
-      {/* Users table — click a row for the full detail page */}
-      <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm overflow-x-auto">
+      {/* Users table — click a row for the full detail page.
+
+          `contain: paint` is load-bearing, not cosmetic: without it the table's
+          1272px min-content width leaked out and widened the layout viewport,
+          which inflated window.innerWidth to 1543 and made useIsMobile() render
+          the DESKTOP sidebar on a phone with no tab bar.
+
+          No edge fade here. One was tried and withdrawn: as a mask it faded the
+          card's own border, radius and shadow, and as an overlay it washed out
+          the focus ring of whichever sort header sat under it — `scroll-padding`
+          cannot help, because it only biases a scroll that actually happens and
+          these headers are already in view. A nicety that costs a focus
+          indicator is not worth it; the columns scroll fine without it. */}
+      <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm overflow-hidden">
+      <div className="overflow-x-auto [contain:paint]">
         <table className="w-full text-[13.5px]" data-testid="admin-users-table">
           <thead>
             <tr className="border-b border-line text-left">
-              <th className={thSort}>User</th>
+              <th className={`${thSort} sticky left-0 z-10 bg-panel max-w-[180px] lg:max-w-none bg-[linear-gradient(to_left,var(--ui-line)_1px,transparent_1px)]`}>User</th>
               <th className={thSort}>Plan</th>
-              <th className={thSort}>
+              <th className={thSort} aria-sort={sortAria('createdAt')}>
                 <button type="button" className={sortBtn} onClick={() => toggleSort('createdAt')}>
                   Signed up{sortMark('createdAt')}
                 </button>
               </th>
-              <th className={thSort}>
+              <th className={thSort} aria-sort={sortAria('lastLoginAt')}>
                 <button type="button" className={sortBtn} onClick={() => toggleSort('lastLoginAt')}>
                   Last login{sortMark('lastLoginAt')}
                 </button>
               </th>
-              <th className={thSort}>
+              <th className={thSort} aria-sort={sortAria('lastSyncAt')}>
                 <button type="button" className={sortBtn} onClick={() => toggleSort('lastSyncAt')}>
                   Last sync{sortMark('lastSyncAt')}
                 </button>
               </th>
-              <th className={thSort}>
+              <th className={thSort} aria-sort={sortAria('lastActionsGeneratedAt')}>
                 <button type="button" className={sortBtn} onClick={() => toggleSort('lastActionsGeneratedAt')}>
                   Actions generated{sortMark('lastActionsGeneratedAt')}
                 </button>
               </th>
-              <th className={`${thSort} text-right`}>
+              <th className={`${thSort} text-right`} aria-sort={sortAria('accountCount')}>
                 <button type="button" className={sortBtn} onClick={() => toggleSort('accountCount')}>
                   Accounts{sortMark('accountCount')}
                 </button>
               </th>
-              <th className={`${thSort} text-right`}>
+              <th className={`${thSort} text-right`} aria-sort={sortAria('spend30d')}>
                 <button type="button" className={sortBtn} onClick={() => toggleSort('spend30d')}>
                   Spend 30d{sortMark('spend30d')}
                 </button>
@@ -206,24 +247,42 @@ export function Admin() {
                   <Skeleton className="h-24 rounded-ui-md" />
                 </td>
               </tr>
-            ) : visible.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-content-muted">
-                  {search.trim() ? 'No users match your search.' : 'No users yet.'}
-                </td>
-              </tr>
-            ) : (
+            ) : visible.length === 0 ? null : (
               visible.map((u) => (
                 <tr
                   key={u.userId}
                   onClick={() => navigate(`/admin/users/${u.tenantId}`)}
-                  className="border-b border-line last:border-b-0 hover:bg-canvas-sunken/50 transition-colors cursor-pointer"
+                  className="group border-b border-line last:border-b-0 hover:bg-canvas-sunken transition-colors cursor-pointer"
                 >
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/users/${u.tenantId}`} className="font-semibold text-content hover:underline" onClick={(e) => e.stopPropagation()}>
+                  {/* Sticky: scrolled right to read Spend 30d, this was the only
+                      column that identified the row, and it was the one that
+                      scrolled away. Opaque, or the columns slide under it, and
+                      it carries its own right edge so a column passing beneath
+                      does not look sliced mid-glyph.
+
+                      Pinned at every width, but CAPPED to 180px until `lg`.
+                      The cap is what makes that safe: unpinned, scrolling right
+                      left every row reading "Never / 0 / $0.00" with nothing to
+                      say whose they were, and iPad portrait sits in that band.
+                      Pinning the full 276px instead is what could not work —
+                      at 320 it left every data column at zero width and buried
+                      the row-actions button, and the desktop sidebar arriving
+                      at 768 collapses the port to 359px. 180px keeps the
+                      identity and still leaves room to read the data.
+
+                      The seam is a background IMAGE, not a box-shadow. Chrome
+                      does not paint box-shadow on cells of a
+                      `border-collapse: collapse` table (Tailwind's preflight
+                      sets that), and `border-right` loses to the collapsed
+                      border model — both compute clean and render nothing, so
+                      columns slid under the pin mid-glyph. A gradient stop lands
+                      on the cell edge, and background-image coexists with the
+                      background-COLOR that carries the hover tint. */}
+                  <td className="sticky left-0 z-10 bg-panel max-w-[180px] lg:max-w-none bg-[linear-gradient(to_left,var(--ui-line)_1px,transparent_1px)] group-hover:bg-canvas-sunken px-4 py-3">
+                    <Link href={`/admin/users/${u.tenantId}`} title={u.email} className="ui-focus block truncate rounded-ui-xs font-semibold text-content hover:underline" onClick={(e) => e.stopPropagation()}>
                       {u.email}
                     </Link>
-                    {u.name && <div className="text-[12px] text-content-muted">{u.name}</div>}
+                    {u.name && <div className="truncate text-[12px] text-content-muted">{u.name}</div>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -279,6 +338,14 @@ export function Admin() {
           </tbody>
         </table>
       </div>
+      {/* Outside the scroller, so it is as wide as the CARD rather than as wide
+          as the table, and lands on screen on a phone. */}
+      {!loading && visible.length === 0 && (
+        <p className="px-4 py-10 text-center text-content-muted">
+          {search.trim() ? 'No users match your search.' : 'No users yet.'}
+        </p>
+      )}
+      </div>
       {pauseTarget && (
         <Modal open onClose={() => setPauseTarget(null)} title="Pause this account?">
           <p className="text-[13.5px] text-content-secondary leading-[1.55]">
@@ -303,6 +370,8 @@ export function Admin() {
           onDeleted={() => { setDeleteTarget(null); void load(); }}
         />
       )}
+
+
     </AdminShell>
   );
 }

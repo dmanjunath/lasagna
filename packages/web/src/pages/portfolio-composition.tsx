@@ -147,8 +147,18 @@ function collapseSmallSlices(slices: DonutSlice[], minPct = 1.5): DonutSlice[] {
 
 // ---------------------------------------------------------------------------
 // Full-width allocation bar — the single at-a-glance chart. Segments grow to
-// their value, wide ones carry an inline label, and hovering one dims the rest
-// and echoes into the breakdown below. Click drills (when not already drilled).
+// their value, and hovering one dims the rest and echoes into the breakdown
+// below. Click drills (when not already drilled).
+//
+// Segments carry NO text of their own. Naming a slice inside its own fill means
+// picking an ink that reads on every colour in the palette, and there is none.
+// Measured against the light palette: white is 2.49:1 on teal and 4.47:1 on
+// periwinkle, both under 4.5:1, while black is 4.39:1 on slate. Which of the
+// two wins also FLIPS between light and dark, and the gloss gradient over each
+// segment moves the background under the text again. The breakdown directly
+// below is the legend, and it already spells out swatch, name, value and share
+// for every segment, at full contrast, on every screen, including the slivers
+// too narrow to have ever held a label.
 // ---------------------------------------------------------------------------
 
 function AllocationBar({
@@ -175,14 +185,13 @@ function AllocationBar({
     >
       {segs.map((s, i) => {
         const pct = (s.value / sum) * 100;
-        const wide = pct >= 8;
         const active = hovered === null || hovered === s.name;
         const isOther = s.name === OTHER_SLICE;
         const display = s.label ?? s.name;
         const drillable = !!onSliceClick && !isOther;
         const tip = isOther && s.children?.length
-          ? `Other, ${pct.toFixed(1)}%, ${formatMoney(s.value, true)} (${s.children.map((c) => c.name).join(', ')})`
-          : `${display}, ${pct.toFixed(1)}%, ${formatMoney(s.value, true)}`;
+          ? `Other, ${fmtPct(pct)}, ${formatMoney(s.value, true)} (${s.children.map((c) => c.name).join(', ')})`
+          : `${display}, ${fmtPct(pct)}, ${formatMoney(s.value, true)}`;
         return (
           <button
             key={`${s.name}-${i}`}
@@ -190,7 +199,25 @@ function AllocationBar({
             onClick={() => { if (drillable) onSliceClick?.(s.name); }}
             onMouseEnter={() => onHover(s.name)}
             onMouseLeave={() => onHover(null)}
-            className="relative flex h-full items-center px-3 transition-opacity duration-150"
+            // Focus previews the segment exactly as a pointer hover does. The
+            // ring says "you are here"; the breakdown row it lights says WHICH
+            // one, and that is the only thing that can: the segments carry no
+            // text, and past seven slices the palette repeats, so a drilled bar
+            // has two indigo segments and two teal ones.
+            onFocus={() => onHover(s.name)}
+            onBlur={() => onHover(null)}
+            // Focus ring, drawn INWARD and in two tones. Inward because the
+            // track above is `overflow-hidden` (load-bearing: slivers pinned to
+            // minWidth can overrun it), which clips a descendant's outward ring
+            // to almost nothing. Two tones because the thing behind the ring is
+            // a different saturated colour on every segment, and no single ink
+            // clears 3:1 on all of them: the brand ring alone vanished on teal
+            // in dark, and the panel colour alone is near-invisible on lime in
+            // light. Paired, whichever one the fill swallows, the other shows.
+            // Without any of this a focused segment fell back to the browser's
+            // own blue (orange on iOS) — three untokened colours, and the only
+            // marker a segment has now that it carries no text.
+            className="h-full transition-opacity duration-150 focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_rgb(var(--ui-panel)),inset_0_0_0_4px_var(--ui-brand-ring)]"
             style={{
               flexGrow: s.value,
               minWidth: 5,
@@ -202,17 +229,12 @@ function AllocationBar({
               opacity: active ? 1 : 0.38,
               cursor: drillable ? 'pointer' : 'default',
             }}
-            title={tip}
-          >
-            {wide && (
-              <span
-                className="hidden truncate text-[12.5px] font-extrabold text-white sm:block"
-                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.30)' }}
-              >
-                {display}, {pct.toFixed(0)}%
-              </span>
-            )}
-          </button>
+            // The segment's accessible name, not a `title`: a title hangs an
+            // unstyled native tooltip off every segment about a second after
+            // the pointer lands, saying what the breakdown row it already
+            // highlights says, in the browser's chrome instead of ours.
+            aria-label={tip}
+          />
         );
       })}
     </div>
@@ -262,7 +284,14 @@ function AllocationBreakdown({
                 onClick={() => { if (!isOther) onSliceClick(s.name); }}
                 className={cn(
                   'ui-focus flex min-h-touch items-center gap-3 rounded-ui-sm px-2.5 py-2 text-left transition-colors',
-                  isOther ? 'cursor-default' : isActive ? 'bg-brand-soft' : isHover ? 'bg-brand-softer' : 'hover:bg-brand-softer',
+                  // Other is inert, so it takes no pointer affordance of its
+                  // own — but it still has to LIGHT when its segment is hovered
+                  // or focused. The bar carries no text, so this row is the only
+                  // thing that names a segment, and leaving the one row that
+                  // never lit was the single hole in that.
+                  isOther
+                    ? cn('cursor-default', isHover && 'bg-brand-softer')
+                    : isActive ? 'bg-brand-soft' : isHover ? 'bg-brand-softer' : 'hover:bg-brand-softer',
                 )}
               >
                 <span className="h-3 w-3 shrink-0 rounded-[4px]" style={{ background: s.color }} aria-hidden />

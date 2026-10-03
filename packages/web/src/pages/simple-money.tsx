@@ -65,6 +65,10 @@ export function SimpleMoney() {
   const toast = useToast();
   const [items, setItems] = useState<Item[]>([]);
   const [history, setHistory] = useState<TrendPoint[]>([]);
+  // The history request failed. Swallowed, an empty array is indistinguishable
+  // from a new account, and the card tells the reader they have too little
+  // history when in fact we could not ask. Home already tracks this.
+  const [historyFailed, setHistoryFailed] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -83,7 +87,7 @@ export function SimpleMoney() {
   useEffect(() => {
     Promise.all([
       api.getItems().catch(() => ({ items: [] as Item[] })),
-      api.getNetWorthHistory().catch(() => ({ history: [] as TrendPoint[] })),
+      api.getNetWorthHistory().catch(() => { setHistoryFailed(true); return { history: [] as TrendPoint[] }; }),
       api.getTransactions({ limit: 8 }).catch(() => ({ transactions: [] as Transaction[] })),
     ]).then(([itemsData, historyData, txData]) => {
       setItems(itemsData.items);
@@ -311,6 +315,7 @@ export function SimpleMoney() {
       {hasMoney && (
         <NetWorthTrendCard
           history={history}
+          historyError={historyFailed}
           netWorth={netWorth}
           className="mt-6"
           titleClassName="font-editorial text-[19px] font-bold tracking-[-0.018em]"

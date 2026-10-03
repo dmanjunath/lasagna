@@ -1,10 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { buildPathContextDefaults, type PathContext } from '../path-context.js';
+import { buildPathContextDefaults as zeroedContext, type PathContext } from '../path-context.js';
 import { CONTRIBUTION_TAX_YEAR, buildPathCandidates, savingsRateTarget } from '../path-candidates.js';
 import { sizePath, contributionLimits, emergencyFundTarget, type StepMark } from '../path-sizing.js';
 import { currentStepKey } from '../../routes/financial-path.js';
 import type { DebtAccount } from '../debt-accounts.js';
 import type { PathReadiness } from '../../services/retirement-readiness.js';
+
+/**
+ * Every household below has connected accounts: the balances the fixtures set
+ * are read off them. `sizePath` holds every step at not_started until at least
+ * one account exists (a household with nothing linked has zero of everything,
+ * which reads as every "get this to zero" milestone already met), so the count
+ * is stated once here rather than in each fixture. A test about the empty case
+ * passes `accountCount: 0` explicitly.
+ */
+const buildPathContextDefaults = (overrides: Partial<PathContext> = {}): PathContext =>
+  zeroedContext({ accountCount: 1, ...overrides });
 
 function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): DebtAccount {
   return {

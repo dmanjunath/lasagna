@@ -4,11 +4,12 @@ import { Hono } from "hono";
 /**
  * The read side of the regeneration brake.
  *
- * GET /insights regenerates synchronously when the household's recorded
+ * GET /insights TRIGGERS a regeneration when the household's recorded
  * generation attempt is older than REGEN_STALE_MS, as a backstop for a stalled
- * scheduler. That marker is now written whether generation SUCCEEDED or FAILED
- * (see insights-regen-loop.test.ts), so this window doubles as the cooldown
- * between two attempts.
+ * scheduler, and answers from the stored rows without waiting for it. The
+ * marker is written whether generation SUCCEEDED or FAILED (see
+ * insights-regen-loop.test.ts) and is stamped again when the claim is taken, so
+ * this window doubles as the cooldown between two attempts.
  *
  * What these hold is the half that costs money: a read whose recorded attempt
  * is inside the window must not call the model. It used to, on every single
@@ -41,8 +42,13 @@ function selectChain(rows: unknown[]) {
 vi.mock("../../lib/db.js", () => ({
   db: {
     select: (projection?: unknown) => selectChain(projection ? accountRows : []),
+    // The claim takes the lock AND stamps the freshness marker, in one short
+    // transaction, so the generation can run outside it.
     transaction: async (fn: (tx: unknown) => Promise<boolean>) =>
-      fn({ execute: async () => [{ locked: true }] }),
+      fn({
+        execute: async () => [{ locked: true }],
+        insert: () => ({ values: () => ({ onConflictDoUpdate: async () => undefined }) }),
+      }),
   },
 }));
 

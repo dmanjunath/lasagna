@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useAuth } from "../lib/auth";
-import { DisplayFontPicker } from "../components/settings/display-font-picker";
 import { api } from "../lib/api";
 import { useBilling, startUpgrade, openPortal } from "../lib/billing";
 import { formatMoney, cn, exactSyncTime, formatInstant, formatStoredDate } from "../lib/utils";
@@ -68,6 +67,43 @@ type FinancialProfile = {
 
 type EditSection = "personal" | "income" | null;
 
+// One settings section. Every section is addressable as /profile#<id>, so other
+// screens can deep-link to the one they mean.
+interface SettingsSection {
+  id: string;
+  title: string;
+  hint?: string;
+  body: React.ReactNode;
+}
+
+const sectionFromHash = () => window.location.hash.replace(/^#/, "") || null;
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    setMatches(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
+type AuthUser = NonNullable<ReturnType<typeof useAuth>["user"]>;
+
+/**
+ * Deleting is owner-only, and never for a demo or operator account. Shared by
+ * the card and by the rail entry that holds it, so the rail can never offer a
+ * section whose only contents render nothing. A type guard, so the card keeps
+ * the non-null `user` its early return used to give it.
+ */
+function canDeleteAccount(user: AuthUser | null | undefined, isDemo: boolean): user is AuthUser {
+  return !isDemo && !!user && !user.isDemo && !user.isAdmin && user.role === "owner";
+}
+
 const FILING_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "single", label: "Single" },
   { value: "married_joint", label: "Married Filing Jointly" },
@@ -110,7 +146,7 @@ function formatEmployment(type: string): string {
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function Settings() {
-  const { user, tenant, logout } = useAuth();
+  const { user, tenant } = useAuth();
   const [, navigate] = useLocation();
 
   const [profile, setProfile] = useState<FinancialProfile | null>(null);
@@ -129,12 +165,38 @@ export function Settings() {
     }
   }, []);
 
-  // Deep link from the category picker's "Manage categories" action.
+  // Which section is open. Desktop always shows one (the rail's selection);
+  // mobile starts with everything collapsed unless a hash names a section.
+  // The rail needs ROOM, not merely "not a phone". `useIsMobile()` flips at 768,
+  // which is the exact width the 268px app sidebar appears at — so at 768 the
+  // content pane measured 125px and Set password / Manage subscription / the
+  // Active badge rendered OUTSIDE their cards. Gate on the same 1024 the admin
+  // table's pinned column settled on, and for the same reason: what matters is
+  // the pane, not the viewport.
+  //
+  // matchMedia, not innerWidth: a page that overflows horizontally inflates
+  // innerWidth and would flip this back on (see lib/hooks/use-mobile.ts).
+  const wideEnoughForRail = useMediaQuery("(min-width: 1024px)");
+  // Returning from Stripe lands on the section that return is about: it also
+  // mounts PlanCard, which is what repolls the plan while the webhook catches up.
+  const [active, setActive] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("upgraded") === "1" ? "billing" : sectionFromHash(),
+  );
+
+  // Deep links: the category picker's "Manage categories" lands on
+  // /profile#categories, and the address bar keeps up as sections are opened.
   useEffect(() => {
-    if (window.location.hash === "#categories") {
-      document.getElementById("categories")?.scrollIntoView();
-    }
+    const id = sectionFromHash();
+    if (id) requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView());
+    const onHash = () => setActive(sectionFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  const select = (id: string | null) => {
+    setActive(id);
+    window.history.replaceState(null, "", id ? `${window.location.pathname}#${id}` : window.location.pathname);
+  };
 
   // Edit form state
   const [formData, setFormData] = useState({
@@ -278,71 +340,13 @@ export function Settings() {
     .join("")
     .toUpperCase() || "U";
 
-  return (
-    <div className="mx-auto max-w-[840px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
-      {/* ════════ Identity header ════════ */}
-      <header className="animate-fade-in flex flex-col gap-5 border-b border-line pb-7 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-4">
-          <span
-            aria-hidden
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-ui-lg bg-[var(--ui-accent-soft)] font-editorial text-[22px] font-bold tracking-tight text-[rgb(var(--ui-accent-ink))] ring-1 ring-inset ring-[var(--ui-accent-soft)]"
-          >
-            {initials}
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.04] tracking-[-0.026em] text-content">
-              {displayName}
-            </h1>
-            {email && (
-              <p className="mt-1 truncate text-[13.5px] font-medium text-content-muted">{email}</p>
-            )}
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => logout()}
-          leadingIcon={<LogOut className="h-4 w-4" />}
-          className="self-start sm:self-auto"
-        >
-          Sign out
-        </Button>
-      </header>
-
-      {showProWelcome && (
-        <Alert tone="positive" className="mt-6">
-          Welcome to Pro! Your account is being upgraded.
-        </Alert>
-      )}
-
-      {/* ════════ Accounts ════════ */}
-      <section className="mt-10">
-        <GroupHeader title="Accounts" hint="Add, reconnect, or remove the accounts you track" />
-        <div className="mt-4">
-          <NavCard
-            icon={<Building2 className="h-5 w-5" />}
-            label="Connected accounts"
-            sub="Banks, brokerages, manual balances"
-            onClick={() => navigate("/accounts")}
-          />
-        </div>
-      </section>
-
-      {/* ════════ Display ════════ */}
-      {/* Above the financial profile deliberately: the profile runs ~1,400px on
-          a phone, and these two are the only home the chrome toggles have. */}
-      <section className="mt-10">
-        <GroupHeader title="Display" hint="How the app looks on this device" />
-        <div className="mt-4 space-y-4">
-          <DisplayCard />
-          <DisplayFontPicker />
-        </div>
-      </section>
-
-      {/* ════════ Financial profile ════════ */}
-      <section className="mt-10">
-        <GroupHeader title="Financial profile" hint="Powers your tax, retirement, and cash-flow insights" />
-        <div className="mt-4 space-y-4">
+  const sections: SettingsSection[] = [
+    {
+      id: "financial",
+      title: "Financial profile",
+      hint: "Powers your tax, retirement, and cash-flow insights",
+      body: (
+        <div className="space-y-4">
           <DetailCard
             icon={<User className="h-5 w-5" />}
             title="Personal info"
@@ -385,42 +389,66 @@ export function Settings() {
             )}
           </DetailCard>
         </div>
-      </section>
-
-      {/* ════════ Household ════════ */}
-      {!isDemoMode && (
-        <section className="mt-10">
-          <GroupHeader title="Household" hint="Share your accounts and financial picture with a partner. Each gets their own login and private chat." />
-          <div className="mt-4">
-            <HouseholdSection />
-          </div>
-        </section>
-      )}
-
-      {/* ════════ Plan & billing ════════ */}
-      <section className="mt-10">
-        <GroupHeader title="Plan & billing" hint="Your subscription and what's included" />
-        <div className="mt-4">
-          <PlanCard />
-        </div>
-      </section>
-
-      {/* ════════ Security ════════ */}
-      <section className="mt-10">
-        <GroupHeader title="Security" hint="Your password, sign-in history, and device passkeys" />
-        <div className="mt-4 space-y-4">
+      ),
+    },
+    {
+      id: "accounts",
+      title: "Accounts",
+      hint: "Add, reconnect, or remove the accounts you track",
+      body: (
+        <NavCard
+          icon={<Building2 className="h-5 w-5" />}
+          label="Connected accounts"
+          sub="Banks, brokerages, manual balances"
+          onClick={() => navigate("/accounts")}
+        />
+      ),
+    },
+    ...(isDemoMode
+      ? []
+      : [
+          {
+            id: "household",
+            title: "Household",
+            hint: "Share your accounts and financial picture with a partner. Each gets their own login and private chat.",
+            body: <HouseholdSection />,
+          } as SettingsSection,
+        ]),
+    {
+      id: "billing",
+      title: "Plan & billing",
+      hint: "Your subscription and what's included",
+      body: <PlanCard />,
+    },
+    {
+      id: "security",
+      title: "Security",
+      hint: "Your password, sign-in history, and device passkeys",
+      body: (
+        <div className="space-y-4">
           <PasswordSecurityCard />
           <PasskeysCard />
           {isNativeApp() && <FaceIdLockCard />}
         </div>
-      </section>
-
-      {/* ════════ Categories ════════ */}
-      {/* scroll-mt clears the fixed mobile header (safe-area + 48px bar + 1px border)
-          plus the same 16px breathing room desktop gets from scroll-mt-4. */}
-      <section id="categories" className="mt-10 scroll-mt-[calc(env(safe-area-inset-top)+65px)] md:scroll-mt-4">
-        <GroupHeader title="Categories" hint="Rename, disable, and organize how transactions are categorized" />
-        <div className="mt-4 space-y-4">
+      ),
+    },
+    {
+      id: "display",
+      title: "Display",
+      hint: "How the app looks on this device",
+      body: (
+        <div className="space-y-4">
+          <DisplayCard />
+          {isNativeApp() && <BuildVersion />}
+        </div>
+      ),
+    },
+    {
+      id: "categories",
+      title: "Categories",
+      hint: "Rename, disable, and organize how transactions are categorized",
+      body: (
+        <div className="space-y-4">
           <CategoryManager />
           <NavCard
             icon={<SlidersHorizontal className="h-5 w-5" />}
@@ -429,14 +457,120 @@ export function Settings() {
             onClick={() => setRulesOpen(true)}
           />
         </div>
-      </section>
+      ),
+    },
+    ...(canDeleteAccount(user, isDemoMode)
+      ? [
+          {
+            id: "delete",
+            title: "Delete account",
+            hint: "Permanently remove your account and everything in it",
+            body: <DeleteAccountCard />,
+          } as SettingsSection,
+        ]
+      : []),
+  ];
 
-      {/* ════════ Delete account ════════ */}
-      <section className="mt-10">
-        <DeleteAccountCard />
-      </section>
+  // A hash that names no section (or none at all) falls back to the first one on
+  // desktop and to nothing expanded on mobile.
+  const activeSection = sections.find((s) => s.id === active) ?? sections[0];
 
-      {isNativeApp() && <BuildVersion />}
+  return (
+    <div className="mx-auto max-w-[1000px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+      {/* ════════ Identity header ════════ */}
+      <header className="animate-fade-in flex min-w-0 items-center gap-4 border-b border-line pb-7">
+        <span
+          aria-hidden
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-ui-lg bg-[var(--ui-accent-soft)] font-editorial text-[22px] font-bold tracking-tight text-[rgb(var(--ui-accent-ink))] ring-1 ring-inset ring-[var(--ui-accent-soft)]"
+        >
+          {initials}
+        </span>
+        <div className="min-w-0">
+          <h1 className="truncate font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.04] tracking-[-0.026em] text-content">
+            {displayName}
+          </h1>
+          {email && (
+            <p className="mt-1 truncate text-[13.5px] font-medium text-content-muted">{email}</p>
+          )}
+        </div>
+      </header>
+
+      {showProWelcome && (
+        <Alert tone="positive" className="mt-6">
+          Welcome to Pro! Your account is being upgraded.
+        </Alert>
+      )}
+
+      {!wideEnoughForRail ? (
+        /* One section open at a time, so the whole list of them is readable on
+           one screen instead of being a single 10-section scroll. */
+        <div className="mt-6">
+          {sections.map((section) => {
+            const open = active === section.id;
+            return (
+              <div
+                key={section.id}
+                id={section.id}
+                className="border-b border-line scroll-mt-[calc(env(safe-area-inset-top)+65px)]"
+              >
+                <button
+                  type="button"
+                  onClick={() => select(open ? null : section.id)}
+                  aria-expanded={open}
+                  className="ui-focus flex min-h-touch w-full items-center justify-between gap-3 rounded-ui-sm py-3.5 text-left"
+                >
+                  <span className="text-[15.5px] font-semibold text-content">{section.title}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-content-muted transition-transform duration-200",
+                      open && "rotate-180",
+                    )}
+                  />
+                </button>
+                {open && (
+                  <div className="pb-5">
+                    {section.hint && (
+                      <p className="mb-3 text-[13px] font-medium text-content-muted">{section.hint}</p>
+                    )}
+                    {section.body}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-8 grid grid-cols-[196px_minmax(0,1fr)] gap-10">
+          <nav aria-label="Settings sections" className="sticky top-4 flex flex-col gap-0.5 self-start">
+            {sections.map((section) => {
+              const current = activeSection.id === section.id;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => select(section.id)}
+                  // "true", not "page": this switches a pane in place, it does
+                  // not navigate to another page.
+                  aria-current={current ? "true" : undefined}
+                  className={cn(
+                    "ui-focus rounded-ui-md px-3 py-2 text-left text-[13.5px] transition-colors",
+                    current
+                      ? "bg-brand-soft font-bold text-[rgb(var(--ui-brand-ink))]"
+                      : "font-semibold text-content-secondary hover:bg-canvas-sunken hover:text-content",
+                  )}
+                >
+                  {section.title}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div id={activeSection.id} className="min-w-0">
+            <GroupHeader title={activeSection.title} hint={activeSection.hint} />
+            <div className="mt-4">{activeSection.body}</div>
+          </div>
+        </div>
+      )}
 
       <RulesPanel
         open={rulesOpen}
@@ -781,7 +915,7 @@ function PasswordSecurityCard() {
   return (
     <Surface className="p-5">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
             <KeyRound className="h-5 w-5" />
           </span>
@@ -915,7 +1049,7 @@ function PasskeysCard() {
   return (
     <Surface className="p-5">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
             <Fingerprint className="h-5 w-5" />
           </span>
@@ -1040,7 +1174,7 @@ function FaceIdLockCard() {
   return (
     <Surface className="p-5">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
             <ScanFace className="h-5 w-5" />
           </span>
@@ -1189,7 +1323,7 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
 
       <div className="border-t border-line px-5 py-5 sm:px-6">
         {loading ? (
-          <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-5 xl:grid-cols-2">
             {rows.map((_, i) => (
               <div key={i} className="space-y-2">
                 <Skeleton className="h-2.5 w-20 rounded-full" />
@@ -1213,7 +1347,7 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
                 key="rows"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2"
+                className="grid grid-cols-1 gap-x-8 gap-y-5 xl:grid-cols-2"
               >
                 {rows.map((r) => (
                   <div key={r.label} className="min-w-0">
@@ -1379,7 +1513,7 @@ function DeleteAccountCard() {
   const confirmError = typed && !"DELETE".startsWith(typed) ? "Type DELETE exactly." : undefined;
 
   // The API rejects demo/admin sessions anyway — don't show them a dead end.
-  if (isDemo || !user || user.isDemo || user.isAdmin || user.role !== "owner") return null;
+  if (!canDeleteAccount(user, isDemo)) return null;
 
   return (
     <Surface className="p-5">
@@ -1486,13 +1620,13 @@ function DeleteAccountCard() {
 // ─── Plan & billing ──────────────────────────────────────────────────────────
 
 const PRO_FEATURES = [
-  "50 connected institutions",
+  "Up to 50 connected institutions",
   'Manual "Sync now"',
   "Premium AI models",
 ];
 
 const FREE_FEATURES = [
-  "2 connected institutions",
+  "Up to 2 connected institutions",
   "Daily auto-sync",
   "Basic AI model",
 ];
@@ -1502,7 +1636,7 @@ function FeatureList({ features, tone = "brand" }: { features: string[]; tone?: 
   return (
     <ul className="flex flex-col gap-2">
       {features.map((f) => (
-        <li key={f} className="flex items-center gap-2 text-[13px] font-medium text-content-secondary">
+        <li key={f} className="flex items-start gap-2 text-[13px] font-medium text-content-secondary">
           <Check className={cn("h-3.5 w-3.5 shrink-0", checkClass)} strokeWidth={2.5} /> {f}
         </li>
       ))}
@@ -1584,7 +1718,9 @@ function PlanCard() {
           </span>
           <span className="mt-0.5 block truncate text-[12.5px] font-medium text-content-muted">{summary}</span>
         </div>
-        {isPro && !cancelScheduled && <Badge tone="brand" size="sm">Active</Badge>}
+        {/* No "Active" badge beside a summary that already opens with the word.
+            The badge earns its place only when it says something the line does
+            not, which is why Canceling keeps one. */}
         {isPro && cancelScheduled && <Badge tone="caution" size="sm">Canceling</Badge>}
       </div>
 
@@ -1613,7 +1749,7 @@ function PlanCard() {
           </div>
         ) : (
           <div className="flex flex-col items-start gap-5">
-            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid w-full grid-cols-1 gap-3 xl:grid-cols-2">
               <div className="rounded-ui-lg border border-line bg-canvas-sunken p-4">
                 <div className="mb-2.5 flex items-baseline justify-between">
                   <p className="text-[13px] font-bold text-content">Free</p>
@@ -1635,7 +1771,7 @@ function PlanCard() {
           </div>
         )}
 
-        {error && <p className="mt-3 text-[13px] font-semibold text-negative">{error}</p>}
+        {error && <p role="alert" className="mt-3 text-[13px] font-semibold text-negative">{error}</p>}
       </div>
     </Surface>
   );
@@ -1710,7 +1846,7 @@ function PersonalEditPanel({ formData, setFormData, saving, saveError, onCancel,
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Field label="Date of birth">
           <Input
             type="date"
@@ -1815,7 +1951,7 @@ function IncomeEditPanel({ formData, setFormData, saving, saveError, onCancel, o
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Field label="Employment type" className="sm:col-span-2">
           <Select
             value={formData.employmentType}

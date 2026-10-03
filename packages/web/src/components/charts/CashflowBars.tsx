@@ -5,8 +5,13 @@ import { isAmountsHidden } from '../../lib/hide-amounts';
 // ---------------------------------------------------------------------------
 // CashflowBars — Monarch-style diverging income/expense bars on --ui-* tokens.
 // One column per period: income bar up (viz-2), expenses bar down (viz-4),
-// shared zero axis. Click selects a period; hover bubbles the index up so the
-// hero value can swap (same contract as the old SpendTrendChart).
+// shared zero axis, named by the legend under the plot. Click selects a period;
+// hover bubbles the index up so the hero value can swap (same contract as the
+// old SpendTrendChart).
+//
+// The axis is SIGNED below zero. Mirrored ticks printed unsigned put "$10K" at
+// two heights on one axis meaning two different things, on a chart whose two
+// halves are the two numbers people most want to tell apart.
 //
 // When `visibleCount` is set and there are more periods than fit, the chart
 // windows to exactly `visibleCount` whole columns at rest. ALL columns render
@@ -45,6 +50,34 @@ export function periodLabel(period: string, granularity: 'month' | 'year'): stri
   if (granularity === 'year') return period;
   const m = Number(period.slice(5, 7));
   return `${MONTHS[m - 1] ?? period} ${period.slice(0, 4)}`;
+}
+
+/**
+ * Is this the period the calendar is currently inside?
+ *
+ * Its figures cover the days so far, not a whole period, which is why its bar
+ * is hatched here and why the page above must not compare it to a finished one.
+ * Exported so there is ONE definition of "still running" on this screen rather
+ * than the chart and its header each deciding separately. Read from the local
+ * calendar, the same clock the page's "no stepping into the future" ceiling
+ * uses.
+ */
+export function isCurrentPeriod(period: string, granularity: 'month' | 'year'): boolean {
+  const now = new Date();
+  return period === (granularity === 'year'
+    ? String(now.getFullYear())
+    : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+}
+
+/**
+ * The period as the readout and the screen reader say it. The hatch on the bar
+ * tells a sighted reader the newest column is not a whole period yet; nothing
+ * carried that to anyone reading the text, and the text is where the figures
+ * are, so it says so too.
+ */
+function readoutLabel(period: string, granularity: 'month' | 'year', partial: boolean): string {
+  const base = periodLabel(period, granularity);
+  return partial ? `${base} so far` : base;
 }
 
 export function CashflowBars({
@@ -143,6 +176,21 @@ export function CashflowBars({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // The period the calendar is CURRENTLY inside, if the chart is showing it.
+  // Its bar counts a few days or a few months, not a whole one, and drawn
+  // plain it reads as a collapse: the newest column next to a full one says
+  // spending fell off a cliff when the month simply has not happened yet. So
+  // the column is hatched and the legend names the hatch.
+  //
+  // Derived from the calendar at render time, the same way the page derives
+  // its "no stepping into the future" ceiling. It changes how the newest
+  // column is DRAWN and nothing else: which periods arrive, and how they are
+  // bucketed, are the caller's.
+  const partialIdx = useMemo(
+    () => periods.findIndex((p) => isCurrentPeriod(p.period, granularity)),
+    [periods, granularity],
+  );
 
   const n = periods.length;
   const windowed = visibleCount !== undefined && n > visibleCount;
@@ -426,6 +474,7 @@ export function CashflowBars({
     rx: 8,
   });
   const clipRef = windowed ? `url(#${clipId})` : undefined;
+  const hatchId = `${clipId}-partial`;
   // Remount the carousel layers whenever the geometry they were laid out for
   // changes — the data shape OR the measured width. A CSS transition can only
   // ease from a value the element already had, so fresh elements simply cannot
@@ -439,277 +488,357 @@ export function CashflowBars({
 
   const yTickStyle = { fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' } as const;
 
+  // Is the in-progress column inside the window the reader can see right now?
+  // Unwindowed this is just "does the data reach the current period at all",
+  // since start is 0 and visN is every column.
+  const partialInWindow = partialIdx >= start && partialIdx < start + visN;
+
+  // Legend. Two colours, no key, and half the chart is below the zero line:
+  // without this nothing on the page said which stack was income and which was
+  // spending. It sits UNDER the plot, indented to the plot's left edge — the
+  // svg is drawn at viewBox scale 1:1 against its measured width, so chartLeft
+  // is already CSS pixels — and outside the pointer overlay below, which is
+  // inset-0 over its own wrapper and would otherwise turn a click on the word
+  // "Income" into a period selection.
+  const legend = (
+    <div
+      className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-semibold text-content-muted"
+      style={{ paddingLeft: chartLeft }}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-[11px] w-[11px] shrink-0 rounded-[3.5px]" style={{ background: 'var(--ui-viz-2)' }} />
+        Income
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-[11px] w-[11px] shrink-0 rounded-[3.5px]" style={{ background: 'var(--ui-viz-4)' }} />
+        Spending
+      </span>
+      {/* Only while the hatched column is actually on screen. Paged past it,
+          this entry keys a mark the plot no longer carries. Paging is a
+          discrete, snapped step, so the entry appears and disappears once per
+          page rather than flickering, and it is the last item on the line, so
+          nothing else moves when it goes. */}
+      {partialInWindow && (
+        <span className="inline-flex items-center gap-1.5">
+          {/* Matches the <pattern> on the bar: stripes running the same way,
+              3.5px wide on a 7px pitch, struck in the same panel colour. CSS
+              measures its stops ALONG the gradient line, which is normal to the
+              stripes, so 135deg here draws the "/" that rotate(45) draws there
+              — 45deg would mirror it and the key would contradict the mark. */}
+          <span
+            className="h-[11px] w-[11px] shrink-0 rounded-[3.5px]"
+            style={{
+              background: 'rgb(var(--ui-content-faint))',
+              backgroundImage:
+                'repeating-linear-gradient(135deg, rgb(var(--ui-panel) / 0.62) 0 3.5px, transparent 3.5px 7px)',
+            }}
+          />
+          {granularity === 'year' ? 'Year to date' : 'Month to date'}
+        </span>
+      )}
+    </div>
+  );
+
   // Nothing is drawn until the wrapper has been measured. The layout effect
   // above measures and re-renders before the browser paints, so this frame is
   // never seen — but committing it means the carousel layer mounts with its
   // real offset instead of a guessed one, and a CSS transition has no wrong
   // starting value to ease away from.
   if (containerW === null) {
-    return <div ref={wrapRef} className="relative select-none" style={{ height: CHART_H }} />;
+    return (
+      <div>
+        <div ref={wrapRef} className="relative select-none" style={{ height: CHART_H }} />
+        {legend}
+      </div>
+    );
   }
 
   return (
-    <div ref={wrapRef} className="relative select-none">
-      <svg
-        viewBox={`0 0 ${chartW} ${CHART_H}`}
-        role="group"
-        aria-label="Income and expenses by period"
-        className="block w-full"
-        style={{ pointerEvents: 'none' }}
-      >
-        {windowed && (
-          <clipPath id={clipId}>
-            {/* Plot width, full height — x labels ride along and clip hard too. */}
-            <rect x={chartLeft} y={0} width={innerW} height={CHART_H} />
-          </clipPath>
+    <div>
+      <div ref={wrapRef} className="relative select-none">
+        <svg
+          viewBox={`0 0 ${chartW} ${CHART_H}`}
+          role="group"
+          aria-label="Income and expenses by period"
+          className="block w-full"
+          style={{ pointerEvents: 'none' }}
+        >
+          {partialIdx >= 0 && (
+            <defs>
+              {/* Diagonal hatch for the in-progress period. Struck in the PANEL
+                  colour, so it lightens the bar in light mode and darkens it in
+                  dark, and the bar keeps the hue that says income or spending. */}
+              <pattern id={hatchId} width={7} height={7} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1={0} y1={0} x2={0} y2={7} stroke="rgb(var(--ui-panel))" strokeOpacity={0.62} strokeWidth={3.5} />
+              </pattern>
+            </defs>
+          )}
+
+          {windowed && (
+            <clipPath id={clipId}>
+              {/* Plot width, full height — x labels ride along and clip hard too. */}
+              <rect x={chartLeft} y={0} width={innerW} height={CHART_H} />
+            </clipPath>
+          )}
+
+          {/* Column backgrounds — selected slides between columns; hover instant. */}
+          <g key={`bg-${layerKey}`} clipPath={clipRef}>
+            <g style={layerStyle}>
+              {selIdx >= 0 && (
+                // NEUTRAL, not the brand green it used to be. Green is this
+                // app's "good" everywhere else, and a green wash behind a column
+                // of a chart that is half income and half spending was a second
+                // meaning for one colour: on the month you overspent, the chart
+                // congratulated you for looking at it. A tint of the content
+                // colour inverts with the theme on its own and says only "this
+                // is the column the figures above describe".
+                <rect
+                  data-cashflow-selbg=""
+                  {...bandRect(selIdx)}
+                  fill="rgb(var(--ui-content) / 0.06)"
+                  style={{ transition: 'x 200ms cubic-bezier(0.22,1,0.36,1)' }}
+                />
+              )}
+              {activeIdx !== null && activeIdx !== selIdx && (
+                // A press sits alongside the selection band and has to be told
+                // apart from it: at a hair's difference in tint the two were ~3/255
+                // apart, and the chart could no longer say which column the
+                // figures above belong to. So a press takes the heavier tint AND
+                // the brand ring — the same outline keyboard focus draws, for the
+                // same meaning: this is the column you are aiming at. The ring is
+                // the one place brand green survives on this chart, because there
+                // it means "you are aiming here", not "this is good". 0.06 → 0.13
+                // of the content colour is ~17/255 apart in light and ~20/255 in
+                // dark, so the two bands never read as the same mark.
+                <rect
+                  {...bandRect(activeIdx)}
+                  fill="rgb(var(--ui-content) / 0.13)"
+                  stroke={hoverIdx === null ? 'var(--ui-brand-ring)' : undefined}
+                  strokeWidth={hoverIdx === null ? 1 : undefined}
+                />
+              )}
+            </g>
+          </g>
+
+          {/* Gridlines + mirrored labels; zero axis solid, others dashed. Fixed —
+               they don't translate with the carousel. */}
+          {tickVals.map((t) => (
+            <g key={t}>
+              {t === 0 ? (
+                <line
+                  x1={chartLeft} y1={zeroY} x2={chartW - CHART_M.right} y2={zeroY}
+                  stroke="var(--ui-line-strong)" strokeWidth={1}
+                />
+              ) : (
+                <line
+                  x1={chartLeft} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
+                  stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
+                />
+              )}
+              {!hideAmounts && (
+                <text
+                  x={chartLeft - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
+                  fill="rgb(var(--ui-content-faint))"
+                  style={yTickStyle}
+                >
+                  {t < 0 ? '−' : ''}{formatShortMoney(Math.abs(t))}
+                </text>
+              )}
+            </g>
+          ))}
+
+          {/* Carousel layer — bars, x labels, keyboard targets at absolute coords. */}
+          <g key={`fg-${layerKey}`} clipPath={clipRef}>
+            <g data-cashflow-layer="" style={layerStyle}>
+              {/* Bars — income up, expenses down. */}
+              {periods.map((p, ai) => {
+                const isSelected = p.period === selectedPeriod;
+                // A hover moves the hero, so the hovered column is the only one
+                // that should stand out. A press does NOT (touch has no hover),
+                // so the selected column stays bright through it — otherwise
+                // nothing on the chart says which period the figures above are.
+                const opacity = rampIdx !== null
+                  ? (rampIdx === ai || (hoverIdx === null && isSelected) ? 1 : 0.35)
+                  : (isSelected ? 1 : 0.82);
+                const { up, down } = barRects(p, ai);
+                const upBox = { x: up.x, y: up.y, width: up.w, height: up.h, rx: Math.min(3, up.w / 2, up.h / 2) };
+                const downBox = { x: down.x, y: down.y, width: down.w, height: down.h, rx: Math.min(3, down.w / 2, down.h / 2) };
+                const partial = ai === partialIdx;
+                return (
+                  <g key={p.period} opacity={opacity} style={{ transition: 'opacity 0.15s' }}>
+                    {up.h > 0 && <rect {...upBox} fill="var(--ui-viz-2)" />}
+                    {down.h > 0 && <rect {...downBox} fill="var(--ui-viz-4)" />}
+                    {/* Hatch OVER the fill, not instead of it: the column still
+                        has to say income or spending, it just also has to say
+                        it is not finished. The legend names the texture. */}
+                    {partial && up.h > 0 && <rect {...upBox} fill={`url(#${hatchId})`} />}
+                    {partial && down.h > 0 && <rect {...downBox} fill={`url(#${hatchId})`} />}
+                  </g>
+                );
+              })}
+
+              {/* X labels. */}
+              {xLabels.map(({ idx, label }) => (
+                <text
+                  key={`${idx}-${label}`} x={colCenter(idx)} y={CHART_H - 8} textAnchor="middle"
+                  fill="rgb(var(--ui-content-muted))"
+                  style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {label}
+                </text>
+              ))}
+
+            </g>
+          </g>
+
+          {/* Invisible per-column targets for keyboard access — only the
+               in-window columns are tabbable. They ride the same translate but
+               sit OUTSIDE the keyed layers and never animate: these hold DOM
+               focus, and rebuilding them on a resize would eject the keyboard
+               user to the top of the tab order and — since a removed element
+               fires no blur — leave the preview latched with one column lit and
+               the hero describing it. They ease with the plot so a focus ring
+               never runs ahead of the bar it marks. */}
+          <g clipPath={clipRef} className={hoverIdx !== null && !hoverIsKeyboard ? 'ui-focus-off' : undefined}>
+            <g style={kbLayerStyle}>
+              {periods.map((p, ai) => {
+                const inWindow = ai >= start && ai < start + visN;
+                return (
+                  <rect
+                    key={`kb-${p.period}`}
+                    {...bandRect(ai)}
+                    fill="transparent"
+                    className="ui-focus-svg"
+                    role="button"
+                    aria-current={p.period === selectedPeriod ? 'true' : undefined}
+                    tabIndex={inWindow ? 0 : -1}
+                    aria-hidden={inWindow ? undefined : true}
+                    aria-label={
+                      hideAmounts
+                        ? readoutLabel(p.period, granularity, ai === partialIdx)
+                        : `${readoutLabel(p.period, granularity, ai === partialIdx)}: income ${formatShortMoney(p.income)}, spent ${formatShortMoney(p.expenses)}`
+                    }
+                    onFocus={() => setHoverIdx(ai, true)}
+                    onBlur={() => setHoverIdx(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(p.period); }
+                    }}
+                  />
+                );
+              })}
+            </g>
+          </g>
+        </svg>
+
+        {/* Hover pill — period label plus the income/spent/net readout.
+             Masked, the readout would read "Income $•••••, spent $•••••, net
+             $•••••" and the pill would be left stating only the period, which
+             the header above it ("SPENT IN JULY 2026") already says. With
+             nothing left to tell the reader, the whole pill goes rather than
+             half of it. */}
+        {hovered && hoverInWindow && !hoverIsKeyboard && !hideAmounts && (
+          <div
+            data-chart-hover="pill"
+            className="ui-tnum pointer-events-none absolute z-10 flex -translate-x-1/2 flex-col gap-0.5 whitespace-nowrap rounded-ui-sm bg-[rgb(var(--ui-panel-raised))] px-2.5 py-1.5 shadow-ui-lg"
+            style={{ border: '1px solid var(--ui-line)', left: `${(pillCx / chartW) * 100}%`, top: 2 }}
+          >
+            <span className="text-[12px] font-bold leading-tight tracking-[-0.01em] text-content">
+              {readoutLabel(hovered.period, granularity, hoverIdx === partialIdx)}
+            </span>
+            <span className="text-[10.5px] leading-tight text-content-muted">
+              Income {formatShortMoney(hovered.income)}, spent {formatShortMoney(hovered.expenses)}, net {hovered.net < 0 ? '−' : '+'}{formatShortMoney(Math.abs(hovered.net))}
+            </span>
+          </div>
         )}
 
-        {/* Column backgrounds — selected slides between columns; hover instant. */}
-        <g key={`bg-${layerKey}`} clipPath={clipRef}>
-          <g style={layerStyle}>
-            {selIdx >= 0 && (
-              <rect
-                data-cashflow-selbg=""
-                {...bandRect(selIdx)}
-                fill="var(--ui-brand-softer)"
-                style={{ transition: 'x 200ms cubic-bezier(0.22,1,0.36,1)' }}
-              />
-            )}
-            {activeIdx !== null && activeIdx !== selIdx && (
-              // A press sits alongside the selection band and has to be told
-              // apart from it: at 0.65 of --ui-brand-softer the two were ~3/255
-              // apart, and the chart could no longer say which column the
-              // figures above belong to. So a press takes the heavier tint AND
-              // the brand ring — the same outline keyboard focus draws, for the
-              // same meaning: this is the column you are aiming at. A hover
-              // moves the hero, so the tint alone does, but it still has to
-              // outweigh the selection band it sits beside: at 0.6 of the same
-              // token it was 4/255 from it in light and 1/255 in dark. So the
-              // active band always takes the full tint, and the ring is what
-              // separates a press from a hover.
-              <rect
-                {...bandRect(activeIdx)}
-                fill="var(--ui-brand-soft)"
-                stroke={hoverIdx === null ? 'var(--ui-brand-ring)' : undefined}
-                strokeWidth={hoverIdx === null ? 1 : undefined}
-              />
-            )}
-          </g>
-        </g>
+        {/* Pointer overlay — maps x to a column; click selects it; a horizontal
+             drag pans the carousel layer 1:1 and snaps on release. pan-y lets
+             the browser keep handling vertical page scrolls on touch.
 
-        {/* Gridlines + mirrored labels; zero axis solid, others dashed. Fixed —
-             they don't translate with the carousel. */}
-        {tickVals.map((t) => (
-          <g key={t}>
-            {t === 0 ? (
-              <line
-                x1={chartLeft} y1={zeroY} x2={chartW - CHART_M.right} y2={zeroY}
-                stroke="var(--ui-line-strong)" strokeWidth={1}
-              />
-            ) : (
-              <line
-                x1={chartLeft} y1={yAt(t)} x2={chartW - CHART_M.right} y2={yAt(t)}
-                stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
-              />
-            )}
-            {!hideAmounts && (
-              <text
-                x={chartLeft - 12} y={yAt(t)} dy="0.32em" textAnchor="end"
-                fill="rgb(var(--ui-content-faint))"
-                style={yTickStyle}
-              >
-                {formatShortMoney(Math.abs(t))}
-              </text>
-            )}
-          </g>
-        ))}
-
-        {/* Carousel layer — bars, x labels, keyboard targets at absolute coords. */}
-        <g key={`fg-${layerKey}`} clipPath={clipRef}>
-          <g data-cashflow-layer="" style={layerStyle}>
-            {/* Bars — income up, expenses down. */}
-            {periods.map((p, ai) => {
-              const isSelected = p.period === selectedPeriod;
-              // A hover moves the hero, so the hovered column is the only one
-              // that should stand out. A press does NOT (touch has no hover),
-              // so the selected column stays bright through it — otherwise
-              // nothing on the chart says which period the figures above are.
-              const opacity = rampIdx !== null
-                ? (rampIdx === ai || (hoverIdx === null && isSelected) ? 1 : 0.35)
-                : (isSelected ? 1 : 0.82);
-              const { up, down } = barRects(p, ai);
-              return (
-                <g key={p.period} opacity={opacity} style={{ transition: 'opacity 0.15s' }}>
-                  {up.h > 0 && (
-                    <rect x={up.x} y={up.y} width={up.w} height={up.h} rx={Math.min(3, up.w / 2, up.h / 2)} fill="var(--ui-viz-2)" />
-                  )}
-                  {down.h > 0 && (
-                    <rect x={down.x} y={down.y} width={down.w} height={down.h} rx={Math.min(3, down.w / 2, down.h / 2)} fill="var(--ui-viz-4)" />
-                  )}
-                </g>
-              );
-            })}
-
-            {/* X labels. */}
-            {xLabels.map(({ idx, label }) => (
-              <text
-                key={`${idx}-${label}`} x={colCenter(idx)} y={CHART_H - 8} textAnchor="middle"
-                fill="rgb(var(--ui-content-muted))"
-                style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
-              >
-                {label}
-              </text>
-            ))}
-
-          </g>
-        </g>
-
-        {/* Invisible per-column targets for keyboard access — only the
-             in-window columns are tabbable. They ride the same translate but
-             sit OUTSIDE the keyed layers and never animate: these hold DOM
-             focus, and rebuilding them on a resize would eject the keyboard
-             user to the top of the tab order and — since a removed element
-             fires no blur — leave the preview latched with one column lit and
-             the hero describing it. They ease with the plot so a focus ring
-             never runs ahead of the bar it marks. */}
-        <g clipPath={clipRef} className={hoverIdx !== null && !hoverIsKeyboard ? 'ui-focus-off' : undefined}>
-          <g style={kbLayerStyle}>
-            {periods.map((p, ai) => {
-              const inWindow = ai >= start && ai < start + visN;
-              return (
-                <rect
-                  key={`kb-${p.period}`}
-                  {...bandRect(ai)}
-                  fill="transparent"
-                  className="ui-focus-svg"
-                  role="button"
-                  aria-current={p.period === selectedPeriod ? 'true' : undefined}
-                  tabIndex={inWindow ? 0 : -1}
-                  aria-hidden={inWindow ? undefined : true}
-                  aria-label={
-                    hideAmounts
-                      ? periodLabel(p.period, granularity)
-                      : `${periodLabel(p.period, granularity)}: income ${formatShortMoney(p.income)}, spent ${formatShortMoney(p.expenses)}`
-                  }
-                  onFocus={() => setHoverIdx(ai, true)}
-                  onBlur={() => setHoverIdx(null)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(p.period); }
-                  }}
-                />
-              );
-            })}
-          </g>
-        </g>
-      </svg>
-
-      {/* Hover pill — period label plus the income/spent/net readout.
-           Masked, the readout would read "Income $•••••, spent $•••••, net
-           $•••••" and the pill would be left stating only the period, which
-           the header above it ("SPENT IN JULY 2026") already says. With
-           nothing left to tell the reader, the whole pill goes rather than
-           half of it. */}
-      {hovered && hoverInWindow && !hoverIsKeyboard && !hideAmounts && (
+             A finger is not a cursor: touch has no hover state, so touch pointers
+             never set hoverIdx. Otherwise pressing a bar previews its value while
+             the finger is still down, and WebKit's pointerleave (1ms after
+             pointerup, ~5ms BEFORE click) snaps it back — the readout lands on
+             the new value, reverts, then animates to it again. A mouse or pen on
+             the same device still hovers normally. */}
         <div
-          data-chart-hover="pill"
-          className="ui-tnum pointer-events-none absolute z-10 flex -translate-x-1/2 flex-col gap-0.5 whitespace-nowrap rounded-ui-sm bg-[rgb(var(--ui-panel-raised))] px-2.5 py-1.5 shadow-ui-lg"
-          style={{ border: '1px solid var(--ui-line)', left: `${(pillCx / chartW) * 100}%`, top: 2 }}
-        >
-          <span className="text-[12px] font-bold leading-tight tracking-[-0.01em] text-content">
-            {periodLabel(hovered.period, granularity)}
-          </span>
-          <span className="text-[10.5px] leading-tight text-content-muted">
-            Income {formatShortMoney(hovered.income)}, spent {formatShortMoney(hovered.expenses)}, net {hovered.net < 0 ? '−' : '+'}{formatShortMoney(Math.abs(hovered.net))}
-          </span>
-        </div>
-      )}
-
-      {/* Pointer overlay — maps x to a column; click selects it; a horizontal
-           drag pans the carousel layer 1:1 and snaps on release. pan-y lets
-           the browser keep handling vertical page scrolls on touch.
-
-           A finger is not a cursor: touch has no hover state, so touch pointers
-           never set hoverIdx. Otherwise pressing a bar previews its value while
-           the finger is still down, and WebKit's pointerleave (1ms after
-           pointerup, ~5ms BEFORE click) snaps it back — the readout lands on
-           the new value, reverts, then animates to it again. A mouse or pen on
-           the same device still hovers normally. */}
-      <div
-        ref={overlayRef}
-        className="absolute inset-0"
-        style={{ touchAction: 'pan-y', cursor: 'pointer' }}
-        onPointerDown={(e) => {
-          (e.target as Element).setPointerCapture?.(e.pointerId);
-          dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: e.clientX, startPx: start * colW, panning: false };
-          pannedRef.current = false;
-          if (e.pointerType === 'touch') {
-            touchRef.current = { idx: absIdx(pointerToIdx(e.clientX)) };
-            setPressIdx(touchRef.current.idx);
-            pressTimer.current = setTimeout(() => setPressHeld(true), PRESS_RAMP_MS);
-          } else {
-            touchRef.current = null;
-            setHoverIdx(absIdx(pointerToIdx(e.clientX)));
-          }
-        }}
-        onPointerMove={(e) => {
-          const drag = dragRef.current;
-          if (drag && e.buttons > 0) {
-            if (windowed && !drag.panning && Math.abs(e.clientX - drag.startX) > PAN_THRESHOLD) {
-              drag.panning = true;
-              drag.baseX = e.clientX; // rebase so the pan starts from rest — no threshold jump
-              pannedRef.current = true;
-              if (touchRef.current) touchRef.current = { idx: null };
-              setHoverIdx(null);
-              clearPress();
+          ref={overlayRef}
+          className="absolute inset-0"
+          style={{ touchAction: 'pan-y', cursor: 'pointer' }}
+          onPointerDown={(e) => {
+            (e.target as Element).setPointerCapture?.(e.pointerId);
+            dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: e.clientX, startPx: start * colW, panning: false };
+            pannedRef.current = false;
+            if (e.pointerType === 'touch') {
+              touchRef.current = { idx: absIdx(pointerToIdx(e.clientX)) };
+              setPressIdx(touchRef.current.idx);
+              pressTimer.current = setTimeout(() => setPressHeld(true), PRESS_RAMP_MS);
+            } else {
+              touchRef.current = null;
+              setHoverIdx(absIdx(pointerToIdx(e.clientX)));
             }
-            if (drag.panning) {
-              const rect = wrapRef.current?.getBoundingClientRect();
-              const scale = rect && rect.width > 0 ? chartW / rect.width : 1;
-              const next = Math.min(
-                maxStart * colW,
-                Math.max(0, drag.startPx - (e.clientX - drag.baseX) * scale),
-              );
-              dragPxRef.current = next;
-              setDragPx(next);
-              return;
-            }
-          }
-          if (e.pointerType === 'touch') {
-            // Follow the finger, and let the band double as the promise the tap
-            // keeps — columns are 44px at 390px and a finger rolls across a
-            // boundary easily. Still never hoverIdx: that is the one that
-            // bubbles up to the hero.
-            if (drag && !drag.panning && touchRef.current) {
-              if (Math.abs(e.clientY - drag.startY) > PRESS_SCROLL_SLOP) {
-                // Vertical travel means the page is scrolling, not tapping.
-                // Disqualify the gesture for good: drifting back inside the
-                // slop must not re-light a band or commit a period.
-                touchRef.current = { idx: null };
+          }}
+          onPointerMove={(e) => {
+            const drag = dragRef.current;
+            if (drag && e.buttons > 0) {
+              if (windowed && !drag.panning && Math.abs(e.clientX - drag.startX) > PAN_THRESHOLD) {
+                drag.panning = true;
+                drag.baseX = e.clientX; // rebase so the pan starts from rest — no threshold jump
+                pannedRef.current = true;
+                if (touchRef.current) touchRef.current = { idx: null };
+                setHoverIdx(null);
                 clearPress();
-              } else if (touchRef.current.idx !== null) {
-                touchRef.current = { idx: absIdx(pointerToIdx(e.clientX)) };
-                setPressIdx(touchRef.current.idx);
+              }
+              if (drag.panning) {
+                const rect = wrapRef.current?.getBoundingClientRect();
+                const scale = rect && rect.width > 0 ? chartW / rect.width : 1;
+                const next = Math.min(
+                  maxStart * colW,
+                  Math.max(0, drag.startPx - (e.clientX - drag.baseX) * scale),
+                );
+                dragPxRef.current = next;
+                setDragPx(next);
+                return;
               }
             }
-            return;
-          }
-          setHoverIdx(absIdx(pointerToIdx(e.clientX)));
-        }}
-        onPointerUp={() => { settleDrag(); clearPress(); }}
-        onPointerLeave={() => { releaseHover(); clearPress(); }}
-        onPointerCancel={() => { settleDrag(); releaseHover(); clearPress(); }}
-        onClick={(e) => {
-          if (pannedRef.current) { pannedRef.current = false; return; }
-          const touch = touchRef.current;
-          touchRef.current = null;
-          // Commit what the band promised on touch; fall back to the click's own
-          // x for a mouse or pen, whose click lands where the cursor is.
-          const ai = touch ? touch.idx : absIdx(pointerToIdx(e.clientX));
-          const p = ai !== null ? periods[ai] : undefined;
-          if (p) onSelect(p.period);
-        }}
-      />
+            if (e.pointerType === 'touch') {
+              // Follow the finger, and let the band double as the promise the tap
+              // keeps — columns are 44px at 390px and a finger rolls across a
+              // boundary easily. Still never hoverIdx: that is the one that
+              // bubbles up to the hero.
+              if (drag && !drag.panning && touchRef.current) {
+                if (Math.abs(e.clientY - drag.startY) > PRESS_SCROLL_SLOP) {
+                  // Vertical travel means the page is scrolling, not tapping.
+                  // Disqualify the gesture for good: drifting back inside the
+                  // slop must not re-light a band or commit a period.
+                  touchRef.current = { idx: null };
+                  clearPress();
+                } else if (touchRef.current.idx !== null) {
+                  touchRef.current = { idx: absIdx(pointerToIdx(e.clientX)) };
+                  setPressIdx(touchRef.current.idx);
+                }
+              }
+              return;
+            }
+            setHoverIdx(absIdx(pointerToIdx(e.clientX)));
+          }}
+          onPointerUp={() => { settleDrag(); clearPress(); }}
+          onPointerLeave={() => { releaseHover(); clearPress(); }}
+          onPointerCancel={() => { settleDrag(); releaseHover(); clearPress(); }}
+          onClick={(e) => {
+            if (pannedRef.current) { pannedRef.current = false; return; }
+            const touch = touchRef.current;
+            touchRef.current = null;
+            // Commit what the band promised on touch; fall back to the click's own
+            // x for a mouse or pen, whose click lands where the cursor is.
+            const ai = touch ? touch.idx : absIdx(pointerToIdx(e.clientX));
+            const p = ai !== null ? periods[ai] : undefined;
+            if (p) onSelect(p.period);
+          }}
+        />
 
+      </div>
+      {legend}
     </div>
   );
 }

@@ -63,7 +63,15 @@ export interface PathContext {
    * skipped the question, on the strength of an answer they never gave.
    */
   dependentCount: number | null;
-  isPSLFEligible: boolean;
+  /**
+   * True/false when they told us, null when they never did, exactly like
+   * hasHDHP above. This was the last field still collapsing the three answers
+   * into two: onboarding could only ever send `false`, so `?? false` was
+   * invisible. Now that the form offers "I'm not sure", reading a skipped
+   * question as "not eligible" would decide a student-loan strategy on an
+   * answer nobody gave.
+   */
+  isPSLFEligible: boolean | null;
 
   // ── Spending ──
   /**
@@ -82,6 +90,16 @@ export interface PathContext {
   savingsRate: number | null;
 
   // ── Balances ──
+  /**
+   * How many accounts this household has connected, of any type.
+   *
+   * Not a balance: it is what tells an absence of DATA from a reading of zero.
+   * Every "get this to zero" milestone is satisfied by a household with nothing
+   * connected, so the journey opened on "Become debt free: done" and a counter
+   * reading "1 done" for somebody who had done nothing at all. Nothing may
+   * resolve a step for or against a household until this is above zero.
+   */
+  accountCount: number;
   cashTotal: number;
   hsaBalance: number;
   rothIraBalance: number;
@@ -235,13 +253,14 @@ export async function buildPathContext(tenantId: string, userId: string): Promis
     riskTolerance: resolved.riskTolerance ?? null,
     hasHDHP: resolved.hasHDHP,
     dependentCount: resolved.dependentCount,
-    isPSLFEligible: resolved.isPSLFEligible ?? false,
+    isPSLFEligible: resolved.isPSLFEligible,
 
     monthlyExpenses,
     stableMonthlyExpenses,
     monthlySurplus,
     savingsRate,
 
+    accountCount: accts.length,
     cashTotal, hsaBalance, rothIraBalance, trad401kBalance, brokerageBalance,
     taxableBrokerageBalance,
     propertyValue,
@@ -288,11 +307,12 @@ export function buildPathContextDefaults(overrides: Partial<PathContext> = {}): 
     riskTolerance: null,
     hasHDHP: null,
     dependentCount: null,
-    isPSLFEligible: false,
+    isPSLFEligible: null,
     monthlyExpenses: null,
     stableMonthlyExpenses: null,
     monthlySurplus: null,
     savingsRate: null,
+    accountCount: 0,
     cashTotal: 0,
     hsaBalance: 0,
     rothIraBalance: 0,

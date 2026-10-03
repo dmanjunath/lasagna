@@ -1,10 +1,21 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { createContext, createElement, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { api } from "./api";
 import { isNativeApp } from "./native";
 
 export type BillingStatus = Awaited<ReturnType<typeof api.getBillingStatus>>;
 
-export function useBilling() {
+interface BillingValue {
+  status: BillingStatus | null;
+  loading: boolean;
+  refresh: (opts?: { silent?: boolean }) => void;
+}
+
+// One fetch for the whole app. Before this was a provider the hook carried its
+// own state, so every surface that showed the plan (the page, the sidebar, the
+// drawer) cost another GET /billing/status on every navigation.
+const BillingContext = createContext<BillingValue | null>(null);
+
+function useBillingState(): BillingValue {
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -41,6 +52,17 @@ export function useBilling() {
   }, [refresh]);
 
   return { status, loading, refresh };
+}
+
+export function BillingProvider({ children }: { children: ReactNode }) {
+  const value = useBillingState();
+  return createElement(BillingContext.Provider, { value }, children);
+}
+
+export function useBilling(): BillingValue {
+  const ctx = useContext(BillingContext);
+  if (!ctx) throw new Error('useBilling must be used inside BillingProvider');
+  return ctx;
 }
 
 /** Open a Stripe-hosted URL: browser sheet in the native shell, redirect on web. */

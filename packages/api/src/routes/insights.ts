@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, desc, inArray, insights, accounts, transactions, sql } from "@lasagna/core";
+import { eq, and, desc, inArray, insights, accounts, financialProfiles, transactions, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import {
@@ -33,7 +33,8 @@ import { env } from "../lib/env.js";
 export const insightsRoutes = new Hono<AuthEnv>();
 
 // Cloud Scheduler is the happy path for daily regeneration. If it stalls, the
-// next read older than this window regenerates synchronously as a backstop.
+// next read older than this window TRIGGERS one as a backstop, and answers from
+// what is stored without waiting for it.
 //
 // This doubles as the COOLDOWN between two generation attempts for the same
 // household, because generateInsights records the attempt whether it succeeded
@@ -193,6 +194,45 @@ async function tenantHasAccounts(tenantId: string): Promise<boolean> {
     .where(eq(accounts.tenantId, tenantId))
     .limit(1);
   return rows.length > 0;
+}
+
+/**
+ * Take the right to regenerate for this household, or answer false because
+ * somebody else already has it.
+ *
+ * Two things hold this shut, and the split is the point. The advisory lock is
+ * transaction-scoped: it settles a race between two requests arriving at the
+ * same instant, and it releases the moment this returns. What holds after that
+ * is the freshness marker, stamped inside the same transaction, because every
+ * caller's staleness test reads it — so the next read sees a household that has
+ * just been claimed and does not claim it again.
+ *
+ * Stamping BEFORE the work is what lets the work happen outside the
+ * transaction. Both backstops used to run their generator inside it, which
+ * bought nothing (the generator opens its own connection and never touches
+ * `tx`) and cost a pooled connection, held for a whole model call, out of
+ * postgres.js's default ten.
+ *
+ * The marker therefore means "an attempt was claimed", which is what it already
+ * meant: `markGenerationAttempt` writes it on the way out whether or not the
+ * generation produced anything, precisely so a household whose generation keeps
+ * failing cannot buy a fresh model call on every page view.
+ */
+async function claimRegeneration(
+  tenantId: string,
+  mark: { lastActionsGeneratedAt: Date } | { lastSpendCutsGeneratedAt: Date },
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const locked = await tx.execute(
+      sql`select pg_try_advisory_xact_lock(hashtext(${tenantId})) as locked`
+    );
+    if (!(locked as unknown as Array<{ locked: boolean }>)[0]?.locked) return false;
+    await tx
+      .insert(financialProfiles)
+      .values({ tenantId, ...mark })
+      .onConflictDoUpdate({ target: financialProfiles.tenantId, set: mark });
+    return true;
+  });
 }
 
 /**
@@ -390,9 +430,9 @@ function topTxnsFor(
 insightsRoutes.get("/", async (c) => {
   const session = c.get("session");
 
-  let rows = await loadActiveInsights(session.tenantId);
+  const rows = await loadActiveInsights(session.tenantId);
   // lastActionsGeneratedAt is household bookkeeping on the tenant profile row.
-  let profile = await readHouseholdProfile(session.tenantId);
+  const profile = await readHouseholdProfile(session.tenantId);
   // Read once: both backstops gate on it, and the payload reports it so a
   // pre-connection household can tell "connect an account" from "nothing found".
   const hasAccounts = await tenantHasAccounts(session.tenantId);
@@ -400,58 +440,56 @@ insightsRoutes.get("/", async (c) => {
   const last = profile?.lastActionsGeneratedAt;
   const stale = !last || Date.now() - new Date(last).getTime() > REGEN_STALE_MS;
   if (stale && hasAccounts) {
-    // Advisory xact-lock keyed off the tenant id keeps concurrent stale reads
-    // from double-generating. It lives on the transaction's connection and
-    // auto-releases on commit/rollback, so it can't leak. If another request
-    // holds it we skip and return the (possibly stale) rows we already have.
-    let regenerated = false;
+    // Out of band, and that is the whole shape of this. Regenerating is a model
+    // call of 45 to 60 seconds, so awaiting it here made a household returning
+    // after two days wait that long to read a page whose rows were already
+    // loaded above. They are served as they stand, and the fresh ones are there
+    // on the next read — the same bargain the daily cron already offers, which
+    // is the path this only backs up.
+    //
+    // Nothing is re-read after the claim either: the rows in hand and the
+    // `lastActionsGeneratedAt` the payload prints are then the same generation,
+    // rather than a fresh timestamp over stale rows.
+    let claimed = false;
     try {
-      regenerated = await db.transaction(async (tx) => {
-        const locked = await tx.execute(
-          sql`select pg_try_advisory_xact_lock(hashtext(${session.tenantId})) as locked`
-        );
-        if (!(locked as unknown as Array<{ locked: boolean }>)[0]?.locked) return false;
-        await generateInsights(session.tenantId);
-        return true;
-      });
+      claimed = await claimRegeneration(session.tenantId, { lastActionsGeneratedAt: new Date() });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[Insights] Backstop regeneration failed: ${msg.slice(0, 300)}`);
+      console.error(`[Insights] Backstop claim failed: ${msg.slice(0, 300)}`);
     }
-    if (regenerated) {
-      rows = await loadActiveInsights(session.tenantId);
-      profile = await readHouseholdProfile(session.tenantId);
+    if (claimed) {
+      void generateInsights(session.tenantId).catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[Insights] Backstop regeneration failed: ${msg.slice(0, 300)}`);
+      });
     }
   }
 
-  // The second producer's backstop. A SEPARATE transaction from the one above,
-  // not a second statement inside it: both take the same tenant-keyed advisory
-  // lock, so sharing a transaction would mean a held insights lock silently
-  // skipped the spend-cut regeneration for a whole month.
+  // The second producer's backstop. A SEPARATE claim from the one above, not a
+  // second statement inside it: both take the same tenant-keyed advisory lock,
+  // so sharing a transaction would mean a held insights lock silently skipped
+  // the spend-cut regeneration for a whole month.
   //
   // Deterministic on purpose: generateSpendCuts is called WITHOUT `polish`, so
   // looking at the page can never bill a model call. The rewritten wording
-  // arrives on the monthly cron or on an explicit refresh press.
+  // arrives on the monthly cron or on an explicit refresh press. It still runs
+  // out of band, for the same reason as above: a read answers from what is
+  // stored, never from what is being worked out.
   if (spendCutsStale(profile?.lastSpendCutsGeneratedAt, new Date()) && hasAccounts) {
-    let regenerated = false;
+    let claimed = false;
     try {
-      regenerated = await db.transaction(async (tx) => {
-        const locked = await tx.execute(
-          sql`select pg_try_advisory_xact_lock(hashtext(${session.tenantId})) as locked`
-        );
-        if (!(locked as unknown as Array<{ locked: boolean }>)[0]?.locked) return false;
-        await generateSpendCuts(session.tenantId);
-        return true;
-      });
+      claimed = await claimRegeneration(session.tenantId, { lastSpendCutsGeneratedAt: new Date() });
     } catch (e) {
-      // A failed regeneration must not fail the read. Stale suggestions are
-      // worth more than an error page.
+      // A failed claim must not fail the read. Stale suggestions are worth more
+      // than an error page.
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[SpendCuts] Backstop regeneration failed: ${msg.slice(0, 300)}`);
+      console.error(`[SpendCuts] Backstop claim failed: ${msg.slice(0, 300)}`);
     }
-    if (regenerated) {
-      rows = await loadActiveInsights(session.tenantId);
-      profile = await readHouseholdProfile(session.tenantId);
+    if (claimed) {
+      void generateSpendCuts(session.tenantId).catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[SpendCuts] Backstop regeneration failed: ${msg.slice(0, 300)}`);
+      });
     }
   }
 

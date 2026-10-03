@@ -75,17 +75,53 @@ export function statementPaidInFull(
 }
 
 /**
+ * How a balance behaves from one statement to the next, which is what decides
+ * whether paying it off is worth anything.
+ *
+ *  - `clears-monthly` — the statement is settled in full each period, so the
+ *    balance costs no interest whatever rate is on the account.
+ *  - `revolving` — a balance is carried into the next period, so it accrues.
+ *    Every loan is here: a loan has no statement to clear.
+ *  - `unknown-behaviour` — a card whose bank reports no statement, or reports
+ *    one owing with no payment against it. We cannot tell.
+ *
+ * Behaviour and RATE are separate questions, and this is the one that settles a
+ * payoff step. A card with no APR on file reads as expensive to anything
+ * ordering debts by rate, so /financial-level made "pay off this card" the
+ * user's top priority while /debt filed the same card as costing nothing. The
+ * behaviour is evidence and the missing rate is an assumption, so the evidence
+ * wins: a card that clears every month gets no payoff step on any surface.
+ *
+ * An unknown card is treated as revolving everywhere it matters, exactly as it
+ * was before: a card we cannot read is not dropped from a plan on a guess. It
+ * is named apart from `revolving` because "we have not seen it clear" and "we
+ * watched it carry" are not the same claim, and nothing may state the second
+ * when it only has the first.
+ */
+export type DebtBehaviour = "clears-monthly" | "revolving" | "unknown-behaviour";
+
+export function debtBehaviour(account: DebtAccount): DebtBehaviour {
+  // A loan has no statement cycle to clear. It carries, by construction.
+  if (account.type !== "credit") return "revolving";
+  // A manual designation is the fallback when the bank reports no statement data.
+  if (account.paidInFullMonthly) return "clears-monthly";
+  if (statementPaidInFull(account.lastStatementBalance, account.lastPaymentAmount))
+    return "clears-monthly";
+  // A statement owing with a payment against it that did not cover it is the
+  // one case we have actually WATCHED carry. Everything else is a gap in what
+  // the bank reports.
+  if (account.lastStatementBalance != null && account.lastPaymentAmount != null)
+    return "revolving";
+  return "unknown-behaviour";
+}
+
+/**
  * Whether a credit card is paid in full each month rather than carrying a
  * balance. A transactor's current balance is this month's spending, cleared by
  * the due date, so it is not a debt to plan a payoff for.
  */
 export function creditCardPaysInFull(account: DebtAccount): boolean {
-  if (account.type !== "credit") return false;
-  // A manual designation is the fallback when the bank reports no statement data.
-  return (
-    account.paidInFullMonthly ||
-    statementPaidInFull(account.lastStatementBalance, account.lastPaymentAmount)
-  );
+  return debtBehaviour(account) === "clears-monthly";
 }
 
 /**

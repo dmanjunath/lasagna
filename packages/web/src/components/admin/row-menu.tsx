@@ -97,6 +97,11 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
                 onClick={() => { if (it.disabled) return; setPos(null); it.onSelect(); }}
                 className={cn(
                   'w-full text-left px-3.5 py-2 text-[13px] font-medium transition-colors',
+                  // The sidebar's menu idiom. An inset ring, not `ui-focus`:
+                  // this sits in a clipped popup, where an outward shadow is cut
+                  // off by the padding box. Without it the item took Chrome's
+                  // default blue, the one thing the design system replaces.
+                  'focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]',
                   it.tone === 'danger' ? 'text-negative' : 'text-content',
                   it.disabled ? 'opacity-45 cursor-not-allowed' : 'hover:bg-canvas-sunken',
                 )}

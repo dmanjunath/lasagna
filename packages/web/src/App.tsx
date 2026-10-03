@@ -8,6 +8,7 @@ import { BootBoundary } from './components/common/BootBoundary';
 import { ChatStoreProvider } from './lib/chat-store';
 import { PageContextProvider } from './lib/page-context';
 import { TaxonomyProvider } from './lib/taxonomy';
+import { BillingProvider } from './lib/billing';
 import { ThemeProvider } from './lib/theme';
 import { Login } from './pages/Login';
 import { DemoBanner } from './components/common/DemoBanner';
@@ -181,6 +182,9 @@ function AppRoutes() {
           <ChatStoreProvider>
           <PageContextProvider>
           <TaxonomyProvider>
+          {/* One /billing/status for the whole session: the sidebar, the drawer
+              and the plan card all read this. */}
+          <BillingProvider>
             {/* The native splash is dismissed as soon as this tree mounts, so a
                 null fallback would hand off to a blank screen while the Shell
                 chunk loads. The cover matches the splash lockup instead. */}
@@ -254,6 +258,7 @@ function AppRoutes() {
               </Shell>
             </Suspense>
             </BootBoundary>
+          </BillingProvider>
           </TaxonomyProvider>
           </PageContextProvider>
           </ChatStoreProvider>

@@ -16,7 +16,7 @@ import { authMode } from "../lib/auth/mode.js";
 import * as workos from "../lib/auth/workos.js";
 import { localSignUp, localLogin } from "../lib/auth/local.js";
 import { provisionUser } from "../lib/auth/provision.js";
-import { normalizeEmail } from "../lib/normalize-email.js";
+import { isValidEmail, normalizeEmail } from "../lib/normalize-email.js";
 import { resolveTenantPlan } from "../lib/billing.js";
 import { createOauthState, statesMatch, OAUTH_STATE_COOKIE } from "../lib/auth/state.js";
 
@@ -77,6 +77,7 @@ authRoutes.post("/signup", async (c) => {
   const { email: rawEmail, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
   const email = normalizeEmail(rawEmail);
   if (!email) return c.json({ error: "Email is required" }, 400);
+  if (!isValidEmail(email)) return c.json({ error: "Invalid email address" }, 400);
   if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
     return c.json({ error: "You must accept the Terms of Service, Privacy Policy, and RIA acknowledgment" }, 400);
 
@@ -102,6 +103,7 @@ authRoutes.post("/signup", async (c) => {
 authRoutes.post("/login", async (c) => {
   const { email: rawEmail, password } = await c.req.json();
   const email = normalizeEmail(rawEmail);
+  if (!isValidEmail(email)) return c.json({ error: "Invalid email address" }, 400);
 
   // Local-account bypass — demo and local-only users (a stored password hash
   // and NO WorkOS link) authenticate against the local hash even in workos
@@ -139,6 +141,7 @@ authRoutes.post("/login/start", async (c) => {
   const { email: rawEmail } = await c.req.json<{ email?: string }>();
   const email = normalizeEmail(rawEmail);
   if (!email) return c.json({ error: "Email is required" }, 400);
+  if (!isValidEmail(email)) return c.json({ error: "Invalid email address" }, 400);
   // Local mode → always password.
   if (authMode() !== "workos") return c.json({ step: "password" as const });
   const user = await db.query.users.findFirst({ where: eq(users.email, email) });
@@ -162,7 +165,7 @@ authRoutes.post("/login/send-code", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
   const { email: rawEmail } = await c.req.json<{ email?: string }>();
   const email = normalizeEmail(rawEmail);
-  try { if (email && (await workos.hasWorkosUser(email))) await workos.sendMagicAuth({ email }); }
+  try { if (isValidEmail(email) && (await workos.hasWorkosUser(email))) await workos.sendMagicAuth({ email }); }
   catch (err) { console.error("[login/send-code] failed:", workos.friendlyError(err, String(err))); }
   return c.json({ ok: true });
 });
@@ -173,6 +176,7 @@ authRoutes.post("/login/code", async (c) => {
   const { email: rawEmail, code } = await c.req.json<{ email?: string; code?: string }>();
   const email = normalizeEmail(rawEmail);
   if (!email || !code) return c.json({ error: "Email and code are required" }, 400);
+  if (!isValidEmail(email)) return c.json({ error: "Invalid email address" }, 400);
   let identity;
   try { identity = await workos.authenticateWithMagicAuth({ email, code }); }
   catch { return c.json({ error: "Invalid or expired code" }, 400); }
@@ -331,6 +335,7 @@ authRoutes.post("/verify-email", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
   const { email: rawEmail, code, setPassword, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
   const email = normalizeEmail(rawEmail);
+  if (!isValidEmail(email)) return c.json({ error: "Invalid email address" }, 400);
   if (!acceptedTos || !acceptedPrivacy || !acceptedNotRia)
     return c.json({ error: "You must accept all agreements" }, 400);
   let identity;
@@ -359,7 +364,7 @@ authRoutes.post("/forgot-password", async (c) => {
   if (authMode() !== "workos") return c.json({ error: "Not supported" }, 501);
   const { email: rawEmail } = await c.req.json();
   const email = normalizeEmail(rawEmail);
-  try { if (email) await workos.sendPasswordReset({ email }); } catch { /* no enumeration */ }
+  try { if (isValidEmail(email)) await workos.sendPasswordReset({ email }); } catch { /* no enumeration */ }
   return c.json({ ok: true });
 });
 

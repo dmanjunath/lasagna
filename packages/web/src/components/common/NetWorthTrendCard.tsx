@@ -56,15 +56,48 @@ function DeltaChip({ delta }: { delta: number }) {
 
 const CHART_H = 200;
 const CHART_M = { top: 16, right: 12, bottom: 34, left: 68 };
+// A wider slot for the two tick shapes that do not fit the standard one: a
+// SIGNED tick ("−$840.00K" is 57.8px at 11px against a 56px slot) and a
+// four-digit one ("$1100.00M"). The svg clips rather than overflows, so the
+// sign — the glyph that decides what the number means — was simply gone.
+//
+// Paid only when it is needed. Held permanently it costs 10px of plot width,
+// and at 360px that is enough for two pairs of x-axis date labels to collide.
+const CHART_M_LEFT_WIDE = 78;
+// Longest tick label the standard slot holds, in characters. The face is
+// tabular, so the count is a faithful proxy for the width.
+const MAX_TICK_CHARS = 8;
+
+/**
+ * Narrowest y-window the chart will draw, as a fraction of the series mean.
+ *
+ * Fitting the window to the data alone turns a rounding error into a cliff: a
+ * month in which an $8.7M net worth moved 1% filled the frame top to bottom,
+ * the line plunging to the floor and spiking back, immediately beside a caption
+ * reading +1.1%. The chart contradicted its own number, on the surface people
+ * open when they are anxious about money.
+ *
+ * So the window has a floor. Below it the domain is widened around the series
+ * and a small move draws small. Above it nothing changes, so a real collapse
+ * still fills the frame.
+ */
+const MIN_Y_SPAN_FRACTION = 0.1;
+
+/**
+ * A y-axis tick as it is drawn. The true minus, not the hyphen
+ * formatShortMoney emits, so a negative net worth reads the way every other
+ * figure in the app does. Both glyphs are in the numerals face.
+ *
+ * One function, because the slot that has to hold this string is measured from
+ * it: sized from a different string, the axis silently clips the sign.
+ */
+function tickLabel(t: number, decimals: number): string {
+  return `${t < 0 ? '−' : ''}${formatShortMoney(Math.abs(t), decimals)}`;
+}
 
 function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[]; range: Range; onHoverChange?: (i: number | null) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  // Money y-axis labels are removed while amounts are hidden rather than
-  // replaced by five identical masks, and the left margin they reserved
-  // collapses with them. The plotted geometry is untouched: the domain is fit
-  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
   const hideAmounts = isAmountsHidden();
-  const chartLeft = hideAmounts ? 12 : CHART_M.left;
 
   const [chartW, setChartW] = useState(680);
   const [hoverIdx, setHoverIdxRaw] = useState<number | null>(null);
@@ -80,16 +113,36 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
     return () => ro.disconnect();
   }, []);
 
-  const innerW = chartW - chartLeft - CHART_M.right;
-  const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
-
   const { yMin, yMax, yTicks } = useMemo(() => {
     const values = points.map((p) => p.value);
     const rawMin = Math.min(...values);
     const rawMax = Math.max(...values);
-    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
-    return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
+    const mean = values.reduce((sum, v) => sum + v, 0) / (values.length || 1);
+    // Widen around the MIDDLE of the series, not around zero: the window keeps
+    // the line centred, so what grows is the empty room above and below it.
+    const mid = (rawMin + rawMax) / 2;
+    const half = Math.max((rawMax - rawMin) / 2, (Math.abs(mean) * MIN_Y_SPAN_FRACTION) / 2);
+    const lo = mid - half;
+    const hi = mid + half;
+    const pad = (hi - lo) * 0.08 || 1;
+    return { yMin: lo - pad, yMax: hi + pad, yTicks: niceTicks(lo - pad, hi + pad, 4) };
   }, [points]);
+
+  // Money y-axis labels are removed while amounts are hidden rather than
+  // replaced by five identical masks, and the left margin they reserved
+  // collapses with them. The plotted geometry is untouched: the domain is fit
+  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
+  //
+  // Otherwise the slot is sized to the labels this particular scale produces,
+  // so an unsigned four-figure axis keeps every pixel of plot it had.
+  const tickChars = useMemo(
+    () => Math.max(...yTicks.map((t) => tickLabel(t, tickDecimals(yTicks)).length), 0),
+    [yTicks],
+  );
+  const chartLeft = hideAmounts ? 12 : tickChars > MAX_TICK_CHARS ? CHART_M_LEFT_WIDE : CHART_M.left;
+
+  const innerW = chartW - chartLeft - CHART_M.right;
+  const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
 
   const xAt = (i: number) => chartLeft + (i / Math.max(1, points.length - 1)) * innerW;
   const yAt = (v: number) => CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
@@ -106,7 +159,25 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
     : '';
 
   const hover = hoverIdx !== null ? points[hoverIdx] : null;
-  const xLabels = useMemo(() => pickXLabels(points, range), [points, range]);
+  // pickXLabels offers five dates whatever the frame is, and on a phone five
+  // "Sep 16"-sized labels do not fit the plot: they run together into one smear
+  // along the bottom of the chart, worst at the ends, which anchor inward and so
+  // sit half a label closer to their neighbour than the spacing suggests. Drop
+  // every other date, ends kept, until what is left clears.
+  const xLabels = useMemo(() => {
+    const all = pickXLabels(points, range);
+    const span = Math.max(1, points.length - 1);
+    // ~6.1px per character at 11px in this face, plus half a label for the
+    // inward-anchored end and a few px so neighbours read as separate tokens.
+    const need = Math.max(0, ...all.map((l) => l.label.length)) * 6.1 * 1.5 + 6;
+    const tightest = (rows: typeof all) =>
+      Math.min(...rows.slice(1).map((l, i) => ((l.idx - rows[i].idx) / span) * innerW));
+    let out = all;
+    while (out.length > 2 && tightest(out) < need) {
+      out = out.filter((_, i) => i % 2 === 0 || i === out.length - 1);
+    }
+    return out;
+  }, [points, range, innerW]);
 
   const pointerToIdx = (clientX: number): number | null => {
     const root = wrapRef.current;
@@ -152,7 +223,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
                 fill="rgb(var(--ui-content-faint))"
                 style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
               >
-                {formatShortMoney(t, tickDecimals(yTicks))}
+                {tickLabel(t, tickDecimals(yTicks))}
               </text>
             )}
           </g>

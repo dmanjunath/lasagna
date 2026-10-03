@@ -21,7 +21,7 @@ import { useTaxonomy, taxonomyIcon } from '../lib/taxonomy';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
-import { CashflowBars, type CashflowPeriod } from '../components/charts/CashflowBars';
+import { CashflowBars, isCurrentPeriod, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { ChipBadge, transactionsHref } from '../components/transactions/TransactionFilters';
 import { RulesPanel } from '../components/rules/RulesPanel';
@@ -783,6 +783,13 @@ export function Spending() {
   // whenever a filter is on so a shared link is never unexplained.
   const showScopeRow = hasLoadedSummary && !summaryError && (categories.length > 0 || filterActive);
   const spentMore = priorPeriodDelta !== null && priorPeriodDelta > 0;
+  // The hero is describing a period that has not finished. A few days' spending
+  // set against a whole prior month reports a collapse that has not happened:
+  // on the 3rd of the month this line read "−56% less than last month" in
+  // positive green, directly under a chart whose newest column is hatched to
+  // say exactly the opposite. So the comparison is withheld until there is a
+  // whole period to compare, and the line says why the figure is small instead.
+  const heroIsPartial = isCurrentPeriod(heroPeriod, heroGranularity);
 
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -952,8 +959,19 @@ export function Spending() {
               </motion.div>
               <div className="mt-3.5 flex min-h-7 flex-wrap items-center gap-2.5">
                 {hoveredPeriod ? (
-                  <span className="text-[13.5px] font-medium text-content-muted">
-                    Total expenses this {granularity === 'month' ? 'month' : 'year'}
+                  // Scrubbing onto the running period has to keep the caveat.
+                  // Without this the line swapped to a flat "Total expenses
+                  // this month" the moment the pointer landed on the column the
+                  // chart hatches, which is the one column whose figure needs
+                  // saying twice.
+                  <span className="text-[13px] font-medium text-content-muted">
+                    {isCurrentPeriod(hoveredPeriod.period, chartGranularity)
+                      ? `So far this ${chartGranularity === 'month' ? 'month' : 'year'}`
+                      : `Total expenses this ${granularity === 'month' ? 'month' : 'year'}`}
+                  </span>
+                ) : heroIsPartial ? (
+                  <span className="text-[13px] font-medium text-content-muted">
+                    So far this {heroGranularity === 'month' ? 'month' : 'year'}
                   </span>
                 ) : priorPeriodDelta !== null ? (
                   <>

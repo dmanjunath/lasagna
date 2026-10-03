@@ -98,12 +98,10 @@ export function DisplayFontPicker() {
 
   return (
     <Surface className="p-5">
-      <div className="mb-1 flex items-center gap-2">
-        <h2 className="text-[15px] font-semibold text-content">Display face</h2>
-        <span className="rounded-ui-sm bg-canvas-sunken px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-content-muted">
-          Admin
-        </span>
-      </div>
+      {/* No heading and no Admin badge here. The disclosure that reveals this
+          panel already says "Display face", so a second copy says it twice, and
+          the badge was an uppercase tracked kicker on a panel that now only
+          exists behind the admin route. */}
       <p className="text-[13px] leading-relaxed text-content-muted">
         Changes every heading and money figure, for you only. Each sample below is
         set in the face it names.

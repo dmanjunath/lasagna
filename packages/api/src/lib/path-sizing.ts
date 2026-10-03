@@ -1,4 +1,5 @@
 import { RETIREMENT_INCOME_MULTIPLE } from '@lasagna/core';
+import { creditCardPaysInFull } from './debt-accounts.js';
 import type { PathContext } from './path-context.js';
 import type { PathStepMark } from './path-generator.js';
 import {
@@ -52,6 +53,17 @@ export interface SizedStep extends PathCandidate {
   notes: string[];
   /** What the person wrote when they marked this step. Empty when nothing. */
   note: string;
+  /**
+   * Whether this step is a standing monthly condition being measured, which the
+   * page paints as "Ongoing" and the pointer skips.
+   *
+   * `isRateShaped(kind)` and nothing else, until there is nothing to measure it
+   * against: a household with no accounts connected was told two of its steps
+   * were Ongoing, which is a claim about a rate we had never seen. Decided here
+   * rather than re-derived per reader, so the page, the chat agent and the
+   * "you are here" pointer cannot disagree about it.
+   */
+  rateShaped: boolean;
 }
 
 /** Where the person says they stand on a step, and what they wrote about it. */
@@ -115,6 +127,32 @@ export function emergencyFundTarget(ctx: PathContext): number {
  */
 export function isRateShaped(kind: PathStepKind): boolean {
   return kind === 'savings-rate';
+}
+
+/**
+ * Whether there is anything behind this household's steps to measure them
+ * against.
+ *
+ * Zero is the target of every "get this to zero" milestone, and a household
+ * with nothing connected has zero of everything. Read as a figure that is the
+ * finish line already crossed, so a tenant who had signed up an hour earlier
+ * and linked nothing was shown "Step 5, Become debt free: DONE", two steps
+ * reading Ongoing, and a hero counting "1 done". Their total debt was zero
+ * because there were no accounts, not because anything had been paid off.
+ *
+ * So `sizePath` holds every step at not_started until this is true, which is
+ * the distinction the statuses could not otherwise carry: `complete` means
+ * SATISFIED, and there is no figure here that can satisfy anything yet. It is
+ * done in the sizing pass rather than on the page because the page is not the
+ * only reader — the chat agent reads the same steps through `readStoredPath`,
+ * and a fix in the web layer would have left it still saying it.
+ *
+ * Deliberately not gated on income, spending history or a profile. Those change
+ * what a step is WORTH and the steps say so themselves. This is the one input
+ * whose absence makes every reading meaningless.
+ */
+export function canMeasureHousehold(ctx: PathContext): boolean {
+  return ctx.accountCount > 0;
 }
 
 /**
@@ -607,10 +645,14 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       // `?.length`, not `?`. An empty array is truthy, so a journey that left
       // every payoff step off counted nothing and rendered this milestone 100%
       // complete for a household owing $770,000, which is the exact inverse of
-      // the bug the scoping was added to fix. No scope means count everything.
+      // the bug the scoping was added to fix. No scope means count everything
+      // that is actually owed from one month to the next. A card cleared every
+      // statement is this month's spending, so counting it told a household
+      // whose only cards clear to clear what they owe, beside a debt page
+      // reading "No debt to pay down".
       const counted = step.debtScopeIds?.length
         ? ctx.debtAccounts.filter((a) => step.debtScopeIds!.includes(a.id))
-        : ctx.debtAccounts;
+        : ctx.debtAccounts.filter((a) => !creditCardPaysInFull(a));
       const owed = counted.reduce((sum, a) => sum + Math.max(a.balance, 0), 0);
       const clear = Math.round(owed) <= 0;
       return {
@@ -704,6 +746,8 @@ export function sizePath(
   marks: ReadonlyMap<string, StepMark> = new Map(),
 ): SizedStep[] {
   const surplus = Math.max(ctx.monthlySurplus ?? 0, 0);
+  // Whether there is anything behind these steps to read at all.
+  const measurable = canMeasureHousehold(ctx);
 
   // Months from now that the waterfall reaches the next step, how much of the
   // surplus is still unclaimed, and whether a step ahead has already absorbed
@@ -731,6 +775,17 @@ export function sizePath(
 
     let status = m.status;
     let progress = m.progress;
+    // Nothing connected, so every figure the status above was read off is an
+    // absence rather than a reading. Held at not_started, which is what has not
+    // been evaluated looks like, and never at complete or in progress, which are
+    // both claims about this household we have no basis for.
+    if (!measurable) {
+      status = 'not_started';
+      progress = 0;
+    }
+    // A tick survives it. "I have a will" is something the person told us, not
+    // something we failed to measure, and it is true whether or not a bank is
+    // connected.
     if (manual) {
       status = 'complete';
       progress = 100;
@@ -878,6 +933,9 @@ export function sizePath(
       // figures take the decision back the note is still the sentence they
       // typed, and dropping it silently loses their own words.
       note: marked?.note ?? '',
+      // A rate nobody can measure is not a standing condition this household is
+      // meeting or missing, it is a step ahead of them.
+      rateShaped: measurable && isRateShaped(candidate.kind),
     };
   });
 }
