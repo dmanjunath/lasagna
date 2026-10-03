@@ -1,0 +1,1 @@
+ALTER TABLE "accounts" ADD COLUMN "holdings_synced_at" timestamp with time zone;

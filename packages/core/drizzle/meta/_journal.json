@@ -232,6 +232,13 @@
       "when": 1789696617582,
       "tag": "0032_small_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790821125638,
+      "tag": "0033_fine_carnage",
+      "breakpoints": true
     }
   ]
 }

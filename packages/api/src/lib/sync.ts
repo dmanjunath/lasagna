@@ -1,6 +1,7 @@
 import {
   eq,
   and,
+  notInArray,
   plaidItems,
   accounts,
   balanceSnapshots,
@@ -110,6 +111,23 @@ export async function syncItem(itemId: string): Promise<void> {
       });
     }
 
+    // An account Plaid stopped listing was closed at the institution. Zero it
+    // and drop its positions, or its last balance counts toward net worth
+    // forever. History stays, and a later sync that lists it again restores it.
+    const listed = new Set(balResp.data.accounts.map((a) => a.account_id));
+    const itemAccounts = await db.query.accounts.findMany({
+      where: eq(accounts.plaidItemId, item.id),
+    });
+    for (const acct of itemAccounts) {
+      if (acct.frozen || listed.has(acct.plaidAccountId)) continue;
+      await db.insert(balanceSnapshots).values({
+        accountId: acct.id,
+        tenantId: item.tenantId,
+        balance: "0",
+      });
+      await db.delete(holdings).where(eq(holdings.accountId, acct.id));
+    }
+
     // Which products this Item's accounts can actually return data for. With
     // Investments and Liabilities in `additional_consented_products`, the FIRST
     // successful call is what enrolls the Item into a monthly subscription that
@@ -123,7 +141,7 @@ export async function syncItem(itemId: string): Promise<void> {
     try {
       const holdResp = fetchable.investments
         ? await plaidClient.investmentsHoldingsGet({ access_token: accessToken })
-        : { data: { securities: [], holdings: [] } };
+        : { data: { accounts: [], securities: [], holdings: [] } };
 
       // Upsert securities
       for (const sec of holdResp.data.securities) {
@@ -147,7 +165,11 @@ export async function syncItem(itemId: string): Promise<void> {
       // Refresh holdings in place — one row per (account, security). Plaid
       // returns the account's full current position list every run, so an
       // append would duplicate every unchanged position on every sync.
+      const keptByAccount = new Map<string, string[]>();
       for (const h of holdResp.data.holdings) {
+        // Some brokers report a closed position as 0 shares instead of
+        // dropping it. Not keeping it lets the cleanup below delete it.
+        if (h.quantity === 0) continue;
         const acct = await db.query.accounts.findFirst({
           where: and(
             eq(accounts.plaidAccountId, h.account_id),
@@ -179,7 +201,37 @@ export async function syncItem(itemId: string): Promise<void> {
               target: [holdings.accountId, holdings.securityId],
               set: { ...position, snapshotAt: new Date() },
             });
+          keptByAccount.set(acct.id, [...(keptByAccount.get(acct.id) ?? []), sec.id]);
         }
+      }
+
+      // That full list is also the only signal a position closed: a sold
+      // holding or an expired option just stops appearing. Drop those rows, or
+      // the portfolio shows them as open forever. Not every account with
+      // holdings is typed "investment" (cash-management savings can carry
+      // funds), so walk every account Plaid answered for.
+      for (const plaidAcct of holdResp.data.accounts) {
+        const acct = await db.query.accounts.findFirst({
+          where: and(
+            eq(accounts.plaidAccountId, plaidAcct.account_id),
+            eq(accounts.plaidItemId, item.id),
+          ),
+        });
+        if (!acct || acct.frozen) continue;
+        const kept = keptByAccount.get(acct.id) ?? [];
+        await db
+          .delete(holdings)
+          .where(
+            kept.length
+              ? and(eq(holdings.accountId, acct.id), notInArray(holdings.securityId, kept))
+              : eq(holdings.accountId, acct.id),
+          );
+        // Plaid has now seen inside this account, so no holdings means it is
+        // all cash rather than unknown (see getHoldingsInput).
+        await db
+          .update(accounts)
+          .set({ holdingsSyncedAt: new Date() })
+          .where(eq(accounts.id, acct.id));
       }
     } catch {
       // Not an investment account — skip

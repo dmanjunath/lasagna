@@ -47,6 +47,7 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
 
   const holdingsArray = Array.from(latestHoldings.values());
   const holdingsInput: HoldingInput[] = [];
+  const accountsWithRealHoldings = new Set(holdingsArray.map(h => h.accountId));
 
   if (holdingsArray.length > 0) {
     // Batch fetch all securities and accounts using inArray
@@ -89,6 +90,9 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
   });
 
   for (const acct of depositoryAccts) {
+    // A cash-management savings account can report its funds as holdings,
+    // which already add up to its balance. Counting the balance too doubles it.
+    if (accountsWithRealHoldings.has(acct.id)) continue;
     const latest = await db.query.balanceSnapshots.findFirst({
       where: eq(balanceSnapshots.accountId, acct.id),
       orderBy: desc(balanceSnapshots.snapshotAt),
@@ -112,7 +116,6 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
   // via Quick Import) get an assumed 60/40 split — 60% US stocks, 40% bonds —
   // so they show up in portfolio summaries instead of vanishing into a $0 total.
   // Without this, a manual $325k 401k looks like an empty portfolio to the LLM.
-  const accountsWithRealHoldings = new Set(holdingsArray.map(h => h.accountId));
   const investmentAccts = await db.query.accounts.findMany({
     where: and(
       eq(accounts.tenantId, tenantId),
@@ -130,6 +133,22 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
     const raw = parseFloat(latest?.balance ?? "0");
     const balance = acct.invertBalance ? -raw : raw;
     if (balance <= 0) continue;
+
+    // Plaid has seen inside this account and found no positions: everything
+    // was sold and the balance is cash. The 60/40 guess is only for accounts
+    // nobody can see inside.
+    if (acct.holdingsSyncedAt) {
+      holdingsInput.push({
+        ticker: 'CASH',
+        value: balance,
+        shares: balance,
+        name: `${acct.name} (Cash)`,
+        account: acct.name,
+        costBasis: balance,
+        securityType: 'cash',
+      });
+      continue;
+    }
 
     const stockValue = balance * 0.6;
     const bondValue = balance * 0.4;

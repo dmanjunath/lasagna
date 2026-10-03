@@ -315,6 +315,10 @@ export const accounts = pgTable("accounts", {
   invertBalance: boolean("invert_balance").notNull().default(false), // flip the sign of the balance at point of use
   // At an institution beyond the tenant's plan limit → read-only: not synced, shown locked.
   frozen: boolean("frozen").notNull().default(false),
+  // Last sync where Plaid's holdings response covered this account. Set means
+  // an empty holdings list is real (everything sold, balance is cash); null
+  // means nobody has seen inside the account (manual, or Plaid can't).
+  holdingsSyncedAt: timestamp("holdings_synced_at", { withTimezone: true }),
   // Credit cards only: the user designates the card as paid in full every month.
   // A fallback for banks that do not report statement/payment data — it makes the
   // card a transactor (off the payoff plan) regardless of what sync knows.

@@ -24,6 +24,7 @@ const { HOLDINGS, SYNC_LOG, ACCOUNTS, SECURITIES, BALANCE_SNAPSHOTS, PLAID_ITEMS
     HOLDINGS: { accountId: "holdings.account_id", securityId: "holdings.security_id" },
     SYNC_LOG: { id: "sync_log.id" },
     ACCOUNTS: {
+      id: "accounts.id",
       plaidAccountId: "accounts.plaid_account_id",
       plaidItemId: "accounts.plaid_item_id",
     },
@@ -31,8 +32,17 @@ const { HOLDINGS, SYNC_LOG, ACCOUNTS, SECURITIES, BALANCE_SNAPSHOTS, PLAID_ITEMS
     BALANCE_SNAPSHOTS: { table: "balance_snapshots" },
     PLAID_ITEMS: { id: "plaid_items.id", tenantId: "plaid_items.tenant_id" },
     // Every row written to `holdings`, in insert order, plus the position
-    // quantity Plaid reports on the next call.
-    state: { holdingRows: [] as HoldingRow[], quantity: 10 },
+    // quantity Plaid reports on the next call, whether Plaid still lists the
+    // option position and the account itself, the balances sync wrote, and
+    // what sync stamped on the account.
+    state: {
+      holdingRows: [] as HoldingRow[],
+      quantity: 10,
+      optionOpen: false,
+      accountListed: true,
+      balanceRows: [] as Array<{ accountId: string; balance: string | null }>,
+      accountUpdates: [] as Array<Record<string, unknown>>,
+    },
   }));
 
 vi.mock("plaid", () => ({ CountryCode: { Us: "US" }, Products: {} }));
@@ -40,6 +50,7 @@ vi.mock("plaid", () => ({ CountryCode: { Us: "US" }, Products: {} }));
 vi.mock("@lasagna/core", () => ({
   eq: (col: unknown, value: unknown) => ["eq", col, value],
   and: (...args: unknown[]) => ["and", ...args],
+  notInArray: (col: unknown, values: unknown[]) => ["notInArray", col, values],
   holdings: HOLDINGS,
   syncLog: SYNC_LOG,
   accounts: ACCOUNTS,
@@ -52,12 +63,15 @@ vi.mock("@lasagna/core", () => ({
 
 const account = { id: "account-1", plaidAccountId: "plaid-account-1", frozen: false, metadata: null };
 const security = { id: "security-1", plaidSecurityId: "plaid-security-1" };
+const option = { id: "security-2", plaidSecurityId: "plaid-security-2" };
 
 // Reads the value out of the mocked `eq(col, value)` / `and(...)` structures so
 // the fake db can resolve findFirst by the column sync.ts actually filtered on.
 function valueFor(where: unknown, col: string): unknown {
   if (!Array.isArray(where)) return undefined;
-  if (where[0] === "eq") return where[1] === col ? where[2] : undefined;
+  if (where[0] === "eq" || where[0] === "notInArray") {
+    return where[1] === col ? where[2] : undefined;
+  }
   for (const clause of where.slice(1)) {
     const found = valueFor(clause, col);
     if (found !== undefined) return found;
@@ -77,6 +91,9 @@ function upsertHolding(values: HoldingRow, set: Partial<HoldingRow>) {
 function writeChain(table: unknown, values: Record<string, unknown>) {
   const run = async () => {
     if (table === SYNC_LOG) return [{ id: "sync-log-1" }];
+    if (table === BALANCE_SNAPSHOTS) {
+      state.balanceRows.push(values as { accountId: string; balance: string | null });
+    }
     if (table === HOLDINGS) {
       // Reached only if the upsert clause were dropped — that is the bug.
       state.holdingRows.push(values as HoldingRow);
@@ -113,18 +130,36 @@ vi.mock("../db.js", () => ({
       accounts: {
         findFirst: async ({ where }: { where: unknown }) =>
           valueFor(where, ACCOUNTS.plaidAccountId) === account.plaidAccountId ? account : undefined,
+        findMany: async () => [account],
       },
       securities: {
         findFirst: async ({ where }: { where: unknown }) =>
-          valueFor(where, SECURITIES.plaidSecurityId) === security.plaidSecurityId
-            ? security
-            : undefined,
+          [security, option].find(
+            (s) => s.plaidSecurityId === valueFor(where, SECURITIES.plaidSecurityId),
+          ),
       },
     },
+    // DELETE FROM holdings WHERE account_id = ? [AND security_id NOT IN (?)]
+    delete: (table: unknown) => ({
+      where: async (where: unknown) => {
+        if (table !== HOLDINGS) return;
+        const accountId = valueFor(where, HOLDINGS.accountId);
+        const kept = (valueFor(where, HOLDINGS.securityId) as string[] | undefined) ?? [];
+        state.holdingRows = state.holdingRows.filter(
+          (r) => r.accountId !== accountId || kept.includes(r.securityId),
+        );
+      },
+    }),
     insert: (table: unknown) => ({
       values: (values: Record<string, unknown>) => writeChain(table, values),
     }),
-    update: () => ({ set: () => ({ where: async () => undefined }) }),
+    update: (table: unknown) => ({
+      set: (values: Record<string, unknown>) => ({
+        where: async () => {
+          if (table === ACCOUNTS) state.accountUpdates.push(values);
+        },
+      }),
+    }),
   },
 }));
 
@@ -135,21 +170,27 @@ vi.mock("../plaid.js", () => ({
   plaidClient: {
     accountsGet: async () => ({
       data: {
-        accounts: [
-          {
-            account_id: account.plaidAccountId,
-            name: "Brokerage",
-            type: "investment",
-            subtype: "brokerage",
-            mask: "1111",
-            balances: { current: 1000, available: null, limit: null, iso_currency_code: "USD" },
-          },
-        ],
+        accounts: state.accountListed
+          ? [
+              {
+                account_id: account.plaidAccountId,
+                name: "Brokerage",
+                type: "investment",
+                subtype: "brokerage",
+                mask: "1111",
+                balances: { current: 1000, available: null, limit: null, iso_currency_code: "USD" },
+              },
+            ]
+          : [],
       },
     }),
     investmentsHoldingsGet: async () => ({
       data: {
-        securities: [{ security_id: security.plaidSecurityId, name: "Fund", ticker_symbol: "FND" }],
+        accounts: [{ account_id: account.plaidAccountId }],
+        securities: [
+          { security_id: security.plaidSecurityId, name: "Fund", ticker_symbol: "FND" },
+          { security_id: option.plaidSecurityId, name: "FND Call", type: "derivative" },
+        ],
         holdings: [
           {
             account_id: account.plaidAccountId,
@@ -159,6 +200,18 @@ vi.mock("../plaid.js", () => ({
             institution_value: state.quantity * 100,
             cost_basis: 900,
           },
+          ...(state.optionOpen
+            ? [
+                {
+                  account_id: account.plaidAccountId,
+                  security_id: option.plaidSecurityId,
+                  quantity: 1,
+                  institution_price: 2,
+                  institution_value: 200,
+                  cost_basis: 150,
+                },
+              ]
+            : []),
         ],
       },
     }),
@@ -186,6 +239,10 @@ describe("syncItem holdings write", () => {
   beforeEach(() => {
     state.holdingRows = [];
     state.quantity = 10;
+    state.optionOpen = false;
+    state.accountListed = true;
+    state.balanceRows = [];
+    state.accountUpdates = [];
   });
 
   it("keeps one row per position when the same account syncs twice", async () => {
@@ -211,5 +268,55 @@ describe("syncItem holdings write", () => {
     expect(state.holdingRows[0].snapshotAt.getTime()).toBeGreaterThanOrEqual(
       firstSnapshot?.getTime() ?? 0,
     );
+  });
+
+  // An expired option (or a sold position) simply stops appearing in Plaid's
+  // list. Its row has to go, or the portfolio shows it as open forever.
+  it("removes a position Plaid stopped returning", async () => {
+    state.optionOpen = true;
+    await syncItem("item-1");
+    expect(state.holdingRows.map((r) => r.securityId).sort()).toEqual([
+      security.id,
+      option.id,
+    ]);
+
+    state.optionOpen = false;
+    await syncItem("item-1");
+
+    expect(state.holdingRows.map((r) => r.securityId)).toEqual([security.id]);
+  });
+
+  it("removes a position the broker reports as 0 shares", async () => {
+    await syncItem("item-1");
+    expect(state.holdingRows).toHaveLength(1);
+
+    state.quantity = 0;
+    await syncItem("item-1");
+
+    expect(state.holdingRows).toHaveLength(0);
+  });
+
+  // A closed account drops out of Plaid's account list entirely, so the
+  // holdings cleanup never sees it.
+  it("zeroes an account Plaid stopped listing and drops its positions", async () => {
+    await syncItem("item-1");
+    expect(state.holdingRows).toHaveLength(1);
+
+    state.accountListed = false;
+    state.balanceRows = [];
+    await syncItem("item-1");
+
+    expect(state.holdingRows).toHaveLength(0);
+    expect(state.balanceRows).toEqual([
+      expect.objectContaining({ accountId: account.id, balance: "0" }),
+    ]);
+  });
+
+  // The stamp is what lets the portfolio read an empty account as cash
+  // instead of guessing a 60/40 split.
+  it("stamps the account once Plaid has answered for its holdings", async () => {
+    await syncItem("item-1");
+
+    expect(state.accountUpdates).toEqual([{ holdingsSyncedAt: expect.any(Date) }]);
   });
 });
