@@ -233,7 +233,7 @@ export function Sidebar({ className }: SidebarProps) {
   // read on a ref-bearing object as a render-time ref access, and `clipped` /
   // `style` are plain state.
   const { ref: navRef, onScroll: onNavScroll, style: fadeStyle, clipped: navClipped } =
-    useScrollFade<HTMLElement>([openSections, location]);
+    useScrollFade<HTMLElement>([openSections, location], { hintBand: 20 });
 
   const rawName = tenant?.name || '';
   const firstName = rawName.startsWith('Seed ') ? 'User' : (rawName.split(' ')[0] || 'User');
@@ -263,13 +263,7 @@ export function Sidebar({ className }: SidebarProps) {
           destinations became unreachable whenever the clip landed past the last
           row and the fade had nothing to dim. Same treatment as the drawer: a
           fade for the edge, plus an explicit hint in its own reserved gutter. */}
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
-      {/* The TOP edge needs the same hint as the bottom: auto-scrolling to an
-          expanded section pushes whole groups above the fold, and with overlay
-          scrollbars there is no track to say so. */}
-      <div aria-hidden="true" className="pointer-events-none grid h-5 shrink-0 place-items-center">
-        {navClipped.start && <ChevronUp size={14} className="text-content-muted" />}
-      </div>
+      <div className="relative mt-4 flex min-h-0 flex-1 flex-col">
       <nav
         ref={navRef}
         onScroll={onNavScroll}
@@ -346,12 +340,24 @@ export function Sidebar({ className }: SidebarProps) {
 
       </nav>
 
-      {/* A hint, not a control — you scroll the list by dragging it. Its own
-          reserved gutter, so it never covers a row and its appearing can never
-          change whether the list scrolls. */}
-      <div aria-hidden="true" className="pointer-events-none grid h-5 shrink-0 place-items-center">
-        {navClipped.end && <ChevronDown size={14} className="text-content-muted" />}
-      </div>
+      {/* Hints, not controls: you scroll the list by dragging it. The TOP
+          edge needs one as much as the bottom, since auto-scrolling to an
+          expanded section pushes whole groups above the fold, and with overlay
+          scrollbars there is no track to say so. Each sits over a 20px band
+          the mask hides (hintBand), so it never covers a readable row and
+          never takes layout. Rows of their own took 40px from the list on
+          every page, which made it clip on an ordinary laptop window, and rows
+          that came and went jumped the list mid-scroll. */}
+      {navClipped.start && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 grid h-5 place-items-center">
+          <ChevronUp size={14} className="text-content-muted" />
+        </div>
+      )}
+      {navClipped.end && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 grid h-5 place-items-center">
+          <ChevronDown size={14} className="text-content-muted" />
+        </div>
+      )}
       </div>
 
       {/* Foot: free-plan standing, then the account chip + hide-amounts toggle.
