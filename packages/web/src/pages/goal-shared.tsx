@@ -5,6 +5,7 @@ import {
   GraduationCap, Hammer, Sparkles, Palmtree, CreditCard, Wallet, Wrench,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { api } from '../lib/api';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
 import { Input, MaskedText, SegmentedControl } from '../components/uikit';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
@@ -22,29 +23,6 @@ export function formatCurrency(value: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-// ---------------------------------------------------------------------------
-// Goal category → Bright accent color
-// ---------------------------------------------------------------------------
-
-// Mirrors the goals list page's `goalAccent` mapping so a goal reads with the
-// same accent on the list card and its detail page. Returns a CSS color string
-// (a --ui viz token, or the brand green for safety nets) so light/dark adapt
-// automatically. The goal name is folded in because category strings are coarse
-// (a "New car fund" is stored as category "savings").
-export function goalColor(category: string, name = ''): string {
-  const c = `${category ?? ''} ${name}`.toLowerCase();
-  if (c.includes('emergency') || c.includes('safety')) return 'rgb(var(--ui-brand))';
-  if (c.includes('home') || c.includes('house') || c.includes('down_payment')) return 'var(--ui-viz-2)';
-  if (c.includes('retire')) return 'var(--ui-viz-1)';
-  if (c.includes('educat') || c.includes('529')) return 'var(--ui-viz-6)';
-  if (c.includes('travel') || c.includes('vacation') || c.includes('relocation')) return 'var(--ui-viz-5)';
-  if (c.includes('car') || c.includes('vehicle') || c.includes('transport')) return 'var(--ui-viz-3)';
-  if (c.includes('wedding') || c.includes('life')) return 'var(--ui-viz-4)';
-  if (c.includes('debt')) return 'var(--ui-viz-7)';
-  if (c.includes('repair') || c.includes('major')) return 'var(--ui-viz-3)';
-  return 'var(--ui-viz-2)';
 }
 
 // ---------------------------------------------------------------------------
@@ -89,9 +67,83 @@ export function iconFor(key: string | null | undefined, size = 20): ReactElement
   return <Cmp size={size} />;
 }
 
+// ---------------------------------------------------------------------------
+// Create-goal presets — shared by the goals list page (Suggested tiles) and
+// the create-goal page (kind picker), so both offer the same set.
+// ---------------------------------------------------------------------------
+
+// A typed category works its own target out from what the user tells it, so it
+// carries no suggested number — one would only contradict the form.
+export const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey; suggestedTarget?: number }> = [
+  { name: 'Emergency Fund', category: 'emergency_fund', icon: 'shield' },
+  { name: 'Home Purchase', category: 'home_purchase', icon: 'home' },
+  { name: 'Vacation / Travel', category: 'vacation', icon: 'plane', suggestedTarget: 5000 },
+  { name: 'Vehicle Purchase', category: 'car', icon: 'car' },
+  { name: 'Wedding Fund', category: 'wedding', icon: 'heart', suggestedTarget: 30000 },
+  { name: 'Education / 529', category: 'education', icon: 'graduationCap' },
+  { name: 'Home Repair', category: 'home_repair', icon: 'wrench', suggestedTarget: 15000 },
+  { name: 'Major Purchase', category: 'major_purchase', icon: 'sparkles', suggestedTarget: 10000 },
+  { name: 'Life Event', category: 'life_event', icon: 'sparkles', suggestedTarget: 10000 },
+  { name: 'Fully funded retirement', category: 'retirement', icon: 'palmtree' },
+  { name: 'Debt Payoff', category: 'debt_payoff', icon: 'creditCard', suggestedTarget: 20000 },
+  { name: 'General Savings', category: 'savings', icon: 'wallet', suggestedTarget: 10000 },
+];
+
+// Bright accent per category — mirrors the redesign mockup's --b-viz mapping.
+// Returns a CSS color string (a viz token, or the brand green for safety nets)
+// so light/dark adapt automatically and goals stay visually distinct.
+export function goalAccent(category: string, name = ''): string {
+  // Category strings are coarse (a "New car fund" is stored as category
+  // "savings"), so fold the goal name in too — keeps each goal's accent
+  // matched to its real intent rather than the generic-savings fallback.
+  const c = `${category ?? ''} ${name}`.toLowerCase();
+  if (c.includes('emergency') || c.includes('safety')) return 'rgb(var(--ui-brand))';
+  if (c.includes('home') || c.includes('house') || c.includes('down_payment')) return 'var(--ui-viz-2)';
+  if (c.includes('retire')) return 'var(--ui-viz-1)';
+  if (c.includes('educat') || c.includes('529')) return 'var(--ui-viz-6)';
+  if (c.includes('travel') || c.includes('vacation') || c.includes('relocation')) return 'var(--ui-viz-5)';
+  if (c.includes('car') || c.includes('vehicle') || c.includes('transport')) return 'var(--ui-viz-3)';
+  if (c.includes('wedding') || c.includes('life')) return 'var(--ui-viz-4)';
+  if (c.includes('debt')) return 'var(--ui-viz-7)';
+  if (c.includes('repair') || c.includes('major')) return 'var(--ui-viz-3)';
+  // Only a savings goal no name above claimed: "New car fund" is still a car.
+  if (category === 'savings') return 'var(--ui-viz-8)';
+  return 'var(--ui-viz-2)';
+}
+
 // Toggle membership of an id in a string array.
 export function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id];
+}
+
+// ---------------------------------------------------------------------------
+// Fundable accounts — shared by the goals list page (linked-account names on
+// a goal card) and the create-goal page (the account picker), so both fetch
+// and filter the same way instead of each keeping their own copy.
+// ---------------------------------------------------------------------------
+
+export interface Account {
+  id: string;
+  name: string;
+  mask: string | null;
+  type: string;
+  balance: string | null;
+  institutionId: string | null;
+  institutionName: string | null;
+}
+
+// Only liquid, fundable accounts can back a savings goal. Liabilities
+// (credit/loan) would track debt, and illiquid assets (real_estate,
+// alternative) would slam progress to 100% instantly — drop both.
+export function fetchFundableAccounts(): Promise<Account[]> {
+  return api.getBalances().then(({ balances }) =>
+    balances
+      .filter(b => b.type === 'depository' || b.type === 'investment')
+      .map(b => ({
+        id: b.accountId, name: b.name, mask: b.mask, type: b.type, balance: b.balance,
+        institutionId: b.institutionId, institutionName: b.institutionName,
+      }))
+  );
 }
 
 // ---------------------------------------------------------------------------

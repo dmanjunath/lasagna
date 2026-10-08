@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, desc, and, sql, accounts, balanceSnapshots, plaidItems, parsePropertyMetadata, accountTypeEnum } from "@lasagna/core";
+import { eq, desc, and, accounts, balanceSnapshots, plaidItems, parsePropertyMetadata, accountTypeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
-import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
+import { fetchAccountsWithBalances } from "../lib/account-balances.js";
 import { resolveDebtAccounts, creditCardPaysInFull, type DebtAccount } from "../lib/debt-accounts.js";
+import { netWorthHistory, validTimeZone } from "../lib/net-worth-history.js";
 import { kickOffValueEstimate, advanceValueEstimate } from "../lib/value-estimate.js";
 import { pollRealEstateValue } from "../services/fetchRealEstateValues.js";
 
@@ -75,71 +76,9 @@ accountRoutes.get("/balances", async (c) => {
 // Must be before /:id/history to avoid matching "net-worth" as an :id
 accountRoutes.get("/net-worth/history", async (c) => {
   const session = c.get("session");
-
-  const accts = await db.query.accounts.findMany({
-    where: eq(accounts.tenantId, session.tenantId),
-  });
-  if (accts.length === 0) {
-    return c.json({ history: [] });
-  }
-
-  // Per-account overrides for the aggregation below: skip excluded accounts,
-  // flip the sign on inverted ones, and keep the liability convention.
-  const acctMeta = new Map(
-    accts.map((a) => [
-      a.id,
-      { type: a.type, invert: a.invertBalance, exclude: a.excludeFromNetWorth },
-    ]),
-  );
-
-  // Get latest snapshot per account per day
-  const rows = await db
-    .select({
-      date: sql<string>`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`.as("date"),
-      accountId: balanceSnapshots.accountId,
-      balance: sql<string>`(array_agg(${balanceSnapshots.balance} ORDER BY ${balanceSnapshots.snapshotAt} DESC))[1]`.as("balance"),
-    })
-    .from(balanceSnapshots)
-    .where(eq(balanceSnapshots.tenantId, session.tenantId))
-    .groupBy(sql`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`, balanceSnapshots.accountId)
-    .orderBy(sql`date_trunc('day', ${balanceSnapshots.snapshotAt})::date`);
-
-  // Build per-account balance timeline, carrying forward last known balance
-  // This prevents false drops when an account has no snapshot on a given day
-  const allDates = [...new Set(rows.map((r) => String(r.date)))].sort();
-  const accountBalances = new Map<string, Map<string, number>>();
-  for (const row of rows) {
-    const acctId = row.accountId;
-    const date = String(row.date);
-    if (!accountBalances.has(acctId)) accountBalances.set(acctId, new Map());
-    accountBalances.get(acctId)!.set(date, parseFloat(row.balance || "0"));
-  }
-
-  // Fill forward: for each account, carry the last known balance into missing days
-  for (const [, dateBalMap] of accountBalances) {
-    let lastBal = 0;
-    for (const date of allDates) {
-      if (dateBalMap.has(date)) {
-        lastBal = dateBalMap.get(date)!;
-      } else {
-        dateBalMap.set(date, lastBal);
-      }
-    }
-  }
-
-  // Aggregate per-date net worth
-  const history = allDates.map((date) => {
-    let total = 0;
-    for (const [acctId, dateBalMap] of accountBalances) {
-      const m = acctMeta.get(acctId);
-      if (!m || m.exclude) continue;
-      let bal = dateBalMap.get(date) || 0;
-      if (m.invert) bal = -bal;
-      total += LIABILITY_TYPES.has(m.type) ? -Math.abs(bal) : bal;
-    }
-    return { date, value: Math.round(total * 100) / 100 };
-  });
-
+  // The caller's zone decides which calendar day a snapshot belongs to.
+  // Missing or unknown: UTC days, as before.
+  const history = await netWorthHistory(session.tenantId, validTimeZone(c.req.query("tz")));
   return c.json({ history });
 });
 

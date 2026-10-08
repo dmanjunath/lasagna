@@ -28,7 +28,10 @@ export function Skeleton({
     <Tag
       style={style}
       className={cn(
-        'relative overflow-hidden rounded-ui-sm bg-canvas-sunken',
+        // The hairline tint, not canvas-sunken: sunken is darker than the
+        // panel in dark mode, so placeholders read as holes. A translucent
+        // tint lifts off whatever surface it sits on, in both modes.
+        'relative overflow-hidden rounded-ui-sm bg-line',
         'after:absolute after:inset-0 after:-translate-x-full',
         'after:bg-gradient-to-r after:from-transparent after:via-white/25 after:to-transparent',
         'after:animate-[ui-shimmer_1.6s_infinite] dark:after:via-white/10',

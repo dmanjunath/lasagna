@@ -26,6 +26,7 @@ import {
   Mail,
   UserPlus,
   Clock,
+  AlertCircle,
 } from "lucide-react";
 import { useConfirm } from "../components/ds";
 import { isNativeApp, setNativeToken } from "../lib/native";
@@ -857,22 +858,27 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
 
         {invites.length > 0 && (
           <ul className="mt-4 divide-y divide-line border-t border-line">
-            {invites.map((inv) => (
+            {invites.map((inv) => {
+              const expired = new Date(inv.expiresAt).getTime() < Date.now();
+              const StatusIcon = expired ? AlertCircle : Clock;
+              return (
               <li key={inv.id} className="flex items-center justify-between gap-3 py-3">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <Clock className="h-4 w-4 shrink-0 text-content-muted" />
+                  <StatusIcon className={`h-4 w-4 shrink-0 ${expired ? "text-caution" : "text-content-muted"}`} />
                   <div className="min-w-0">
                     <p className="truncate text-[14px] font-semibold text-content">{inv.email}</p>
-                    <p className="mt-0.5 text-[12px] font-medium text-content-muted">
-                      Pending, expires {formatInstant(inv.expiresAt, { month: "short", day: "numeric", year: "numeric" })}
+                    <p className={`mt-0.5 text-[12px] font-medium ${expired ? "text-caution" : "text-content-muted"}`}>
+                      {expired ? "Expired" : "Pending, expires"}{" "}
+                      {formatInstant(inv.expiresAt, { month: "short", day: "numeric", year: "numeric" })}
                     </p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => void revoke(inv.id)}>
+                <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void revoke(inv.id)}>
                   Revoke
                 </Button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

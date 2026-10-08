@@ -167,6 +167,7 @@ export default {
         panel: {
           DEFAULT: v('--ui-panel'),
           raised:  v('--ui-panel-raised'),
+          inset:   v('--ui-panel-inset'),
         },
         content: {
           DEFAULT:   v('--ui-content'),

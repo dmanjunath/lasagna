@@ -12,15 +12,15 @@ import { useChatStore } from '../lib/chat-store';
 import { Button, button, EmptyState, Skeleton, useToast } from '../components/uikit';
 import { ActionItem } from '../components/common/action-item';
 import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
-import { NetWorthTrendCard } from '../components/common/NetWorthTrendCard';
+import { BriefingCard, GREETING_CLS } from '../components/home/BriefingCard';
+import { actionSentence, netWorthChange, quickLinks } from '../lib/home-briefing';
 import { formatStoredDay } from '../lib/utils';
 
 // Shared style for "go to this page" affordances on the home page, so every page
-// link reads as the same soft-brand button as the hero's Open Money.
+// link reads as the same soft-brand button.
 const pageLinkCls =
   'ui-focus inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]';
-import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../components/ds/TrendChart';
-import { formatCurrency, goalColor, iconFor } from './goal-shared';
+import { formatCurrency, goalAccent, iconFor } from './goal-shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,6 +147,41 @@ function Track({ pct, color, shine = false }: { pct: number; color: string; shin
   );
 }
 
+const SHAPE_KEY = 'home-briefing-shape';
+/**
+ * `listHeight` is the action list's height in px, measured at `width`: titles
+ * wrap differently on a phone, so it only applies in the same width bucket.
+ */
+type BriefingShape = { actions: number; links: number; listHeight: number | null; width: 'narrow' | 'wide' };
+
+const widthBucket = (): BriefingShape['width'] => (window.innerWidth < 640 ? 'narrow' : 'wide');
+
+/** Last seen counts, clamped. First visit, or no storage: 3 rows and 4 links. */
+function readBriefingShape(): BriefingShape {
+  const fallback = { actions: HOME_ACTION_LIMIT, links: 4, listHeight: null, width: widthBucket() };
+  try {
+    const v = JSON.parse(localStorage.getItem(SHAPE_KEY) ?? 'null');
+    const clamp = (n: unknown, lo: number, hi: number, d: number) =>
+      typeof n === 'number' && Number.isInteger(n) ? Math.min(hi, Math.max(lo, n)) : d;
+    return {
+      actions: clamp(v?.actions, 0, HOME_ACTION_LIMIT, fallback.actions),
+      links: clamp(v?.links, 2, 6, fallback.links),
+      listHeight: typeof v?.listHeight === 'number' ? clamp(Math.round(v.listHeight), 0, 600, 0) || null : null,
+      width: v?.width === 'narrow' ? 'narrow' : 'wide',
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function writeBriefingShape(shape: BriefingShape) {
+  try {
+    localStorage.setItem(SHAPE_KEY, JSON.stringify(shape));
+  } catch {
+    // storage unavailable: the next load just uses the defaults
+  }
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function SimpleHome() {
@@ -154,7 +189,7 @@ export function SimpleHome() {
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
   const toast = useToast();
-  const { insights, refresh: refreshInsights, dismiss, complete, isLoading: insightsLoading } = useInsights();
+  const { insights, refresh: refreshInsights, dismiss, complete, isLoading: insightsLoading, isError: insightsFailed } = useInsights();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
@@ -190,6 +225,13 @@ export function SimpleHome() {
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
   const [sideLoading, setSideLoading] = useState(true);
   const [txnsLoading, setTxnsLoading] = useState(true);
+  const [lastVisit, setLastVisit] = useState<Date | null>(null);
+  const [lastVisitLoading, setLastVisitLoading] = useState(true);
+  // Both stay null until known, and on failure: an unknown fact shows no link.
+  // undefined while loading, null when it failed (unknown).
+  const [household, setHousehold] = useState<{ size: number; pending: number } | null | undefined>(undefined);
+  // Read off the raw balances list, so an excluded or $0 property still counts.
+  const [hasRealEstate, setHasRealEstate] = useState<boolean | null>(null);
 
   const firstName =
     user?.name?.split(' ')[0] ||
@@ -332,6 +374,7 @@ export function SimpleHome() {
         next.netWorth = next.cash + next.investments + next.assets - next.debts;
         setBreakdown(next);
         setAccountsById(map);
+        setHasRealEstate(balances.some((b) => b.type === 'real_estate'));
       })
       .catch(() => {
         setBalancesFailed(true);
@@ -350,12 +393,16 @@ export function SimpleHome() {
       })
       .finally(() => setLoading(false));
 
-    // Trend history: its own card, and it already re-resolves its range when
-    // history lands after first paint.
+    // Daily history: the baseline for the briefing's net worth sentence.
     api.getNetWorthHistory()
       .then(({ history }) => setNwHistory(history || []))
       .catch(() => { setNwHistory([]); setHistoryFailed(true); })
       .finally(() => setHistoryLoading(false));
+
+    api.getLastVisit()
+      .then(({ lastVisitAt }) => setLastVisit(lastVisitAt ? new Date(lastVisitAt) : null))
+      .catch(() => setLastVisit(null))
+      .finally(() => setLastVisitLoading(false));
 
     // Goals rail.
     api.getGoals()
@@ -391,6 +438,23 @@ export function SimpleHome() {
       })
       .catch(() => {});
   }, [loadPath]);
+
+  // Household size decides whether "Invite your spouse" still applies. Only the
+  // owner can send invites, so nobody else needs either call. An expired
+  // invite no longer counts as pending.
+  const isOwner = user?.role === 'owner';
+  useEffect(() => {
+    if (!isOwner) return;
+    let live = true;
+    Promise.all([api.household.members(), api.household.listInvites()])
+      .then(([m, inv]) => {
+        if (!live) return;
+        const pending = inv.invites.filter((i) => new Date(i.expiresAt).getTime() > Date.now()).length;
+        setHousehold({ size: m.members.length, pending });
+      })
+      .catch(() => { if (live) setHousehold(null); });
+    return () => { live = false; };
+  }, [isOwner]);
 
   // Side rail: month-to-date spending/cash-flow plus the latest transactions.
   useEffect(() => {
@@ -470,48 +534,38 @@ export function SimpleHome() {
   // whole point: an action belongs to a step.
   const stepActions = insights.filter((a) => a.pathStepKey === levelCurrentId);
 
-  const topGoal = goals.find((g) => g.status === 'active');
-
-  const hideAmounts = isAmountsHidden();
-  const suggestedPrompts = useMemo<AskSuggestion[]>(() => {
-    const shortUsd = (n: number) => {
-      const abs = Math.abs(n);
-      if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
-      if (abs >= 1_000) return `$${Math.round(abs / 1_000)}k`;
-      return `$${Math.round(abs)}`;
-    };
-    // A chip that names a figure carries two strings. The LABEL is rendered on
-    // this screen, which may be masked, so it shows the mask. The PAYLOAD is
-    // the question the thread is stored with, so it always keeps the real
-    // number. Sending the label would bake the mask into the database forever.
-    const withAmount = (ask: (amount: string) => string, n: number): AskSuggestion => {
-      const real = shortUsd(n);
-      return { label: ask(hideAmounts ? HIDDEN_AMOUNT : real), payload: ask(real) };
-    };
-    const prompts: AskSuggestion[] = [];
-    if (breakdown && breakdown.debts > 0) {
-      prompts.push(withAmount((a) => `Pay off ${a} faster?`, breakdown.debts));
-    }
-    if (topGoal) {
-      const target = parseFloat(topGoal.targetAmount);
-      const current = parseFloat(topGoal.currentAmount || '0');
-      const remaining = Math.max(0, target - current);
-      const label = (topGoal.name || 'goal').split(' ').slice(0, 2).join(' ').toLowerCase();
-      if (target > 0) {
-        prompts.push(
-          remaining > 0
-            ? withAmount((a) => `Fastest path to ${a}?`, remaining)
-            : `What's next after my ${label}?`
-        );
-      }
-    }
-    if (breakdown && breakdown.netWorth > 0) {
-      prompts.push(withAmount((a) => `Retire at 65 on ${a}?`, breakdown.netWorth));
-    }
-    prompts.push('Tax-loss harvest this year?');
-    prompts.push('My safe withdrawal rate?');
-    return prompts.slice(0, 3);
-  }, [breakdown, topGoal, hideAmounts]);
+  // A failed fetch knows nothing about the user's actions, so it says nothing.
+  const briefingActions = useMemo(() => (insightsFailed ? null : actionSentence(insights)), [insights, insightsFailed]);
+  const briefingNetWorth = useMemo(
+    () => (breakdown && !historyFailed ? netWorthChange(nwHistory, breakdown.netWorth, lastVisit, new Date()) : null),
+    [breakdown, historyFailed, nwHistory, lastVisit],
+  );
+  // How many action rows and links this viewer saw last time, so the loading
+  // card reserves their room rather than a fixed guess. Per browser only.
+  const [shape] = useState(readBriefingShape);
+  const linksLoading = loading || goalsLoading || (isOwner && household === undefined);
+  const briefingLinks = useMemo(
+    () =>
+      quickLinks({
+        goalCategories: goalsLoading || goalsFailed ? null : goals.map((g) => g.category),
+        hasRealEstate,
+        canInvite: isOwner,
+        household: household ?? null,
+        now: new Date(),
+      }),
+    [goals, goalsLoading, goalsFailed, hasRealEstate, isOwner, household],
+  );
+  const actionsListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // A failed fetch measured an error box, not the user's list.
+    if (insightsLoading || insightsFailed || linksLoading) return;
+    writeBriefingShape({
+      actions: Math.min(insights.length, HOME_ACTION_LIMIT),
+      links: briefingLinks.length,
+      listHeight: actionsListRef.current?.getBoundingClientRect().height ?? null,
+      width: widthBucket(),
+    });
+  }, [insightsLoading, insightsFailed, linksLoading, insights.length, briefingLinks.length]);
 
   const hasComposition =
     breakdown && (breakdown.cash > 0 || breakdown.investments > 0 || breakdown.assets > 0 || breakdown.debts > 0);
@@ -528,53 +582,41 @@ export function SimpleHome() {
     : accountsById.size === 0 ? 'empty'
     : 'dashboard';
 
+  // Rendered here rather than inside the card so its handlers stay with the page.
+  const renderActions = (actions: Insight[], actionsLoading: boolean) => (
+    <ActionsSection
+      actions={actions}
+      loading={actionsLoading}
+      failed={insightsFailed}
+      skeletonRows={shape.actions}
+      skeletonMinHeight={shape.width === widthBucket() ? shape.listHeight ?? undefined : undefined}
+      listRef={actionsListRef}
+      generating={generatingInsights}
+      onGenerate={async () => {
+        setGeneratingInsights(true);
+        try { await refreshInsights(); } finally { setGeneratingInsights(false); }
+      }}
+      onOpen={(a) => {
+        // The catch-all opens nowhere, so there is nothing to navigate to.
+        const { link } = actionArea(a.type, a.category);
+        if (link) setLocation(link);
+      }}
+      onComplete={complete}
+      onDismiss={dismiss}
+    />
+  );
+
   return (
     <div className="cq-inline mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
-      {/* Greeting */}
-      <header className="animate-fade-in">
-        <h1 className="font-editorial text-[26px] sm:text-[33px] font-bold leading-[1.05] tracking-[-0.025em] text-content">
-          {greeting}, {firstName} <span className="inline-block origin-[70%_70%]">👋</span>
-        </h1>
-      </header>
-
-      {/* First paint. The trend card renders ITSELF as the skeleton rather than
-          a second hand-built copy of its layout beside it: the copy had drifted
-          into reserving a header 34px taller than the real one, so the card
-          shrank and every section below it walked up the page the moment
-          balances landed. One layout, so it cannot drift again. */}
-      {loading && !breakdown && (
-        <div className="mt-7 home-hero-grid gap-7 items-start">
-          <NetWorthTrendCard
-            history={[]}
-            netWorth={0}
-            valueLoading
-            historyLoading
-            titleClassName="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]"
-            defaultRange="1M"
-            action={
-              <Link href="/money" className={pageLinkCls}>
-                Open Money <ArrowRight className="h-4 w-4" />
-              </Link>
-            }
-          />
-          <div className="flex flex-col gap-[18px]">
-            <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
-              <Skeleton className="h-4 w-52" />
-              <Skeleton className="mt-5 h-8 w-full rounded-[11px]" />
-              <Skeleton className="mt-3 h-3 w-2/3" />
-              <Skeleton className="mt-8 h-8 w-32 rounded-[11px]" />
-              <Skeleton className="mt-6 h-16 w-full rounded-ui-lg" />
-            </div>
-            <Skeleton className="h-[160px] w-full rounded-ui-xl" />
-          </div>
-        </div>
-      )}
-
       {/* Nothing connected, or nothing loaded. The page-scale EmptyState:
           this is the whole screen, not a placeholder in a slot, so it takes the
           solid panel every other card on this page wears. Centred in the
           content region rather than left as a band at the top. */}
       {breakdown && homeState !== 'dashboard' && (
+        <>
+        <h1 className={`animate-fade-in ${GREETING_CLS}`}>
+          {greeting}, {firstName}
+        </h1>
         <div className="mt-7 flex min-h-[58vh] items-center justify-center">
           {homeState === 'empty' ? (
             <EmptyState
@@ -608,53 +650,34 @@ export function SimpleHome() {
             />
           )}
         </div>
+        </>
       )}
 
-      {/* ════════ MAIN GRID — 2/3 (TREND + ACTIONS) + 1/3 (BREAKDOWN/CHAT/GOALS) ════════
-          Container-query grid: two columns only when the page is wide enough
-          for the trend chart to keep its detail — otherwise the aside wraps
-          under and the breakdown card gets the full width for its equation.
-          The net-worth figure leads the trend card itself, so it is on the
-          first screen at every width without reordering the grid. */}
-      {breakdown && homeState === 'dashboard' && (
-        <div className="mt-7 home-hero-grid gap-7 items-start">
+      {/* ════════ MAIN GRID — 2/3 (BRIEFING + JOURNEY) + 1/3 (BREAKDOWN/CHAT/GOALS) ════════
+          Container-query grid: two columns only when the page is wide enough,
+          otherwise the aside wraps under and the breakdown card gets the full
+          width for its equation. The same grid is the first paint: the
+          briefing card renders before balances land and stays mounted after,
+          so it neither moves nor fades in twice. */}
+      {(loading && !breakdown) || (breakdown && homeState === 'dashboard') ? (
+        <div className="home-hero-grid gap-7 items-start">
 
-          {/* ░░░░ LEFT COLUMN (2/3) — net-worth trend + the action queue ░░░░ */}
+          {/* ░░░░ LEFT COLUMN (2/3) — the briefing + the financial journey ░░░░ */}
           <div className="min-w-0 flex flex-col gap-7">
-            <NetWorthTrendCard
-              history={nwHistory}
-              historyLoading={historyLoading}
-              historyError={historyFailed}
-              netWorth={breakdown.netWorth}
-              titleClassName="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]"
-              defaultRange="1M"
-              action={
-                <Link href="/money" className={pageLinkCls}>
-                  Open Money <ArrowRight className="h-4 w-4" />
-                </Link>
-              }
+            <BriefingCard
+              greeting={`${greeting}, ${firstName}`}
+              actionSentence={briefingActions}
+              netWorth={briefingNetWorth}
+              summaryLoading={!breakdown || insightsLoading || historyLoading || lastVisitLoading}
+              links={briefingLinks}
+              shortSummary={shape.actions === 0}
+              linksLoading={linksLoading}
+              linksPlaceholder={shape.links}
+              onAsk={(prompt) => openChat(prompt)}
+              actions={renderActions(insights, insightsLoading)}
             />
 
-            {/* Actions stand on their own, above the path rather than inside
-                it. An action is worth doing whether or not a step of the path
-                happens to want it, so the path is no longer what decides which
-                ones a person is shown. */}
-            <ActionsSection
-              actions={insights}
-              loading={insightsLoading}
-              generating={generatingInsights}
-              onGenerate={async () => {
-                setGeneratingInsights(true);
-                try { await refreshInsights(); } finally { setGeneratingInsights(false); }
-              }}
-              onOpen={(a) => {
-                // The catch-all opens nowhere, so there is nothing to navigate to.
-                const { link } = actionArea(a.type, a.category);
-                if (link) setLocation(link);
-              }}
-              onComplete={complete}
-              onDismiss={dismiss}
-            />
+            {breakdown && (
 
             <LevelSection
               step={currentStep}
@@ -673,9 +696,22 @@ export function SimpleHome() {
               onSetAside={() => markCurrentStep('not_applicable')}
               onSetupProfile={() => setLocation('/profile')}
             />
+            )}
           </div>
 
           {/* ░░░░ RIGHT COLUMN (1/3) ░░░░ */}
+          {!breakdown ? (
+          <div className="flex flex-col gap-[18px]">
+            <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+              <Skeleton className="h-4 w-52" />
+              <Skeleton className="mt-5 h-8 w-full rounded-[11px]" />
+              <Skeleton className="mt-3 h-3 w-2/3" />
+              <Skeleton className="mt-8 h-8 w-32 rounded-[11px]" />
+              <Skeleton className="mt-6 h-16 w-full rounded-ui-lg" />
+            </div>
+            <Skeleton className="h-[160px] w-full rounded-ui-xl" />
+          </div>
+          ) : (
           <aside className="min-w-0 flex flex-col gap-[18px]">
             {hasComposition && (
               <NetWorthBreakdown breakdown={breakdown} />
@@ -684,8 +720,6 @@ export function SimpleHome() {
               value={askDraft}
               onChange={setAskDraft}
               onSubmit={submitAsk}
-              prompts={suggestedPrompts}
-              onPick={(q) => openChat(q)}
             />
             {goalsFailed ? (
               <CardLoadError title="Couldn't load your goals" />
@@ -713,8 +747,9 @@ export function SimpleHome() {
               <RecentActivity txns={recentTxns} />
             )}
           </aside>
+          )}
         </div>
-      )}
+      ) : null}
 
       {/* Upcoming bill — a single marginalia note when one is due soon */}
       {homeState === 'dashboard' && upcomingBill && (
@@ -738,22 +773,28 @@ export function SimpleHome() {
 function CardLoadError({ title }: { title: string }) {
   return (
     <Card className="p-6">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-negative-soft text-negative">
-          <AlertCircle className="h-4 w-4" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[14px] font-semibold text-content">{title}</p>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="ui-focus mt-1 inline-flex min-h-touch items-center rounded-ui-sm text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2"
-          >
-            Try again
-          </button>
-        </div>
-      </div>
+      <LoadErrorBody title={title} />
     </Card>
+  );
+}
+
+function LoadErrorBody({ title }: { title: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm bg-negative-soft text-negative">
+        <AlertCircle className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[14px] font-semibold text-content">{title}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="ui-focus mt-1 inline-flex min-h-touch items-center rounded-ui-sm text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] underline underline-offset-2"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -946,8 +987,8 @@ function NetWorthBreakdown({
             <div aria-hidden className="nw-op pb-[4px] font-editorial font-semibold leading-none text-content-faint">=</div>
             <div>
               <div className="nw-label font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</div>
-              {/* No change chip here: the trend card above owns the 30-day move
-                  and states it once. This card answers what the total is made of. */}
+              {/* No change chip here: the briefing card states the move since
+                  the last visit. This card answers what the total is made of. */}
               <div className="mt-1">
                 <span className="nw-num nw-num--total font-editorial font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">
                   {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(breakdown.netWorth)}
@@ -987,7 +1028,7 @@ function NetWorthBreakdown({
 // ─── Actions ────────────────────────────────────────────────────────────────
 
 /** How many actions home shows before handing off to the actions page. */
-const HOME_ACTION_LIMIT = 5;
+const HOME_ACTION_LIMIT = 3;
 
 /**
  * What home can actually get done, first.
@@ -996,8 +1037,8 @@ const HOME_ACTION_LIMIT = 5;
  * urgency alone the list filled with the year-long jobs: four of the five rows
  * were tax moves like a backdoor Roth conversion, all pressing, none of them
  * finishable that day, while a ten-minute payroll change sat below the fold.
- * A dashboard shortlist is read as "what can I do about this now", so the five
- * it shows are the five worth starting, hardest-first ordering left to the
+ * A dashboard shortlist is read as "what can I do about this now", so the three
+ * it shows are the three worth starting, hardest-first ordering left to the
  * actions page.
  *
  * An action with no reading sorts as `moderate`: every action written before
@@ -1012,7 +1053,7 @@ const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, 
  * The shortlist of open actions, above the path.
  *
  * Home ranks rather than groups: the page an action belongs to rides on the row
- * as a muted run, and the grouping proper lives on the actions page. Five rows
+ * as a muted run, and the grouping proper lives on the actions page. Three rows
  * on a dashboard read as "here is what to look at", where a full set of page
  * groups would be a second copy of that page.
  *
@@ -1024,10 +1065,18 @@ const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, 
  * five quicker rows happening to fill the shortlist.
  */
 export function ActionsSection({
-  actions, loading, generating, onGenerate, onOpen, onComplete, onDismiss,
+  actions, loading, failed = false, skeletonRows = HOME_ACTION_LIMIT, skeletonMinHeight, listRef, generating, onGenerate, onOpen, onComplete, onDismiss,
 }: {
   actions: Insight[];
   loading: boolean;
+  /** The fetch failed: say so, rather than offering to generate actions the user may already have. */
+  failed?: boolean;
+  /** How many rows the loading state holds room for. 0 holds the empty state's box. */
+  skeletonRows?: number;
+  /** The list's height last time, so rows whose titles wrap do not grow it. */
+  skeletonMinHeight?: number;
+  /** The loaded list, for the page to measure. */
+  listRef?: React.Ref<HTMLDivElement>;
   generating: boolean;
   onGenerate: () => void | Promise<void>;
   /** Open the page this action belongs to, as the other surfaces do. */
@@ -1051,29 +1100,54 @@ export function ActionsSection({
   }, [actions]);
 
   return (
-    <Card className="relative overflow-hidden p-6 sm:p-7 animate-fade-in">
+    <section aria-labelledby="home-actions-title">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Actions</h2>
+        <h2 id="home-actions-title" className="text-[17px] font-bold tracking-[-0.01em]">Actions</h2>
         {/* Only offered when there is more behind it than the page is showing. */}
         {actions.length > shown.length && (
-          <Link href="/insights" className={`shrink-0 ${pageLinkCls}`}>
+          <Link href="/insights" className="ui-focus inline-flex items-center gap-1 text-[14px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline">
             View all<ArrowRight className="h-4 w-4" />
           </Link>
         )}
       </div>
 
-      {loading ? (
-        <div className="mt-5 flex flex-col gap-2">
-          {[0, 1, 2].map((i) => (
+      {loading && skeletonRows === 0 ? (
+        // The empty state's own box and words, painted over, so it is exactly as tall.
+        <div className="mt-5 rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap" aria-hidden>
+          <span className="relative text-[13.5px]">
+            <span className="invisible">Get personalized actions based on your finances.</span>
+            <Skeleton className="absolute inset-0" />
+          </span>
+          {/* The real button, hidden, so its touch-target height holds too. */}
+          <span className="relative inline-flex">
+            <Button size="sm" tabIndex={-1} className="invisible">Generate actions</Button>
+            <Skeleton className="absolute inset-0 rounded-ui-md" />
+          </span>
+        </div>
+      ) : loading ? (
+        <div className="mt-5 flex flex-col gap-2" style={{ minHeight: skeletonMinHeight }}>
+          {Array.from({ length: skeletonRows }, (_, i) => (
+            // ActionItem's own box: title line(s) of 14px leading-tight, then
+            // the chip row, so the list does not grow when the rows land.
             <div key={i} className="flex items-center gap-3 rounded-ui-md border border-line bg-panel shadow-ui-sm pl-4 pr-2 py-2.5">
               <Skeleton className="h-6 w-6 shrink-0 rounded-ui-sm" />
-              <Skeleton className="h-4 flex-1 max-w-[16rem]" />
-              <Skeleton className="h-5 w-16 rounded-ui-sm" />
+              <div className="flex-1 min-w-0">
+                <div className="flex h-[17.5px] items-center"><Skeleton className="h-3.5 w-full max-w-[22rem]" /></div>
+                <div className="briefing-narrow-only h-[17.5px] items-center"><Skeleton className="h-3.5 w-2/3" /></div>
+                <div className="mt-1.5 flex h-[16.5px] gap-1.5">
+                  <Skeleton className="h-full w-16 rounded-ui-sm" />
+                  <Skeleton className="h-full w-24 rounded-ui-sm" />
+                </div>
+              </div>
             </div>
           ))}
         </div>
+      ) : failed ? (
+        <div className="mt-5 rounded-ui-lg border border-line bg-panel p-5">
+          <LoadErrorBody title="Couldn't load your actions" />
+        </div>
       ) : shown.length > 0 ? (
-        <div className="mt-5 flex flex-col gap-2">
+        <div ref={listRef} className="mt-5 flex flex-col gap-2">
           {shown.map((a) => (
             <ActionItem
               key={a.id}
@@ -1102,7 +1176,7 @@ export function ActionsSection({
           </Button>
         </div>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -1303,249 +1377,14 @@ export function LevelSection({
   );
 }
 
-// ─── 30-day net-worth chart — pixel-true, styled like the Money page chart ──────
-
-const NW_CHART_H = 200;
-const NW_CHART_M = { top: 14, right: 12, bottom: 30, left: 66 };
-
-function NetWorthChart({
-  history, monthDelta, netWorth,
-}: {
-  history: { date: string; value: number }[];
-  monthDelta: number | null;
-  netWorth: number;
-}) {
-  const points = useMemo(() => {
-    if (history.length < 2) return [];
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    let pts = history.filter((p) => new Date(p.date).getTime() >= cutoff);
-    if (pts.length < 2) pts = history.slice(-31);
-    return pts;
-  }, [history]);
-  const hasChart = points.length >= 2;
-
-  // Pixel-true width — the viewBox matches the rendered width so strokes and
-  // text stay at native size whether the card is in the rail or full-width.
-  const wrapRef = useRef<HTMLDivElement>(null);
-  // Money y-axis labels are removed while amounts are hidden rather than
-  // replaced by five identical masks, and the left margin they reserved
-  // collapses with them. The plotted geometry is untouched: the domain is fit
-  // to the data, so 340→400 and 3.4M→4.0M are already pixel-identical.
-  const hideAmounts = isAmountsHidden();
-  const chartLeft = hideAmounts ? 12 : NW_CHART_M.left;
-
-  const [chartW, setChartW] = useState(320);
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const update = () => setChartW(el.clientWidth || 320);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [hasChart]);
-
-  const innerW = chartW - chartLeft - NW_CHART_M.right;
-  const innerH = NW_CHART_H - NW_CHART_M.top - NW_CHART_M.bottom;
-
-  const { yMin, yMax, yTicks } = useMemo(() => {
-    if (!hasChart) return { yMin: 0, yMax: 1, yTicks: [] as number[] };
-    const values = points.map((p) => p.value);
-    const rawMin = Math.min(...values);
-    const rawMax = Math.max(...values);
-    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
-    return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
-  }, [points, hasChart]);
-
-  const xAt = (i: number) => chartLeft + (i / Math.max(1, points.length - 1)) * innerW;
-  const yAt = (v: number) => NW_CHART_M.top + innerH - ((v - yMin) / Math.max(0.0001, yMax - yMin)) * innerH;
-
-  const xy = useMemo<Array<[number, number]>>(
-    () => points.map((p, i) => [xAt(i), yAt(p.value)]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, chartW, yMin, yMax, chartLeft],
-  );
-  const linePath = useMemo(() => smoothLinePath(xy), [xy]);
-  const baseY = (NW_CHART_M.top + innerH).toFixed(2);
-  const areaPath = linePath
-    ? `${linePath} L ${xAt(points.length - 1).toFixed(2)} ${baseY} L ${xAt(0).toFixed(2)} ${baseY} Z`
-    : '';
-  const xLabels = useMemo(() => (hasChart ? pickXLabels(points, '1M') : []), [points, hasChart]);
-
-  const down = (monthDelta ?? 0) < 0;
-  const chipColor = down ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-positive))';
-  const pctChange = monthDelta != null && netWorth !== 0
-    ? (monthDelta / (netWorth - monthDelta)) * 100
-    : null;
-
-  // Hover crosshair — snaps to the nearest data point (mouse/touch only;
-  // chart stays fully readable without hover and for keyboard users).
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const pointerToIdx = (clientX: number): number | null => {
-    const root = wrapRef.current;
-    if (!root || points.length === 0) return null;
-    const rect = root.getBoundingClientRect();
-    if (rect.width <= 0) return null;
-    const localX = (clientX - rect.left) * (chartW / rect.width);
-    const ratio = (localX - chartLeft) / Math.max(1, innerW);
-    return Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))));
-  };
-  const hovered = hoverIdx !== null && points[hoverIdx]
-    ? { ...points[hoverIdx], x: xAt(hoverIdx), y: yAt(points[hoverIdx].value) }
-    : null;
-
-  return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <div className="font-editorial text-[16px] font-bold tracking-[-0.012em]">Net worth, last 30 days</div>
-          <div className="mt-0.5 text-[12px] font-semibold text-content-muted">
-            {monthDelta != null
-              ? `${monthDelta < 0 ? 'Down' : 'Up'} ${fmtUsd(Math.abs(monthDelta))} this month`
-              : 'Tracking your trend'}
-          </div>
-        </div>
-        {pctChange != null && (
-          <span
-            className="inline-flex items-center gap-1 h-[26px] px-2.5 rounded-full text-[12px] font-bold ui-tnum"
-            style={{
-              background: down ? 'var(--ui-negative-soft)' : 'var(--ui-positive-soft)',
-              color: chipColor,
-            }}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              {down ? <path d="M12 17 5 9h14z" /> : <path d="M12 7l7 8H5z" />}
-            </svg>
-            {down ? '−' : '+'}{Math.abs(pctChange).toFixed(1)}%
-          </span>
-        )}
-      </div>
-
-      {hasChart ? (
-        <div ref={wrapRef} className="relative mt-3 select-none">
-          <svg
-            viewBox={`0 0 ${chartW} ${NW_CHART_H}`}
-            role="img"
-            aria-label="Net worth over the last 30 days"
-            className="block w-full"
-            style={{ pointerEvents: 'none' }}
-          >
-            <defs>
-              <linearGradient id="nwHomeArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.24" />
-                <stop offset="55%" stopColor="var(--ui-viz-2)" stopOpacity="0.07" />
-                <stop offset="100%" stopColor="var(--ui-viz-2)" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="nwHomeLine" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity="0.85" />
-                <stop offset="100%" stopColor="var(--ui-viz-2)" />
-              </linearGradient>
-            </defs>
-
-            {yTicks.map((t) => (
-              <g key={t}>
-                <line
-                  x1={chartLeft} y1={yAt(t)} x2={chartW - NW_CHART_M.right} y2={yAt(t)}
-                  stroke="var(--ui-hairline)" strokeWidth={1} strokeDasharray="2 5"
-                />
-                {!hideAmounts && (
-                  <text
-                    x={chartLeft - 10} y={yAt(t)} dy="0.32em" textAnchor="end"
-                    fill="rgb(var(--ui-content-faint))"
-                    style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
-                  >
-                    {formatShortMoney(t, tickDecimals(yTicks))}
-                  </text>
-                )}
-              </g>
-            ))}
-
-            <path d={areaPath} fill="url(#nwHomeArea)" />
-            <path
-              d={linePath} fill="none" stroke="url(#nwHomeLine)"
-              strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
-            />
-
-            {!hovered && (
-              <>
-                <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={11} fill="var(--ui-viz-2)" fillOpacity={0.12} />
-                <circle cx={xAt(points.length - 1)} cy={yAt(points[points.length - 1].value)} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
-              </>
-            )}
-            {hovered && (
-              <g>
-                <line x1={hovered.x} y1={NW_CHART_M.top} x2={hovered.x} y2={NW_CHART_M.top + innerH} stroke="rgb(var(--ui-content-muted))" strokeOpacity={0.5} strokeWidth={1} strokeDasharray="2 4" />
-                <circle cx={hovered.x} cy={hovered.y} r={14} fill="var(--ui-viz-2)" fillOpacity={0.16} />
-                <circle cx={hovered.x} cy={hovered.y} r={5.5} fill="var(--ui-viz-2)" stroke="rgb(var(--ui-panel))" strokeWidth={3} />
-              </g>
-            )}
-
-            {/* Ends anchored inward: a centred anchor on the first/last point
-                hangs half the label outside the viewBox and the SVG clips it. */}
-            {xLabels.map(({ idx, label }) => (
-              <text
-                key={`${idx}-${label}`} x={xAt(idx)} y={NW_CHART_H - 8}
-                textAnchor={idx === 0 ? 'start' : idx === points.length - 1 ? 'end' : 'middle'}
-                fill="rgb(var(--ui-content-muted))"
-                style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
-              >
-                {label}
-              </text>
-            ))}
-          </svg>
-
-          {/* Tooltip — pixel coordinates track the hovered point directly */}
-          {hovered && (
-            <div
-              className="pointer-events-none absolute z-10 rounded-ui-md border border-line bg-panel-raised px-2.5 py-1.5 shadow-ui-md whitespace-nowrap"
-              style={{
-                left: hovered.x,
-                top: hovered.y,
-                transform: 'translate(-50%, calc(-100% - 10px))',
-              }}
-            >
-              <div className="text-[11px] font-semibold text-content-muted">
-                {formatStoredDay(hovered.date, { year: 'numeric' })}
-              </div>
-              <div className="text-[13.5px] font-extrabold text-content ui-tnum">{fmtUsd(hovered.value)}</div>
-            </div>
-          )}
-
-          {/* Pointer overlay — snaps hover to the nearest x-domain point */}
-          <div
-            className="absolute inset-0"
-            style={{ touchAction: 'pan-y', cursor: 'crosshair' }}
-            onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); setHoverIdx(pointerToIdx(e.clientX)); }}
-            onPointerMove={(e) => { if (e.pointerType === 'touch' && e.buttons === 0) return; setHoverIdx(pointerToIdx(e.clientX)); }}
-            onPointerLeave={() => setHoverIdx(null)}
-            onPointerCancel={() => setHoverIdx(null)}
-          />
-        </div>
-      ) : (
-        <div className="mt-4 h-[150px] grid place-items-center text-[13px] text-content-muted">
-          Not enough history yet. Check back in a few days.
-        </div>
-      )}
-    </Card>
-  );
-}
-
 // ─── Ask Lasagna composer ───────────────────────────────────────────────────────
 
-/** What a suggestion chip shows and what picking it actually sends. The two
- *  differ only when the chip names a dollar figure and hide-amounts is on: the
- *  label shows the mask, the payload keeps the real number so the stored thread
- *  reads normally once the mode is off. A plain string is both. */
-type AskSuggestion = string | { label: string; payload: string };
-
 function AskComposer({
-  value, onChange, onSubmit, prompts, onPick,
+  value, onChange, onSubmit,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: (e?: React.FormEvent) => void;
-  prompts: AskSuggestion[];
-  onPick: (q: string) => void;
 }) {
   return (
     <section
@@ -1585,23 +1424,6 @@ function AskComposer({
         </label>
       </form>
 
-      {prompts.length > 0 && (
-        <div className="relative mt-3 flex flex-wrap gap-2">
-          {prompts.map((p) => {
-            const label = typeof p === 'string' ? p : p.label;
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => onPick(typeof p === 'string' ? p : p.payload)}
-                className="inline-flex max-w-full items-center min-h-[36px] px-3.5 rounded-full bg-panel border border-line-strong text-[13px] font-semibold text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-brand active:scale-[0.98] transition-[background,color,border-color,transform]"
-              >
-                <span className="truncate">{label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </section>
   );
 }
@@ -1653,7 +1475,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
           const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
           const reached = target > 0 && current >= target;
           const notStarted = current <= 0;
-          const color = goalColor(g.category);
+          const color = goalAccent(g.category, g.name);
           return (
             <li
               key={g.id}

@@ -8,6 +8,7 @@ import { SegmentedControl } from "../../components/uikit/SegmentedControl.js";
 import { vizColor } from "../../components/uikit/viz.js";
 import { exactSyncTime, formatInstant, formatMoney, splitParagraphs } from "../../lib/utils.js";
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../lib/hide-amounts.js";
+import { safeStorage } from "../../lib/safe-storage.js";
 import { ChatPanel } from "../../components/chat/index.js";
 import { BrandMark } from "../../components/common/BrandMark.js";
 import { PlanFreshnessBanner } from "../../components/common/plan-freshness-banner.js";
@@ -44,7 +45,7 @@ type ReportLayout = "document" | "wide";
 const LAYOUT_KEY = "plan-report-layout";
 function readInitialLayout(): ReportLayout {
   if (typeof window === "undefined") return "wide";
-  return window.localStorage.getItem(LAYOUT_KEY) === "document" ? "document" : "wide";
+  return safeStorage.get(LAYOUT_KEY) === "document" ? "document" : "wide";
 }
 
 // The message the "Complete your goals" CTA seeds into the plan chat. It nudges
@@ -1994,7 +1995,7 @@ export function FinancialPlanDetailPage() {
   const [layout, setLayout] = useState<ReportLayout>(readInitialLayout);
   const wide = layout === "wide";
   useEffect(() => {
-    window.localStorage.setItem(LAYOUT_KEY, layout);
+    safeStorage.set(LAYOUT_KEY, layout);
   }, [layout]);
   const chatRef = useRef<HTMLDivElement | null>(null);
 

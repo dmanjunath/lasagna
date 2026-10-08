@@ -20,6 +20,9 @@ export function useInsights(typeFilter?: string | string[]) {
   const [allInsights, setAllInsights] = useState<Insight[]>([]);
   const [lastActionsGeneratedAt, setLastActionsGeneratedAt] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // A failed fetch is not an empty list: callers that print "no actions" need
+  // to tell the two apart.
+  const [isError, setIsError] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -29,8 +32,9 @@ export function useInsights(typeFilter?: string | string[]) {
       setLastActionsGeneratedAt(
         data.lastActionsGeneratedAt ? new Date(data.lastActionsGeneratedAt) : null
       );
+      setIsError(false);
     } catch {
-      // ignore
+      setIsError(true);
     } finally {
       setIsLoading(false);
     }
@@ -74,5 +78,5 @@ export function useInsights(typeFilter?: string | string[]) {
       ? allInsights
       : allInsights.filter((i) => types.includes(i.type ?? 'general'));
 
-  return { insights: filtered, lastActionsGeneratedAt, isLoading, dismiss, complete, reload, refresh };
+  return { insights: filtered, lastActionsGeneratedAt, isLoading, isError, dismiss, complete, reload, refresh };
 }

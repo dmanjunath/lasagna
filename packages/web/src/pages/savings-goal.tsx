@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { cn, formatInstant, formatStoredMonth } from '../lib/utils';
 import { Badge, Button, EmptyState, MaskedText, MoneyInput, PageMeta, PageMetaItem, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
-import { formatCurrency, goalColor, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
+import { formatCurrency, goalAccent, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
 import {
   isTypedGoalCategory, resolveGoalTarget, emptyDraft, draftFromDetails, resolveDraft, useGoalFormContext,
   GoalDetailFields, GoalTargetReadout, NoSpendData, CalculateFromDetails, READOUT_ID, TODAY,
@@ -333,7 +333,7 @@ export function SavingsGoal() {
   const remaining = Math.max(0, target - current);
   const surplus = current - target;
   const notStarted = current <= 0;
-  const accent = complete ? 'rgb(var(--ui-brand))' : goalColor(goal.category, goal.name);
+  const accent = complete ? 'rgb(var(--ui-brand))' : goalAccent(goal.category, goal.name);
   const rawCategory = goal.category ? goal.category.replace(/_/g, ' ') : 'savings';
   const categoryLabel = rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1);
   // "Retirement" under "Retirement Savings" says the same thing twice.

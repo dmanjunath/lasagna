@@ -25,6 +25,7 @@ const EXACT: Record<string, string> = {
   '/tax': 'Tax',
   '/plans': 'Plans',
   '/plans/new': 'New plan',
+  '/goals/new': 'New goal',
   '/financial-plans': 'Retirement plans',
   '/financial-level': 'Financial journey',
   '/insights': 'Actions',

@@ -9,6 +9,7 @@ import { api } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
+import { safeStorage } from '../lib/safe-storage';
 import { HiddenAmount } from '../components/uikit';
 import { Button, SegmentedControl, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, useToast, Tooltip } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
@@ -77,7 +78,7 @@ export function SimpleMoney() {
   // institution they're connected through. Persisted so the choice survives.
   const [groupBy, setGroupBy] = useState<GroupBy>(() => {
     if (typeof window === 'undefined') return 'category';
-    return window.localStorage.getItem(GROUP_BY_KEY) === 'institution' ? 'institution' : 'category';
+    return safeStorage.get(GROUP_BY_KEY) === 'institution' ? 'institution' : 'category';
   });
   const setGroupByPersisted = (g: GroupBy) => {
     setGroupBy(g);

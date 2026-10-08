@@ -67,7 +67,7 @@ export function VerifyEmail() {
       // Bearer token before reloading or /me runs unauthenticated and bounces to login.
       if (res?.token) setNativeToken(res.token);
       // Full reload so AuthProvider re-runs /me and picks up the new session cookie.
-      sessionStorage.removeItem("lf_verify");
+      try { sessionStorage.removeItem("lf_verify"); } catch { /* storage unavailable */ }
       window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");

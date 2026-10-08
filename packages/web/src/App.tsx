@@ -39,6 +39,7 @@ const Debt = lazy(() => import('./pages/debt').then(m => ({ default: m.Debt })))
 const Spending = lazy(() => import('./pages/spending').then(m => ({ default: m.Spending })));
 const Transactions = lazy(() => import('./pages/transactions').then(m => ({ default: m.Transactions })));
 const Goals = lazy(() => import('./pages/goals').then(m => ({ default: m.Goals })));
+const NewGoal = lazy(() => import('./pages/goal-new').then(m => ({ default: m.NewGoal })));
 const FinancialLevel = lazy(() => import('./pages/financial-level').then(m => ({ default: m.FinancialLevel })));
 const Insights = lazy(() => import('./pages/insights').then(m => ({ default: m.Insights })));
 const Onboarding = lazy(() => import('./pages/onboarding').then(m => ({ default: m.Onboarding })));
@@ -204,6 +205,7 @@ function AppRoutes() {
                         A bookmark, and a stale installed bundle, must not 404. */}
                     <Route path="/spending/cuts"><Redirect to="/spending" /></Route>
                     <Route path="/transactions" component={Transactions} />
+                    <Route path="/goals/new" component={NewGoal} />
                     <Route path="/goals" component={Goals} />
                     <Route path="/debt" component={Debt} />
                     <Route path="/portfolio" component={PortfolioComposition} />

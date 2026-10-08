@@ -405,10 +405,16 @@ export const api = {
       isBusiness: boolean;
     }>(`/places/details?placeId=${encodeURIComponent(placeId)}`),
 
+  // Days are the viewer's calendar days, so each `date` is a stored day (read
+  // it with the stored-date helpers) that matches local "today".
   getNetWorthHistory: () =>
     request<{
       history: Array<{ date: string; value: number }>;
-    }>("/accounts/net-worth/history"),
+    }>(`/accounts/net-worth/history?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
+
+  recordPageView: (path: string) =>
+    request<{ ok: true }>("/page-views", { method: "POST", body: JSON.stringify({ path }) }),
+  getLastVisit: () => request<{ lastVisitAt: string | null }>("/page-views/last-visit"),
 
   // Holdings
   getHoldings: () =>
@@ -690,6 +696,10 @@ export const api = {
 
   // Household sharing — members, invites, and the shared personal-profile view.
   household: {
+    members: () =>
+      request<{ members: Array<{ id: string; email: string; name: string | null; role: string; isYou: boolean }> }>(
+        "/household/members",
+      ),
     listInvites: () =>
       request<{ invites: Array<{ id: string; email: string; role: string; expiresAt: string; createdAt: string }> }>(
         "/household/invites",

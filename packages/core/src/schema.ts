@@ -1205,3 +1205,24 @@ export const planRegenerationAttempts = pgTable(
     index("plan_regen_attempts_tenant_created_idx").on(t.tenantId, t.createdAt),
   ],
 );
+
+// ── Page views ─────────────────────────────────────────────────────────────
+// One row per route the web app shows. Read by /api/page-views/last-visit so
+// home can say what changed since the person was last here. Kept as raw rows
+// so visit habits can be read later. No retention policy yet.
+export const pageViews = pgTable(
+  "page_views",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    // Route path only, never the query string (it can carry search text).
+    path: varchar("path", { length: 255 }).notNull(),
+    visitedAt: timestamp("visited_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("page_views_user_visited_idx").on(t.userId, t.visitedAt)],
+);

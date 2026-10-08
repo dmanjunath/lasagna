@@ -44,6 +44,7 @@
   --ui-canvas-sunken:   238 242 247;   /* wells, inset tracks                  */
   --ui-panel:           255 255 255;   /* cards/surfaces, +1 level             */
   --ui-panel-raised:    255 255 255;   /* popovers/modals, +2 level            */
+  --ui-panel-inset:     238 242 247;   /* tray set into a panel (card footer)  */
 
   /* ── Text hierarchy (light) — Bright v4 readability-tuned (AA) ─────────── */
   --ui-content:           16 24 38;    /* primary                             */
@@ -111,6 +112,7 @@
   --ui-viz-5: #0EA5E9;   /* other       — sky          */
   --ui-viz-6: #84CC16;   /* extra       — lime         */
   --ui-viz-7: #64748B;   /* extra       — slate        */
+  --ui-viz-8: #A855F7;   /* extra       — violet       */
 
   /* ── Motion ───────────────────────────────────────────────────────────── */
   --ui-ease:      cubic-bezier(0.22, 1, 0.36, 1);   /* gentle ease-out      */
@@ -140,6 +142,9 @@
   --ui-canvas-sunken:   9 12 17;
   --ui-panel:           22 27 35;
   --ui-panel-raised:    28 35 45;
+  /* A tray inside a panel reads one step below the panel. In dark it must stay
+     above the page canvas, or it reads as a hole. */
+  --ui-panel-inset:     18 22 29;
 
   --ui-content:           244 247 251;  /* near-pure white                       */
   --ui-content-secondary: 226 232 240;  /* very bright, minimal gray             */
@@ -194,6 +199,7 @@
   --ui-viz-5: #38BDF8;
   --ui-viz-6: #A3E635;
   --ui-viz-7: #94A3B8;
+  --ui-viz-8: #C084FC;
 }
 
 /* The page itself, before any component paints.

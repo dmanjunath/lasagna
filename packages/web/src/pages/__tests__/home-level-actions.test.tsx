@@ -17,7 +17,7 @@ import { ActionsSection, LevelSection } from '../simple-home';
  * The two are separate sections now, so the independence is structural rather
  * than something a branch has to remember: `ActionsSection` is handed no path
  * input at all and has nothing to filter on. These tests hold that boundary in
- * place, and hold the ranking that decides which five of them home shows.
+ * place, and hold the ranking that decides which three of them home shows.
  *
  * Rendered to static markup rather than driven in a browser: the question is
  * what each component puts on the page for a given set of props, which is a
@@ -68,13 +68,14 @@ const CURRENT = {
   target: 10000,
 };
 
-function renderActions(actions: Insight[], over: { loading?: boolean; generating?: boolean } = {}) {
+function renderActions(actions: Insight[], over: { loading?: boolean; generating?: boolean; failed?: boolean } = {}) {
   return renderToStaticMarkup(
     <Router ssrPath="/">
       <ChatStoreProvider>
         <ActionsSection
           actions={actions}
           loading={over.loading ?? false}
+          failed={over.failed}
           generating={over.generating ?? false}
           onGenerate={noop}
           onOpen={noop}
@@ -166,7 +167,7 @@ describe('home leads with what can actually be finished', () => {
 
   it('keeps every action written before effort existed on the list', () => {
     // All null, which is what an untouched database looks like. Ranking must
-    // still produce five rows rather than treating them all as unshowable.
+    // still produce three rows rather than treating them all as unshowable.
     const many = Array.from({ length: 8 }, (_, i) =>
       action(`a${i}`, `Legacy action ${i}`, { effort: null }),
     );
@@ -195,12 +196,19 @@ describe('home leads with what can actually be finished', () => {
     expect(html.indexOf('Newer action')).toBeLessThan(html.indexOf('Older action'));
   });
 
-  it('stops at five and offers the way to the others', () => {
+  it('stops at three and offers the way to the others', () => {
     const many = Array.from({ length: 8 }, (_, i) => action(`a${i}`, `Action number ${i}`));
     const html = words(renderActions(many));
-    for (const i of [0, 1, 2, 3, 4]) expect(html).toContain(`Action number ${i}`);
-    for (const i of [5, 6, 7]) expect(html).not.toContain(`Action number ${i}`);
+    for (const i of [0, 1, 2]) expect(html).toContain(`Action number ${i}`);
+    for (const i of [3, 4, 5, 6, 7]) expect(html).not.toContain(`Action number ${i}`);
     expect(html).toContain('View all');
+  });
+
+  it('does not offer the way to others at exactly three', () => {
+    const three = Array.from({ length: 3 }, (_, i) => action(`a${i}`, `Action number ${i}`));
+    const html = words(renderActions(three));
+    for (const i of [0, 1, 2]) expect(html).toContain(`Action number ${i}`);
+    expect(html).not.toContain('View all');
   });
 
   it('does not offer the way to others when it is showing all of them', () => {
@@ -267,5 +275,18 @@ describe('the level section is the ladder, and nothing about actions', () => {
     const html = words(renderLevel(null, []));
     expect(html).toContain('Set up your profile');
     expect(html).not.toContain('Generate actions');
+  });
+});
+
+describe('a failed actions fetch is not an empty list', () => {
+  it('says the actions did not load, and does not offer to generate them', () => {
+    const text = words(renderActions([], { failed: true }));
+    expect(text).toContain('Couldn&#x27;t load your actions');
+    expect(text).toContain('Try again');
+    expect(text).not.toContain('Generate actions');
+  });
+
+  it('still offers to generate when the list loaded empty', () => {
+    expect(words(renderActions([]))).toContain('Generate actions');
   });
 });

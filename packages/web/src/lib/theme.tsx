@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { safeStorage } from './safe-storage';
 
 export type ThemeId =
   | 'minty'
@@ -200,7 +201,7 @@ const VALID_THEME_IDS: ThemeId[] = THEMES.map((t) => t.id);
 
 function readStoredTheme(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME;
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  const stored = safeStorage.get(STORAGE_KEY);
   if (stored === 'monarch' || stored === 'classic') return 'minty';
   if (VALID_THEME_IDS.includes(stored as ThemeId)) return stored as ThemeId;
   return DEFAULT_THEME;
@@ -208,7 +209,7 @@ function readStoredTheme(): ThemeId {
 
 function readStoredCustomAccent(): string {
   if (typeof window === 'undefined') return DEFAULT_CUSTOM_ACCENT;
-  const stored = window.localStorage.getItem(CUSTOM_ACCENT_KEY);
+  const stored = safeStorage.get(CUSTOM_ACCENT_KEY);
   if (stored && isValidHex(stored)) return normalizeHex(stored);
   return DEFAULT_CUSTOM_ACCENT;
 }
@@ -231,7 +232,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    window.localStorage.setItem(STORAGE_KEY, theme);
+    safeStorage.set(STORAGE_KEY, theme);
     if (theme === 'custom') {
       applyCustomAccent(customAccent);
     } else {
@@ -245,7 +246,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (!isValidHex(hex)) return;
     const normalized = normalizeHex(hex);
     setCustomAccentState(normalized);
-    window.localStorage.setItem(CUSTOM_ACCENT_KEY, normalized);
+    safeStorage.set(CUSTOM_ACCENT_KEY, normalized);
   }, []);
 
   return (

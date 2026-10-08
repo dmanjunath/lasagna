@@ -14,6 +14,8 @@ import { isNativeApp } from '../../lib/native';
 import { useChatStore, getChatExpanded, setChatExpanded } from '../../lib/chat-store';
 import { titleForPath } from '../../lib/page-titles';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
+import { api } from '../../lib/api';
+import { setInAppDepth } from '../../lib/in-app-history';
 
 // Native-only, lazy so the Capacitor plugins stay out of the web bundle.
 const FaceIdSetupPrompt = lazy(() => import('../native/FaceIdSetupPrompt'));
@@ -38,6 +40,11 @@ export function Shell({ children }: ShellProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const isMobile = useIsMobile();
   const [location, setLocation] = useLocation();
+  // One page view per route shown, for "since Monday of last week" on home.
+  // Fire and forget: a failed write must never touch the page.
+  useEffect(() => {
+    void api.recordPageView(location).catch(() => {});
+  }, [location]);
   // Push vs pop, so a route change slides the way the navigation actually went.
   // Derived during render: with mode="wait" the outgoing page animates before
   // effects flush, so an effect would hand it the previous direction.
@@ -47,6 +54,7 @@ export function Shell({ children }: ShellProps) {
     const st = navStack.current;
     if (st[st.length - 2] === location) { st.pop(); navDirRef.current = -1; }
     else { st.push(location); navDirRef.current = 1; }
+    setInAppDepth(st.length - 1);
   }
   const navDir = navDirRef.current;
   // Transitions are for the app shell. On the web the browser owns navigation

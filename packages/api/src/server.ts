@@ -22,6 +22,7 @@ import { simulationsRouter } from "./routes/simulations.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { portfolioRoutes } from "./routes/portfolio.js";
 import { insightsRoutes } from "./routes/insights.js";
+import { pageViewRoutes } from "./routes/page-views.js";
 import { transactionRoutes } from "./routes/transactions.js";
 import { goalRoutes } from "./routes/goals.js";
 import { financialPathRoutes } from "./routes/financial-path.js";
@@ -177,6 +178,10 @@ app.use("/api/*", async (ctx, next) => {
   if (path === "/api/insights/generate" || path === "/api/insights/refresh-spend-cuts") {
     return ctx.json({ ok: true, generated: 0 });
   }
+  // Demo sessions are shared, so their views say nothing about one person.
+  if (path === "/api/page-views") {
+    return ctx.json({ ok: true });
+  }
 
   // Allow read-only computation and chat routes through
   const allowed = ["/api/chat", "/api/simulations", "/api/threads", "/api/retirement"];
@@ -205,6 +210,7 @@ app.route("/api/simulations", simulationsRouter);
 app.route("/api/settings", settingsRoutes);
 app.route("/api/portfolio", portfolioRoutes);
 app.route("/api/insights", insightsRoutes);
+app.route("/api/page-views", pageViewRoutes);
 app.route("/api/transactions", transactionRoutes);
 app.route("/api/goals", goalRoutes);
 app.route("/api/financial-path", financialPathRoutes);
