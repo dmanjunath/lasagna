@@ -88,6 +88,14 @@ export function storedDayKey(iso: string): string {
 }
 
 /**
+ * The viewer's IANA time zone, e.g. "America/Los_Angeles". Sent to endpoints
+ * that bucket moments into calendar days, so a day means the viewer's day.
+ */
+export function viewerTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/**
  * A real MOMENT, printed in the viewer's own zone — the deliberate opposite of
  * `formatStoredDate`. A row was created, a plan was generated, a sync ran: the
  * instant is what happened, so "2:14 PM" should mean 2:14 PM where the reader

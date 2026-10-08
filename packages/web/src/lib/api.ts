@@ -2,6 +2,7 @@ import type { Plan, PlanType, PlanStatus, PlanEdit, FinancialPlan, FinancialPlan
 import { isNativeApp, getNativeToken } from "./native.js";
 import type { GoalDetails } from "@lasagna/core/goal-target";
 import type { ApiActionRow } from "./action-rows";
+import { viewerTimeZone } from "./utils";
 
 export const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -410,7 +411,7 @@ export const api = {
   getNetWorthHistory: () =>
     request<{
       history: Array<{ date: string; value: number }>;
-    }>(`/accounts/net-worth/history?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`),
+    }>(`/accounts/net-worth/history?tz=${encodeURIComponent(viewerTimeZone())}`),
 
   recordPageView: (path: string) =>
     request<{ ok: true }>("/page-views", { method: "POST", body: JSON.stringify({ path }) }),
