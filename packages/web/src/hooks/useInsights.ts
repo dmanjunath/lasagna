@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
 import type { ApiActionRow } from '../lib/action-rows';
+import { SNOOZE_HOURS } from './useActionLifecycle';
 
 /**
  * One action, exactly as the wire serves it.
@@ -55,6 +56,12 @@ export function useInsights(typeFilter?: string | string[]) {
     setAllInsights((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
+  /** Put an action away for a month, as /insights does. */
+  const snooze = useCallback(async (id: string) => {
+    await api.snoozeInsight(id, SNOOZE_HOURS);
+    setAllInsights((prev) => prev.filter((i) => i.id !== id));
+  }, []);
+
   /** Re-fetch insights from the server without regenerating */
   const reload = useCallback(async () => {
     await load();
@@ -78,5 +85,5 @@ export function useInsights(typeFilter?: string | string[]) {
       ? allInsights
       : allInsights.filter((i) => types.includes(i.type ?? 'general'));
 
-  return { insights: filtered, lastActionsGeneratedAt, isLoading, isError, dismiss, complete, reload, refresh };
+  return { insights: filtered, lastActionsGeneratedAt, isLoading, isError, dismiss, complete, snooze, reload, refresh };
 }

@@ -20,6 +20,8 @@ import { NetWorthTrendCard } from '../components/common/NetWorthTrendCard';
 import { type TrendPoint } from '../components/ds';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 import { PageTitle } from '../components/ds/PageTitle';
+import { HeaderAction } from '../components/layout/app-header';
+import { useMobileHeader } from '../lib/mobile-header';
 
 interface Item {
   id: string;
@@ -193,6 +195,21 @@ export function SimpleMoney() {
   }, [items]);
 
   const hasMoney = !loading && totalAccountCount > 0;
+  const [, setLocation] = useLocation();
+
+  // On a phone, the header's two actions live in the top bar.
+  useMobileHeader(hasMoney ? {
+    actions: (
+      <>
+        <HeaderAction label={syncingAll ? 'Syncing' : 'Sync all'} onClick={handleSyncAll} disabled={syncingAll}>
+          <RefreshCw size={20} className={syncingAll ? 'animate-spin' : ''} />
+        </HeaderAction>
+        <HeaderAction label="Add account" onClick={() => setLocation('/accounts')}>
+          <Plus size={20} />
+        </HeaderAction>
+      </>
+    ),
+  } : null);
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
@@ -236,7 +253,7 @@ export function SimpleMoney() {
           </PageMeta>
         </div>
         {hasMoney && (
-          <div className="flex w-full gap-2.5 sm:w-auto">
+          <div className="hidden gap-2.5 md:flex">
             <Button
               variant="secondary"
               size="sm"

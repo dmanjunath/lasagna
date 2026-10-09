@@ -1,4 +1,5 @@
 import { useLocation } from 'wouter';
+import { motion, type MotionStyle } from 'framer-motion';
 import { LayoutDashboard, Wallet, CreditCard, Target, MessageSquare } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { hapticLight } from '../../lib/haptics';
@@ -19,7 +20,8 @@ const tabs: TabItem[] = [
   { name: 'Chat',      icon: MessageSquare,   path: '/chat' },
 ];
 
-export function MobileTabBar() {
+/** `style` carries the drawer's push offset. */
+export function MobileTabBar({ style }: { style?: MotionStyle }) {
   const [location, navigate] = useLocation();
 
   const isActive = (tab: TabItem) => {
@@ -28,9 +30,9 @@ export function MobileTabBar() {
   };
 
   return (
-    <nav
+    <motion.nav
       className="fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t border-line md:hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]"
-      style={{ background: 'rgb(var(--ui-canvas) / 0.86)' }}
+      style={{ background: 'rgb(var(--ui-canvas) / 0.86)', ...style }}
     >
       <div className="flex items-stretch px-1.5 pt-1.5">
         {tabs.map((tab) => {
@@ -40,7 +42,12 @@ export function MobileTabBar() {
             <button
               key={tab.name}
               aria-current={active ? 'page' : undefined}
-              onClick={() => { if (!active) hapticLight(); navigate(tab.path); }}
+              onClick={() => {
+                if (!active) hapticLight();
+                // Re-tapping the current tab pops it to its root, as iOS does.
+                else window.dispatchEvent(new CustomEvent('tab:reselect', { detail: tab.path }));
+                navigate(tab.path);
+              }}
               className={`flex-1 flex flex-col items-center justify-center gap-1 py-1 rounded-ui-md
                          transition-colors duration-200 active:scale-95 min-w-[44px] min-h-[44px]
                          ${active ? 'text-[rgb(var(--ui-brand-ink))]' : 'text-content-muted'}`}
@@ -59,6 +66,6 @@ export function MobileTabBar() {
           );
         })}
       </div>
-    </nav>
+    </motion.nav>
   );
 }

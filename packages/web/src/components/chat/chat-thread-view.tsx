@@ -106,7 +106,11 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Header */}
+      {/* Header. Not on mobile: there the back step, the question and the
+          thread's actions live in the app's top bar (see ChatFullPage), as a
+          native app's nav bar would carry them, rather than a second bar
+          stacked under it. */}
+      {!isMobile && (
       <div className="border-b border-line flex-shrink-0">
         <div className={cn('flex items-center gap-2', headerPad, measure)}>
           {!isFull && (
@@ -143,6 +147,7 @@ export function ChatThreadView({ thread, messages, onBack, onFollowUp, onDelete,
           )}
         </div>
       </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">

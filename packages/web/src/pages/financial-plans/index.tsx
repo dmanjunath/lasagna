@@ -6,9 +6,11 @@ import { Badge, Button, Skeleton, EmptyState, Modal, useToast } from "../../comp
 import { deletePlanConfirm, PLAN_DELETED_TOAST } from "../plans/index.js";
 import { PlanFreshnessBanner } from "../../components/common/plan-freshness-banner.js";
 import { planFreshness } from "../../lib/plan-freshness.js";
-import { formatRelativeTime } from "../../lib/utils.js";
+import { cn, formatRelativeTime } from "../../lib/utils.js";
 import { useConfirm } from "../../components/ds";
 import { PageTitle } from "../../components/ds/PageTitle";
+import { HeaderAction } from "../../components/layout/app-header";
+import { useMobileHeader } from "../../lib/mobile-header";
 import type { FinancialPlanSummary } from "../../lib/types.js";
 
 // Default report name, versioned against the existing list so each new report
@@ -29,6 +31,7 @@ function defaultReportName(plans: FinancialPlanSummary[]): string {
 export function FinancialPlansList({
   autoCreate = false,
   onAutoCreateHandled,
+  newPlanInTopBar = false,
 }: {
   /**
    * Open the create modal as soon as the list mounts. The Retirement overview
@@ -38,6 +41,11 @@ export function FinancialPlansList({
   autoCreate?: boolean;
   /** Called once the modal is open, so the request is not replayed on remount. */
   onAutoCreateHandled?: () => void;
+  /**
+   * On a phone, put New plan in the top bar. Only the standalone page owns the
+   * bar; inside the Retirement tab the host page does.
+   */
+  newPlanInTopBar?: boolean;
 } = {}) {
   const confirm = useConfirm();
   const toast = useToast();
@@ -104,6 +112,14 @@ export function FinancialPlansList({
     wasOpen.current = false;
     newPlanRef.current?.focus();
   }, [nameOpen]);
+
+  useMobileHeader(newPlanInTopBar && !loading && !error && plans.length > 0 ? {
+    actions: (
+      <HeaderAction label="New plan" onClick={openCreate} disabled={creating}>
+        <Plus size={20} />
+      </HeaderAction>
+    ),
+  } : null);
 
   const create = async () => {
     if (creating) return;
@@ -228,7 +244,7 @@ export function FinancialPlansList({
               },
             }}
           />
-          <div className="mb-5 flex justify-end">
+          <div className={cn("mb-5 flex justify-end", newPlanInTopBar && "max-md:hidden")}>
             <Button
               ref={newPlanRef}
               leadingIcon={<Plus className="h-4 w-4" />}
@@ -378,7 +394,7 @@ export function FinancialPlansPage() {
         <PageTitle className="sm:text-[36px]">Retirement plans</PageTitle>
       </header>
       <div className="mt-0 md:mt-8">
-        <FinancialPlansList />
+        <FinancialPlansList newPlanInTopBar />
       </div>
     </div>
   );

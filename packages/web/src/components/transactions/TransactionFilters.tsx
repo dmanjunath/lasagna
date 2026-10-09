@@ -54,6 +54,32 @@ export function amountRangeInverted(f: TxnFilters): boolean {
   return f.amountOp === 'between' && f.amountMin !== '' && f.amountMax !== '' && Number(f.amountMin) > Number(f.amountMax);
 }
 
+/** From after To. Ignored until fixed, the same way an inverted amount is. */
+export function dateRangeInverted(f: TxnFilters): boolean {
+  return f.datePreset === 'custom' && f.customStart !== '' && f.customEnd !== '' && f.customStart > f.customEnd;
+}
+
+// "Custom range" with no dates typed yet filters nothing, so it isn't counted
+// or chipped until a date is entered. Nor is a backwards one.
+function isDateActive(f: TxnFilters): boolean {
+  if (dateRangeInverted(f)) return false;
+  return f.datePreset !== 'all' && (f.datePreset !== 'custom' || !!f.customStart || !!f.customEnd);
+}
+
+/** Any filter the Filters panel holds is narrowing the list (search lives
+ *  outside it). Drives the dot on the phone's top-bar Filters button. */
+export function hasPanelFilters(f: TxnFilters): boolean {
+  return (
+    f.categories.length > 0 ||
+    f.excludeCategories.length > 0 ||
+    f.accountIds.length > 0 ||
+    f.merchant !== '' ||
+    isDateActive(f) ||
+    ((f.amountMin !== '' || f.amountMax !== '') && !amountRangeInverted(f)) ||
+    f.direction !== 'all'
+  );
+}
+
 export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryBody['filters'] {
   const result: TxnQueryBody['filters'] = {};
 
@@ -95,6 +121,7 @@ export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryB
       break;
     }
     case 'custom': {
+      if (dateRangeInverted(f)) break;
       if (f.customStart) result.startDate = f.customStart;
       if (f.customEnd) result.endDate = `${f.customEnd}T23:59:59`;
       break;
@@ -337,10 +364,10 @@ export function ChipBadge({
 }
 
 // ---------------------------------------------------------------------------
-// TransactionFilters — one toolbar row: [search] [Filters button → popover
-// panel with Category / Account / Date / Amount], plus the active-filter chips
-// row beneath. Debounce ONLY the search input; all other controls call
-// onChange immediately.
+// TransactionFilters — one toolbar row: [search] [each filter that fits, then
+// More], plus the active-filter chips row beneath. On phones the filters live
+// in one panel the page opens from its top bar (`filtersOpen`). Debounce ONLY
+// the search input; all other controls call onChange immediately.
 // ---------------------------------------------------------------------------
 
 export function TransactionFilters({
@@ -348,20 +375,30 @@ export function TransactionFilters({
   onChange,
   accounts,
   trailing,
+  filtersOpen,
+  onFiltersOpenChange,
 }: {
   filters: TxnFilters;
   onChange: (f: TxnFilters) => void;
   accounts: AccountIndexEntry[];
   /** Rendered at the end of the toolbar row (e.g. the desktop sort select). */
   trailing?: React.ReactNode;
+  /** The phone's combined panel of every filter. Its trigger is in the top
+   *  bar, marked `data-filters-trigger` so a tap on it isn't an outside tap. */
+  filtersOpen: boolean;
+  onFiltersOpenChange: (open: boolean) => void;
 }) {
   const [searchInput, setSearchInput] = useState(filters.search);
   // 'all' = the phone's combined Filters panel. 'more' = the wider toolbar's
   // panel holding just the filters that didn't fit in the row.
-  const [openPanel, setOpenPanel] = useState<'all' | 'more' | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const openPanel: 'all' | 'more' | null = filtersOpen ? 'all' : moreOpen ? 'more' : null;
+  const setOpenPanel = (v: 'all' | 'more' | null) => {
+    setMoreOpen(v === 'more');
+    onFiltersOpenChange(v === 'all');
+  };
   const panelOpen = openPanel !== null;
   const panelRef = useRef<HTMLDivElement>(null);
-  const filtersBtnRef = useRef<HTMLButtonElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
 
   // Keep a ref to the latest filters/onChange so the debounce closure isn't stale.
@@ -392,15 +429,16 @@ export function TransactionFilters({
     if (!panelOpen) return;
     function onMouseDown(e: MouseEvent) {
       const t = e.target as Node;
-      if (panelRef.current?.contains(t) || filtersBtnRef.current?.contains(t) || moreBtnRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t) || moreBtnRef.current?.contains(t)) return;
       // A picker's phone sheet portals outside the panel. A tap in it is still
-      // a tap inside the panel's job.
-      if ((t as Element).closest?.('[data-sheet]')) return;
+      // a tap inside the panel's job. The top bar's trigger toggles the panel
+      // itself.
+      if ((t as Element).closest?.('[data-sheet], [data-filters-trigger]')) return;
       setOpenPanel(null);
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        (openPanel === 'more' ? moreBtnRef : filtersBtnRef).current?.focus();
+        if (openPanel === 'more') moreBtnRef.current?.focus();
         setOpenPanel(null);
       }
     }
@@ -436,20 +474,7 @@ export function TransactionFilters({
   const nameCounts = new Map<string, number>();
   for (const a of accounts) nameCounts.set(a.name, (nameCounts.get(a.name) ?? 0) + 1);
 
-  // "Custom range" with no dates typed yet filters nothing, so it isn't counted
-  // or chipped until a date is entered.
-  const dateActive = filters.datePreset !== 'all' && (filters.datePreset !== 'custom' || !!filters.customStart || !!filters.customEnd);
-
-  // Active-filter count for the Filters button badge (search lives outside).
-  // A whole selected group counts as one, matching the collapsed chips.
-  const activeCount =
-    categoryCount +
-    excludeCount +
-    filters.accountIds.length +
-    (filters.merchant ? 1 : 0) +
-    (dateActive ? 1 : 0) +
-    ((filters.amountMin || filters.amountMax) && !amountRangeInverted(filters) ? 1 : 0) +
-    (filters.direction !== 'all' ? 1 : 0);
+  const dateActive = isDateActive(filters);
 
   // Build active chips.
   type Chip = {
@@ -552,22 +577,31 @@ export function TransactionFilters({
   // The uikit field box, matching the menus above them in the panel.
   const inputClass = 'ui-focus h-11 min-h-touch w-full rounded-ui-md border border-line-strong bg-panel px-3.5 text-sm text-content shadow-ui-sm';
 
+  // A labelled From row over a To row in one field box, the way iOS lays out
+  // a date range. Side by side, two bare dates at 390px read as one
+  // unlabelled pair, and iOS centres a date field's text whatever its padding.
+  // The input fills its row, so a tap anywhere on it opens the picker.
+  const dateRow = (label: string, value: string, set: (v: string) => void) => (
+    <label className="flex h-11 min-h-touch items-center gap-3 pl-3.5 pr-3">
+      <span className="w-10 shrink-0 text-[13px] font-medium text-content-secondary">{label}</span>
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => set(e.target.value)}
+        className="h-full min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-right text-sm text-content outline-none [&::-webkit-date-and-time-value]:text-right [&::-webkit-calendar-picker-indicator]:opacity-60"
+      />
+    </label>
+  );
+  const datesInverted = dateRangeInverted(filters);
   const customDateInputs = filters.datePreset === 'custom' && (
-    <div className="grid grid-cols-2 gap-2">
-      <input
-        type="date"
-        aria-label="Start date"
-        value={filters.customStart}
-        onChange={(e) => onChange({ ...filters, customStart: e.target.value })}
-        className={inputClass}
-      />
-      <input
-        type="date"
-        aria-label="End date"
-        value={filters.customEnd}
-        onChange={(e) => onChange({ ...filters, customEnd: e.target.value })}
-        className={inputClass}
-      />
+    <div>
+      <div className="divide-y divide-line rounded-ui-md border border-line-strong bg-panel shadow-ui-sm transition-[border-color,box-shadow] duration-150 focus-within:border-brand focus-within:shadow-[0_0_0_3px_var(--ui-brand-ring)]">
+        {dateRow('From', filters.customStart, (customStart) => onChange({ ...filters, customStart }))}
+        {dateRow('To', filters.customEnd, (customEnd) => onChange({ ...filters, customEnd }))}
+      </div>
+      {datesInverted && (
+        <p className="mt-1.5 text-[12px] font-medium text-negative">From is after To.</p>
+      )}
     </div>
   );
 
@@ -810,7 +844,7 @@ export function TransactionFilters({
     <button
       ref={ref}
       type="button"
-      onClick={ref ? () => setOpenPanel((v) => (v === 'more' ? null : 'more')) : undefined}
+      onClick={ref ? () => setOpenPanel(openPanel === 'more' ? null : 'more') : undefined}
       aria-expanded={ref ? openPanel === 'more' : undefined}
       aria-haspopup="true"
       tabIndex={ref ? undefined : -1}
@@ -851,20 +885,6 @@ export function TransactionFilters({
             )}
           </div>
 
-          {/* Phones: one Filters button over every filter. */}
-          <button
-            ref={filtersBtnRef}
-            type="button"
-            onClick={() => setOpenPanel((v) => (v === 'all' ? null : 'all'))}
-            aria-expanded={openPanel === 'all'}
-            aria-haspopup="true"
-            className={cn(button({ variant: 'secondary', size: 'sm' }), 'h-10 shrink-0 px-3 sm:hidden')}
-          >
-            <SlidersHorizontal size={14} className="text-content-muted" aria-hidden />
-            Filters
-            {activeCount > 0 && <Badge tone="brand" size="sm">{activeCount}</Badge>}
-          </button>
-
           {/* Wider screens: each filter that fits, then More. */}
           <div ref={areaRef} className="relative hidden min-w-0 flex-1 sm:block">
             <div className="flex items-center gap-2">
@@ -903,7 +923,7 @@ export function TransactionFilters({
             {/* Takes the tap that closes the panel, so it can't also land on
                  the row underneath and filter the list. */}
             <div aria-hidden className="fixed inset-0 z-40 sm:hidden" onClick={() => setOpenPanel(null)} />
-            {stackedPanel(fields, 'left')}
+            <div id="txn-filters-panel">{stackedPanel(fields, 'left')}</div>
           </>
         )}
       </div>

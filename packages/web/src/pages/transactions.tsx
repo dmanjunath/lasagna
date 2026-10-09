@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Banknote, ChevronLeft, ChevronRight, DollarSign, Receipt, Search } from 'lucide-react';
+import { Banknote, ChevronLeft, ChevronRight, DollarSign, Receipt, Search, SlidersHorizontal } from 'lucide-react';
 import { api, type TxnQueryRow, type TxnQuerySummary } from '../lib/api';
 import { useAccountsIndex } from '../lib/use-accounts-index';
 import { cn, formatStoredDay, storedDayKey } from '../lib/utils';
@@ -23,8 +23,12 @@ import {
   filtersFromQuery,
   filtersToQuery,
   filtersToSearchParams,
+  hasPanelFilters,
   type TxnFilters,
 } from '../components/transactions/TransactionFilters';
+import { HeaderAction, HeaderTextAction } from '../components/layout/app-header';
+import { useMobileHeader } from '../lib/mobile-header';
+import { useIsMobile } from '../lib/hooks/use-mobile';
 import { RulesPanel } from '../components/rules/RulesPanel';
 import { BulkEditBar, type BulkEdit } from '../components/transactions/BulkEditBar';
 import { OptionMenu } from '../components/common/OptionMenu';
@@ -267,6 +271,9 @@ export function Transactions() {
   const [selectMode, setSelectMode] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const selecting = selectMode || selectedIds.size > 0;
+  // The phone's Filters panel. Its trigger sits in the top bar.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // The sticky toolbar's height, so the day headings stick just below it.
   const stickyRef = useRef<HTMLDivElement | null>(null);
@@ -333,41 +340,14 @@ export function Transactions() {
 
   // Keep the address bar on the scope that is actually on screen, so a filtered
   // view can be copied out and pasted back, and a reload lands where it left.
-  // The unfiltered list always sits one history entry behind a filtered one,
-  // so Back (or a swipe back) clears the filters before it leaves the page.
-  // Going from no filters to some pushes that entry, and every later change
-  // replaces it. A drill-in that arrives filtered gets the same entry slotted
-  // in under it on mount.
+  // Always a replace, never a push: filters are not places, so Back (the top
+  // bar's, the in-page one, or a swipe) leaves the page for wherever the user
+  // came from instead of stepping through filter states.
   const filterQuery = filtersToSearchParams(filters);
-  const filteredEntryRef = useRef(false);
   useEffect(() => {
     const next = filterQuery ? `/transactions?${filterQuery}` : '/transactions';
-    const current = `${window.location.pathname}${window.location.search}`;
-    if (filterQuery && !filteredEntryRef.current) {
-      if (current !== '/transactions') setLocation('/transactions', { replace: true });
-      setLocation(next);
-    } else if (!filterQuery && filteredEntryRef.current) {
-      // Cleared by hand: step back onto the unfiltered entry underneath
-      // rather than stack a second copy of it.
-      window.history.back();
-    } else if (current !== next) {
-      setLocation(next, { replace: true });
-    }
-    filteredEntryRef.current = filterQuery !== '';
+    if (`${window.location.pathname}${window.location.search}` !== next) setLocation(next, { replace: true });
   }, [filterQuery, setLocation]);
-
-  // Back and Forward move between those entries, so read the filters back
-  // off the address they land on.
-  useEffect(() => {
-    const onPop = () => {
-      if (window.location.pathname !== '/transactions') return;
-      const landed = filtersFromQuery(window.location.search);
-      filteredEntryRef.current = filtersToSearchParams(landed) !== '';
-      setFilters(landed);
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
 
   // One fetch pipeline: page 1 for the current filters/sort. Resets accumulation
   // and refreshes the filter-scoped summary.
@@ -715,6 +695,27 @@ export function Transactions() {
   const showDayHeaders = sortKey === 'newest' || sortKey === 'oldest';
 
   const isEmpty = !loadingInitial && rows.length === 0;
+
+  // Phones: the page's actions sit in the top bar, as a native nav bar holds
+  // them. Search stays in the page. Phones have no hover to reveal the row
+  // checkboxes, so Select is the way into selection there.
+  useMobileHeader(isMobile ? {
+    actions: (
+      <>
+        <span data-filters-trigger className="contents">
+          <HeaderAction label="Filters" active={hasPanelFilters(filters)} expanded={filtersOpen} controls="txn-filters-panel" onClick={() => setFiltersOpen((o) => !o)}>
+            <SlidersHorizontal size={18} />
+          </HeaderAction>
+        </span>
+        {(rows.length > 0 || selecting) && (
+          <HeaderTextAction
+            label={selecting ? 'Done' : 'Select'}
+            onClick={() => (selecting ? clearSelection() : setSelectMode(true))}
+          />
+        )}
+      </>
+    ),
+  } : null);
   const showKpiLine = stuck && kpiHidden && !!summary && summary.count > 0;
 
   const skeletonRows = (
@@ -796,6 +797,8 @@ export function Transactions() {
           filters={filters}
           onChange={setFilters}
           accounts={accounts}
+          filtersOpen={filtersOpen}
+          onFiltersOpenChange={setFiltersOpen}
           trailing={
             // Desktop sort, inline with search and filters. Mobile sorts via
             // the list header instead. Selecting on desktop starts from a row's
@@ -848,14 +851,6 @@ export function Transactions() {
               onChange={setSortKey}
             />
           </div>
-          {/* Phones have no hover to reveal the row checkboxes. */}
-          <button
-            type="button"
-            onClick={() => (selecting ? clearSelection() : setSelectMode(true))}
-            className="ui-focus min-h-touch border-l border-line px-4 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))]"
-          >
-            {selecting ? 'Done' : 'Select'}
-          </button>
           </div>
         )}
         {/* Skeleton only before the FIRST rows arrive; later refetches

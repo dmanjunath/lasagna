@@ -6,6 +6,8 @@ import { watchReport } from "../../lib/report-watcher.js";
 import { Alert, Badge, Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { SegmentedControl } from "../../components/uikit/SegmentedControl.js";
 import { vizColor } from "../../components/uikit/viz.js";
+import { HeaderAction } from "../../components/layout/app-header";
+import { useMobileHeader } from "../../lib/mobile-header";
 import { exactSyncTime, formatInstant, formatMoney, splitParagraphs } from "../../lib/utils.js";
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../lib/hide-amounts.js";
 import { safeStorage } from "../../lib/safe-storage.js";
@@ -2092,13 +2094,22 @@ export function FinancialPlanDetailPage() {
   const exDrawdownOrder = fig.drawdown ? nextExhibit() : 0;
   const exWhatIf = fig.whatIf ? nextExhibit() : 0;
 
+  // On a phone, Download PDF lives in the top bar.
+  useMobileHeader(!loading && !error && plan && !plan.document?.freeform && snapshot ? {
+    actions: (
+      <HeaderAction label="Download PDF" onClick={printPlanToPdf}>
+        <Download size={20} />
+      </HeaderAction>
+    ),
+  } : null);
+
   return (
     <div
       className={`plan-print-root mx-auto ${wide ? "max-w-[1180px] px-6 sm:px-11" : "max-w-[760px] px-6 sm:px-10"} pt-4 sm:pt-9 pb-6 sm:pb-28 text-content`}
     >
       <button
         onClick={() => navigate("/financial-plans")}
-        className="plan-print-hide inline-flex items-center gap-1.5 text-[13px] font-semibold text-content-muted hover:text-content transition-colors"
+        className="plan-print-hide hidden md:inline-flex items-center gap-1.5 text-[13px] font-semibold text-content-muted hover:text-content transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Retirement Plans
@@ -2192,7 +2203,7 @@ export function FinancialPlanDetailPage() {
                   pending={removingAssumption}
                 />
               </div>
-              <div className="plan-print-hide flex items-center gap-2 self-start shrink-0">
+              <div className="plan-print-hide hidden items-center gap-2 self-start shrink-0 md:flex">
                 {/* Wide === Document below lg (no side-by-side room), so the
                     toggle only appears from lg up where it changes anything. */}
                 <div className="hidden lg:inline-flex">

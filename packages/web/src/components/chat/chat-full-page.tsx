@@ -9,10 +9,12 @@ import { ChatThreadView } from './chat-thread-view';
 import { ChatThreadList } from './chat-thread-list';
 import { AdminModelPicker } from './admin-model-picker';
 import { maskCurrencyInText } from '../../lib/hide-amounts';
+import { useMobileHeader } from '../../lib/mobile-header';
+import { HeaderAction } from '../layout/app-header';
 
 // Compact composer + suggested prompts shown in the conversation pane when no
 // thread is active (the "new chat" state).
-function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (text: string) => void }) {
+function NewChatHero({ suggestions, onSend, mobile = false, autoFocus = false }: { suggestions: string[]; onSend: (text: string) => void; mobile?: boolean; autoFocus?: boolean }) {
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -39,7 +41,7 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 py-10">
+    <div className={`flex-1 flex flex-col items-center justify-center min-h-0 overflow-y-auto ${mobile ? 'px-4 py-6' : 'px-6 py-10'}`}>
       <div className="w-full max-w-[620px] animate-fade-in">
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
@@ -64,7 +66,10 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
                 placeholder="Ask anything…"
                 aria-label="Message Lasagna"
                 rows={1}
-                className="flex-1 min-w-0 py-2 bg-transparent text-content text-[15px] placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto"
+                // Opened on purpose from New chat, so the keyboard comes up with it.
+                autoFocus={autoFocus}
+                // ≥16px on mobile so iOS doesn't auto-zoom the viewport on focus.
+                className={`flex-1 min-w-0 py-2 bg-transparent text-content ${mobile ? 'text-[16px]' : 'text-[15px]'} placeholder:text-content-muted focus:outline-none resize-none overflow-y-auto`}
                 style={{ maxHeight: 120 }}
               />
               <button
@@ -84,7 +89,23 @@ function NewChatHero({ suggestions, onSend }: { suggestions: string[]; onSend: (
           </div>
         </form>
 
-        {suggestions.length > 0 && (
+        {suggestions.length > 0 && mobile && (
+          // Same cards as the history list's suggestions, so one control has one look.
+          <div className="mt-5 space-y-2">
+            <p className="text-[13px] font-semibold text-content-muted px-1">Try asking</p>
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                onClick={() => onSend(s)}
+                className="group w-full text-left flex items-center justify-between gap-2 px-4 py-3.5 rounded-ui-md border border-line-strong bg-panel text-[14px] font-medium text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-[rgb(var(--ui-brand-ink))] active:scale-[0.99] transition-[background,color,border-color,transform] leading-snug"
+              >
+                <span>{s}</span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-content-muted group-hover:text-[rgb(var(--ui-brand-ink))] transition-colors flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+        {suggestions.length > 0 && !mobile && (
           <div className="mt-5">
             <p className="text-[13px] font-semibold text-content-muted text-center mb-3">
               Try asking
@@ -114,7 +135,7 @@ export function ChatFullPage() {
   const search = useSearch();
   const { openChat, chatReturnPath, setPendingMessage } = useChatStore();
   const {
-    threadSummaries, activeThread, activeThreadIndex, setActiveThread, suggestions, loadingThreads,
+    threadSummaries, threadsLoaded, activeThread, activeThreadIndex, setActiveThread, suggestions, loadingThreads,
     handleNewMessage, handleFollowUp, handleRetry, handleSelectThread, handleDeleteThread,
   } = useGlobalChat();
 
@@ -129,33 +150,88 @@ export function ChatFullPage() {
     }
   }, [search, setPendingMessage, setLocation]);
 
+  // Mobile only: the new-chat screen is open.
+  const [composing, setComposing] = useState(false);
+  // Re-tapping the Chat tab returns to the history list.
+  useEffect(() => {
+    const onReselect = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== '/chat') return;
+      setComposing(false);
+      setActiveThread(null);
+    };
+    window.addEventListener('tab:reselect', onReselect);
+    return () => window.removeEventListener('tab:reselect', onReselect);
+  }, [setActiveThread]);
+
   const handleCollapse = () => {
     setChatExpanded(false);
     openChat();
     setLocation(chatReturnPath || '/');
   };
 
-  // Mobile: single-column, full-screen conversation with the list reachable via
-  // the thread view's back affordance.
+  // Mobile: one screen at a time, like a native messages app. The history list
+  // is home, a new chat is its own screen with the composer, and a thread is
+  // the conversation. Each one's back step, title and actions sit in the app's
+  // top bar. With no history yet there is nothing to list, so the page opens
+  // on the new chat.
+  // Until the history has loaded the list is shown (empty), so a cold load
+  // doesn't flash the new-chat screen and then swap it away.
+  const mobileView: 'thread' | 'compose' | 'list' =
+    activeThread ? 'thread'
+      : composing || (threadsLoaded && threadSummaries.length === 0) ? 'compose'
+      : 'list';
+  const toList = () => { setComposing(false); setActiveThread(null); };
+  const startNew = () => { setActiveThread(null); setComposing(true); };
+  const newChatAction = (
+    <HeaderAction label="New chat" onClick={startNew}>
+      <SquarePen size={19} />
+    </HeaderAction>
+  );
+  useMobileHeader(
+    !isMobile ? null
+      : mobileView === 'thread' && activeThread ? {
+        title: maskCurrencyInText(activeThread.thread.question),
+        onBack: toList,
+        actions: (
+          <>
+            {newChatAction}
+            <HeaderAction label="Delete conversation" onClick={() => { handleDeleteThread(); setComposing(false); }}>
+              <Trash2 size={18} />
+            </HeaderAction>
+          </>
+        ),
+      }
+      : mobileView === 'compose' ? {
+        title: 'New chat',
+        onBack: threadSummaries.length > 0 ? toList : undefined,
+      }
+      : { actions: newChatAction },
+  );
+
   if (isMobile) {
     return (
       <div className="flex flex-col h-full min-h-0 bg-canvas">
-        {activeThread ? (
+        {mobileView === 'thread' && activeThread ? (
           <ChatThreadView
             thread={activeThread.thread}
             messages={activeThread.messages}
-            onBack={() => setActiveThread(null)}
+            onBack={toList}
             onFollowUp={handleFollowUp}
             onRetry={() => handleRetry(activeThread.thread.id)}
-            onDelete={() => handleDeleteThread()}
-            onNewChat={() => setActiveThread(null)}
             loading={loadingThreads.has(activeThread.thread.id)}
             variant="mobile"
+          />
+        ) : mobileView === 'compose' ? (
+          <NewChatHero
+            mobile
+            autoFocus={composing}
+            suggestions={suggestions.length > 0 ? suggestions : []}
+            onSend={(text) => { setComposing(false); handleNewMessage(text); }}
           />
         ) : (
           <ChatThreadList
             threads={threadSummaries}
-            onSelectThread={handleSelectThread}
+            onSelectThread={(i) => { setComposing(false); handleSelectThread(i); }}
             onDeleteThread={handleDeleteThread}
             onNewMessage={handleNewMessage}
             suggestions={suggestions}

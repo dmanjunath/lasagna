@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Redirect, useLocation } from 'wouter';
+import { Redirect, useLocation, useSearch } from 'wouter';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { Button, Field, Input, Label, MoneyInput } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
+import { HeaderTextAction } from '../components/layout/app-header';
 import { canGoBackInApp } from '../lib/in-app-history';
+import { useIsMobile } from '../lib/hooks/use-mobile';
+import { useMobileHeader } from '../lib/mobile-header';
 import { iconFor, toggleId, AccountPicker, goalAccent, GOAL_PRESETS, fetchFundableAccounts, type Account } from './goal-shared';
 import {
   isTypedGoalCategory, emptyDraft, resolveDraft, useGoalFormContext,
@@ -14,20 +18,30 @@ import {
 } from './goal-details';
 
 // ---------------------------------------------------------------------------
-// Create-goal page — the form that used to be an inline expanding panel on
-// /goals. Every create entry point on that page now links here instead.
+// Create-goal page, in two steps. Step 1 picks the kind (/goals/new), step 2
+// is the form (/goals/new?kind=<category>). The step lives in the URL so the
+// browser back button and the native swipe-back both return to step 1, and
+// a Suggested tile on /goals lands straight in step 2.
 // ---------------------------------------------------------------------------
+
+const presetFor = (kind: string | null) => GOAL_PRESETS.find((p) => p.category === kind);
 
 export function NewGoal() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const isMobile = useIsMobile();
   const [creating, setCreating] = useState(false);
+  const urlPreset = presetFor(new URLSearchParams(search).get('kind'));
+  const step: 'kind' | 'details' = urlPreset ? 'details' : 'kind';
+  // True once step 2 was reached from step 1 in this visit, so going back is a
+  // history pop. A deep link to step 2 has no step 1 entry behind it.
+  const pushedDetails = useRef(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
 
   // A Suggested tile on /goals sends ?kind=<category> to preselect a kind.
   // Read it once, before first render, so the page never paints "General
   // Savings" and then jumps to the real kind a frame later.
-  const [initialPreset] = useState(() =>
-    GOAL_PRESETS.find((p) => p.category === new URLSearchParams(window.location.search).get('kind')),
-  );
+  const [initialPreset] = useState(() => presetFor(new URLSearchParams(window.location.search).get('kind')));
 
   // Create form state — seeded from the preselected kind exactly as
   // selectPreset would set it (name follows an untouched/default name,
@@ -123,10 +137,33 @@ export function NewGoal() {
     if (!newTarget && preset.suggestedTarget) setNewTarget(String(preset.suggestedTarget));
   };
 
-  // On arrival: focus the name field.
+  // Browser forward (or any URL change) to a kind the form isn't on yet.
   useEffect(() => {
-    createNameRef.current?.focus({ preventScroll: true });
-  }, []);
+    if (urlPreset && urlPreset.category !== newCategory) selectPreset(urlPreset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlPreset?.category]);
+
+  // On reaching the form: focus the name field. Not on touch: iOS shows the
+  // focus ring without a keyboard, and the name is already filled in.
+  useEffect(() => {
+    if (step === 'details' && !window.matchMedia('(pointer: coarse)').matches) {
+      createNameRef.current?.focus({ preventScroll: true });
+    }
+  }, [step]);
+
+  const chooseKind = (preset: typeof GOAL_PRESETS[0]) => {
+    selectPreset(preset);
+    pushedDetails.current = true;
+    setLocation(`/goals/new?kind=${preset.category}`);
+    window.scrollTo(0, 0);
+  };
+
+  const backToKinds = () => {
+    if (pushedDetails.current) window.history.back();
+    else setLocation('/goals/new', { replace: true });
+    pushedDetails.current = false;
+    window.scrollTo(0, 0);
+  };
 
   const goBack = () => {
     // history.length counts entries from before the app, so it would send a
@@ -161,12 +198,65 @@ export function NewGoal() {
     }
   };
 
+  // On a phone the verb lives in the top bar, the way a native form does.
+  useMobileHeader(
+    step === 'details'
+      ? {
+          onBack: backToKinds,
+          actions: (
+            <HeaderTextAction
+              label={creating ? 'Creating…' : 'Create'}
+              onClick={handleCreate}
+              disabled={!canCreate || creating}
+            />
+          ),
+        }
+      : null,
+  );
+
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
   if (isDemo) return <Redirect to="/goals" />;
+
+  const chosen = presetFor(newCategory);
 
   return (
     <div className="mx-auto max-w-[880px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       <PageTitle className="sm:text-[36px]">New goal</PageTitle>
+      {step === 'kind' ? (
+        <>
+          <h2 className="mt-1 md:mt-6 text-[18px] font-semibold text-content">What are you saving for?</h2>
+          {/* A phone gets one grouped list, the native settings idiom. Wider
+              screens get the same tiles as the Suggested row on /goals. */}
+          <ul className="mt-3 md:mt-4 overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm divide-y divide-line sm:grid sm:grid-cols-2 sm:gap-3 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none">
+            {GOAL_PRESETS.map((preset) => {
+              const color = goalAccent(preset.category);
+              return (
+                <li key={preset.category}>
+                  <button
+                    type="button"
+                    onClick={() => chooseKind(preset)}
+                    className="ui-focus group flex w-full items-center gap-3 px-3.5 py-2.5 text-left min-h-touch active:bg-canvas-sunken transition-[box-shadow,border-color,background-color] [@media(hover:hover)]:hover:bg-canvas-sunken/60 sm:rounded-ui-lg sm:border sm:border-line sm:bg-panel sm:p-3.5 sm:shadow-ui-sm [@media(hover:hover)]:sm:hover:bg-panel [@media(hover:hover)]:sm:hover:shadow-ui-md [@media(hover:hover)]:sm:hover:border-line-strong"
+                  >
+                    <span
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm"
+                      style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
+                    >
+                      {iconFor(preset.icon, 18)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-content">{preset.name}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] [@media(hover:hover)]:group-hover:translate-x-0.5 [@media(hover:hover)]:group-hover:text-brand" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {!isMobile && (
+            <div className="mt-6">
+              <Button variant="ghost" onClick={goBack}>Cancel</Button>
+            </div>
+          )}
+        </>
+      ) : (
       <div
         className="cq-inline mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7"
         onKeyDown={(e) => {
@@ -186,85 +276,41 @@ export function NewGoal() {
           }
         }}
       >
-        {/* The kind comes first: it decides which fields the rest of the
-            form shows, so choosing it is the first thing you do. */}
-        <div className="mb-5">
-          <Label id="goal-kind-label">What kind of goal is this?</Label>
-          <div
-            className="goals-presets"
-            role="radiogroup"
-            aria-labelledby="goal-kind-label"
-            style={{ marginTop: 8 }}
-            onKeyDown={(e) => {
-              // The radio pattern: arrows move the choice and focus within the
-              // group, Home and End jump to the ends. One Tab stop for the group.
-              const n = GOAL_PRESETS.length;
-              const at = Math.max(0, GOAL_PRESETS.findIndex((p) => p.category === newCategory));
-              const next =
-                e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (at + 1) % n
-                : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (at - 1 + n) % n
-                : e.key === 'Home' ? 0
-                : e.key === 'End' ? n - 1
-                : null;
-              if (next === null) return;
-              e.preventDefault();
-              selectPreset(GOAL_PRESETS[next]);
-              (e.currentTarget.children[next] as HTMLElement | undefined)?.focus();
-            }}
+        {/* The kind chosen in step 1. Tapping it goes back to change it. */}
+        {chosen && (
+          <button
+            type="button"
+            onClick={backToKinds}
+            className="ui-focus group -mx-1 mb-5 flex w-[calc(100%+0.5rem)] items-center gap-3 rounded-ui-md px-1 py-1 text-left"
           >
-            {GOAL_PRESETS.map((preset, i) => {
-              const active = newCategory === preset.category;
-              const noneChecked = !GOAL_PRESETS.some((p) => p.category === newCategory);
-              const color = goalAccent(preset.category);
-              return (
-                <button
-                  key={preset.category}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  tabIndex={active || (noneChecked && i === 0) ? 0 : -1}
-                  onClick={() => selectPreset(preset)}
-                  className="goals-preset"
-                  style={{
-                    borderColor: active ? color : 'var(--ui-line)',
-                    color: active ? color : 'rgb(var(--ui-content-muted))',
-                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                  }}
-                >
-                  {iconFor(preset.icon, 14)}
-                  <span>{preset.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+            <span
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm"
+              style={{ background: `color-mix(in srgb, ${goalAccent(chosen.category)} 14%, transparent)`, color: goalAccent(chosen.category) }}
+            >
+              {iconFor(chosen.icon, 18)}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-content">{chosen.name}</span>
+            <span className="shrink-0 text-[13px] font-semibold text-content-muted transition-colors [@media(hover:hover)]:group-hover:text-brand">Change</span>
+          </button>
+        )}
 
         {/* A typed kind gets a fixed column count. auto-fit picks a track
             count from the widest field, and the full-width readout forces
             a row break, which together strand a lone field beside a void.
-            A plain goal keeps the auto-fit grid it has always had. */}
+            A plain goal's four fields sit two by two. */}
         <div
-          className={cn('grid gap-4 mb-5', activeKind && 'goal-fields-grid')}
-          style={activeKind ? undefined : { gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}
+          className={cn('grid gap-4 mb-5', activeKind ? 'goal-fields-grid' : 'sm:grid-cols-2')}
         >
           <div className="space-y-1.5">
             <Label htmlFor="new-goal-name">Goal name</Label>
-            <div className="flex gap-2">
-              <div
-                aria-label="Icon"
-                className="grid w-14 shrink-0 place-items-center rounded-ui-md border border-line-strong bg-canvas-sunken text-content-secondary"
-              >
-                {iconFor(newIcon, 20)}
-              </div>
-              <Input
-                ref={createNameRef}
-                id="new-goal-name"
-                type="text"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder="e.g. Emergency Fund"
-              />
-            </div>
+            <Input
+              ref={createNameRef}
+              id="new-goal-name"
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              placeholder="e.g. Emergency Fund"
+            />
           </div>
           {activeKind && draft && resolved && !resolved.spendUnavailable ? (
             <GoalDetailFields
@@ -333,36 +379,61 @@ export function NewGoal() {
           </div>
         )}
 
-        {/* Accounts — linking ≥1 makes the goal auto-track its balance */}
+        {/* Accounts, folded away: linking one makes the goal auto-track its
+            balance, but most goals start without it. */}
         {accounts.length > 0 && (
-          <div className="mb-5">
-            <Label>Accounts (optional)</Label>
-            <p className="mt-1 mb-2 text-[12px] text-content-muted">
-              Linked accounts auto-track this goal's progress.
-            </p>
-            <AccountPicker
-              accounts={accounts}
-              selected={newAccountIds}
-              onToggle={(id) => setNewAccountIds(prev => toggleId(prev, id))}
-            />
+          <div className={cn('rounded-ui-lg border border-line', !isMobile && 'mb-5')}>
+            <button
+              type="button"
+              aria-expanded={accountsOpen}
+              aria-controls="new-goal-accounts"
+              onClick={() => setAccountsOpen((o) => !o)}
+              className="ui-focus flex w-full items-center gap-3 rounded-ui-lg px-3.5 py-3 text-left min-h-touch active:bg-canvas-sunken [@media(hover:hover)]:hover:bg-canvas-sunken/60 transition-colors"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-semibold text-content">Track with linked accounts</span>
+                <span className="mt-0.5 block text-[12px] text-content-muted">Progress follows their balances.</span>
+              </span>
+              {!accountsOpen && newAccountIds.length > 0 && (
+                <span className="shrink-0 text-[12.5px] font-semibold text-content-muted ui-tnum">
+                  {newAccountIds.length} selected
+                </span>
+              )}
+              <ChevronDown
+                size={18}
+                className={cn('shrink-0 text-content-muted transition-transform duration-200 ease-ui', !accountsOpen && '-rotate-90')}
+              />
+            </button>
+            {accountsOpen && (
+              <div id="new-goal-accounts" className="border-t border-line p-3.5">
+                <AccountPicker
+                  accounts={accounts}
+                  selected={newAccountIds}
+                  onToggle={(id) => setNewAccountIds(prev => toggleId(prev, id))}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        <div className="flex gap-2.5">
-          <Button
-            disabled={!canCreate || creating}
-            loading={creating}
-            onClick={handleCreate}
-            aria-describedby={resolved && !resolved.spendUnavailable ? READOUT_ID : undefined}
-          >
-            {creating ? 'Creating…' : 'Create goal'}
-          </Button>
-          <Button variant="ghost" onClick={goBack}>Cancel</Button>
-        </div>
+        {!isMobile && (
+          <div className="flex gap-2.5">
+            <Button
+              disabled={!canCreate || creating}
+              loading={creating}
+              onClick={handleCreate}
+              aria-describedby={resolved && !resolved.spendUnavailable ? READOUT_ID : undefined}
+            >
+              {creating ? 'Creating…' : 'Create goal'}
+            </Button>
+            <Button variant="ghost" onClick={goBack}>Cancel</Button>
+          </div>
+        )}
         {formError && (
           <p className="mt-2.5 text-[12px] font-semibold text-negative" role="status" aria-live="polite">{formError}</p>
         )}
       </div>
+      )}
     </div>
   );
 }

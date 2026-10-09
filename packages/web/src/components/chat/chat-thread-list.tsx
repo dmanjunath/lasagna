@@ -97,43 +97,12 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
     </form>
   );
 
-  // Suggested queries — a labelled list of tappable prompts. Placed BELOW the
-  // composer in the empty state so the input reads as the primary action.
   const starters = suggestions && suggestions.length > 0 ? suggestions : DEFAULT_PROMPTS;
 
-  // Mobile empty state: a centred hero with the composer directly beneath it and
-  // suggested queries under that — so the page never reads as blank and the
-  // input is unmistakably the thing to use first.
-  if (isMobile && threads.length === 0) {
-    return (
-      <div className="flex flex-col flex-1 min-h-0 justify-center px-5 pb-6">
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-14 h-14 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
-            <Sparkles className="w-6 h-6 text-[rgb(var(--ui-accent-ink))]" />
-          </div>
-          <h2 className="font-editorial font-bold text-[28px] text-content leading-[1.05] tracking-[-0.025em]">Ask anything about your finances</h2>
-          <p className="text-[14px] font-medium text-content-muted mt-2.5 leading-relaxed">I can analyze your accounts, spending, and plans, then walk you through what to do next.</p>
-        </div>
-
-        {composer}
-
-        <div className="mt-5 space-y-2">
-          <p className="text-[13px] font-semibold text-content-muted px-1">Try asking</p>
-          {starters.map((prompt) => (
-            <button
-              key={prompt}
-              onClick={() => onNewMessage(prompt)}
-              className="group w-full text-left flex items-center justify-between gap-2 px-4 py-3.5 rounded-ui-md border border-line-strong bg-panel text-[14px] font-medium text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-[rgb(var(--ui-brand-ink))] active:scale-[0.99] transition-[background,color,border-color,transform] leading-snug"
-            >
-              <span>{prompt}</span>
-              <ArrowUpRight className="w-3.5 h-3.5 text-content-muted group-hover:text-[rgb(var(--ui-brand-ink))] transition-colors flex-shrink-0" />
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  // On mobile the list is history only, with the suggested queries under it.
+  // The composer appears when the user starts a new chat (see ChatFullPage),
+  // so the list is not a second place to type, and an empty history opens
+  // straight into that new-chat view rather than this list.
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Thread list */}
@@ -208,6 +177,21 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
               </div>
             ))}
             </div>
+            {isMobile && (
+              <div className="px-2.5 pt-6 pb-4 space-y-2">
+                <p className="text-[13px] font-semibold text-content-muted">Try asking</p>
+                {starters.map((prompt) => (
+                  <button
+                    key={prompt}
+                    onClick={() => onNewMessage(prompt)}
+                    className="group w-full text-left flex items-center justify-between gap-2 px-4 py-3.5 rounded-ui-md border border-line-strong bg-panel text-[14px] font-medium text-content-secondary hover:bg-brand-soft hover:border-transparent hover:text-[rgb(var(--ui-brand-ink))] active:scale-[0.99] transition-[background,color,border-color,transform] leading-snug"
+                  >
+                    <span>{prompt}</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-content-muted group-hover:text-[rgb(var(--ui-brand-ink))] transition-colors flex-shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -229,32 +213,12 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
         </div>
       )}
 
-      {/* Input — a distinctly separated bottom section. On mobile a heavier top
-          border plus a soft upward shadow clearly divides it from the scrollable
-          history above, and the suggested queries sit directly beneath the box. */}
-      <div
-        className={cn(
-          'flex-shrink-0',
-          isMobile
-            ? 'px-4 py-3 border-t-2 border-line-heavy shadow-[0_-6px_16px_-8px_rgba(20,33,61,0.18)]'
-            : 'px-3 pt-2 pb-3 border-t border-line'
-        )}
-      >
-        {composer}
-        {isMobile && suggestions && suggestions.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => onNewMessage(s)}
-                className="inline-flex items-center px-3 min-h-[40px] rounded-full text-[13px] font-semibold bg-panel border border-line-strong text-content-secondary hover:bg-brand-soft hover:text-[rgb(var(--ui-brand-ink))] hover:border-transparent active:scale-[0.98] transition-[background,color,border-color,transform]"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Input, on the sidebar only. */}
+      {!isMobile && (
+        <div className="flex-shrink-0 px-3 pt-2 pb-3 border-t border-line">
+          {composer}
+        </div>
+      )}
 
     </div>
   );

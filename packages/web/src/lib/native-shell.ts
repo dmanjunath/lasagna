@@ -4,7 +4,7 @@
  */
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { Keyboard } from '@capacitor/keyboard';
+import { Keyboard, KeyboardResize } from '@capacitor/keyboard';
 import { PrivacyScreen } from '@capacitor/privacy-screen';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -31,6 +31,63 @@ function isDarkTheme(): boolean {
 function syncStatusBar(): void {
   // Style.Dark = light text (for dark backgrounds), Style.Light = dark text.
   StatusBar.setStyle({ style: isDarkTheme() ? Style.Dark : Style.Light }).catch(() => {});
+}
+
+/** Space kept between a focused field and the top of the keyboard. */
+const KEYBOARD_GAP = 16;
+
+/**
+ * The keyboard slides over the app, as it does in a native app.
+ *
+ * The plugin's default ("native") shrinks the whole WebView to the space above
+ * the keyboard, so every fixed element and every dvh layout reflowed: the tab
+ * bar rode up on top of the keyboard and the page jumped. With resize off the
+ * layout stays put, and the app does the two jobs the shrink used to do:
+ * `--kb` on <html> lets surfaces that must stay above the
+ * keyboard (the chat composer, bottom sheets) lift themselves, and a field the
+ * keyboard would cover is scrolled into the space above it.
+ *
+ * The accessory bar is on so every field gets a Done button. Hiding it left no
+ * way to put the keyboard away from a number field.
+ */
+function initKeyboard(): void {
+  Keyboard.setResizeMode({ mode: KeyboardResize.None }).catch(() => {});
+  Keyboard.setAccessoryBarVisible({ isVisible: true }).catch(() => {});
+
+  const root = document.documentElement;
+  let height = 0;
+
+  const reveal = () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!height || !el || !el.matches('input, textarea, select, [contenteditable="true"]')) return;
+    const r = el.getBoundingClientRect();
+    const limit = window.innerHeight - height - KEYBOARD_GAP;
+    if (r.bottom <= limit) return;
+    // The nearest scroller that can move, so a field inside a sheet or the chat
+    // pane scrolls there rather than moving the page behind it.
+    let box: HTMLElement | null = el.parentElement;
+    while (box && box !== document.body) {
+      const oy = getComputedStyle(box).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && box.scrollHeight > box.clientHeight) break;
+      box = box.parentElement;
+    }
+    const by = r.bottom - limit;
+    if (box && box !== document.body) box.scrollBy({ top: by, behavior: 'smooth' });
+    else window.scrollBy({ top: by, behavior: 'smooth' });
+  };
+
+  Keyboard.addListener('keyboardWillShow', ({ keyboardHeight }) => {
+    height = keyboardHeight;
+    root.style.setProperty('--kb', `${keyboardHeight}px`);
+    // After the padding that makes room has applied.
+    requestAnimationFrame(reveal);
+  }).catch(() => {});
+  Keyboard.addListener('keyboardWillHide', () => {
+    height = 0;
+    root.style.setProperty('--kb', '0px');
+  }).catch(() => {});
+  // Moving between fields with the keyboard already up fires no show event.
+  document.addEventListener('focusin', () => requestAnimationFrame(reveal));
 }
 
 export async function initNativeShell(navigate: (to: string) => void): Promise<void> {
@@ -65,7 +122,7 @@ export async function initNativeShell(navigate: (to: string) => void): Promise<v
     attributeFilter: ['class'],
   });
 
-  Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {}); // iOS-only
+  initKeyboard();
   PrivacyScreen.enable().catch(() => {});
   SplashScreen.hide().catch(() => {});
 }

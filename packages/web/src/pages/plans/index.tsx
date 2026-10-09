@@ -18,6 +18,8 @@ import { formatInstant } from "../../lib/utils.js";
 import { Badge, Button, PageMeta, PageMetaItem, Skeleton } from "../../components/uikit";
 import { useConfirm } from "../../components/ds";
 import { PageTitle } from "../../components/ds/PageTitle";
+import { HeaderAction } from "../../components/layout/app-header";
+import { useMobileHeader } from "../../lib/mobile-header";
 import { useToast } from "../../components/uikit";
 import type { Plan, PlanType } from "../../lib/types.js";
 
@@ -134,6 +136,15 @@ export function PlansPage() {
   const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
   const areasTracked = new Set(plans.map((p) => p.type)).size;
 
+  // On a phone, New plan lives in the top bar.
+  useMobileHeader(!isDemo && plans.length > 0 ? {
+    actions: (
+      <HeaderAction label="New plan" onClick={() => setLocation("/plans/new")}>
+        <Plus size={20} />
+      </HeaderAction>
+    ),
+  } : null);
+
   const summaryLine = !loading && plans.length > 0 && (
     <>
       <PageMetaItem tone="brand" className="ui-tnum">{plans.length} plan{plans.length === 1 ? "" : "s"}</PageMetaItem>
@@ -156,7 +167,7 @@ export function PlansPage() {
           </PageMeta>
         </div>
         {!isDemo && plans.length > 0 && (
-          <Link href="/plans/new">
+          <Link href="/plans/new" className="max-md:hidden">
             <Button leadingIcon={<Plus className="h-4 w-4" />}>New plan</Button>
           </Link>
         )}

@@ -8,6 +8,8 @@ import { formatRelativeTime } from '../lib/utils';
 import { toActionRow } from '../lib/action-rows';
 import { Button, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SegmentedControl, EmptyState } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
+import { HeaderAction } from '../components/layout/app-header';
+import { useMobileHeader } from '../lib/mobile-header';
 import { ActionItem } from '../components/common/action-item';
 import { UndoToast } from '../components/common/undo-toast';
 
@@ -99,6 +101,20 @@ export function Insights() {
       setRefreshing(false);
     }
   };
+
+  // On a phone, Generate lives in the top bar. The caption under the header
+  // still says when the list was last made.
+  useMobileHeader(isLoading ? null : {
+    actions: (
+      <HeaderAction
+        label={refreshing ? 'Generating actions' : 'Generate actions'}
+        onClick={handleRefresh}
+        disabled={refreshing || !refreshReady}
+      >
+        <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
+      </HeaderAction>
+    ),
+  });
 
   // One model for both producers, so the row below does not have to know which
   // workflow wrote it.
@@ -212,6 +228,7 @@ export function Insights() {
               // This variant IS the brand-soft pill.
               variant="primary"
               size="sm"
+              className="max-md:hidden"
               onClick={handleRefresh}
               disabled={refreshing || !refreshReady}
               title={!refreshReady ? 'Actions refresh once every 3 hours' : undefined}

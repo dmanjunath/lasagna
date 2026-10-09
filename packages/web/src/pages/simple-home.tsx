@@ -188,7 +188,7 @@ export function SimpleHome() {
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
   const toast = useToast();
-  const { insights, refresh: refreshInsights, dismiss, complete, isLoading: insightsLoading, isError: insightsFailed } = useInsights();
+  const { insights, refresh: refreshInsights, dismiss, complete, snooze, isLoading: insightsLoading, isError: insightsFailed } = useInsights();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
@@ -588,12 +588,8 @@ export function SimpleHome() {
         setGeneratingInsights(true);
         try { await refreshInsights(); } finally { setGeneratingInsights(false); }
       }}
-      onOpen={(a) => {
-        // The catch-all opens nowhere, so there is nothing to navigate to.
-        const { link } = actionArea(a.type, a.category);
-        if (link) setLocation(link);
-      }}
       onComplete={complete}
+      onSnooze={snooze}
       onDismiss={dismiss}
     />
   );
@@ -1057,7 +1053,7 @@ const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, 
  * five quicker rows happening to fill the shortlist.
  */
 export function ActionsSection({
-  actions, loading, failed = false, skeletonRows = HOME_ACTION_LIMIT, skeletonMinHeight, listRef, generating, onGenerate, onOpen, onComplete, onDismiss,
+  actions, loading, failed = false, skeletonRows = HOME_ACTION_LIMIT, skeletonMinHeight, listRef, generating, onGenerate, onComplete, onSnooze, onDismiss,
 }: {
   actions: Insight[];
   loading: boolean;
@@ -1071,9 +1067,8 @@ export function ActionsSection({
   listRef?: React.Ref<HTMLDivElement>;
   generating: boolean;
   onGenerate: () => void | Promise<void>;
-  /** Open the page this action belongs to, as the other surfaces do. */
-  onOpen: (action: ActionRow) => void;
   onComplete: (id: string) => void;
+  onSnooze: (id: string) => void;
   onDismiss: (id: string) => void;
 }) {
   const shown = useMemo(() => {
@@ -1093,7 +1088,9 @@ export function ActionsSection({
 
   return (
     <section aria-labelledby="home-actions-title">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      {/* Inset by what BriefingCard takes off its actions block, so the
+          heading stays on the greeting's edge while the rows run wider. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 sm:px-4">
         <h2 id="home-actions-title" className="text-[17px] font-bold tracking-[-0.01em]">Actions</h2>
         {/* Only offered when there is more behind it than the page is showing. */}
         {actions.length > shown.length && (
@@ -1138,25 +1135,42 @@ export function ActionsSection({
         </div>
       ) : shown.length > 0 ? (
         <div ref={listRef} className="mt-5 flex flex-col gap-2">
-          {shown.map((a) => (
-            <ActionItem
-              key={a.id}
-              title={a.title}
-              tag={(a.type ?? a.category ?? 'general').toUpperCase()}
-              area={actionArea(a.type, a.category)}
-              description={a.description}
-              impact={a.impact ?? ''}
-              amount={a.amount ?? undefined}
-              // Same rule as the full surface: a figure that is not money back
-              // prints the row's own words, not a money-shaped label.
-              handsMoneyBack={a.handsMoneyBack}
-              impactColor={a.impactColor}
-              chatPrompt={a.chatPrompt}
-              onContextClick={actionArea(a.type, a.category).link ? () => onOpen(a) : undefined}
-              onComplete={() => onComplete(a.id)}
-              onDismiss={() => onDismiss(a.id)}
-            />
-          ))}
+          {shown.map((a) => {
+            const area = actionArea(a.type, a.category);
+            return (
+              <ActionItem
+                key={a.id}
+                full
+                rowId={a.id}
+                title={a.title}
+                tag={(a.type ?? a.category ?? 'general').toUpperCase()}
+                area={area}
+                description={a.description}
+                impact={a.impact ?? ''}
+                amount={a.amount ?? undefined}
+                // Same rule as the full surface: a figure that is not money back
+                // prints the row's own words, not a money-shaped label.
+                handsMoneyBack={a.handsMoneyBack}
+                impactColor={a.impactColor}
+                chatPrompt={a.chatPrompt}
+                evidence={a.evidence ?? undefined}
+                effort={a.effort ?? undefined}
+                transactions={a.transactions}
+                txnCount={a.txnCount}
+                txnScope={a.txnScope ?? undefined}
+                // The same destination /insights and /spending give the row: the
+                // server's drill to the exact context where there is one, or the
+                // page this action is about. The catch-all area has no page.
+                destination={
+                  a.drill ??
+                  (area.link ? { label: `Open ${area.label}`, href: area.link } : undefined)
+                }
+                onComplete={() => onComplete(a.id)}
+                onSnooze={() => onSnooze(a.id)}
+                onDismiss={() => onDismiss(a.id)}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="mt-5 rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">

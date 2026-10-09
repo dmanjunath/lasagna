@@ -1180,7 +1180,7 @@ export function RetirementV2() {
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
   const inputsRef = useRef<HTMLDivElement>(null);
   // Hero success number visibility — drives the pinned chance-of-success strip.
-  const heroNumRef = useRef<HTMLDivElement>(null);
+  const heroNumRef = useRef<HTMLElement>(null);
   const [heroNumVisible, setHeroNumVisible] = useState(true);
   const [baseReturn, setBaseReturn] = useState(6.5);
   const [returnTouched, setReturnTouched] = useState(false);
@@ -1325,12 +1325,18 @@ export function RetirementV2() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Observe the hero success number; re-attach when the page swaps the element
-  // in, since the hero only exists once accounts have loaded.
+  // Observe the whole verdict band, not just its headline number: the band's
+  // "Checked against" figures are the same ones the pinned bar prints, so the
+  // bar waits until the band has gone up under it. The top margin is the phone
+  // top bar plus the pinned bar. Re-attach when the page swaps the element in,
+  // since the hero only exists once accounts have loaded.
   useEffect(() => {
     const el = heroNumRef.current;
     if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => setHeroNumVisible(entry.isIntersecting));
+    const obs = new IntersectionObserver(
+      ([entry]) => setHeroNumVisible(entry.isIntersecting),
+      { rootMargin: '-120px 0px 0px 0px' },
+    );
     obs.observe(el);
     return () => obs.disconnect();
   }, [loading, hasAccounts]);
@@ -1712,9 +1718,6 @@ export function RetirementV2() {
   const sustainableDrawRatePct = sustainableDrawRate(effRetireAge);
   const sustainableDraw = Math.round(sustainableDrawRatePct * projRetireValue / 12);
 
-  // Short strategy label for the sticky bar's plan-facts line.
-  const strategyLabel = strategy === 'percent_portfolio' ? '% portfolio' : strategy === 'guardrails' ? 'Guardrails' : 'Constant $';
-
   // Ask Lasagna — opens the chat sidebar seeded with this plan's key numbers
   // (same mechanism as the /retirement hero button) so the conversation starts
   // from what the user is looking at.
@@ -1907,76 +1910,50 @@ export function RetirementV2() {
         @media (max-width: 900px) {
           .rv2-checks { grid-template-columns: 1fr; }
         }
-        /* Pinned chance-of-success strip. Rendered as the page's last child
-           and stuck to the bottom of the scrollport; on mobile it clears the
-           fixed bottom tab bar. Hidden while the hero's success number is on
-           screen (it would double-print the figure) and slides in once the
-           hero number scrolls out of view. */
+        /* Pinned outcome header. A zero-height sticky anchor placed just above
+           the verdict band, so it never takes layout space. Its absolutely
+           positioned bar sticks under the mobile top bar (document scroll) or
+           at the top of the desktop scroll container. Hidden while the hero's
+           success number is on screen (it would double-print the figure). */
         .ret-pin {
           position: sticky;
-          bottom: 18px;
+          top: 0;
           z-index: 30;
-          margin-top: 14px;
-          transition: opacity 0.25s ease, transform 0.25s ease;
+          height: 0;
         }
-        .ret-pin[data-hidden='true'] {
-          opacity: 0;
-          transform: translateY(8px);
-          pointer-events: none;
-        }
-        .ret-pin__inner {
+        .ret-pin__bar {
+          position: absolute;
+          top: 0;
+          left: -44px;
+          right: -44px;
           display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: 8px;
-          padding: 9px 18px;
-          border-radius: var(--ui-r-lg, 14px);
-          /* Elevated overlay: an OPAQUE raised surface (nothing bleeds through)
-             that follows the theme — light in light mode, dark in dark mode —
-             with an aggressive halo shadow all the way around so page content
-             never blends into its edges. Light theme below. */
-          background: rgb(var(--ui-panel-raised));
-          color: rgb(var(--ui-content));
-          border: 1px solid var(--ui-line-strong);
-          box-shadow:
-            0 0 0 1px rgba(20, 33, 61, 0.06),
-            0 0 28px 3px rgba(20, 33, 61, 0.13),
-            0 12px 30px rgba(20, 33, 61, 0.16),
-            0 30px 66px rgba(20, 33, 61, 0.20),
-            inset 0 1px 0 rgb(255 255 255 / 0.7);
+          align-items: baseline;
+          flex-wrap: wrap;
+          gap: 6px 28px;
+          padding: 10px 44px;
+          background: rgb(var(--ui-panel));
+          border-bottom: 1px solid var(--ui-line);
+          box-shadow: var(--ui-shadow-sm);
+          transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0s;
         }
-        /* Bottom-aligned so the 13.5px checks sit on the same baseline shelf as
-           the 18px figures. Top-aligned, they floated above them and read as a
-           rendering slip rather than a deliberate demotion. */
-        .ret-pin__tier1 { display: flex; align-items: end; gap: 22px; flex-wrap: wrap; }
-        /* Four metrics stop fitting one row well before the phone breakpoint.
-           Wrapped flex stranded "Sustainable draw" alone on row 2, where being
-           the only item on its line read as the promoted figure — the exact
-           hierarchy this bar exists to state. A fixed 2x2 grid keeps the
-           promoted pair together on row 1 at every width below 834px. */
-        @media (max-width: 834px) {
-          .ret-pin__tier1 {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px 16px;
-          }
+        .ret-pin[data-hidden='true'] .ret-pin__bar {
+          opacity: 0;
+          transform: translateY(-6px);
+          visibility: hidden;
+          pointer-events: none;
+          transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0.2s;
         }
-        .ret-pin__tier2 {
-          font-size: 11.5px;
-          line-height: 1.45;
-          color: rgb(var(--ui-content-muted));
-        }
-        .ret-pin__metric { display: flex; flex-direction: column; gap: 1px; line-height: 1.1; }
+        .ret-pin__metric { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; white-space: nowrap; }
         .ret-pin__label {
-          font-size: 11.5px;
+          font-size: 12px;
           font-weight: 600;
           color: rgb(var(--ui-content-muted));
         }
         .ret-pin__pct {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 800;
-          line-height: 1;
-          letter-spacing: -0.02em;
+          line-height: 1.1;
+          letter-spacing: -0.01em;
           color: rgb(var(--ui-content));
         }
         /* The corroborating figures: same row, demoted weight. */
@@ -1986,21 +1963,22 @@ export function RetirementV2() {
           letter-spacing: 0;
           color: rgb(var(--ui-content-secondary));
         }
-        /* Dark app theme: same raised surface (resolves darker via the token),
-           but the halo goes near-black so the bar still carves itself out of the
-           dark page instead of melting into the content behind its edges. */
-        .dark .ret-pin__inner {
-          box-shadow:
-            0 0 0 1px rgba(0, 0, 0, 0.5),
-            0 0 36px 6px rgba(0, 0, 0, 0.58),
-            0 16px 40px rgba(0, 0, 0, 0.64),
-            0 36px 80px rgba(0, 0, 0, 0.58),
-            inset 0 1px 0 rgb(255 255 255 / 0.06);
+        @media (max-width: 639px) {
+          .ret-pin__bar { left: -12px; right: -12px; padding: 8px 16px; }
         }
         @media (max-width: 767px) {
-          /* Sit above the fixed mobile tab bar (~68px + safe-area inset). */
-          .ret-pin { bottom: calc(env(safe-area-inset-bottom) + 76px); }
-          .ret-pin__inner { gap: 6px; padding: 8px 14px; }
+          /* Clear the fixed mobile top bar (48px + 1px border + notch). */
+          .ret-pin { top: calc(env(safe-area-inset-top) + 49px); }
+          .ret-pin__bar {
+            display: grid;
+            grid-template-columns: auto auto;
+            justify-content: space-between;
+            gap: 4px 12px;
+          }
+          .ret-pin__metric { gap: 5px; }
+          .ret-pin__label { font-size: 11.5px; }
+          .ret-pin__pct { font-size: 15px; }
+          .ret-pin__pct--check { font-size: 13px; }
         }
       `}</style>
 
@@ -2082,8 +2060,37 @@ export function RetirementV2() {
         />
       )}
 
+      {/* Pinned outcome header: sticks to the top once the hero's success
+          number scrolls away. Mirrors the currently selected method. */}
+      <div
+        className="ret-pin"
+        data-testid="rv2-pinned-chance"
+        data-hidden={heroNumVisible ? 'true' : 'false'}
+        aria-hidden={heroNumVisible}
+      >
+        <div className="ret-pin__bar">
+          <span className="ret-pin__metric">
+            <span className="ret-pin__label">Outlook</span>
+            <span className="ret-pin__pct font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>
+          </span>
+          <span className="ret-pin__metric">
+            <span className="ret-pin__label">Monte Carlo</span>
+            <span className="ret-pin__pct font-editorial ui-tnum">{shownMcChance}</span>
+          </span>
+          <span className="ret-pin__metric">
+            <span className="ret-pin__label">Historical backtest</span>
+            <span className="ret-pin__pct ret-pin__pct--check ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
+          </span>
+          <span className="ret-pin__metric">
+            <span className="ret-pin__label">Sustainable draw</span>
+            <span className="ret-pin__pct ret-pin__pct--check ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} />/mo</span>
+          </span>
+        </div>
+      </div>
+
       {/* ── 1 · Verdict band ───────────────────────────────────────────────── */}
       <section
+        ref={heroNumRef}
         data-testid="rv2-verdict"
         className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7"
       >
@@ -2105,7 +2112,7 @@ export function RetirementV2() {
               {renderAskLasagna('rv2-ask-lasagna')}
             </div>
           </div>
-          <div ref={heroNumRef} className="flex items-baseline gap-3 flex-wrap">
+          <div className="flex items-baseline gap-3 flex-wrap">
             <span data-testid="rv2-verdict-word" className="font-editorial text-[36px] sm:text-[44px] font-extrabold tracking-[-0.025em] leading-[0.9]" style={{ color: shownVerdictColor }}>
               {shownVerdict}
             </span>
@@ -2876,53 +2883,6 @@ export function RetirementV2() {
         <LegalDisclaimer variant="projections" />
       </div>
 
-      {/* Pinned chance of success — anchored at the end of the page and sticky
-          to the bottom of the viewport. Revealed once the hero's success number
-          scrolls out of view, so the figure follows the reader without ever
-          double-printing next to the hero. Mirrors the currently selected method. */}
-      <div
-        className="ret-pin"
-        data-testid="rv2-pinned-chance"
-        data-hidden={heroNumVisible ? 'true' : 'false'}
-        aria-hidden={heroNumVisible}
-      >
-        <div className="ret-pin__inner">
-          <div className="ret-pin__tier1">
-            <span className="ret-pin__metric">
-              <span className="ret-pin__label">Outlook</span>
-              <span className="ret-pin__pct font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>
-            </span>
-            {/* Only the figure the outlook is read from sits at full size. The
-                backtest and the sustainable draw stay on the row as the checks
-                they are, at a smaller weight — same hierarchy as the hero,
-                which is what stops the bar re-opening the "which of these three
-                is the answer?" question the hero just settled. */}
-            <span className="ret-pin__metric">
-              <span className="ret-pin__label">Monte Carlo</span>
-              <span className="ret-pin__pct font-editorial ui-tnum">{shownMcChance}</span>
-            </span>
-            <span className="ret-pin__metric">
-              <span className="ret-pin__label">Historical backtest</span>
-              <span className="ret-pin__pct ret-pin__pct--check ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
-            </span>
-            <span className="ret-pin__metric">
-              <span className="ret-pin__label">Sustainable draw</span>
-              <span className="ret-pin__pct ret-pin__pct--check ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} />/mo</span>
-            </span>
-          </div>
-          <div className="ret-pin__tier2 ui-tnum flex flex-wrap gap-x-3 gap-y-1">
-            <span>Retiring at {effRetireAge}</span>
-            <span>{formatMoney(monthlySpendEff, true)}/mo spending</span>
-            <span>{Math.max(0, lifeExp - effRetireAge)} year retirement</span>
-            <span>{formatMoney(portfolioValue, true)} portfolio</span>
-            <span>{formatMoney(monthlySavings, true)}/mo saved</span>
-            <span>{expReturn.toFixed(1)}% return</span>
-            <span>{equityPct}% stocks</span>
-            <span>{strategyLabel} withdrawal strategy</span>
-            <span>SS {formatMoney(ssMonthly, true)}/mo</span>
-          </div>
-        </div>
-      </div>
     </>)}
     </div>
   );

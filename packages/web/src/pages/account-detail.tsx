@@ -17,6 +17,8 @@ import { AccountLinkPicker, type AccountPickerOption } from '../components/commo
 import { AccountTypeMenu } from '../components/accounts/AccountTypeMenu';
 import { ACCOUNT_TYPE_CATALOG, accountTypeLabel, canonicalSubtype, type AccountCategory } from '../lib/account-types';
 import { TransactionList } from '../components/transactions/TransactionList';
+import { HeaderAction } from '../components/layout/app-header';
+import { useMobileHeader } from '../lib/mobile-header';
 
 // ---------------------------------------------------------------------------
 // Account detail page. Shows the account's balance-over-time history as the
@@ -288,6 +290,30 @@ export function AccountDetail() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleSync = async () => {
+    setActionPending(true);
+    try {
+      await api.syncAccount(id);
+      await load();
+      say({ tone: 'positive', title: 'Account synced' });
+    } catch {
+      fail("Couldn't sync this account. Try again.");
+    } finally {
+      setActionPending(false);
+    }
+  };
+
+  // On a phone, Sync lives in the top bar. Editing stays with the settings
+  // row on the page, which already carries its own pencil. Frozen accounts
+  // 403 on /sync.
+  useMobileHeader(data && !data.isManual && !data.acct.frozen ? {
+    actions: (
+      <HeaderAction label={actionPending ? 'Syncing' : 'Sync account'} onClick={handleSync} disabled={actionPending}>
+        <RefreshCw size={20} className={actionPending ? 'animate-spin' : ''} />
+      </HeaderAction>
+    ),
+  } : null);
 
   if (loading) {
     return (
@@ -618,19 +644,6 @@ export function AccountDetail() {
     startUpgrade().catch(() => fail("Couldn't start checkout. Try again."));
   };
 
-  const handleSync = async () => {
-    setActionPending(true);
-    try {
-      await api.syncAccount(id);
-      await load();
-      say({ tone: 'positive', title: 'Account synced' });
-    } catch {
-      fail("Couldn't sync this account. Try again.");
-    } finally {
-      setActionPending(false);
-    }
-  };
-
   const handleDelete = async () => {
     const ok = await confirm({
       title: `Delete "${titleCase(acct.name)}"?`,
@@ -698,7 +711,7 @@ export function AccountDetail() {
             </PageMeta>
           </div>
         </div>
-        <div className="hidden items-center gap-2.5 sm:flex">
+        <div className="hidden items-center gap-2.5 md:flex">
           <Button variant="secondary" size="sm" onClick={openSettings} leadingIcon={<Pencil size={14} />}>
             Edit
           </Button>
@@ -1115,24 +1128,13 @@ export function AccountDetail() {
               <Button variant="primary" disabled={saving} loading={saving} onClick={save}>
                 {saving ? 'Saving…' : 'Save changes'}
               </Button>
-              {/* Sync / delete also surfaced here for mobile (header actions are desktop-only). */}
-              {!isManual && !acct.frozen && (
-                <Button
-                  variant="secondary"
-                  disabled={actionPending}
-                  onClick={handleSync}
-                  className="sm:hidden"
-                  leadingIcon={<RefreshCw size={14} className={actionPending ? 'animate-spin' : ''} />}
-                >
-                  {actionPending ? 'Syncing…' : 'Sync'}
-                </Button>
-              )}
+              {/* Delete also surfaced here for mobile (header actions are desktop-only, and the top bar leaves it out). */}
               {isManual && (
                 <Button
                   variant="destructive"
                   disabled={actionPending}
                   onClick={handleDelete}
-                  className="ml-auto sm:hidden"
+                  className="ml-auto md:hidden"
                   leadingIcon={<Trash2 size={14} />}
                 >
                   Delete

@@ -93,7 +93,11 @@ export function BriefingCard({
         )}
       </header>
 
-      <div className="relative px-5 sm:px-8 pb-7">{actions}</div>
+      {/* Narrower than the header's inset, so the rows get the width: two
+          layers of padding plus the page's own made them read as a column. The
+          section's heading takes the difference back, to stay on the greeting's
+          edge. */}
+      <div className="relative px-2 sm:px-4 pb-7">{actions}</div>
 
       {linksLoading ? (
         <div

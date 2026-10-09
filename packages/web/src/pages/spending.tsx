@@ -21,6 +21,8 @@ import { useTaxonomy, taxonomyIcon } from '../lib/taxonomy';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, EmptyState, SegmentedControl, Skeleton } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
+import { HeaderAction } from '../components/layout/app-header';
+import { useMobileHeader } from '../lib/mobile-header';
 import { CashflowBars, isCurrentPeriod, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { ChipBadge, transactionsHref } from '../components/transactions/TransactionFilters';
@@ -793,6 +795,21 @@ export function Spending() {
   const heroIsPartial = isCurrentPeriod(heroPeriod, heroGranularity);
 
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
+  const canSync = !isDemo && !!user?.isAdmin;
+  const handleSync = async () => {
+    setSyncing(true);
+    await api.triggerSync().catch(console.error);
+    setTimeout(() => { loadData(); setSyncing(false); }, 3000);
+  };
+
+  // On a phone, the admin Sync lives in the top bar.
+  useMobileHeader(canSync ? {
+    actions: (
+      <HeaderAction label={syncing ? 'Syncing' : 'Sync'} onClick={handleSync} disabled={syncing}>
+        <RefreshCw size={20} className={syncing ? 'animate-spin' : ''} />
+      </HeaderAction>
+    ),
+  } : null);
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
@@ -803,8 +820,7 @@ export function Spending() {
           <PageTitle>Spending</PageTitle>
         </div>
 
-        {/* Granularity toggle + month stepper (+ sync when admin). Wraps so the
-             admin Sync control can appear on mobile without overflowing. */}
+        {/* Granularity toggle + month stepper (+ sync when admin, desktop only). */}
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
           <SegmentedControl
             aria-label="Granularity"
@@ -840,21 +856,16 @@ export function Spending() {
               </button>
             </div>
           )}
-          {!isDemo && user?.isAdmin && (
+          {canSync && (
             <Button
               variant="secondary"
               size="sm"
+              className="max-md:hidden"
               disabled={syncing}
-              onClick={async () => {
-                setSyncing(true);
-                await api.triggerSync().catch(console.error);
-                setTimeout(() => { loadData(); setSyncing(false); }, 3000);
-              }}
+              onClick={handleSync}
               leadingIcon={<RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />}
-              aria-label={syncing ? 'Syncing' : 'Sync'}
             >
-              {/* Icon-only on mobile to save header width; labeled on desktop. */}
-              <span className="hidden sm:inline">{syncing ? 'Syncing…' : 'Sync'}</span>
+              {syncing ? 'Syncing…' : 'Sync'}
             </Button>
           )}
         </div>

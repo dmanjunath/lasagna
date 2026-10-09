@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
 import { useLocation } from 'wouter';
 import { usePageContext } from '../../lib/page-context';
 import { useChatStore, getPreferredModelLevel } from '../../lib/chat-store';
@@ -18,6 +18,17 @@ const ERROR_TEXT = 'This device did not get a reply. It may already be saved.';
 // message) run exactly once even if both the sidebar and the full page mount
 // the hook simultaneously — refs are per-instance and would otherwise double-run.
 let threadsLoadedOnce = false;
+
+// Whether the first thread fetch has settled, so a screen can tell "no history"
+// from "history not here yet". Module-level for the same reason as above.
+let threadsSettled = false;
+const settledListeners = new Set<() => void>();
+function markThreadsSettled() {
+  threadsSettled = true;
+  settledListeners.forEach((l) => l());
+}
+const subscribeSettled = (l: () => void) => { settledListeners.add(l); return () => { settledListeners.delete(l); }; };
+const getSettled = () => threadsSettled;
 let pendingHandledNonce = 0;
 
 function stripMarkdown(text: string): string {
@@ -70,6 +81,7 @@ export const DELETE_CONVERSATION_CONFIRM = {
 
 export function useGlobalChat() {
   const { currentPage } = usePageContext();
+  const threadsLoaded = useSyncExternalStore(subscribeSettled, getSettled, getSettled);
   const {
     threads, activeThreadIndex, setActiveThread, setThreads,
     loadingThreads, setThreadLoading,
@@ -423,7 +435,8 @@ export function useGlobalChat() {
         // Only set if we have no threads yet (don't overwrite in-session threads)
         setThreads((prev) => prev.length === 0 ? mapped : prev);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(markThreadsSettled);
   }, [setThreads]);
 
   // Load messages for a thread when selected (lazy). A thread whose last turn
@@ -480,6 +493,7 @@ export function useGlobalChat() {
 
   return {
     threads,
+    threadsLoaded,
     threadSummaries: threads.map(t => ({ ...t.thread, unread: t.unread })),
     activeThread,
     activeThreadIndex,

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Plus, Check, Target, ArrowRight, ChevronRight, Clock, Sparkles, RotateCw, Repeat } from 'lucide-react';
 import { api } from '../lib/api';
-import { formatStoredMonth } from '../lib/utils';
+import { cn, formatStoredMonth } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
 import { Badge, Button, button, EmptyState, MaskedText, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
+import { HeaderAction } from '../components/layout/app-header';
+import { useMobileHeader } from '../lib/mobile-header';
 import { formatCurrency, iconFor, goalAccent, GOAL_PRESETS, fetchFundableAccounts, type Account } from './goal-shared';
 import { type GoalDetails } from './goal-details';
 
@@ -103,6 +105,15 @@ export function Goals() {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
   const open = (id: string) => setLocation(`/plans/savings/${id}`);
 
+  // On a phone, New goal lives in the top bar instead of the page header.
+  useMobileHeader(isDemo ? null : {
+    actions: (
+      <HeaderAction label="New goal" onClick={() => setLocation('/goals/new')}>
+        <Plus size={20} />
+      </HeaderAction>
+    ),
+  });
+
   // "active" must exclude goals that have already hit their target, otherwise
   // the header reads "3 active · 1 funded" (implying 4) when only 3 exist.
   const inProgressCount = activeGoals.length - fundedCount;
@@ -142,7 +153,7 @@ export function Goals() {
           </PageMeta>
         </div>
         {!isDemo && (
-          <Link href="/goals/new" className={button()}>
+          <Link href="/goals/new" className={cn(button(), 'max-md:hidden')}>
             <Plus className="h-4 w-4" />
             New goal
           </Link>

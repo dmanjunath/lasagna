@@ -27,6 +27,8 @@ import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountTypeOptio
 import { Alert, Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { PageTitle } from "../components/ds/PageTitle";
+import { HeaderAction } from "../components/layout/app-header";
+import { useMobileHeader } from "../lib/mobile-header";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
 import { AccountLinkPicker, type AccountPickerOption } from "../components/common/AccountLinkPicker";
 import { AddressAutocomplete } from "../components/common/AddressAutocomplete";
@@ -858,6 +860,22 @@ export function Accounts() {
 
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
+  // On a phone, the header's actions live in the top bar.
+  useMobileHeader(!isDemoMode && items.length > 0 ? {
+    actions: (
+      <>
+        {!isFree && (
+          <HeaderAction label={syncing ? "Syncing" : "Sync all"} onClick={handleSyncAll} disabled={syncing || linking}>
+            <RefreshCw size={20} className={syncing ? "animate-spin" : ""} />
+          </HeaderAction>
+        )}
+        <HeaderAction label="Add account" onClick={() => setShowManualModal(true)} disabled={linking || syncing}>
+          <Plus size={20} />
+        </HeaderAction>
+      </>
+    ),
+  } : null);
+
   const allAccounts = items.flatMap((i) => i.accounts);
   const totalAccounts = allAccounts.length;
 
@@ -965,7 +983,7 @@ export function Accounts() {
           </PageMeta>
         </div>
         {!isDemoMode && items.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="hidden flex-wrap items-center gap-2.5 md:flex">
             {!isFree && (
               <Button
                 variant="secondary"

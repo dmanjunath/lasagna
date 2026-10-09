@@ -22,6 +22,8 @@ import { PlanResponse } from "../../components/plan-response/index.js";
 import type { Plan, ChatThread, Message, PlanEdit } from "../../lib/types.js";
 import type { ResponseV2, ToolResult } from "../../lib/types-v2.js";
 import { useConfirm } from "../../components/ds";
+import { HeaderAction } from "../../components/layout/app-header";
+import { useMobileHeader } from "../../lib/mobile-header";
 import { isResponseV2 } from "../../lib/types-v2.js";
 
 const PLAN_META: Record<PlanType, { label: string; icon: typeof Target; accent: string }> = {
@@ -228,6 +230,22 @@ export function PlanDetailPage() {
     loadPlan();
   }, [id]);
 
+  // On a phone, History and Delete live in the top bar.
+  useMobileHeader(plan ? {
+    actions: (
+      <>
+        <HeaderAction label="Plan history" onClick={handleShowHistory}>
+          <History size={20} />
+        </HeaderAction>
+        {import.meta.env.VITE_DEMO_MODE !== "true" && (
+          <HeaderAction label="Delete plan" onClick={handleDelete}>
+            <Trash2 size={20} />
+          </HeaderAction>
+        )}
+      </>
+    ),
+  } : null);
+
   if (loading) return null;
 
   if (!plan) {
@@ -290,7 +308,7 @@ export function PlanDetailPage() {
                 </PageMeta>
               </div>
 
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="hidden shrink-0 items-center gap-2 md:flex">
                 <Button
                   variant="ghost"
                   size="icon"

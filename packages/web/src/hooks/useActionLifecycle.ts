@@ -21,7 +21,7 @@ const UNDO_WINDOW_MS = 6000;
  * data supports, and a self-describing label beats a popover with its own open
  * state, focus trap and mobile treatment.
  */
-const SNOOZE_HOURS = 720;
+export const SNOOZE_HOURS = 720;
 
 const SEND: Record<ActionVerb, (id: string) => Promise<unknown>> = {
   completed: (id) => api.actOnInsight(id),

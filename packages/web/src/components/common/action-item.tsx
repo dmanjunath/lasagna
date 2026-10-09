@@ -202,10 +202,21 @@ export function ActionItem(props: ActionItemProps) {
 
 // One quiet verb in the expanded body. All three share it, so the set reads as
 // one control group rather than three buttons that happen to sit together.
-function VerbButton({ label, onClick }: { label: string; onClick: () => void }) {
+//
+// Below `sm` each fills an equal grid cell and says its short form, so every
+// verb in every row is one line at one height: the long forms wrapped to two
+// lines in a 105px cell, and wrapped at natural widths they made ragged rows
+// that differed from one action to the next.
+function VerbButton({ label, short, onClick }: { label: string; short?: string; onClick: () => void }) {
   return (
-    <Button size="sm" variant="secondary" onClick={onClick}>
-      {label}
+    <Button
+      size="sm"
+      variant="secondary"
+      onClick={onClick}
+      className="px-2 sm:px-3.5"
+    >
+      <span className="sm:hidden">{short ?? label}</span>
+      <span className="hidden sm:inline">{label}</span>
     </Button>
   );
 }
@@ -353,6 +364,7 @@ function AccordionActionItem(props: ActionItemProps) {
   // A lone dismiss is a generic one. Beside "Mark complete" it is the other answer
   // to the same question, so it says which answer it is.
   const dismissLabel = onComplete || onSnooze ? 'Not for me' : 'Dismiss';
+  const verbCount = [onComplete, onSnooze, onDismiss].filter(Boolean).length;
 
   return (
     <article
@@ -437,7 +449,11 @@ function AccordionActionItem(props: ActionItemProps) {
                 </>
               )}
 
-              <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+              {/* Below `sm` every action lays its controls out the same way:
+                  the way out and Ask as full-width rows, then the verbs in one
+                  equal-width row. Left to wrap at their natural widths they
+                  made ragged rows that changed shape from action to action. */}
+              <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 {/* Offered only where there is somewhere to go. The label is
                     composed with the href, so the two cannot disagree. */}
                 {destination && (
@@ -454,7 +470,7 @@ function AccordionActionItem(props: ActionItemProps) {
                     href={destination.href}
                     className={cn(
                       button({ size: 'sm' }),
-                      'min-w-0 max-w-full whitespace-normal h-auto min-h-9 py-2 text-left',
+                      'min-w-0 max-w-full whitespace-normal h-auto min-h-9 py-2 text-center sm:text-left',
                     )}
                   >
                     {destination.label}
@@ -475,6 +491,7 @@ function AccordionActionItem(props: ActionItemProps) {
                       `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${rowFigure({ ...props, full: false }) ?? ''}\n\n${chatPrompt}`
                     )
                   }
+                  className="w-full sm:w-auto"
                   leadingIcon={<Sparkles className="h-[14px] w-[14px]" />}
                   trailingIcon={<ArrowRight className="h-[14px] w-[14px]" />}
                 >
@@ -486,16 +503,26 @@ function AccordionActionItem(props: ActionItemProps) {
                     size="sm"
                     variant="secondary"
                     onClick={onContextClick}
+                    className="w-full sm:w-auto"
                     trailingIcon={<ArrowRight className="h-[14px] w-[14px]" />}
                   >
                     See in context
                   </Button>
                 )}
 
-                {/* A verb with no handler renders no button. */}
-                {onComplete && <VerbButton label="Mark complete" onClick={onComplete} />}
-                {onSnooze && <VerbButton label="Snooze a month" onClick={onSnooze} />}
-                {onDismiss && <VerbButton label={dismissLabel} onClick={onDismiss} />}
+                {/* A verb with no handler renders no button. From `sm` the
+                    verbs stay one group, so when the row runs out of room
+                    they wrap together rather than stranding the last one. */}
+                {verbCount > 0 && (
+                  <div
+                    className="grid gap-2 sm:flex sm:flex-wrap"
+                    style={{ gridTemplateColumns: `repeat(${verbCount}, minmax(0, 1fr))` }}
+                  >
+                    {onComplete && <VerbButton label="Mark complete" short="Done" onClick={onComplete} />}
+                    {onSnooze && <VerbButton label="Snooze a month" short="Snooze" onClick={onSnooze} />}
+                    {onDismiss && <VerbButton label={dismissLabel} onClick={onDismiss} />}
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>

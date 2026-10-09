@@ -78,8 +78,8 @@ function renderActions(actions: Insight[], over: { loading?: boolean; generating
           failed={over.failed}
           generating={over.generating ?? false}
           onGenerate={noop}
-          onOpen={noop}
           onComplete={noop}
+          onSnooze={noop}
           onDismiss={noop}
         />
       </ChatStoreProvider>

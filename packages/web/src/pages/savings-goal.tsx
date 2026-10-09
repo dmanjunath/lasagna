@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef, type ReactElement } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn, formatInstant, formatStoredMonth } from '../lib/utils';
 import { Badge, Button, EmptyState, MaskedText, MoneyInput, PageMeta, PageMetaItem, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
+import { HeaderAction } from '../components/layout/app-header';
+import { useMobileHeader } from '../lib/mobile-header';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { formatCurrency, goalAccent, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
 import {
@@ -219,6 +221,29 @@ export function SavingsGoal() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goalCtx.loaded, goalCtx.retirementAge, goalCtx.dateOfBirth, goalCtx.currentAge, goal, editUseDetails]);
+
+  // Above the early returns so the top bar can use it (hooks cannot follow them).
+  const openEdit = () => {
+    if (!goal) return;
+    setEditName(goal.name);
+    setEditTarget(goal.targetAmount);
+    setEditMonthly(goal.monthlyContribution ?? '');
+    setEditDeadline(goal.deadline ? goal.deadline.slice(0, 10) : '');
+    setEditCurrent(goal.currentAmount);
+    setEditUseDetails(goal.details !== null);
+    setEditDraft(null);
+    setEditError(null);
+    setEditing(true);
+  };
+
+  // On a phone, Edit lives in the top bar.
+  useMobileHeader(goal && !loading && !notFound ? {
+    actions: (
+      <HeaderAction label="Edit goal" onClick={openEdit}>
+        <Pencil size={20} />
+      </HeaderAction>
+    ),
+  } : null);
 
   if (loading) {
     return (
@@ -496,18 +521,6 @@ export function SavingsGoal() {
 
   // -- Edit-goal form ---------------------------------------------------------
 
-  const openEdit = () => {
-    setEditName(goal.name);
-    setEditTarget(goal.targetAmount);
-    setEditMonthly(goal.monthlyContribution ?? '');
-    setEditDeadline(goal.deadline ? goal.deadline.slice(0, 10) : '');
-    setEditCurrent(goal.currentAmount);
-    setEditUseDetails(goal.details !== null);
-    setEditDraft(null);
-    setEditError(null);
-    setEditing(true);
-  };
-
   // A hand-entered amount is checked too: this field is text, so "." reaches
   // the API as null and comes back a 500 with nothing to point at.
   // Every field on this panel that reaches the API as a number, not just the
@@ -562,6 +575,9 @@ export function SavingsGoal() {
   const trackingCaption = goal.isAutoTracked
     ? `from ${goal.accountIds.length} account${goal.accountIds.length === 1 ? '' : 's'}`
     : 'manual entry';
+
+  const canMarkComplete = goal.status === 'active' && (complete || pct >= MARK_COMPLETE_THRESHOLD);
+  const showStatusAction = canMarkComplete || goal.status === 'completed';
 
   return (
     <div className="mx-auto max-w-[1040px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -620,10 +636,11 @@ export function SavingsGoal() {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* On a phone Edit is in the top bar, so the row goes when no status action is left. */}
+        <div className={cn('flex flex-wrap items-center gap-2', !showStatusAction && 'max-md:hidden')}>
           {/* Reached goals NEED this — it's the only path into the archive.
               Partially-funded goals keep it from the halfway mark. */}
-          {goal.status === 'active' && (complete || pct >= MARK_COMPLETE_THRESHOLD) && (
+          {canMarkComplete && (
             <Button variant="primary" size="sm" disabled={actionPending} onClick={markComplete}>
               {actionPending ? '…' : 'Mark complete'}
             </Button>
@@ -633,7 +650,7 @@ export function SavingsGoal() {
               {actionPending ? '…' : 'Reactivate'}
             </Button>
           )}
-          <Button variant="secondary" size="sm" onClick={openEdit}>Edit</Button>
+          <Button variant="secondary" size="sm" className="max-md:hidden" onClick={openEdit}>Edit</Button>
         </div>
       </header>
 

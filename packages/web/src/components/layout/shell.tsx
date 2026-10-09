@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useLocation } from 'wouter';
-import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
 import { MessageSquare, X, Menu, Maximize2, Sparkles, ChevronLeft } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav, drawerWidth } from './mobile-nav';
@@ -16,9 +16,16 @@ import { titleForPath } from '../../lib/page-titles';
 import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 import { api } from '../../lib/api';
 import { setInAppDepth } from '../../lib/in-app-history';
+import { useMobileHeaderConfig } from '../../lib/mobile-header';
 
 // Native-only, lazy so the Capacitor plugins stay out of the web bundle.
 const FaceIdSetupPrompt = lazy(() => import('../native/FaceIdSetupPrompt'));
+
+// What the page keeps clear at the bottom: the tab bar, or the keyboard while
+// it is up (`--kb`, set by native-shell.ts), whichever is taller. The keyboard
+// covers the app rather than shrinking it, so this is what lets the last field
+// on a page scroll up above it.
+const CLEAR_BOTTOM = 'max(calc(env(safe-area-inset-bottom) + 68px), var(--kb, 0px))';
 
 interface ShellProps {
   children: React.ReactNode;
@@ -26,14 +33,24 @@ interface ShellProps {
 
 export function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  // Live edge-swipe offset, so the drawer opens under the finger. See MobileNav.
+  // How far the drawer has pushed the app to the right, 0 when closed and the
+  // drawer's width when open. The drawer does not cover the app: the header,
+  // the page and the tab bar all slide over by this much, so the screen you
+  // left stays in view beside the menu. One value drives every layer, and an
+  // edge swipe writes it directly so the push follows the finger.
   // Gesture offsets ride MotionValues, not state: a touchmove at 60Hz would
   // otherwise re-render the whole Shell every frame, which is exactly what makes
   // a drag feel steppy. Only the mount/commit flags stay in state.
-  const drawerDragMV = useMotionValue(0);
+  const navX = useMotionValue(0);
   const backSwipeMV = useMotionValue(0);
+  const pageX = useTransform(() => navX.get() + backSwipeMV.get());
   const [drawerDragging, setDrawerDragging] = useState(false);
   const [swiping, setSwiping] = useState(false);
+  useEffect(() => {
+    if (drawerDragging) return;
+    const run = animate(navX, mobileMenuOpen ? drawerWidth() : 0, { type: 'spring', damping: 34, stiffness: 340 });
+    return () => run.stop();
+  }, [mobileMenuOpen, drawerDragging, navX]);
 
   const [desktopChatOpen, setDesktopChatOpen] = useState(false);
   // Bumped by pull-to-refresh to remount (and so refetch) the current page.
@@ -60,13 +77,7 @@ export function Shell({ children }: ShellProps) {
   // Transitions are for the app shell. On the web the browser owns navigation
   // feel, and animating there fights the back/forward buttons.
   const animateRoutes = isMobile && isNativeApp();
-  const { chatOpen, closeChat, unreadCount, setChatReturnPath, activeThreadIndex } = useChatStore();
-
-  // On mobile, an open chat thread on /chat owns the bottom of the screen with
-  // its own composer. Hide the global tab bar (and drop the content's bottom
-  // offset) so there's one clear bottom zone instead of doubled chrome.
-  // The empty/list state keeps the tab bar so navigation stays reachable.
-  const hideTabBarForThread = isMobile && location === '/chat' && activeThreadIndex !== null;
+  const { chatOpen, closeChat, unreadCount, setChatReturnPath } = useChatStore();
 
   // On mobile the DOCUMENT owns vertical scroll (so iOS Safari's toolbars
   // collapse away and status-bar tap-to-top works) — except /chat, whose
@@ -80,8 +91,15 @@ export function Shell({ children }: ShellProps) {
     '/', '/money', '/insights', '/goals', '/chat', '/retirement', '/portfolio',
     '/spending', '/debt', '/tax', '/financial-level', '/accounts', '/profile', '/plans',
   ]);
+  // A page can supply its own back step (a chat thread, step 2 of a form).
+  // Wherever the bar shows Back, the edge swipe means Back too, never the menu.
+  const pageBack = useMobileHeaderConfig()?.onBack;
+  const pageBackRef = useRef(pageBack);
+  pageBackRef.current = pageBack;
   const isSubPage = !MAIN_PAGES.has(location);
+  const hasBack = isSubPage || !!pageBack;
   const handleBack = () => {
+    if (pageBackRef.current) { pageBackRef.current(); return; }
     if (window.history.length > 1) window.history.back();
     else setLocation('/');
   };
@@ -91,7 +109,7 @@ export function Shell({ children }: ShellProps) {
   // the native shell too now (WKWebView's own back-gesture is disabled in
   // MainViewController, so this owns the left edge and can't send you to login).
   useEffect(() => {
-    if (!isMobile || isSubPage) return;
+    if (!isMobile || hasBack) return;
     let startX: number | null = null;
     let startY = 0;
     let engaged = false;
@@ -115,7 +133,7 @@ export function Shell({ children }: ShellProps) {
       // Feed the live offset to the drawer so it tracks the finger, rather than
       // flipping a boolean and letting a spring run on its own clock.
       lastDx = Math.max(0, Math.min(drawerWidth(), dx));
-      drawerDragMV.set(lastDx);
+      navX.set(lastDx);
       if (!draggingFlag) { draggingFlag = true; setDrawerDragging(true); }
     };
     const onEnd = () => {
@@ -124,9 +142,9 @@ export function Shell({ children }: ShellProps) {
         const w = drawerWidth();
         setMobileMenuOpen(lastDx > w * 0.4);
       }
+      // The open/close spring takes over from wherever the finger let go.
       setDrawerDragging(false);
       draggingFlag = false;
-      drawerDragMV.set(0);
       startX = null; engaged = false; lastDx = 0;
     };
     document.addEventListener('touchstart', onStart, { passive: true });
@@ -139,14 +157,14 @@ export function Shell({ children }: ShellProps) {
       document.removeEventListener('touchend', onEnd);
       document.removeEventListener('touchcancel', onEnd);
     };
-  }, [isMobile, isSubPage]);
+  }, [isMobile, hasBack]);
 
   // Sub-pages (account detail, plan detail, etc.) in the native shell: a
   // left-edge swipe navigates back, since those show a back chevron, not the
   // hamburger. The WKWebView back-gesture is off, so JS owns it; on web the OS
   // provides this natively.
   useEffect(() => {
-    if (!isMobile || !isSubPage || !isNativeApp()) return;
+    if (!isMobile || !hasBack || !isNativeApp()) return;
     let startX: number | null = null;
     let startY = 0;
     let engaged = false;
@@ -198,7 +216,7 @@ export function Shell({ children }: ShellProps) {
       document.removeEventListener('touchcancel', onEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile, isSubPage]);
+  }, [isMobile, hasBack]);
 
   // The tab, the window and the iOS app switcher all read document.title, and
   // it used to say "LasagnaFi" on every route. It lives here rather than in
@@ -260,12 +278,13 @@ export function Shell({ children }: ShellProps) {
       {isMobile && !chatOpen && (
         <>
           <AppHeader
+            style={{ x: navX }}
             leadingSlot={
               isSubPage ? (
                 <button
                   onClick={handleBack}
                   aria-label="Back"
-                  className="w-11 h-11 grid place-items-center rounded-[10px] text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
+                  className="ui-focus w-11 h-11 grid place-items-center rounded-[10px] text-content-secondary [@media(hover:hover)]:hover:bg-canvas-sunken [@media(hover:hover)]:hover:text-content active:bg-canvas-sunken transition-colors"
                 >
                   <ChevronLeft size={20} />
                 </button>
@@ -273,7 +292,7 @@ export function Shell({ children }: ShellProps) {
                 <button
                   onClick={() => setMobileMenuOpen(true)}
                   aria-label="Open menu"
-                  className="w-11 h-11 grid place-items-center rounded-[10px] text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors"
+                  className="ui-focus w-11 h-11 grid place-items-center rounded-[10px] text-content-secondary [@media(hover:hover)]:hover:bg-canvas-sunken [@media(hover:hover)]:hover:text-content active:bg-canvas-sunken transition-colors"
                 >
                   <Menu size={18} />
                 </button>
@@ -282,7 +301,7 @@ export function Shell({ children }: ShellProps) {
           />
           <MobileNav
             dragging={drawerDragging}
-            dragX={drawerDragMV}
+            x={navX}
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
           />
@@ -303,7 +322,7 @@ export function Shell({ children }: ShellProps) {
             {/* Two layers on purpose: the outer one owns the route enter/exit,
                 the inner one carries the live swipe transform. Sharing a single
                 `x` would make the gesture and the transition fight each other. */}
-            <motion.div style={{ x: backSwipeMV }} className="w-full max-w-full">
+            <motion.div style={{ x: pageX }} className="w-full max-w-full">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.main
                   key={`${location}:${refreshKey}`}
@@ -311,7 +330,8 @@ export function Shell({ children }: ShellProps) {
                   animate={{ x: 0, opacity: 1 }}
                   exit={animateRoutes ? { x: navDir * -28, opacity: 0 } : undefined}
                   transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                  className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+49px)] pb-[calc(env(safe-area-inset-bottom)+68px)]"
+                  className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+49px)]"
+                  style={{ paddingBottom: CLEAR_BOTTOM }}
                 >
                   {children}
                 </motion.main>
@@ -321,15 +341,20 @@ export function Shell({ children }: ShellProps) {
         ) : (
           /* Mobile /chat: height-constrained shell so the thread + composer
              own the viewport. pt offset = notch + 44px header. */
-          <div className="flex-1 flex overflow-hidden relative">
-            <main className={`w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+49px)] ${hideTabBarForThread ? 'pb-safe-bottom' : 'pb-[calc(env(safe-area-inset-bottom)+68px)]'}`}>
+          <motion.div style={{ x: navX }} className="flex-1 flex overflow-hidden relative">
+            {/* The composer sits above the tab bar, and above the keyboard
+                while it is up, eased to roughly the keyboard's own slide. */}
+            <main
+              className="w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+49px)] transition-[padding] duration-[250ms] ease-out"
+              style={{ paddingBottom: CLEAR_BOTTOM }}
+            >
               <div className="flex-1 overflow-y-auto">
                 {children}
               </div>
             </main>
 
             {/* Mobile has no chat overlay — openChat routes to /chat (see effect above). */}
-          </div>
+          </motion.div>
         )
       ) : (
         /* Desktop: standard flex layout */
@@ -398,9 +423,9 @@ export function Shell({ children }: ShellProps) {
         </div>
       )}
 
-      {/* Mobile tab bar — hidden when the sidebar chat overlay is open, or when
-          a chat thread owns the bottom of the screen on /chat. */}
-      {isMobile && !chatOpen && !hideTabBarForThread && <MobileTabBar />}
+      {/* Mobile tab bar, on every page including a chat thread: a native app
+          keeps its tabs in place, and the composer sits above them. */}
+      {isMobile && !chatOpen && <MobileTabBar style={{ x: navX }} />}
 
       {isNativeApp() && (
         <Suspense fallback={null}>

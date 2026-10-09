@@ -129,13 +129,15 @@ export function Modal({
   // Shared phone treatment: a bottom-docked tray spanning the full width, up to
   // ~92% of the viewport tall (its content scrolls internally), rounded only at
   // the top, sliding up from the bottom edge.
+  // It rides on top of the keyboard (`--kb`, set by native-shell.ts), since the
+  // native app no longer shrinks the page when the keyboard opens.
   // `stableTopOnPhone` takes that full height up front instead of growing into
   // it, since a bottom-docked panel that grows moves its own top edge (and
   // everything already answered) up the screen. It's per-step, not per-dialog:
   // content that can't grow would just get an empty sheet above its footer.
   const phoneTray =
-    'max-sm:inset-x-0 max-sm:inset-y-auto max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-ui-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t max-sm:max-h-[92dvh] max-sm:[animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]' +
-    (stableTopOnPhone ? ' max-sm:h-[92dvh]' : '');
+    'max-sm:inset-x-0 max-sm:inset-y-auto max-sm:bottom-[var(--kb,0px)] max-sm:left-0 max-sm:top-auto max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-ui-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t max-sm:max-h-[calc(92dvh-var(--kb,0px))] max-sm:[animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]' +
+    (stableTopOnPhone ? ' max-sm:h-[calc(92dvh-var(--kb,0px))]' : '');
   // `stableTop`: on desktop, pin the top edge with a fixed offset instead of
   // centring, so growing content can only push downward. Each placement needs
   // its own entrance, since the keyframes carry the centring transform the panel

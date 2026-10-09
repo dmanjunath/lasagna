@@ -1,16 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { useLocation } from 'wouter';
-import { motion, AnimatePresence, useTransform, useMotionValue, type MotionValue } from 'framer-motion';
+import { motion, useTransform, animate, type MotionValue, type PanInfo } from 'framer-motion';
 import {
-  X, Wallet, LogOut, ChevronDown, ChevronUp,
-  LayoutDashboard, Zap, Layers,
-  TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, Target,
-  MessageSquare, ArrowLeftRight,
+  X, LogOut, ChevronDown, Zap, Layers,
+  TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
-import { BrandMark } from '../common/BrandMark';
 import { PlanUsage } from './plan-usage';
 import { useScrollFade } from './use-scroll-fade';
 
@@ -33,23 +30,14 @@ function matchesPath(path: string, location: string): boolean {
   return location === path || location.startsWith(path + '/');
 }
 
-// Same sections as the desktop sidebar (sidebar.tsx), but all expanded: this
-// drawer is dismissed after one tap, so there is nothing to collapse for.
-// The brand/close header and the foot (plan standing + Sign out) are pinned
-// outside the scroller, so the list between them is the only thing that moves
-// and the way out is always on screen. That list does scroll on a shorter phone,
-// which is why its bottom edge carries an explicit cue rather than only a fade.
-// Profile lives in the profile card above, and Accounts is reachable from Money.
+// The desktop sidebar's sections (sidebar.tsx) minus Overview, all expanded:
+// this drawer is dismissed after one tap, so there is nothing to collapse for.
+// Overview's pages are the tab bar's, which stays in view beside the open
+// menu, so listing them again only made the menu scroll on a standard iPhone.
+// The profile/close header and the foot (plan standing + Sign out) are pinned
+// outside the list, so the way out is always on screen. On a shorter phone the
+// list can still scroll, which is why its bottom edge carries an explicit cue.
 const NAV_SECTIONS: NavSection[] = [
-  {
-    section: 'Overview',
-    items: [
-      { label: 'Home',    icon: LayoutDashboard, path: '/' },
-      { label: 'Money',   icon: Wallet,          path: '/money', match: ['/accounts'] },
-      { label: 'Goals',   icon: Target,          path: '/goals' },
-      { label: 'Chat', icon: MessageSquare,   path: '/chat' },
-    ],
-  },
   {
     section: 'Financial insights',
     items: [
@@ -84,30 +72,47 @@ interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
   /**
-   * Live edge-swipe offset in px, 0 at the closed edge and the panel width when
-   * fully pulled open. A MotionValue rather than state, so a 60Hz drag writes
-   * the transform without re-rendering anything.
+   * How far the app is pushed aside, 0 when closed and the panel width when
+   * open. Owned by the Shell, which springs it on open/close and writes it
+   * directly during an edge swipe. A MotionValue rather than state, so a 60Hz
+   * drag writes the transform without re-rendering anything.
    */
-  dragX?: MotionValue<number>;
-  /** True while an edge drag is in flight, which is what mounts the panel. */
+  x: MotionValue<number>;
+  /** True while an edge drag is in flight. */
   dragging?: boolean;
 }
 
-/** Mirrors w-[88%] max-w-[360px] below, for the drag maths. */
+/**
+ * Mirrors the panel's width below, for the drag maths. Narrower than a cover
+ * drawer, so a strip of the pushed screen stays in view as the way back.
+ */
 export function drawerWidth(): number {
-  if (typeof window === 'undefined') return 360;
-  return Math.min(window.innerWidth * 0.88, 360);
+  if (typeof window === 'undefined') return 320;
+  return Math.min(window.innerWidth * 0.8, 320);
 }
 
-export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNavProps) {
+export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout, user } = useAuth();
 
   const width = drawerWidth();
-  const fallback = useMotionValue(0);
-  const offset = dragX ?? fallback;
-  const panelX = useTransform(offset, (v) => v - width);
-  const scrimOpacity = useTransform(offset, (v) => Math.min(1, v / width));
+  const panelX = useTransform(x, (v) => v - width);
+  const scrimOpacity = useTransform(x, (v) => Math.min(1, v / width) * 0.35);
+  // Off the screen and out of the accessibility tree once fully closed. Visible
+  // the moment it is opened, before the spring has moved it, or focus could not
+  // enter it on open.
+  const settledVisibility = useTransform(x, (v) => (v > 0.5 ? 'visible' : 'hidden'));
+  const visibility = isOpen || dragging ? 'visible' : settledVisibility;
+
+  // A swipe left anywhere on the menu or on the pushed screen closes it, with
+  // the push following the finger. Short of the threshold it springs back.
+  const onPan = (_e: PointerEvent, info: PanInfo) => {
+    x.set(Math.max(0, Math.min(width, width + info.offset.x)));
+  };
+  const onPanEnd = (_e: PointerEvent, info: PanInfo) => {
+    if (info.offset.x < -64 || info.velocity.x < -400) onClose();
+    else animate(x, width, { type: 'spring', damping: 34, stiffness: 340 });
+  };
 
   useBodyScrollLock(isOpen || dragging);
 
@@ -125,6 +130,9 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
   useEffect(() => {
     if (!isOpen) return;
     openerRef.current = document.activeElement as HTMLElement | null;
+    // Motion writes `visibility` on its own frame, after this effect, and a
+    // hidden element refuses focus. Show it now so focus can move in.
+    if (panelRef.current) panelRef.current.style.visibility = 'visible';
     closeRef.current?.focus();
     return () => openerRef.current?.focus?.();
   }, [isOpen]);
@@ -168,18 +176,15 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
   const initial = firstName[0]?.toUpperCase() || 'U';
 
   return (
-    <AnimatePresence>
-      {(isOpen || dragging) && (
         <>
-          {/* Backdrop */}
+          {/* Covers the pushed screen: dims it, and a tap on it closes the menu. */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={dragging ? undefined : { opacity: 1 }}
-            style={dragging ? { opacity: scrimOpacity } : undefined}
-            exit={{ opacity: 0 }}
-            transition={dragging ? { duration: 0 } : undefined}
+            aria-hidden
             onClick={onClose}
-            className="fixed inset-0 top-[-5%] h-[110%] bg-black/50 z-40 md:hidden"
+            onPan={onPan}
+            onPanEnd={onPanEnd}
+            style={{ x, opacity: scrimOpacity, visibility, touchAction: 'none' }}
+            className="fixed inset-0 top-[-5%] h-[110%] bg-black z-40 md:hidden"
           />
 
           {/* Drawer */}
@@ -188,37 +193,37 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
             role="dialog"
             aria-modal="true"
             aria-label="Menu"
-            initial={{ x: '-100%' }}
-            animate={dragging ? undefined : { x: 0 }}
-            style={dragging ? { x: panelX } : undefined}
-            exit={{ x: '-100%' }}
-            transition={dragging ? { duration: 0 } : { type: 'spring', damping: 28, stiffness: 320 }}
-            drag={dragging ? false : 'x'}
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={{ left: 0.9, right: 0 }}
-            onDragEnd={(_e, info) => {
-              if (info.offset.x < -64 || info.velocity.x < -400) onClose();
-            }}
-            className="fixed top-0 left-0 bottom-0 w-[88%] max-w-[360px] z-50 flex flex-col overflow-hidden
-                       bg-canvas border-r border-line shadow-2xl md:hidden"
+            aria-hidden={!isOpen && !dragging}
+            style={{ x: panelX, visibility, width }}
+            onPan={onPan}
+            onPanEnd={onPanEnd}
+            className="fixed top-0 left-0 bottom-0 z-50 flex flex-col overflow-hidden
+                       bg-canvas border-r border-line md:hidden"
           >
-            {/* Brand + close, pinned above the scroller like the desktop
-                sidebar's. Inside it, the one control that dismisses the drawer
-                scrolled away exactly when the list was long enough to need
-                scrolling. */}
+            {/* Who you are + close, pinned above the list. One row, not a brand
+                row over a profile card: the menu has to fit a standard iPhone
+                without scrolling, and the brand mark told the user nothing. */}
             <div
-              className="shrink-0 flex items-center justify-between px-5 pb-1"
+              className="shrink-0 flex items-center justify-between gap-2 pl-3 pr-4 pb-1"
               style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}
             >
-              <div className="flex items-center gap-2.5">
-                <BrandMark size={30} />
-                <span className="font-editorial text-[18px] font-semibold tracking-[-0.01em] text-content">LasagnaFi</span>
-              </div>
+              <button
+                onClick={() => handleNavigate('/profile')}
+                className="ui-focus flex min-w-0 flex-1 items-center gap-3 rounded-ui-md p-1.5 text-left transition-colors [@media(hover:hover)]:hover:bg-canvas-sunken active:bg-canvas-sunken"
+              >
+                <div className="w-9 h-9 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
+                  {initial}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[15px] font-bold leading-tight tracking-tight text-content">{firstName}</div>
+                  <div className="text-[12px] text-content-muted mt-0.5">Profile and settings</div>
+                </div>
+              </button>
               <button
                 ref={closeRef}
                 onClick={onClose}
                 aria-label="Close menu"
-                className="ui-focus grid place-items-center w-11 h-11 -mr-1 rounded-ui-md text-content-muted hover:bg-canvas-sunken hover:text-content transition-colors"
+                className="ui-focus grid place-items-center w-11 h-11 -mr-1 rounded-ui-md text-content-muted [@media(hover:hover)]:hover:bg-canvas-sunken [@media(hover:hover)]:hover:text-content transition-colors"
               >
                 <X size={20} />
               </button>
@@ -227,12 +232,6 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
             {/* The NAV scrolls, not the panel: a fade on the panel would take
                 its background and border down with it. */}
             <div className="flex min-h-0 flex-1 flex-col">
-            {/* The TOP edge needs the same hint as the bottom: auto-scrolling to an
-                expanded section pushes whole groups above the fold, and with overlay
-                scrollbars there is no track to say so. */}
-            <div aria-hidden="true" className="pointer-events-none grid h-5 shrink-0 place-items-center">
-              {navClipped.start && <ChevronUp size={14} className="text-content-muted" />}
-            </div>
             <nav
               ref={navRef}
               onScroll={onNavScroll}
@@ -247,21 +246,6 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
                 ...fadeStyle,
               }}
             >
-              {/* Profile card */}
-              <button
-                onClick={() => handleNavigate('/profile')}
-                className="ui-focus flex items-center gap-3 p-2 w-full bg-panel rounded-ui-lg border border-line hover:border-brand/40 hover:shadow-ui-sm transition text-left"
-              >
-                <div className="w-9 h-9 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
-                  {initial}
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="text-[15px] font-bold leading-tight tracking-tight text-content">{firstName}</div>
-                  <div className="text-[12px] text-content-muted mt-0.5">View profile &amp; settings</div>
-                </div>
-                <div className="text-content-faint text-sm">›</div>
-              </button>
-
               {NAV_SECTIONS.map(({ section, items }, sectionIndex) => (
                 <div key={section}>
                   {sectionIndex > 0 && <div className="h-px bg-line mx-3 mt-2" />}
@@ -338,7 +322,7 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
 
               <button
                 onClick={() => { onClose(); logout(); }}
-                className="ui-focus flex items-center gap-3 w-full px-2.5 py-1 rounded-ui-md hover:bg-canvas-sunken text-left min-h-[40px]"
+                className="ui-focus flex items-center gap-3 w-full px-2.5 py-1 rounded-ui-md [@media(hover:hover)]:hover:bg-canvas-sunken active:bg-canvas-sunken text-left min-h-[40px]"
               >
                 <div className="w-7 h-7 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
                   <LogOut size={14} />
@@ -348,7 +332,5 @@ export function MobileNav({ isOpen, onClose, dragX, dragging = false }: MobileNa
             </div>
           </motion.div>
         </>
-      )}
-    </AnimatePresence>
   );
 }
