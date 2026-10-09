@@ -1067,8 +1067,9 @@ export const api = {
   createRule: (body: CategoryRuleInput) => request<{ rule: CategoryRule }>('/rules', { method: 'POST', body: JSON.stringify(body) }),
   updateRule: (id: string, body: CategoryRuleInput) => request<{ rule: CategoryRule }>(`/rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteRule: (id: string) => request<{ success: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
-  previewRule: (id: string) => request<{ count: number }>(`/rules/${id}/preview`, { method: 'POST' }),
-  applyRule: (id: string) => request<{ updated: number }>(`/rules/${id}/apply`, { method: 'POST' }),
+  previewRule: (id: string) => request<{ count: number; transactions: RulePreviewTxn[] }>(`/rules/${id}/preview`, { method: 'POST' }),
+  applyRule: (id: string, excludeIds: string[] = []) =>
+    request<{ updated: number }>(`/rules/${id}/apply`, { method: 'POST', body: JSON.stringify({ excludeIds }) }),
 
   queryTransactions: (body: TxnQueryBody) =>
     request<TxnQueryListResponse | TxnQueryGroupsResponse>('/transactions/query', {
@@ -1369,6 +1370,11 @@ export interface TxnQueryListResponse { mode: 'list'; transactions: TxnQueryRow[
 export interface TxnQueryGroupsResponse { mode: 'groups'; groups: Array<{ key: string; label: string; count: number; total: number }>; summary: TxnQuerySummary }
 
 // ─── Category rule types ───────────────────────────────────────────────────
+
+export interface RulePreviewTxn {
+  id: string; date: string; name: string; merchantName: string | null;
+  amount: string; categoryId: string; accountName: string | null;
+}
 
 export interface CategoryRuleInput {
   merchantContains?: string | null;

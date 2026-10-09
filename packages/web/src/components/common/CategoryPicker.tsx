@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useDragControls, type PanInfo } from 'framer-motion';
-import { ChevronDown, Receipt } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { Button, button } from '../uikit';
@@ -43,11 +43,17 @@ export function CategoryPicker(props: (Single | Multi) & {
   /** select only: the toolbar trigger look (field name, tint, count). */
   toolbar?: ToolbarField;
   describedBy?: string;
+  /** Categories never to offer (e.g. the one being deleted). */
+  excludeIds?: string[];
+  /** Single mode: a top "no category" row with this label, e.g. "Any category". */
+  anyLabel?: string;
+  /** The Manage categories footer (default on). Off inside forms. */
+  showManage?: boolean;
   /** Fires when the panel opens (e.g. to dismiss a create-rule prompt). */
   onOpen?: () => void;
   className?: string;
 }) {
-  const { variant, currentLabel, toolbar, describedBy, onOpen, className } = props;
+  const { variant, currentLabel, toolbar, describedBy, excludeIds, anyLabel, showManage, onOpen, className } = props;
   const { byId } = useTaxonomy();
 
   const [open, setOpen] = useState(false);
@@ -185,9 +191,12 @@ export function CategoryPicker(props: (Single | Multi) & {
           className,
         )}
       >
-        <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
-          {current ? taxonomyIcon(current) : <Receipt size={15} />}
-        </span>
+        {/* No medallion for a placeholder ("Any category"): it isn't a category. */}
+        {current && (
+          <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
+            {taxonomyIcon(current)}
+          </span>
+        )}
         <span className="min-w-0 flex-1 truncate font-semibold">{triggerLabel}</span>
         <ChevronDown className="h-4 w-4 shrink-0 text-content-muted" aria-hidden />
       </button>
@@ -203,6 +212,9 @@ export function CategoryPicker(props: (Single | Multi) & {
       // On a phone autofocus would shove the keyboard over the sheet.
       autoFocus={!isPhone}
       scrollerClassName={scrollerClassName}
+      excludeIds={excludeIds}
+      anyLabel={anyLabel}
+      showManage={showManage}
     />
   );
 

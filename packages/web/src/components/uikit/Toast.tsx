@@ -27,7 +27,8 @@ interface ToastInput {
   duration?: number;
 }
 
-const ToastContext = createContext<((t: ToastInput) => void) | null>(null);
+// Returns a dismiss function, for a toast the next step makes stale.
+const ToastContext = createContext<((t: ToastInput) => () => void) | null>(null);
 
 export function useToast() {
   const ctx = useContext(ToastContext);
@@ -56,6 +57,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setToasts((prev) => [...prev, { id, tone: input.tone ?? 'info', title: input.title, description: input.description }]);
       const duration = input.duration ?? 4000;
       window.setTimeout(() => remove(id), duration);
+      return () => remove(id);
     },
     [remove],
   );

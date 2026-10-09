@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, type TaxonomyCategory, type TaxonomyGroup } from '../../lib/api';
 import { cn } from '../../lib/utils';
-import { Alert, Badge, Button, Field, Input, Modal, Select, Skeleton, Surface } from '../uikit';
+import { Alert, Badge, Button, Field, Input, Modal, Skeleton, Surface } from '../uikit';
 import { useConfirm } from '../ds';
-import { categoryOptionLabel, taxonomyIcon, useTaxonomy } from '../../lib/taxonomy';
+import { OptionMenu } from '../common/OptionMenu';
+import { CategoryPicker } from '../common/CategoryPicker';
+import { taxonomyIcon, useTaxonomy } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
 // CategoryManager — Settings section for the tenant taxonomy. Groups render as
@@ -190,16 +192,6 @@ export function CategoryManager() {
     />
   );
 
-  // Reassign picker options: every enabled category except the one being deleted.
-  const reassignGroups = deleting
-    ? groups
-        .map((group) => ({
-          group,
-          categories: group.categories.filter((c) => !c.disabled && c.id !== deleting.cat.id),
-        }))
-        .filter((g) => g.categories.length > 0)
-    : [];
-
   if (taxonomyError && groups.length === 0) {
     return (
       <Surface className="p-5 space-y-3">
@@ -287,7 +279,17 @@ export function CategoryManager() {
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 min-h-0 min-w-0 shrink-0"
-                    aria-label={`Rename ${group.name}`}
+                    aria-label={`Add a category to group ${group.name}`}
+                    title="Add category"
+                    onClick={() => { setModalError(null); setNewCat({ name: '', groupId: group.id }); }}
+                  >
+                    <Plus size={15} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 min-h-0 min-w-0 shrink-0"
+                    aria-label={`Rename group ${group.name}`}
                     onClick={() => setRenaming({ kind: 'group', id: group.id, value: group.name })}
                   >
                     <Pencil size={14} />
@@ -301,16 +303,17 @@ export function CategoryManager() {
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-4 py-2 pl-10 sm:px-5 sm:pl-12">
                         <label className="flex items-center gap-2 text-[12.5px] font-semibold text-content-muted">
                           Type
-                          <Select
+                          <OptionMenu
+                            ariaLabel={`Type of ${group.name}`}
                             value={group.type}
-                            onChange={(e) => void run(group.id, () => api.updateCategoryGroup(group.id, { type: e.target.value as GroupType }))}
-                            className="h-8 w-auto py-0 text-[12.5px]"
-                            aria-label={`Type of ${group.name}`}
-                          >
-                            <option value="expense">Expense</option>
-                            <option value="income">Income</option>
-                            <option value="transfer">Transfer</option>
-                          </Select>
+                            options={[
+                              { value: 'expense', label: 'Expense' },
+                              { value: 'income', label: 'Income' },
+                              { value: 'transfer', label: 'Transfer' },
+                            ]}
+                            onChange={(type: GroupType) => void run(group.id, () => api.updateCategoryGroup(group.id, { type }))}
+                            toolbar={{ count: 0 }}
+                          />
                         </label>
                         <Button
                           variant="ghost"
@@ -425,12 +428,14 @@ export function CategoryManager() {
               />
             </Field>
             <Field label="Group" required>
-              <Select value={newCat.groupId} onChange={(e) => setNewCat({ ...newCat, groupId: e.target.value })}>
-                <option value="" disabled>Choose a group…</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </Select>
+              <OptionMenu
+                portal
+                ariaLabel="Group"
+                value={newCat.groupId}
+                triggerLabel={newCat.groupId ? undefined : 'Choose a group'}
+                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                onChange={(groupId) => setNewCat({ ...newCat, groupId })}
+              />
             </Field>
             {modalError && <p className="text-[12.5px] font-medium text-negative">{modalError}</p>}
           </div>
@@ -464,11 +469,17 @@ export function CategoryManager() {
               />
             </Field>
             <Field label="Type" required>
-              <Select value={newGroup.type} onChange={(e) => setNewGroup({ ...newGroup, type: e.target.value as GroupType })}>
-                <option value="expense">Expense</option>
-                <option value="income">Income</option>
-                <option value="transfer">Transfer</option>
-              </Select>
+              <OptionMenu
+                portal
+                ariaLabel="Type"
+                value={newGroup.type}
+                options={[
+                  { value: 'expense', label: 'Expense' },
+                  { value: 'income', label: 'Income' },
+                  { value: 'transfer', label: 'Transfer' },
+                ]}
+                onChange={(type: GroupType) => setNewGroup({ ...newGroup, type })}
+              />
             </Field>
             {modalError && <p className="text-[12.5px] font-medium text-negative">{modalError}</p>}
           </div>
@@ -493,15 +504,14 @@ export function CategoryManager() {
         {deleting && (
           <div className="space-y-4">
             <Field label="Reassign transactions to" required>
-              <Select value={deleting.reassignTo} onChange={(e) => setDeleting({ ...deleting, reassignTo: e.target.value })}>
-                {reassignGroups.map(({ group, categories }) => (
-                  <optgroup key={group.id} label={group.name}>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </Select>
+              <CategoryPicker
+                variant="field"
+                value={deleting.reassignTo}
+                currentLabel="Choose a category"
+                excludeIds={[deleting.cat.id]}
+                showManage={false}
+                onChange={(reassignTo) => setDeleting({ ...deleting, reassignTo })}
+              />
             </Field>
             {modalError && <p className="text-[12.5px] font-medium text-negative">{modalError}</p>}
           </div>

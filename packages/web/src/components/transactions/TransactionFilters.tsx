@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Link } from 'wouter';
-import { ITEM_CLASS, OptionMenu, PANEL_CLASS, TriggerInner, triggerClass, type ToolbarField } from '../common/OptionMenu';
+import { OptionMenu, PANEL_CLASS } from '../common/OptionMenu';
 import type { TxnQueryBody } from '../../lib/api';
 import type { AccountIndexEntry } from '../../lib/use-accounts-index';
 import { Badge, SegmentedControl, button } from '../uikit';
 import { cn, formatStoredDay, formatStoredMonth } from '../../lib/utils';
-import { InstIcon } from '../common/InstIcon';
+import { AccountPicker } from '../common/AccountPicker';
 import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../common/CategoryMultiSelect';
 
 // ---------------------------------------------------------------------------
@@ -286,130 +286,6 @@ export function dateRangeLabel(start: string, end: string): string | null {
   return null;
 }
 
-// Account types in the order a person reads their money: cash, then cards,
-// then what they own, then what they owe.
-const ACCOUNT_TYPE_GROUPS: Array<[string, string]> = [
-  ['depository', 'Cash'],
-  ['credit', 'Credit cards'],
-  ['investment', 'Investments'],
-  ['real_estate', 'Property'],
-  ['alternative', 'Other assets'],
-  ['loan', 'Loans'],
-];
-const accountTypeRank = (type: string) => {
-  const i = ACCOUNT_TYPE_GROUPS.findIndex(([t]) => t === type);
-  return i === -1 ? ACCOUNT_TYPE_GROUPS.length : i;
-};
-const accountTypeGroup = (type: string) => ACCOUNT_TYPE_GROUPS.find(([t]) => t === type)?.[1] ?? 'Other';
-
-// ---------------------------------------------------------------------------
-// MultiSelectDropdown — the flat Account picker; hand-rolled, outside-click +
-// Escape to close. Categories are grouped and tri-state, and live in the shared
-// CategoryMultiSelect.
-// ---------------------------------------------------------------------------
-
-function MultiSelectDropdown({
-  label,
-  pluralLabel,
-  options,
-  selected,
-  onChange,
-  toolbar,
-}: {
-  label: string;
-  pluralLabel: string;
-  toolbar?: ToolbarField;
-  /**
-   * `icon` renders left of the label; `sublabel` renders muted beneath it.
-   * Options sharing a `group` sit under one band; pass them already in order.
-   */
-  options: Array<{ value: string; label: string; icon?: React.ReactNode; sublabel?: string; group?: string }>;
-  selected: string[];
-  onChange: (selected: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onMouseDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    }
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
-
-  const triggerLabel =
-    selected.length === 0
-      ? label
-      : selected.length === 1
-        ? (options.find((o) => o.value === selected[0])?.label ?? label)
-        : `${selected.length} ${pluralLabel}`;
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="true"
-        className={cn('group/trigger', triggerClass(toolbar))}
-      >
-        <TriggerInner label={triggerLabel} toolbar={toolbar} />
-      </button>
-      {open && (
-        <div className={cn('absolute left-0 top-full max-h-[320px] w-full min-w-[280px] overflow-y-auto', PANEL_CLASS)}>
-          {options.map((opt, i) => {
-            const checked = selected.includes(opt.value);
-            const band = opt.group && opt.group !== options[i - 1]?.group;
-            return (
-              <React.Fragment key={opt.value}>
-              {band && (
-                // The same tinted section band as the category menu.
-                <div className="rounded-ui-sm bg-canvas-sunken px-2 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
-                  {opt.group}
-                </div>
-              )}
-              <label className={cn(ITEM_CLASS, 'focus-within:bg-canvas-sunken')}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => {
-                    const next = checked
-                      ? selected.filter((v) => v !== opt.value)
-                      : [...selected, opt.value];
-                    onChange(next);
-                  }}
-                  className="h-4 w-4 rounded border-line accent-[rgb(var(--ui-brand))]"
-                />
-                {opt.icon}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-content">{opt.label}</span>
-                  {opt.sublabel && (
-                    <span className="block truncate text-[11.5px] text-content-muted">{opt.sublabel}</span>
-                  )}
-                </span>
-              </label>
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // ChipBadge — one removable scope chip. Shared by this page's chip row and by
@@ -556,18 +432,6 @@ export function TransactionFilters({
     ...scopeChipProps('exclude', cat),
     clear: cat.remove,
   }));
-  // Account options carry the institution identity so several accounts named
-  // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ••1234"). Grouped
-  // by account type, in the order the types appear here.
-  const accountOptions = [...accounts]
-    .sort((a, b) => accountTypeRank(a.type) - accountTypeRank(b.type))
-    .map((a) => ({
-      value: a.id,
-      label: a.name,
-      icon: <InstIcon institution={a.institution} isManual={a.isManual} size="sm" />,
-      sublabel: `${a.institution}${a.mask ? ` ••${a.mask}` : ''}`,
-      group: accountTypeGroup(a.type),
-    }));
   // Names shared by 2+ accounts — their chips get a ••mask suffix.
   const nameCounts = new Map<string, number>();
   for (const a of accounts) nameCounts.set(a.name, (nameCounts.get(a.name) ?? 0) + 1);
@@ -804,11 +668,10 @@ export function TransactionFilters({
       label: 'Account',
       active: filters.accountIds.length > 0,
       render: (inline: boolean) => (
-        <MultiSelectDropdown
+        <AccountPicker
+          multiple
+          accounts={accounts}
           toolbar={inline ? { name: 'Account', count: filters.accountIds.length } : undefined}
-          label="All accounts"
-          pluralLabel="accounts"
-          options={accountOptions}
           selected={filters.accountIds}
           onChange={(ids) => onChange({ ...filters, accountIds: ids })}
         />

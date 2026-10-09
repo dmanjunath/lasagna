@@ -24,7 +24,16 @@ export function CategoryList({
   onManage,
   autoFocus,
   scrollerClassName,
+  excludeIds,
+  anyLabel,
+  showManage = true,
 }: {
+  /** Categories never to offer (e.g. the one being deleted). */
+  excludeIds?: string[];
+  /** Single mode: a top row that picks "no category" (''), e.g. "Any category". */
+  anyLabel?: string;
+  /** The Manage categories footer. Off inside forms and on the categories page itself. */
+  showManage?: boolean;
   mode: 'single' | 'multi';
   /** Selected category ids. Single mode reads the first. */
   selected: string[];
@@ -38,7 +47,16 @@ export function CategoryList({
   /** Bounds the scrolling list (a max height, or flex-1 inside a sheet). */
   scrollerClassName?: string;
 }) {
-  const pickerGroups = usePickerGroups();
+  const allGroups = usePickerGroups();
+  const excludeKey = (excludeIds ?? []).join(',');
+  const pickerGroups = useMemo(
+    () => (excludeKey === ''
+      ? allGroups
+      : allGroups
+          .map(({ group, categories }) => ({ group, categories: categories.filter((c) => !excludeKey.split(',').includes(c.id)) }))
+          .filter((g) => g.categories.length > 0)),
+    [allGroups, excludeKey],
+  );
   const { loading, error, refresh } = useTaxonomy();
   const [, navigate] = useLocation();
   const [query, setQuery] = useState('');
@@ -169,7 +187,24 @@ export function CategoryList({
         ) : flat.length === 0 ? (
           <div className="px-3 py-3 text-[13px] text-content-muted">No categories match</div>
         ) : (
-          visibleGroups.map(({ group, categories }) => {
+          <>
+          {mode === 'single' && anyLabel && q === '' && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={selected.length === 0}
+              tabIndex={-1}
+              onClick={() => onPick?.('')}
+              className={cn(
+                'mb-0.5 flex w-full items-center gap-2.5 rounded-ui-sm px-2 py-2 text-left transition-colors focus:outline-none max-sm:min-h-touch',
+                selected.length === 0 ? 'bg-brand-softer' : 'hover:bg-canvas-sunken',
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content">{anyLabel}</span>
+              {selected.length === 0 && <Check className="h-4 w-4 shrink-0 text-brand" aria-hidden />}
+            </button>
+          )}
+          {visibleGroups.map(({ group, categories }) => {
             const childIds = categories.map((c) => c.id);
             const allSelected = childIds.every((v) => selected.includes(v));
             return (
@@ -226,10 +261,12 @@ export function CategoryList({
                 </div>
               </div>
             );
-          })
+          })}
+          </>
         )}
       </div>
-      <div className="my-1 h-px shrink-0 bg-line" aria-hidden />
+      {showManage && <div className="my-1 h-px shrink-0 bg-line" aria-hidden />}
+      {showManage && (
       <button
         type="button"
         onClick={() => {
@@ -246,6 +283,7 @@ export function CategoryList({
         </span>
         Manage categories
       </button>
+      )}
     </div>
   );
 }

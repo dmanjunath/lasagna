@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql, inArray, categoryRules, transactions } from "@lasagna/core";
+import { eq, and, sql, desc, inArray, categoryRules, transactions, accounts } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validateRule, ruleMatches, firstMatchingRule, resolveCategoryRef } from "../lib/category-rules.js";
@@ -106,11 +106,27 @@ async function affectedTransactionIds(tenantId: string, ruleId: string): Promise
     .map((t) => t.id);
 }
 
-// POST /:id/preview — dry run for the "apply to N existing?" prompt
+const PREVIEW_LIMIT = 500;
+
+// POST /:id/preview — dry run for the "apply to N existing?" prompt. Lists the
+// transactions too (newest first, capped), so the user can leave some out.
 rulesRoutes.post("/:id/preview", async (c) => {
   const session = c.get("session");
   const ids = await affectedTransactionIds(session.tenantId, c.req.param("id"));
-  return c.json({ count: ids.length });
+  const shown = ids.length === 0 ? [] : await db.select({
+    id: transactions.id,
+    date: transactions.date,
+    name: transactions.name,
+    merchantName: transactions.merchantName,
+    amount: transactions.amount,
+    categoryId: transactions.categoryId,
+    accountName: accounts.name,
+  }).from(transactions)
+    .leftJoin(accounts, eq(transactions.accountId, accounts.id))
+    .where(and(eq(transactions.tenantId, session.tenantId), inArray(transactions.id, ids)))
+    .orderBy(desc(transactions.date))
+    .limit(PREVIEW_LIMIT);
+  return c.json({ count: ids.length, transactions: shown });
 });
 
 // POST /:id/apply — backfill
@@ -121,7 +137,22 @@ rulesRoutes.post("/:id/apply", async (c) => {
     where: and(eq(categoryRules.id, id), eq(categoryRules.tenantId, session.tenantId)),
   });
   if (!rule) return c.json({ error: "Rule not found" }, 404);
-  const ids = await affectedTransactionIds(session.tenantId, id);
+  // Transactions the user left out of the backfill keep their category, and
+  // become manual so a later rule pass doesn't recategorize them anyway.
+  const body = await c.req.json().catch(() => ({}));
+  const raw = (body as { excludeIds?: unknown }).excludeIds;
+  if (raw !== undefined && (!Array.isArray(raw) || raw.some((x) => typeof x !== "string"))) {
+    return c.json({ error: "excludeIds must be an array of transaction ids" }, 400);
+  }
+  const exclude = new Set((raw as string[] | undefined) ?? []);
+  const all = await affectedTransactionIds(session.tenantId, id);
+  const ids = all.filter((t) => !exclude.has(t));
+  const kept = all.filter((t) => exclude.has(t));
+  if (kept.length > 0) {
+    await db.update(transactions)
+      .set({ categorySource: "manual" as any } as any)
+      .where(and(eq(transactions.tenantId, session.tenantId), inArray(transactions.id, kept)));
+  }
   if (ids.length > 0) {
     // A target disabled after rule creation falls back to Other at apply time
     // (spec disable semantics).

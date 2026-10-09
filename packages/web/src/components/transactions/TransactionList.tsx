@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Pencil, Search, X, DollarSign, Banknote } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Pencil, Search, X, DollarSign, Banknote } from 'lucide-react';
 import { Link } from 'wouter';
 import { api } from '../../lib/api';
 import { cn, formatStoredDay } from '../../lib/utils';
@@ -60,18 +60,21 @@ export function CreateRuleBar({
 }) {
   const displayOf = useCategoryDisplay();
   return (
-    <div className="flex items-center gap-3 bg-[rgb(var(--ui-brand-softer))] px-4 py-2.5 text-[12.5px] sm:px-5">
-      <span className="flex-1 text-content-muted">
-        Always categorize &ldquo;{merchantText}&rdquo; as{' '}
-        <b className="font-semibold text-content">{displayOf({ categoryId: category }).label}</b>? Applies to matching transactions, past and future.
+    <div className="flex items-center gap-3 bg-[var(--ui-brand-softer)] px-4 py-2.5 text-[12.5px] sm:px-5">
+      {/* The action sits right after the question it answers, not across the bar. */}
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-content-muted">
+          Always categorize &ldquo;{merchantText}&rdquo; as{' '}
+          <b className="font-semibold text-content">{displayOf({ categoryId: category }).label}</b>?
+        </span>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="touch-target-inline inline-flex shrink-0 items-center gap-1 font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+        >
+          Create rule <ArrowRight size={13} aria-hidden />
+        </button>
       </span>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="touch-target-inline shrink-0 font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-      >
-        Create rule
-      </button>
       <button
         type="button"
         onClick={onDismiss}

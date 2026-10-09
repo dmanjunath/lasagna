@@ -259,6 +259,7 @@ export function Transactions() {
   const [createRulePrompt, setCreateRulePrompt] = useState<{ txId: string; merchantText: string; category: string } | null>(null);
   const [rulesPanel, setRulesPanel] = useState<{ open: boolean; seed: { merchantText: string; category: string } | null }>({ open: false, seed: null });
   const [detailTx, setDetailTx] = useState<TxnQueryRow | null>(null);
+  const dismissMovedToastRef = useRef<(() => void) | null>(null);
 
   // Multi-select. `selectMode` is the phone's explicit entry (no hover to
   // reveal the checkboxes); on desktop any ticked row puts the list in it.
@@ -466,7 +467,7 @@ export function Transactions() {
           setError("Couldn't undo. Try again.");
         }
       };
-      toast({
+      dismissMovedToastRef.current = toast({
         tone: 'positive',
         title: `Moved to ${displayOf({ categoryId: newCatId }).label}`,
         duration: 6000,
@@ -710,6 +711,9 @@ export function Transactions() {
             merchantText={createRulePrompt.merchantText}
             category={createRulePrompt.category}
             onCreate={() => {
+              // The rule is the "Moved to" toast's follow-up, so that toast
+              // goes rather than sit over the rule sheet on a phone.
+              dismissMovedToastRef.current?.();
               setRulesPanel({ open: true, seed: { merchantText: createRulePrompt.merchantText, category: createRulePrompt.category } });
               setCreateRulePrompt(null);
             }}
@@ -961,7 +965,6 @@ export function Transactions() {
         seed={rulesPanel.seed}
         onClose={() => setRulesPanel({ open: false, seed: null })}
         onChanged={() => setRefreshKey((k) => k + 1)}
-        onViewRules={() => setRulesPanel({ open: true, seed: null })}
       />
 
       <TransactionDetail

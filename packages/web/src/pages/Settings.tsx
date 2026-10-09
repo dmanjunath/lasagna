@@ -19,7 +19,6 @@ import {
   Fingerprint,
   KeyRound,
   Trash2,
-  SlidersHorizontal,
   ScanFace,
   Moon,
   EyeOff,
@@ -35,7 +34,7 @@ import { isLockEnabled, setLockEnabled } from "../lib/biometric-lock";
 import { isAmountsHidden, setAmountsHidden } from "../lib/hide-amounts";
 import { setPasskeyRegistered } from "../lib/passkey-hint";
 import { CategoryManager } from "../components/settings/CategoryManager";
-import { RulesPanel } from "../components/rules/RulesPanel";
+import { RulesManager } from "../components/settings/RulesManager";
 import {
   Button,
   Surface,
@@ -155,7 +154,6 @@ export function Settings() {
   const [editSection, setEditSection] = useState<EditSection>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Show a "Welcome to Pro" banner at the top of the page after a successful
   // upgrade redirect (?upgraded=1). Billing status refresh is handled in PlanCard.
@@ -449,16 +447,14 @@ export function Settings() {
       title: "Categories",
       hint: "Rename, disable, and organize how transactions are categorized",
       body: (
-        <div className="space-y-4">
-          <CategoryManager />
-          <NavCard
-            icon={<SlidersHorizontal className="h-5 w-5" />}
-            label="Category rules"
-            sub="Auto-categorize transactions by merchant"
-            onClick={() => setRulesOpen(true)}
-          />
-        </div>
+        <CategoryManager />
       ),
+    },
+    {
+      id: "rules",
+      title: "Transaction rules",
+      hint: "File matching transactions into a category automatically",
+      body: <RulesManager />,
     },
     ...(canDeleteAccount(user, isDemoMode)
       ? [
@@ -573,13 +569,6 @@ export function Settings() {
         </div>
       )}
 
-      <RulesPanel
-        open={rulesOpen}
-        seed={null}
-        onClose={() => setRulesOpen(false)}
-        onChanged={() => {}}
-        onViewRules={() => setRulesOpen(true)}
-      />
     </div>
   );
 }

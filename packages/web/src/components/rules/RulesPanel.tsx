@@ -1,27 +1,29 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { api, type CategoryRule, type CategoryRuleInput } from '../../lib/api';
-import { Button, Field, Input, Modal, Skeleton, useToast } from '../uikit';
-import { useConfirm } from '../ds';
+import { api, type CategoryRule, type CategoryRuleInput, type RulePreviewTxn } from '../../lib/api';
+import { Button, Field, HiddenAmount, Input, Modal, useToast } from '../uikit';
+import { useLocation } from 'wouter';
+import { cn, formatStoredDay } from '../../lib/utils';
+import { isAmountsHidden } from '../../lib/hide-amounts';
 import { useTaxonomy } from '../../lib/taxonomy';
 import { CategoryPicker } from '../common/CategoryPicker';
 import { OptionMenu } from '../common/OptionMenu';
+import { AccountPicker } from '../common/AccountPicker';
+import { useAccountsIndex } from '../../lib/use-accounts-index';
 
 // Amount inputs carry no stepper arrows, as on the transactions filters.
 const AMOUNT_INPUT = 'ui-tnum [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
 // ---------------------------------------------------------------------------
-// RulesPanel — manage category rules from /spending. A single modal that swaps
-// between a list of existing rules (as readable sentences) and a create/edit
-// form, with an "apply to N existing?" confirm step after each save.
+// RulesPanel — the create/edit dialog for one category rule, then an "apply to
+// existing?" step that lists the matching transactions so any can be left out.
+// The list of rules lives in Settings (RulesManager, /profile#rules).
 // ---------------------------------------------------------------------------
 
-type AccountOption = { accountId: string; name: string };
+export type AccountOption = { accountId: string; name: string };
 
 type View =
-  | { mode: 'list' }
-  | { mode: 'form'; rule: CategoryRule | null }
-  | { mode: 'confirm'; ruleId: string; count: number; wasEdit: boolean };
+  | { mode: 'form' }
+  | { mode: 'confirm'; ruleId: string; count: number; txns: RulePreviewTxn[]; wasEdit: boolean };
 
 // matchCategory/setCategory hold category IDS (uuids) — the API field names
 // are historical.
@@ -95,7 +97,7 @@ function fmtAmount(v: string): string {
 }
 
 // "If merchant contains 'amzn' and amount is between $10 and $50 on Chase Checking"
-function ruleSentence(
+export function ruleSentence(
   rule: CategoryRule,
   accounts: AccountOption[],
   labelFor: (id: string | null) => string,
@@ -121,84 +123,59 @@ export function RulesPanel({
   open,
   onClose,
   seed,
+  rule,
   onChanged,
-  onViewRules,
 }: {
   open: boolean;
   onClose: () => void;
+  /** New rule prefilled from a recategorize (merchant + target category). */
   seed: { merchantText: string; category: string } | null;
+  /** Edit this rule instead of creating one. */
+  rule?: CategoryRule | null;
   onChanged: () => void;
-  /** Reopens this panel on its list; the "View rules" link in the created toast calls it. */
-  onViewRules?: () => void;
 }) {
-  const confirm = useConfirm();
   const toast = useToast();
+  const [location, navigate] = useLocation();
+  const { list: accountIndex } = useAccountsIndex();
   const { byId } = useTaxonomy();
-  // Label a category reference by its taxonomy id.
-  const labelFor = (id: string | null): string =>
-    (id ? byId.get(id)?.name : undefined) ?? 'Unknown';
-  const [view, setView] = useState<View>({ mode: 'list' });
-  const [rules, setRules] = useState<CategoryRule[]>([]);
-  const [accounts, setAccounts] = useState<AccountOption[]>([]);
-  const [loadingRules, setLoadingRules] = useState(true);
+  const labelFor = (id: string) => byId.get(id)?.name ?? 'Other';
+  const [view, setView] = useState<View>({ mode: 'form' });
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [savedNote, setSavedNote] = useState(false);
+  // Transactions the user unticked in the apply step.
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
 
-  const loadRules = () => {
-    setLoadingRules(true);
-    api.getRules()
-      .then((data) => setRules(data.rules))
-      .catch(() => setRules([]))
-      .finally(() => setLoadingRules(false));
-  };
-
-  // On open: fetch rules + accounts, and jump straight to the form when seeded.
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setSavedNote(false);
-    if (seed) {
-      setForm({ ...EMPTY_FORM, merchantContains: seed.merchantText, setCategory: seed.category });
-      setView({ mode: 'form', rule: null });
-    } else {
-      setView({ mode: 'list' });
-    }
-    loadRules();
-    api.getBalances()
-      .then((data) => setAccounts(data.balances.map((b) => ({ accountId: b.accountId, name: b.name }))))
-      .catch(() => setAccounts([]));
+    setExcluded(new Set());
+    setView({ mode: 'form' });
+    setForm(rule ? formFromRule(rule) : seed ? { ...EMPTY_FORM, merchantContains: seed.merchantText, setCategory: seed.category } : EMPTY_FORM);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const openForm = (rule: CategoryRule | null) => {
-    setForm(rule ? formFromRule(rule) : EMPTY_FORM);
-    setError(null);
-    setSavedNote(false);
-    setView({ mode: 'form', rule });
-  };
-
-  const backToList = () => {
-    setError(null);
-    setView({ mode: 'list' });
-  };
-
-  const handleDelete = async (id: string) => {
-    const ok = await confirm({
-      title: 'Delete this rule?',
-      body: 'Existing categories stay as they are.',
-      confirmLabel: 'Delete',
-      destructive: true,
+  // Saved: the dialog closes and a toast confirms it, with a way to the rules
+  // list unless that list is the page already on screen.
+  const finish = (wasEdit: boolean) => {
+    onChanged();
+    onClose();
+    const onSettings = location === '/profile';
+    let dismiss = () => {};
+    dismiss = toast({
+      tone: 'positive',
+      title: wasEdit ? 'Rule saved' : 'Rule created',
+      duration: 6000,
+      description: onSettings ? undefined : (
+        <button
+          type="button"
+          onClick={() => { dismiss(); navigate('/profile#rules'); }}
+          className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+        >
+          View rules
+        </button>
+      ),
     });
-    if (!ok) return;
-    try {
-      await api.deleteRule(id);
-      loadRules();
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed');
-    }
   };
 
   const handleSave = async () => {
@@ -207,18 +184,14 @@ export function RulesPanel({
       setError(clientError);
       return;
     }
-    if (view.mode !== 'form') return;
     setSaving(true);
     setError(null);
     let savedRule: CategoryRule | null = null;
     try {
       const body = bodyFromForm(form);
       // PATCH is replace semantics — always send the complete rule body.
-      const { rule } = view.rule
-        ? await api.updateRule(view.rule.id, body)
-        : await api.createRule(body);
-      savedRule = rule;
-      loadRules();
+      const res = rule ? await api.updateRule(rule.id, body) : await api.createRule(body);
+      savedRule = res.rule;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
       setSaving(false);
@@ -226,51 +199,22 @@ export function RulesPanel({
     }
     // Rule saved — preview failure is non-fatal (rule already exists; re-save would duplicate).
     try {
-      const { count } = await api.previewRule(savedRule.id);
-      if (count > 0) {
-        setView({ mode: 'confirm', ruleId: savedRule.id, count, wasEdit: !!view.rule });
-      } else {
-        finishSave(!!view.rule);
-      }
+      const { count, transactions } = await api.previewRule(savedRule.id);
+      if (count > 0) setView({ mode: 'confirm', ruleId: savedRule.id, count, txns: transactions, wasEdit: !!rule });
+      else finish(!!rule);
     } catch {
-      finishSave(!!view.rule);
+      finish(!!rule);
     } finally {
       setSaving(false);
     }
-  };
-
-  // A new rule ends here: the panel closes and a toast confirms it, with a
-  // way to the list. An edit came from the list, so it goes back there.
-  const finishSave = (wasEdit: boolean) => {
-    if (wasEdit) {
-      setSavedNote(true);
-      backToList();
-      return;
-    }
-    onClose();
-    toast({
-      tone: 'positive',
-      title: 'Rule created',
-      duration: 6000,
-      description: onViewRules ? (
-        <button
-          type="button"
-          onClick={onViewRules}
-          className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-        >
-          View rules
-        </button>
-      ) : undefined,
-    });
   };
 
   const handleApply = async () => {
     if (view.mode !== 'confirm') return;
     setSaving(true);
     try {
-      await api.applyRule(view.ruleId);
-      onChanged();
-      finishSave(view.wasEdit);
+      await api.applyRule(view.ruleId, [...excluded]);
+      finish(view.wasEdit);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Apply failed');
     } finally {
@@ -279,64 +223,6 @@ export function RulesPanel({
   };
 
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
-
-  // ── Views ────────────────────────────────────────────────────────────────
-
-  const listBody = (
-    <div>
-      {savedNote && (
-        <p className="mb-4 rounded-ui-md bg-brand-softer px-3.5 py-2.5 text-[13px] font-medium text-[rgb(var(--ui-brand-ink))]">
-          Saved. It will apply to new transactions.
-        </p>
-      )}
-      {error && <p className="mb-4 text-[12.5px] font-medium text-negative">{error}</p>}
-      {loadingRules ? (
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full rounded-ui-md" />)}
-        </div>
-      ) : rules.length === 0 ? (
-        <div className="py-2 text-center">
-          <p className="text-[13.5px] text-content-muted">
-            No rules yet. Create one to always file a merchant the way you want.
-            For example, file anything containing &ldquo;AMZN&rdquo; as Shopping.
-          </p>
-          <Button variant="secondary" size="sm" className="mt-4" leadingIcon={<Plus size={14} />} onClick={() => openForm(null)}>
-            New rule
-          </Button>
-        </div>
-      ) : (
-        <ul className="divide-y divide-line">
-          {rules.map((rule) => (
-            <li key={rule.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-              <p className="min-w-0 flex-1 text-[13.5px] leading-relaxed text-content">
-                {ruleSentence(rule, accounts, labelFor)}{' '}
-                <span className="text-content-muted">&rarr;</span>{' '}
-                <b className="font-semibold">{labelFor(rule.setCategoryId)}</b>
-              </p>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 min-h-0 min-w-0 shrink-0"
-                aria-label="Edit rule"
-                onClick={() => openForm(rule)}
-              >
-                <Pencil size={15} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 min-h-0 min-w-0 shrink-0 text-negative hover:text-negative"
-                aria-label="Delete rule"
-                onClick={() => void handleDelete(rule.id)}
-              >
-                <Trash2 size={15} />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 
   const formBody = (
     <div className="space-y-4">
@@ -397,41 +283,31 @@ export function RulesPanel({
         </div>
       </Field>
       <Field label="Account">
-        <OptionMenu
+        {/* The same account dropdown as the transactions filter, one pick. */}
+        <AccountPicker
           portal
-          ariaLabel="Account"
+          accounts={accountIndex}
           value={form.accountId}
-          options={[{ value: '', label: 'Any account' }, ...accounts.map((a) => ({ value: a.accountId, label: a.name }))]}
           onChange={(accountId) => set({ accountId })}
         />
       </Field>
       <Field label="Current category">
-        {/* The shared category dropdown. It has no "Any" row, so a set value
-             gets a reset link beside it instead. */}
-        <div className="flex items-center gap-3">
-          <CategoryPicker
-            variant="field"
-            value={form.matchCategory}
-            currentLabel="Any category"
-            onChange={(matchCategory) => set({ matchCategory })}
-            className="min-w-0 flex-1"
-          />
-          {form.matchCategory && (
-            <button
-              type="button"
-              onClick={() => set({ matchCategory: '' })}
-              className="ui-focus touch-target-inline shrink-0 rounded-ui-xs text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-            >
-              Any
-            </button>
-          )}
-        </div>
+        {/* "Any" is a row in the list, as Account's is. */}
+        <CategoryPicker
+          variant="field"
+          value={form.matchCategory}
+          currentLabel="Any category"
+          anyLabel="Any category"
+          showManage={false}
+          onChange={(matchCategory) => set({ matchCategory })}
+        />
       </Field>
       <Field label="Set category" required>
         <CategoryPicker
           variant="field"
           value={form.setCategory}
           currentLabel="Choose a category"
+          showManage={false}
           onChange={(setCategory) => set({ setCategory })}
         />
       </Field>
@@ -439,49 +315,81 @@ export function RulesPanel({
     </div>
   );
 
+  const applyCount = view.mode === 'confirm' ? view.count - excluded.size : 0;
+  const confirmBody = view.mode === 'confirm' && (
+    <div className="space-y-3">
+      <p className="text-[13.5px] leading-relaxed text-content-secondary">
+        It also matches {view.count} transaction{view.count === 1 ? '' : 's'} you already have. Untick any to keep their current category.
+      </p>
+      <ul className="max-h-[50vh] divide-y divide-line overflow-y-auto rounded-ui-md border border-line">
+        {view.txns.map((t) => {
+          const on = !excluded.has(t.id);
+          const amount = Math.abs(parseFloat(t.amount));
+          return (
+            <li key={t.id}>
+              <label className="flex min-h-touch cursor-pointer items-center gap-3 px-3 py-2 hover:bg-canvas-sunken">
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => setExcluded((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(t.id)) next.delete(t.id);
+                    else next.add(t.id);
+                    return next;
+                  })}
+                  aria-label={`Apply to ${t.merchantName || t.name}, ${formatStoredDay(t.date)}`}
+                  className="h-4 w-4 shrink-0 rounded border-line accent-[rgb(var(--ui-brand))]"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className={cn('block truncate text-[13.5px] font-semibold', on ? 'text-content' : 'text-content-muted line-through')}>
+                    {t.merchantName || t.name}
+                  </span>
+                  <span className="block truncate text-[12px] text-content-muted">
+                    {/* The category an untick keeps. */}
+                    {formatStoredDay(t.date, { year: 'numeric' })}{t.accountName ? `, ${t.accountName}` : ''}, {labelFor(t.categoryId)}
+                  </span>
+                </span>
+                <span className="ui-tnum shrink-0 text-[13.5px] font-semibold text-content">
+                  {isAmountsHidden() ? <HiddenAmount /> : `${parseFloat(t.amount) < 0 ? '+' : ''}$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      {view.count > view.txns.length && (
+        <p className="text-[12px] text-content-muted">Showing the newest {view.txns.length}. The rest are included.</p>
+      )}
+      {error && <p className="text-[12.5px] font-medium text-negative">{error}</p>}
+    </div>
+  );
+
   const footer =
     view.mode === 'form' ? (
       <>
-        <Button variant="secondary" size="sm" onClick={backToList} disabled={saving}>Cancel</Button>
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
         <Button variant="primary" size="sm" onClick={() => void handleSave()} loading={saving}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </>
-    ) : view.mode === 'confirm' ? (
+    ) : (
       <>
-        <span className="mr-auto text-[13px] font-medium text-content-secondary">
-          Apply to {view.count} existing transaction{view.count === 1 ? '' : 's'}?
-        </span>
-        <Button variant="secondary" size="sm" onClick={() => finishSave(view.wasEdit)} disabled={saving}>Skip</Button>
-        <Button variant="primary" size="sm" onClick={() => void handleApply()} loading={saving}>
-          {saving ? 'Applying…' : 'Apply'}
+        <Button variant="secondary" size="sm" onClick={() => finish(view.wasEdit)} disabled={saving}>Skip</Button>
+        <Button variant="primary" size="sm" onClick={() => void handleApply()} loading={saving} disabled={applyCount === 0}>
+          {saving ? 'Applying…' : `Apply to ${applyCount}`}
         </Button>
       </>
-    ) : !loadingRules && rules.length > 0 ? (
-      <Button variant="secondary" size="sm" leadingIcon={<Plus size={14} />} onClick={() => openForm(null)}>
-        New rule
-      </Button>
-    ) : undefined;
+    );
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Category rules"
-      description={view.mode === 'form'
-        ? (view.rule ? 'Edit this rule.' : 'Transactions matching every condition get the new category.')
-        : 'Rules re-categorize matching transactions automatically, including new ones as they arrive.'}
+      title={view.mode === 'confirm' ? 'Apply to existing transactions?' : rule ? 'Edit rule' : 'New rule'}
+      description={view.mode === 'form' ? 'Transactions matching every condition get the new category.' : undefined}
       footer={footer}
     >
-      {view.mode === 'form' ? formBody : view.mode === 'confirm' ? (
-        <div className="space-y-3">
-          <p className="text-[13.5px] leading-relaxed text-content-secondary">
-            Rule saved. It will apply to new transactions automatically. You can also apply it to
-            matching transactions you already have.
-          </p>
-          {error && <p className="text-[12.5px] font-medium text-negative">{error}</p>}
-        </div>
-      ) : listBody}
+      {view.mode === 'form' ? formBody : confirmBody}
     </Modal>
   );
 }
