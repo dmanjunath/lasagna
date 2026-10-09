@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useDragControls, type PanInfo } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { Button, button } from '../uikit';
@@ -35,9 +35,10 @@ export function CategoryPicker(props: (Single | Multi) & {
    * inline = the row's category label button; field = a form-field trigger
    * with the category's icon; action = a small secondary button showing
    * `currentLabel`; select = the shared dropdown trigger (OptionMenu's), as a
-   * form field or, with `toolbar`, a toolbar button.
+   * form field or, with `toolbar`, a toolbar button; pencil = the row's edit
+   * pencil beside its category pill (`className` carries the pencil styling).
    */
-  variant: 'inline' | 'field' | 'action' | 'select';
+  variant: 'inline' | 'field' | 'action' | 'select' | 'pencil';
   /** Display label: a value the picker can't offer, or the trigger text for action/select. */
   currentLabel?: string;
   /** select only: the toolbar trigger look (field name, tint, count). */
@@ -154,7 +155,11 @@ export function CategoryPicker(props: (Single | Multi) & {
   };
 
   const trigger =
-    variant === 'select' ? (
+    variant === 'pencil' ? (
+      <button {...common} aria-label={`Change category from ${triggerLabel}`} title="Change category" className={className}>
+        <Pencil size={13} aria-hidden />
+      </button>
+    ) : variant === 'select' ? (
       <button {...common} className={cn('group/trigger', triggerClass(toolbar), className)}>
         <TriggerInner label={triggerLabel} toolbar={toolbar} />
       </button>

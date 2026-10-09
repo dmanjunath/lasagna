@@ -13,6 +13,7 @@ import { useCategoryDisplay } from '../lib/taxonomy';
 import {
   TxnRow,
   CreateRuleBar,
+  PENCIL_CLASS,
 } from '../components/transactions/TransactionList';
 import { CategoryPicker } from '../components/common/CategoryPicker';
 import { InstIcon } from '../components/common/InstIcon';
@@ -652,6 +653,28 @@ export function Transactions() {
             selecting={selecting}
             onToggleSelect={() => toggleSelected(tx.id)}
             onRenameMerchant={(name) => handleMerchantRename(tx, name)}
+            merchantIsFilter={filters.merchant === (tx.merchantName || tx.name)}
+            // Wider screens: the category is a filter pill, and its pencil
+            // recategorizes. Phones show the plain label and edit in the drawer.
+            categoryPill={selecting ? undefined : {
+              label: display.label,
+              icon: display.icon,
+              // No pill for an uncategorized row (nothing to filter to) or for
+              // the category already filtered to.
+              onFilter: !tx.categoryId || (filters.categories.length === 1 && filters.categories[0] === tx.categoryId)
+                ? undefined
+                : () => setFilters((f) => ({ ...f, categories: [tx.categoryId as string], excludeCategories: [] })),
+              editor: (
+                <CategoryPicker
+                  variant="pencil"
+                  value={tx.categoryId ?? ''}
+                  currentLabel={display.label}
+                  onOpen={() => setCreateRulePrompt(null)}
+                  onChange={(newCatId) => handleCategoryEdit(tx, newCatId)}
+                  className={PENCIL_CLASS}
+                />
+              ),
+            }}
             icon={display.icon ?? (isIncome ? <DollarSign size={15} /> : <Banknote size={15} />)}
             isIncome={isIncome}
             categoryNode={categoryNode}

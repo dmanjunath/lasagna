@@ -92,10 +92,43 @@ export function CreateRuleBar({
 // label stays a click target so it can open the inline recategorize editor.
 // ---------------------------------------------------------------------------
 
+// The edit pencil beside a row's merchant or category: shown on row hover or
+// focus, never on touch (phones edit in the drawer).
+// It takes no width until shown, so hidden pencils don't push the pills apart.
+export const PENCIL_CLASS =
+  'ui-focus relative z-[1] grid h-7 w-0 shrink-0 place-items-center overflow-hidden rounded-ui-sm text-content-muted opacity-0 transition-colors hover:bg-canvas-sunken hover:text-content focus:w-7 focus:opacity-100 [@media(hover:hover)]:group-hover/txn:w-7 [@media(hover:hover)]:group-hover/txn:opacity-100 group-focus-within/txn:w-7 group-focus-within/txn:opacity-100 [@media(hover:none)]:hidden';
+
+// One pill for every "show only this" in a row: merchant, category, account.
+// Clicking it filters the list to that value.
+function FilterPill({ label, icon, strong, onClick }: {
+  label: string;
+  icon?: React.ReactNode;
+  /** The merchant: the row's name, so a size up and bold. */
+  strong?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      title={`Show only ${label}`}
+      className={cn(
+        // Hover strengthens the border and ink only: a fill matched the row's
+        // own hover and the pill faded into it.
+        'ui-focus relative z-[1] inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-panel px-2.5 py-[3px] transition-colors hover:border-line-strong',
+        strong ? 'text-[14px] font-bold text-content' : 'text-[12.5px] font-semibold text-content-secondary hover:text-content',
+      )}
+    >
+      {icon && <span className="grid h-4 w-4 shrink-0 place-items-center overflow-hidden [&>*]:!h-4 [&>*]:!w-4 [&>*]:!text-[9px] [&>svg]:!h-3.5 [&>svg]:!w-3.5" aria-hidden>{icon}</span>}
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
 export function TxnRow({
   merchant, icon, isIncome, categoryNode, date, amount, accountName, excluded, onOpenDetail,
   showDate = true, onMerchantClick, onAccountClick, selected, selecting, onToggleSelect,
-  columns, accountIcon, onRenameMerchant,
+  columns, accountIcon, onRenameMerchant, categoryPill, merchantIsFilter,
 }: {
   merchant: string;
   icon: React.ReactNode;
@@ -128,19 +161,49 @@ export function TxnRow({
   accountIcon?: React.ReactNode;
   /** Inline rename: a pencil beside the merchant on row hover opens an editor with suggestions. */
   onRenameMerchant?: (name: string) => void;
+  /**
+   * The category as a filter pill (sm+) with an edit control beside it, in
+   * place of `categoryNode`. Phones get the plain label: there the row only
+   * opens the drawer, where editing lives.
+   */
+  categoryPill?: { label: string; icon?: React.ReactNode; onFilter?: () => void; editor?: React.ReactNode };
+  /** The merchant is already the active filter: plain text, not a pill that does nothing. */
+  merchantIsFilter?: boolean;
 }) {
   const showCheckbox = selecting || selected;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const doneRef = React.useRef(false);
+  const renameBtnRef = React.useRef<HTMLButtonElement>(null);
   const startEdit = () => { setDraft(merchant); doneRef.current = false; setEditing(true); };
   const finishEdit = (value: string | null) => {
     if (doneRef.current) return;
     doneRef.current = true;
     setEditing(false);
+    // Back to the pencil that opened it, so a keyboard user keeps their place.
+    requestAnimationFrame(() => renameBtnRef.current?.focus());
     const name = value?.trim();
     if (name && name !== merchant) onRenameMerchant?.(name);
   };
+  // Phones show plain text and leave editing to the drawer; wider screens get
+  // the filter pills and edit pencils.
+  const categoryCell = categoryPill ? (
+    <>
+      <span className="min-w-0 truncate text-content-secondary sm:hidden">{categoryPill.label}</span>
+      <span className="hidden min-w-0 items-center gap-0.5 sm:inline-flex">
+        {/* No filter to offer (uncategorized, or already the filter): plain label. */}
+        {categoryPill.onFilter
+          ? <FilterPill label={categoryPill.label} icon={categoryPill.icon} onClick={categoryPill.onFilter} />
+          : <span className="min-w-0 truncate px-0.5 text-content-secondary">{categoryPill.label}</span>}
+        {categoryPill.editor}
+      </span>
+    </>
+  ) : categoryNode;
+  const accountPill = (withIcon: boolean) => accountName && (onAccountClick ? (
+    <FilterPill label={accountName} icon={withIcon ? accountIcon : undefined} onClick={onAccountClick} />
+  ) : (
+    <span className="truncate">{accountName}</span>
+  ));
   const amountText = isAmountsHidden() ? <HiddenAmount /> : `${isIncome ? '+' : ''}${formatCurrencyExact(Math.abs(amount))}`;
   const amountClass = cn('shrink-0 text-[14.5px] font-bold tracking-[-0.01em] ui-tnum', isIncome && !isAmountsHidden() && 'text-positive', excluded && 'opacity-50');
   return (
@@ -185,29 +248,29 @@ export function TxnRow({
             />
           </div>
         ) : onMerchantClick ? (
-          <div className="flex min-w-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onMerchantClick(); }}
-              // Above the category trigger, whose touch-target-inline margin
-              // reaches up over a short merchant name on phones.
-              className="ui-focus relative z-[1] min-w-0 truncate rounded-ui-xs text-left text-[14px] font-bold leading-tight [@media(hover:hover)]:hover:underline"
-              title={`Show only ${merchant}`}
-            >
-              {merchant}
-            </button>
-            {onRenameMerchant && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); startEdit(); }}
-                aria-label={`Rename ${merchant}`}
-                title="Rename"
-                className="ui-focus relative z-[1] grid h-6 w-6 shrink-0 place-items-center rounded-ui-xs text-content-muted opacity-0 transition-colors hover:bg-canvas-sunken hover:text-content focus:opacity-100 [@media(hover:hover)]:group-hover/txn:opacity-100 [@media(hover:none)]:hidden"
-              >
-                <Pencil size={13} />
-              </button>
-            )}
-          </div>
+          <>
+            <div className="truncate text-[14px] font-bold leading-tight sm:hidden" title={merchant}>{merchant}</div>
+            <div className="hidden min-w-0 items-center gap-0.5 sm:flex">
+              {merchantIsFilter
+                ? <span className="min-w-0 truncate text-[14px] font-bold" title={merchant}>{merchant}</span>
+                : <FilterPill label={merchant} strong onClick={onMerchantClick} />}
+              {/* The badge rides with the merchant on wider screens, before the
+                   pencil, so a pencil growing on hover only widens empty space. */}
+              {excluded && <Badge tone="neutral" className="ml-1 shrink-0">Excluded</Badge>}
+              {onRenameMerchant && (
+                <button
+                  ref={renameBtnRef}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); startEdit(); }}
+                  aria-label={`Rename ${merchant}`}
+                  title="Rename"
+                  className={PENCIL_CLASS}
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
+            </div>
+          </>
         ) : onOpenDetail ? (
           <button
             type="button"
@@ -217,25 +280,26 @@ export function TxnRow({
           >
             {merchant}
           </button>
+        ) : columns ? (
+          // Select mode: the badge stays with the merchant and the meta line
+          // keeps its order, as outside select mode.
+          <div className="flex min-w-0 items-center gap-1.5">
+            <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
+            {excluded && <Badge tone="neutral" className="hidden shrink-0 sm:inline-flex">Excluded</Badge>}
+          </div>
         ) : (
           <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
         )}
-        <div className={cn('mt-0.5 flex min-w-0 items-center gap-2.5 text-[12.5px] text-content-muted sm:gap-3', excluded && 'opacity-50', columns && 'xl:hidden')}>
-          {categoryNode}
-          {excluded && <Badge tone="neutral" className="shrink-0">Excluded</Badge>}
+        <div className={cn('mt-0.5 flex min-w-0 items-center gap-2.5 text-[12.5px] text-content-muted sm:mt-1 sm:gap-2', excluded && 'opacity-50', columns && 'xl:hidden')}>
+          {/* With pills the category (and its pencil) comes last, in the DOM
+               so focus order matches, so the pencil appearing on hover never
+               shifts the account pill under the pointer. Without pills (other
+               lists) the category leads, as before. */}
+          {!(categoryPill || columns) && <span className="flex min-w-0 items-center">{categoryCell}</span>}
+          {excluded && <Badge tone="neutral" className={cn('shrink-0', (onMerchantClick || columns) && 'max-sm:order-last sm:hidden')}>Excluded</Badge>}
           {showDate && <span className="ui-tnum shrink-0 whitespace-nowrap">{formatStoredDay(date)}</span>}
-          {accountName && (onAccountClick ? (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onAccountClick(); }}
-              className="ui-focus hidden min-w-0 truncate rounded-ui-xs text-left transition-colors [@media(hover:hover)]:hover:text-content [@media(hover:hover)]:hover:underline sm:inline"
-              title={`Show only ${accountName}`}
-            >
-              {accountName}
-            </button>
-          ) : (
-            <span className="hidden truncate sm:inline">{accountName}</span>
-          ))}
+          {accountName && <span className="hidden min-w-0 sm:inline-flex">{accountPill(false)}</span>}
+          {(categoryPill || columns) && <span className="flex min-w-0 items-center">{categoryCell}</span>}
         </div>
       </div>
       {columns && (
@@ -243,23 +307,11 @@ export function TxnRow({
           {/* Column cells, wide screens only. The stacked meta line above
                carries the same fields below xl. */}
           <div className={cn('hidden min-w-0 flex-1 items-center gap-2 text-[13px] text-content-secondary xl:flex', excluded && 'opacity-50')}>
-            {categoryNode}
-            {excluded && <Badge tone="neutral" className="shrink-0">Excluded</Badge>}
+            {categoryCell}
           </div>
           <div className={cn('hidden min-w-0 flex-1 items-center gap-2 text-[13px] text-content-secondary xl:flex', excluded && 'opacity-50')}>
-            {accountName && accountIcon && <span className="shrink-0">{accountIcon}</span>}
-            {accountName && (onAccountClick ? (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onAccountClick(); }}
-                className="ui-focus min-w-0 truncate rounded-ui-xs text-left transition-colors [@media(hover:hover)]:hover:text-content [@media(hover:hover)]:hover:underline"
-                title={`Show only ${accountName}`}
-              >
-                {accountName}
-              </button>
-            ) : (
-              <span className="truncate">{accountName}</span>
-            ))}
+            {accountName && !onAccountClick && accountIcon && <span className="shrink-0">{accountIcon}</span>}
+            {accountPill(true)}
           </div>
           {showDate && (
             <span className="ui-tnum hidden w-[72px] shrink-0 text-[13px] text-content-muted xl:block">{formatStoredDay(date)}</span>
