@@ -1,69 +1,63 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useDragControls, type PanInfo } from 'framer-motion';
-import { useLocation } from 'wouter';
-import { Check, ChevronDown, Receipt, Search, Settings } from 'lucide-react';
+import { ChevronDown, Receipt } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
-import { Skeleton } from '../uikit';
-import { taxonomyIcon, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
+import { Button, button } from '../uikit';
+import { taxonomyIcon, useTaxonomy } from '../../lib/taxonomy';
+import { CategoryList } from './CategoryList';
+import { TriggerInner, triggerClass, type ToolbarField } from './OptionMenu';
 
 // ---------------------------------------------------------------------------
-// CategoryPicker - a rich dropdown for recategorizing a transaction. Follows
-// AccountLinkPicker's panel/option/selected-check/footer-action idioms, plus a
-// pinned search input on top and a "Manage categories" footer action.
+// CategoryPicker - every category dropdown's host: the trigger, and the panel
+// the shared CategoryList renders in. Single mode recategorizes (pick one and
+// close). Multi mode filters (toggle rows, the panel stays open).
 //
 // The panel portals to <body> and is fixed-positioned from the trigger rect so
 // it can't be clipped by overflow-hidden ancestors (e.g. expanded groups on
 // /transactions). On phones (≤639px) it renders as a bottom sheet copying the
-// uikit Modal phone-tray idiom, stacked above the detail tray.
+// uikit Modal phone-tray idiom, stacked above the detail tray. Both portal
+// roots carry data-sheet, so a host panel's outside-tap check can tell a tap
+// in here from a tap elsewhere.
 //
-// Accessible: the search input is a role="combobox" whose aria-activedescendant
-// tracks arrow-key navigation; the list is a role="listbox" of role="option"
-// rows. Escape closes and refocuses the trigger (capture-phase, so a parent
-// Modal's own Escape listener never fires while the picker is open).
+// Escape closes and refocuses the trigger (capture-phase, so a parent Modal's
+// own Escape listener never fires while the picker is open).
 // ---------------------------------------------------------------------------
 
 const PANEL_WIDTH = 280;
 
-export function CategoryPicker({
-  value,
-  onChange,
-  variant,
-  currentLabel,
-  onOpen,
-  className,
-}: {
-  /** Category id (uuid) of the current selection, '' when unknown. */
-  value: string;
-  onChange: (categoryId: string) => void;
-  /** inline = the row's category label button; field = a form-field trigger. */
-  variant: 'inline' | 'field';
-  /** Display label for a current value the picker can't offer (disabled/legacy). */
+type Single = { multiple?: false; value: string; onChange: (categoryId: string) => void };
+type Multi = { multiple: true; values: string[]; onChangeMany: (categoryIds: string[]) => void };
+
+export function CategoryPicker(props: (Single | Multi) & {
+  /**
+   * inline = the row's category label button; field = a form-field trigger
+   * with the category's icon; action = a small secondary button showing
+   * `currentLabel`; select = the shared dropdown trigger (OptionMenu's), as a
+   * form field or, with `toolbar`, a toolbar button.
+   */
+  variant: 'inline' | 'field' | 'action' | 'select';
+  /** Display label: a value the picker can't offer, or the trigger text for action/select. */
   currentLabel?: string;
+  /** select only: the toolbar trigger look (field name, tint, count). */
+  toolbar?: ToolbarField;
+  describedBy?: string;
   /** Fires when the panel opens (e.g. to dismiss a create-rule prompt). */
   onOpen?: () => void;
   className?: string;
 }) {
-  const pickerGroups = usePickerGroups();
-  const { byId, loading, error, refresh } = useTaxonomy();
-  const [, navigate] = useLocation();
+  const { variant, currentLabel, toolbar, describedBy, onOpen, className } = props;
+  const { byId } = useTaxonomy();
 
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number }>({ left: 0, top: 0, maxHeight: 0 });
-  const [query, setQuery] = useState('');
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number; width: number }>({ left: 0, top: 0, maxHeight: 0, width: PANEL_WIDTH });
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // Swipe-to-dismiss for the phone bottom sheet: drag starts only from the
   // grab handle (not the scrollable list) via dragControls, as in uikit Modal.
   const dragControls = useDragControls();
-  const listRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  const listId = useId();
-  const optId = (catId: string) => `${listId}-${catId}`;
 
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
 
@@ -71,45 +65,27 @@ export function CategoryPicker({
   // a short category list would slide the page underneath instead.
   useBodyScrollLock(open && isPhone);
 
+  const value = props.multiple ? '' : props.value;
   const current = value ? byId.get(value) : undefined;
-  const triggerLabel = current?.name ?? currentLabel ?? 'Other';
-
-  // Filter: a category matches when its own name or its group's name matches.
-  // Groups left with no matching categories are dropped, header included.
-  const q = query.trim().toLowerCase();
-  const visibleGroups = useMemo(
-    () =>
-      q === ''
-        ? pickerGroups
-        : pickerGroups
-            .map(({ group, categories }) => ({
-              group,
-              categories: group.name.toLowerCase().includes(q)
-                ? categories
-                : categories.filter((c) => c.name.toLowerCase().includes(q)),
-            }))
-            .filter((g) => g.categories.length > 0),
-    [pickerGroups, q],
-  );
-  const flat = useMemo(() => visibleGroups.flatMap((g) => g.categories), [visibleGroups]);
-  const flatIdxById = useMemo(() => new Map(flat.map((c, i) => [c.id, i])), [flat]);
+  const triggerLabel = props.multiple ? (currentLabel ?? '') : (current?.name ?? currentLabel ?? 'Other');
 
   const updatePos = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const left = Math.max(8, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 8));
+    // A form-field trigger gets a menu at least as wide as itself.
+    const width = variant === 'field' || (variant === 'select' && !toolbar) ? Math.max(PANEL_WIDTH, rect.width) : PANEL_WIDTH;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
     // Cap the panel to the space on its side of the trigger - the list shrinks
     // (search + footer stay pinned) instead of clipping past the viewport edge.
     if (window.innerHeight - rect.bottom < 380) {
-      setPos({ left, bottom: window.innerHeight - rect.top + 6, maxHeight: rect.top - 14 });
+      setPos({ left, width, bottom: window.innerHeight - rect.top + 6, maxHeight: rect.top - 14 });
     } else {
-      setPos({ left, top: rect.bottom + 6, maxHeight: window.innerHeight - rect.bottom - 14 });
+      setPos({ left, width, top: rect.bottom + 6, maxHeight: window.innerHeight - rect.bottom - 14 });
     }
   };
 
   const openPicker = () => {
     onOpen?.();
-    setQuery('');
     if (!isPhone) updatePos();
     setOpen(true);
   };
@@ -118,42 +94,11 @@ export function CategoryPicker({
     if (returnFocus) triggerRef.current?.focus();
   };
   const pick = (id: string) => {
-    if (id !== value) onChange(id);
+    if (!props.multiple && id !== props.value) props.onChange(id);
     close(true);
   };
 
-  // Keep the keyboard-active row on the best match: the first category whose
-  // OWN name matches the query (exact name first), not a group-derived match -
-  // typing an exact category name then Enter must pick that category, not the
-  // first member of a group that happens to share the name.
-  useEffect(() => {
-    let idx = 0;
-    if (q !== '') {
-      const exact = flat.findIndex((c) => c.name.toLowerCase() === q);
-      const named = exact >= 0 ? exact : flat.findIndex((c) => c.name.toLowerCase().includes(q));
-      if (named >= 0) idx = named;
-    }
-    setActiveIdx(idx);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
-
-  // On open: activate the selected option, focus search (desktop only - on a
-  // phone autofocus would shove the keyboard over the sheet), scroll selection
-  // into view.
-  useEffect(() => {
-    if (!open) return;
-    const idx = flat.findIndex((c) => c.id === value);
-    setActiveIdx(idx >= 0 ? idx : 0);
-    if (!isPhone) searchRef.current?.focus();
-    requestAnimationFrame(() => {
-      listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // Outside click closes; Escape closes and refocuses the trigger. Escape is
-  // capture-phase so only the picker (the top layer) dismisses - a parent
-  // Modal's document-level Escape listener never sees the event.
+  // Outside click closes; Escape closes and refocuses the trigger.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -188,36 +133,38 @@ export function CategoryPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isPhone]);
 
-  // Arrow keys move aria-activedescendant while the search input keeps focus;
-  // Enter picks the active option.
-  const onPanelKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (flat.length === 0) return;
-      const next = e.key === 'ArrowDown' ? activeIdx + 1 : activeIdx - 1;
-      const idx = (next + flat.length) % flat.length;
-      setActiveIdx(idx);
-      document.getElementById(optId(flat[idx].id))?.scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const cat = flat[activeIdx];
-      if (cat) pick(cat.id);
-    }
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (open) close();
+    else openPicker();
+  };
+  const common = {
+    type: 'button' as const,
+    ref: triggerRef,
+    'aria-haspopup': 'listbox' as const,
+    'aria-expanded': open,
+    'aria-describedby': describedBy,
+    onClick: toggle,
   };
 
   const trigger =
-    variant === 'inline' ? (
+    variant === 'select' ? (
+      <button {...common} className={cn('group/trigger', triggerClass(toolbar), className)}>
+        <TriggerInner label={triggerLabel} toolbar={toolbar} />
+      </button>
+    ) : variant === 'action' ? (
       <button
-        type="button"
-        ref={triggerRef}
-        aria-haspopup="listbox"
-        aria-expanded={open}
+        {...common}
+        // Same shape as the page's toolbar dropdowns (OptionMenu's toolbar trigger).
+        className={cn(button({ variant: 'secondary', size: 'sm' }), 'gap-1.5 pl-3 pr-2.5', className)}
+      >
+        {currentLabel}
+        <ChevronDown size={15} className={cn('shrink-0 text-content-muted transition-transform duration-150', open && 'rotate-180')} aria-hidden />
+      </button>
+    ) : variant === 'inline' ? (
+      <button
+        {...common}
         title="Click to recategorize"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (open) close();
-          else openPicker();
-        }}
         className={cn(
           // A persistent dotted underline + darker ink so the category reads as
           // an editable control at rest, not static metadata. Truncates so a long
@@ -230,15 +177,7 @@ export function CategoryPicker({
       </button>
     ) : (
       <button
-        type="button"
-        ref={triggerRef}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (open) close();
-          else openPicker();
-        }}
+        {...common}
         className={cn(
           'flex h-11 min-h-touch w-full items-center gap-2.5 rounded-ui-md bg-panel pl-3 pr-3 text-left text-sm text-content',
           'border border-line-strong shadow-ui-sm transition-[border-color,box-shadow] duration-150 ease-ui',
@@ -254,110 +193,17 @@ export function CategoryPicker({
       </button>
     );
 
-  const panelBody = (
-    <>
-      <div className="relative shrink-0">
-        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
-        <input
-          ref={searchRef}
-          type="text"
-          role="combobox"
-          aria-expanded="true"
-          aria-controls={listId}
-          aria-activedescendant={flat[activeIdx] ? optId(flat[activeIdx].id) : undefined}
-          aria-autocomplete="list"
-          placeholder="Search categories"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="ui-focus h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-3 text-[13px] text-content"
-        />
-      </div>
-      <div
-        ref={listRef}
-        role="listbox"
-        aria-label="Category"
-        id={listId}
-        className={cn('mt-1 min-h-0 overflow-y-auto overscroll-contain', isPhone ? 'flex-1' : 'max-h-[320px]')}
-      >
-        {loading && pickerGroups.length === 0 ? (
-          [0, 1, 2].map((i) => (
-            <div key={i} className="flex items-center gap-2.5 px-2 py-2">
-              <Skeleton className="h-[26px] w-[26px] rounded-ui-sm" />
-              <Skeleton className="h-3.5 flex-1" />
-            </div>
-          ))
-        ) : error && pickerGroups.length === 0 ? (
-          <div className="px-3 py-3 text-[13px] text-content-muted">
-            Categories failed to load.{' '}
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              className="font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-            >
-              Try again
-            </button>
-          </div>
-        ) : flat.length === 0 ? (
-          <div className="px-3 py-3 text-[13px] text-content-muted">No categories match</div>
-        ) : (
-          visibleGroups.map(({ group, categories }) => (
-            <div key={group.id}>
-              <div className="px-3 pb-1 pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
-                {group.name}
-              </div>
-              {categories.map((cat) => {
-                const idx = flatIdxById.get(cat.id) ?? 0;
-                const isSel = cat.id === value;
-                const isActive = idx === activeIdx;
-                return (
-                  <button
-                    key={cat.id}
-                    id={optId(cat.id)}
-                    type="button"
-                    role="option"
-                    aria-selected={isSel}
-                    tabIndex={-1}
-                    onClick={() => pick(cat.id)}
-                    // On touch, the tap-synthesized mousemove would leave a
-                    // stray gray active row beside the green selected one.
-                    onMouseMove={isPhone ? undefined : () => setActiveIdx(idx)}
-                    className={cn(
-                      'flex w-full items-center gap-2.5 rounded-ui-sm px-2 py-2 text-left transition-colors focus:outline-none max-sm:min-h-touch',
-                      isSel ? 'bg-brand-softer' : isActive ? 'bg-canvas-sunken' : 'hover:bg-canvas-sunken',
-                    )}
-                  >
-                    <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
-                      {taxonomyIcon(cat)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-content" title={cat.name}>
-                      {cat.name}
-                    </span>
-                    {isSel && <Check className="h-4 w-4 shrink-0 text-brand" aria-hidden />}
-                  </button>
-                );
-              })}
-            </div>
-          ))
-        )}
-      </div>
-      <div className="my-1 h-px shrink-0 bg-line" aria-hidden />
-      <button
-        type="button"
-        onClick={() => {
-          close();
-          navigate('/profile#categories');
-        }}
-        className={cn(
-          'flex w-full shrink-0 items-center gap-2.5 rounded-ui-sm px-2 py-2 text-left text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-colors max-sm:min-h-touch',
-          'hover:bg-brand-softer focus:bg-brand-softer focus:outline-none',
-        )}
-      >
-        <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-ui-sm bg-brand-soft text-brand">
-          <Settings className="h-4 w-4" />
-        </span>
-        Manage categories
-      </button>
-    </>
+  const list = (scrollerClassName?: string) => (
+    <CategoryList
+      mode={props.multiple ? 'multi' : 'single'}
+      selected={props.multiple ? props.values : value ? [value] : []}
+      onPick={pick}
+      onSetSelected={props.multiple ? props.onChangeMany : undefined}
+      onManage={() => close()}
+      // On a phone autofocus would shove the keyboard over the sheet.
+      autoFocus={!isPhone}
+      scrollerClassName={scrollerClassName}
+    />
   );
 
   return (
@@ -369,7 +215,7 @@ export function CategoryPicker({
           // Clicks inside the portal still bubble through the React tree to the
           // clickable transaction row, so stop them here.
           isPhone ? (
-            <div className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
+            <div data-sheet className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
               <div
                 className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
                 onClick={() => close()}
@@ -388,7 +234,6 @@ export function CategoryPicker({
                 className="ui-root absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col rounded-t-ui-xl border-t border-line bg-panel-raised p-2 shadow-ui-xl [animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]"
                 // .ui-root paints the canvas background; keep the sheet raised.
                 style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
-                onKeyDown={onPanelKeyDown}
               >
                 <div
                   className="flex shrink-0 cursor-grab touch-none justify-center pb-1 pt-2.5"
@@ -396,27 +241,34 @@ export function CategoryPicker({
                 >
                   <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden />
                 </div>
-                {panelBody}
+                {list('flex-1')}
+                {/* Multi mode stays open while you pick, so the sheet needs a
+                     way back that isn't a blind tap on the scrim. */}
+                {props.multiple && (
+                  <Button variant="secondary" size="sm" className="mt-1 w-full shrink-0" onClick={() => close(true)}>
+                    Done
+                  </Button>
+                )}
               </motion.div>
             </div>
           ) : (
             <div
               ref={panelRef}
+              data-sheet
               style={{
                 position: 'fixed',
                 left: pos.left,
                 top: pos.top,
                 bottom: pos.bottom,
-                width: PANEL_WIDTH,
+                width: pos.width,
                 maxHeight: pos.maxHeight,
                 // .ui-root paints the canvas background; keep the panel raised.
                 backgroundColor: 'rgb(var(--ui-panel-raised))',
               }}
-              className="ui-root z-[95] flex flex-col rounded-ui-md border border-line bg-panel-raised p-1 shadow-ui-lg"
+              className="ui-root z-[95] flex flex-col rounded-ui-md border border-line bg-panel-raised p-1 shadow-ui-lg [animation:ui-pop-in_140ms_cubic-bezier(0.22,1,0.36,1)]"
               onClick={(e) => e.stopPropagation()}
-              onKeyDown={onPanelKeyDown}
             >
-              {panelBody}
+              {list()}
             </div>
           ),
           document.body,

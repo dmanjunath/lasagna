@@ -3,9 +3,10 @@ import { api } from '../../lib/api';
 import { useAccountsIndex } from '../../lib/use-accounts-index';
 import { cn, formatStoredDate } from '../../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
-import { HiddenAmount, Badge, Button, Field, Input, Modal, Textarea } from '../uikit';
+import { HiddenAmount, Badge, Button, Field, Modal, Textarea } from '../uikit';
 import { InstIcon } from '../common/InstIcon';
 import { CategoryPicker } from '../common/CategoryPicker';
+import { MerchantNameInput } from './MerchantNameInput';
 import { useCategoryDisplay } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
@@ -154,11 +155,10 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
 
           {/* Editable fields */}
           <Field label="Merchant">
-            <Input
+            <MerchantNameInput
               value={merchant}
-              onChange={(e) => setMerchant(e.target.value)}
+              onChange={setMerchant}
               placeholder={tx?.name ?? 'Merchant name'}
-              maxLength={255}
             />
           </Field>
           <Field label="Category">

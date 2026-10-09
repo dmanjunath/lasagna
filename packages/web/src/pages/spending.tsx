@@ -1204,6 +1204,7 @@ export function Spending() {
         seed={rulesPanel.seed}
         onClose={() => setRulesPanel({ open: false, seed: null })}
         onChanged={loadData}
+        onViewRules={() => setRulesPanel({ open: true, seed: null })}
       />
     </div>
   );

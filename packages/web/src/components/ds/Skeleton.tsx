@@ -1,7 +1,7 @@
 /**
  * Skeleton primitives — iter 7 D.
  *
- * Monarch-tier first paint: instead of a blank 300-400ms gap before content
+ * A fast first paint: instead of a blank 300-400ms gap before content
  * lands, render a cached shell with the same outline as the loaded surface.
  * The shimmer is CSS-only (background-position keyframe) so it costs nothing
  * to mount.

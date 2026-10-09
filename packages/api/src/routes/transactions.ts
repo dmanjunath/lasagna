@@ -143,6 +143,8 @@ transactionRoutes.post("/query", async (c) => {
   if (filters.amountMin != null) conditions.push(sql`abs(${transactions.amount}) >= ${filters.amountMin}`);
   if (filters.amountMax != null) conditions.push(sql`abs(${transactions.amount}) <= ${filters.amountMax}`);
   if (filters.merchant) conditions.push(sql`coalesce(${transactions.merchantName}, ${transactions.name}) = ${filters.merchant}`);
+  if (filters.direction === "credit") conditions.push(sql`${transactions.amount} < 0`);
+  if (filters.direction === "debit") conditions.push(sql`${transactions.amount} > 0`);
   const where = and(...conditions);
 
   // Summary over the FULL filter match; transfers and per-transaction
@@ -163,12 +165,42 @@ transactionRoutes.post("/query", async (c) => {
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
     .where(where);
+  // The single biggest money in and money out, under the money sums'
+  // exclusions, as whole rows so the page can open them.
+  const rowSelect = {
+    id: transactions.id,
+    accountId: transactions.accountId,
+    accountName: accounts.name,
+    date: transactions.date,
+    name: transactions.name,
+    merchantName: transactions.merchantName,
+    amount: transactions.amount,
+    categoryId: transactions.categoryId,
+    pending: transactions.pending,
+    notes: transactions.notes,
+    excludedAt: transactions.excludedAt,
+  };
+  const largest = (side: SQL, order: SQL) =>
+    db.select(rowSelect).from(transactions)
+      .leftJoin(accounts, eq(transactions.accountId, accounts.id))
+      .where(and(where, side, sql`${transactions.excludedAt} is null`))
+      .orderBy(order, desc(transactions.id))
+      .limit(1)
+      .then((r) => r[0] ?? null);
+  const [largestCredit, largestDebit] = cursor
+    ? [null, null]
+    : await Promise.all([
+        largest(sql`${transactions.amount} < 0`, asc(transactions.amount)),
+        largest(sql`${transactions.amount} > 0`, desc(transactions.amount)),
+      ]);
   const summary = {
     count: agg?.count ?? 0,
     totalSpent: Math.round(parseFloat(agg?.spent ?? "0") * 100) / 100,
     totalIncome: Math.round(parseFloat(agg?.income ?? "0") * 100) / 100,
     totalDebits: Math.round(parseFloat(agg?.debits ?? "0") * 100) / 100,
     totalCredits: Math.round(parseFloat(agg?.credits ?? "0") * 100) / 100,
+    largestCredit,
+    largestDebit,
     earliest: agg?.earliest ?? null,
     latest: agg?.latest ?? null,
   };
@@ -221,19 +253,7 @@ transactionRoutes.post("/query", async (c) => {
     ? [desc(sortCol), desc(transactions.id)]
     : [asc(sortCol), asc(transactions.id)];
 
-  const rows = await db.select({
-    id: transactions.id,
-    accountId: transactions.accountId,
-    accountName: accounts.name,
-    date: transactions.date,
-    name: transactions.name,
-    merchantName: transactions.merchantName,
-    amount: transactions.amount,
-    categoryId: transactions.categoryId,
-    pending: transactions.pending,
-    notes: transactions.notes,
-    excludedAt: transactions.excludedAt,
-  }).from(transactions)
+  const rows = await db.select(rowSelect).from(transactions)
     .leftJoin(accounts, eq(transactions.accountId, accounts.id))
     .where(listConditions)
     .orderBy(...order)
@@ -249,11 +269,27 @@ transactionRoutes.post("/query", async (c) => {
 });
 
 // PATCH /:id - Update a transaction's category, merchantName, notes, and/or excluded
-transactionRoutes.patch("/:id", async (c) => {
+// GET /merchants - The tenant's merchant names, most used first. Feeds the
+// rename suggestions, so a user can merge a raw description into a name they
+// already use without retyping it exactly.
+transactionRoutes.get("/merchants", async (c) => {
   const session = c.get("session");
-  const id = c.req.param("id");
-  const body = await c.req.json();
+  const merchant = sql<string>`coalesce(${transactions.merchantName}, ${transactions.name})`;
+  const rows = await db.select({ name: merchant })
+    .from(transactions)
+    .where(eq(transactions.tenantId, session.tenantId))
+    .groupBy(merchant)
+    .orderBy(sql`count(*) desc`, merchant)
+    .limit(1000);
+  return c.json({ merchants: rows.map((r) => r.name) });
+});
 
+// The editable fields of a PATCH body, validated. Shared by the single-row and
+// the bulk route so both accept exactly the same fields.
+async function parseTxnUpdates(
+  body: any,
+  tenantId: string,
+): Promise<{ updates: Record<string, unknown>; categoryChanged: boolean } | { error: string }> {
   const updates: Record<string, unknown> = {};
   let categoryChanged = false;
 
@@ -261,34 +297,89 @@ transactionRoutes.patch("/:id", async (c) => {
     // Category ids only. Disabled targets are rejected: pickers hide them,
     // so only stale clients send one.
     if (typeof body.category !== "string" || !UUID_RE.test(body.category)) {
-      return c.json({ error: "Invalid category" }, 400);
+      return { error: "Invalid category" };
     }
-    const taxonomy = await loadTaxonomy(session.tenantId);
+    const taxonomy = await loadTaxonomy(tenantId);
     const target = taxonomy.find((t) => t.id === body.category);
-    if (!target) return c.json({ error: "Invalid category" }, 400);
-    if (target.disabledAt) return c.json({ error: "Category is disabled" }, 400);
+    if (!target) return { error: "Invalid category" };
+    if (target.disabledAt) return { error: "Category is disabled" };
     updates.categoryId = target.id;
     updates.categorySource = "manual";
     updates.linkedTransactionId = null;
     categoryChanged = true;
   }
-  if (body.merchantName !== undefined) {
-    if (typeof body.merchantName !== 'string') return c.json({ error: "merchantName must be a string" }, 400);
+  if (body.merchantName === null) {
+    // Drops a rename, back to the bank's own description.
+    updates.merchantName = null;
+    updates.merchantEditedAt = null;
+  } else if (body.merchantName !== undefined) {
+    if (typeof body.merchantName !== 'string') return { error: "merchantName must be a string" };
     const m = body.merchantName.trim();
-    if (!m || m.length > 255) return c.json({ error: "merchantName must be 1-255 characters" }, 400);
+    if (!m || m.length > 255) return { error: "merchantName must be 1-255 characters" };
     updates.merchantName = m;
     updates.merchantEditedAt = new Date();
   }
   if (body.notes !== undefined) {
-    if (typeof body.notes !== 'string') return c.json({ error: "notes must be a string" }, 400);
+    if (typeof body.notes !== 'string') return { error: "notes must be a string" };
     const n = body.notes;
-    if (n.length > 2000) return c.json({ error: "notes must be at most 2000 characters" }, 400);
+    if (n.length > 2000) return { error: "notes must be at most 2000 characters" };
     updates.notes = n.trim() === "" ? null : n;
   }
   if (body.excluded !== undefined) {
-    if (typeof body.excluded !== 'boolean') return c.json({ error: "excluded must be a boolean" }, 400);
+    if (typeof body.excluded !== 'boolean') return { error: "excluded must be a boolean" };
     updates.excludedAt = body.excluded ? new Date() : null;
   }
+  return { updates, categoryChanged };
+}
+
+// PATCH /bulk - Apply the same field edits to many transactions at once.
+// Registered before /:id so "bulk" is not read as a transaction id.
+transactionRoutes.patch("/bulk", async (c) => {
+  const session = c.get("session");
+  const body = await c.req.json();
+
+  const ids = body.ids;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !ids.every((id: unknown) => typeof id === "string" && UUID_RE.test(id))) {
+    return c.json({ error: "ids must be 1-500 transaction ids" }, 400);
+  }
+  const parsed = await parseTxnUpdates(body, session.tenantId);
+  if ("error" in parsed) return c.json({ error: parsed.error }, 400);
+  const { updates, categoryChanged } = parsed;
+  if (Object.keys(updates).length === 0) return c.json({ success: true, updated: 0 });
+
+  const existing = await db.select({ id: transactions.id, linkedTransactionId: transactions.linkedTransactionId })
+    .from(transactions)
+    .where(and(eq(transactions.tenantId, session.tenantId), inArray(transactions.id, ids)));
+  if (existing.length !== new Set(ids).size) return c.json({ error: "Transaction not found" }, 404);
+
+  await db.transaction(async (tx) => {
+    await tx.update(transactions)
+      .set(updates as any)
+      .where(and(eq(transactions.tenantId, session.tenantId), inArray(transactions.id, ids)));
+
+    // Same rule as the single-row route: a recategorized transfer frees its
+    // partner. A partner that is itself in the selection was just updated.
+    const partners = categoryChanged
+      ? existing.map((t) => t.linkedTransactionId).filter((p): p is string => p != null && !ids.includes(p))
+      : [];
+    if (partners.length > 0) {
+      await tx.update(transactions)
+        .set({ linkedTransactionId: null })
+        .where(and(eq(transactions.tenantId, session.tenantId), inArray(transactions.id, partners)));
+    }
+  });
+
+  return c.json({ success: true, updated: existing.length });
+});
+
+transactionRoutes.patch("/:id", async (c) => {
+  const session = c.get("session");
+  const id = c.req.param("id");
+  const body = await c.req.json();
+
+  const parsed = await parseTxnUpdates(body, session.tenantId);
+  if ("error" in parsed) return c.json({ error: parsed.error }, 400);
+  const { updates, categoryChanged } = parsed;
 
   // No fields provided — no-op
   if (Object.keys(updates).length === 0) return c.json({ success: true });

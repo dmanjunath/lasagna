@@ -18,6 +18,8 @@ export interface QueryFilters {
   amountMin?: number;
   amountMax?: number;
   merchant?: string;
+  /** credit = money in (amount < 0), debit = money out (amount > 0). */
+  direction?: "credit" | "debit";
 }
 export interface NormalizedQuery {
   filters: QueryFilters;
@@ -57,6 +59,10 @@ export function validateQueryBody(body: any): { ok: NormalizedQuery } | { error:
 
   if (f.search != null && String(f.search).trim() !== "") filters.search = String(f.search).trim();
   if (f.merchant != null && String(f.merchant).trim() !== "") filters.merchant = String(f.merchant).trim();
+  if (f.direction != null) {
+    if (f.direction !== "credit" && f.direction !== "debit") return { error: "direction must be credit or debit" };
+    filters.direction = f.direction;
+  }
 
   for (const key of ["categories", "excludeCategories", "accountIds"] as const) {
     const v = f[key];

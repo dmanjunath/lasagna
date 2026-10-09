@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useDragControls, type PanInfo } from 'framer-motion';
-import { ChevronDown, Layers, Search, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, SegmentedControl, Skeleton } from '../uikit';
+import { SlidersHorizontal } from 'lucide-react';
+import { Badge, Button, SegmentedControl } from '../uikit';
 import { cn } from '../../lib/utils';
+import { type ToolbarField } from './OptionMenu';
+import { CategoryList } from './CategoryList';
+import { CategoryPicker } from './CategoryPicker';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { getCategoryDisplay } from '../../lib/categories';
 import { CATEGORY_ID_RE } from '../../lib/spending-filters';
-import { categoryOptionLabel, taxonomyIcon, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
+import { usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
 // CategoryMultiSelect — the ONE grouped category picker: a tri-state group row
@@ -114,7 +117,10 @@ export function CategoryMultiSelect({
   mode,
   describedBy,
   className,
+  toolbar,
 }: {
+  /** On the wide transactions toolbar: name the field, tint and count while set. */
+  toolbar?: ToolbarField;
   /** Category ids. */
   selected: string[];
   onChange: (ids: string[]) => void;
@@ -129,11 +135,7 @@ export function CategoryMultiSelect({
   describedBy?: string;
   className?: string;
 }) {
-  const pickerGroups = usePickerGroups();
-  const { loading, error, refresh } = useTaxonomy();
-
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -195,138 +197,7 @@ export function CategoryMultiSelect({
     };
   }, [open]);
 
-  // Search (filters variant only): a category matches on its own name or its
-  // group's, and a group left with no match drops out, header included.
-  const q = variant === 'filters' ? query.trim().toLowerCase() : '';
-  const visibleGroups = useMemo(
-    () =>
-      q === ''
-        ? pickerGroups
-        : pickerGroups
-            .map(({ group, categories }) => ({
-              group,
-              categories: group.name.toLowerCase().includes(q)
-                ? categories
-                : categories.filter((c) => c.name.toLowerCase().includes(q)),
-            }))
-            .filter((g) => g.categories.length > 0),
-    [pickerGroups, q],
-  );
-
-  const toggleCategory = (id: string) => {
-    setDraft((cur) => (cur.includes(id) ? cur.filter((v) => v !== id) : [...cur, id]));
-  };
-
-  const withIcons = variant === 'filters';
-
-  const list = (
-    <div
-      className={cn(
-        isPhone
-          // A hairline for the scrolled list to run under. Without it the rows
-          // pass straight into the pinned search input and read as its content.
-          ? 'mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-line'
-          : variant === 'filters'
-            ? 'mt-2 max-h-[320px] overflow-y-auto overscroll-contain rounded-ui-sm border border-line'
-            // The field popover IS the scroller, so its own max-height bounds
-            // the list — as it did before the lift, to the pixel.
-            : '',
-      )}
-    >
-      {loading && pickerGroups.length === 0 ? (
-        [0, 1, 2].map((i) => (
-          <div key={i} className="flex items-center gap-2.5 px-3 py-2">
-            <Skeleton className="h-4 w-4 rounded-ui-xs" />
-            <Skeleton className="h-3.5 flex-1" />
-          </div>
-        ))
-      ) : error && pickerGroups.length === 0 ? (
-        <div className="px-3 py-3 text-[13px] text-content-muted">
-          Categories failed to load.{' '}
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-          >
-            Try again
-          </button>
-        </div>
-      ) : visibleGroups.length === 0 ? (
-        <div className="px-3 py-3 text-[13px] text-content-muted">No categories match</div>
-      ) : (
-        visibleGroups.map(({ group, categories }) => {
-          const childIds = categories.map((c) => c.id);
-          const allSelected = childIds.every((v) => draft.includes(v));
-          const someSelected = childIds.some((v) => draft.includes(v));
-          return (
-            <React.Fragment key={group.id}>
-              {/* Selectable group header: a shaded "select all in group" row
-                   that reads as a section — a Layers glyph + bold dark label
-                   mark it as the parent; children render indented beneath. */}
-              <label className={cn(
-                'flex min-h-touch cursor-pointer items-center gap-2.5 border-y border-line bg-canvas-sunken px-3 py-2 first:border-t-0 hover:bg-line/70',
-                // 48 rows, 7 visible: the section a row belongs to has to stay
-                // on screen while you scroll past it. Only the filters panel —
-                // sticky promotes the row, and the transactions field popover
-                // is held pixel-identical to what it rendered before the lift.
-                variant === 'filters' && 'sticky top-0 z-[1]',
-              )}>
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                  onChange={() => {
-                    setDraft((cur) =>
-                      allSelected
-                        ? cur.filter((v) => !childIds.includes(v))
-                        : Array.from(new Set([...cur, ...childIds])),
-                    );
-                  }}
-                  className="h-4 w-4 rounded border-line accent-[rgb(var(--ui-brand))]"
-                />
-                <Layers size={13} className="shrink-0 text-content-muted" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-content" title={group.name}>
-                  {group.name}
-                </span>
-              </label>
-              {categories.map((cat) => (
-                <label
-                  key={cat.id}
-                  className="flex min-h-touch cursor-pointer items-center gap-2.5 py-2 pl-9 pr-3 hover:bg-canvas-sunken"
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.includes(cat.id)}
-                    onChange={() => toggleCategory(cat.id)}
-                    className="h-4 w-4 rounded border-line accent-[rgb(var(--ui-brand))]"
-                  />
-                  {withIcons && (
-                    <span
-                      className="grid h-5 w-5 shrink-0 place-items-center text-content-muted [&>svg]:h-[15px] [&>svg]:w-[15px]"
-                      aria-hidden
-                    >
-                      {taxonomyIcon(cat)}
-                    </span>
-                  )}
-                  <span
-                    className="min-w-0 flex-1 truncate text-[13px] font-medium text-content"
-                    title={cat.name}
-                  >
-                    {categoryOptionLabel(cat)}
-                  </span>
-                </label>
-              ))}
-            </React.Fragment>
-          );
-        })
-      )}
-    </div>
-  );
-
-  const panelBody =
-    variant === 'field' ? (
-      list
-    ) : (
+  const panelBody = (
       <>
         {/* "Only"/"Except" — the words the chips this switch produces use.
              Labelling the switch Include/Exclude put two vocabularies for one
@@ -342,18 +213,16 @@ export function CategoryMultiSelect({
             ]}
           />
         )}
-        <div className={cn('relative shrink-0', mode && 'mt-3')}>
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
-          <input
-            type="text"
-            placeholder="Search categories"
-            aria-label="Search categories"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="ui-focus h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-3 text-[13px] text-content"
+        <div className={cn('flex min-h-0 flex-1 flex-col', mode && 'mt-3')}>
+          <CategoryList
+            mode="multi"
+            selected={draft}
+            onSetSelected={setDraft}
+            onManage={() => setOpen(false)}
+            autoFocus={!isPhone}
+            scrollerClassName={isPhone ? 'flex-1' : 'max-h-[320px]'}
           />
         </div>
-        {list}
         <Button
           variant="secondary"
           size="sm"
@@ -370,21 +239,26 @@ export function CategoryMultiSelect({
   const triggerLabel =
     count === 0 ? 'All categories' : count === 1 ? chips[0].label : `${count} categories`;
 
-  const trigger =
-    variant === 'field' ? (
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="true"
-        aria-describedby={describedBy}
-        className="ui-focus touch-target relative h-10 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm"
-      >
-        {triggerLabel}
-        <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
-      </button>
-    ) : (
+  // The field idiom is the shared category dropdown in multi mode, the same
+  // list as the row's recategorize menu.
+  if (variant === 'field') {
+    return (
+      <div className={cn('relative', className)}>
+        <CategoryPicker
+          multiple
+          variant="select"
+          values={draft}
+          onChangeMany={setDraft}
+          currentLabel={triggerLabel}
+          toolbar={toolbar}
+          describedBy={describedBy}
+          className="w-full"
+        />
+      </div>
+    );
+  }
+
+  const trigger = (
       <button
         ref={triggerRef}
         type="button"
@@ -404,7 +278,7 @@ export function CategoryMultiSelect({
       {trigger}
       {open && isPhone && typeof document !== 'undefined'
         ? createPortal(
-            <div className="fixed inset-0 z-[100]">
+            <div data-sheet className="fixed inset-0 z-[100]">
               <div
                 className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
                 onClick={() => setOpen(false)}
@@ -433,19 +307,6 @@ export function CategoryMultiSelect({
                   <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden />
                 </div>
                 {panelBody}
-                {/* The field variant has no footer on desktop; on a sheet the
-                     list fills the tray, so it needs a way back that isn't a
-                     blind tap on the scrim. */}
-                {variant === 'field' && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="mt-3 w-full shrink-0"
-                    onClick={() => { setOpen(false); triggerRef.current?.focus(); }}
-                  >
-                    Done
-                  </Button>
-                )}
               </motion.div>
             </div>,
             document.body,
@@ -455,12 +316,7 @@ export function CategoryMultiSelect({
               ref={panelRef}
               role={variant === 'filters' ? 'dialog' : undefined}
               aria-label={variant === 'filters' ? 'Filter by category' : undefined}
-              className={cn(
-                'absolute left-0 top-full z-50 rounded-ui-md border border-line-strong bg-panel-raised shadow-ui-lg',
-                variant === 'field'
-                  ? 'mt-1 max-h-[320px] w-full min-w-[200px] overflow-y-auto'
-                  : 'mt-2 w-[min(380px,calc(100vw-2rem))] overflow-hidden p-4',
-              )}
+              className="absolute left-0 top-full z-50 mt-2 flex w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-ui-md border border-line-strong bg-panel-raised p-4 shadow-ui-lg"
             >
               {panelBody}
             </div>

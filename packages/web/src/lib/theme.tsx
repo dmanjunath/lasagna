@@ -202,7 +202,7 @@ const VALID_THEME_IDS: ThemeId[] = THEMES.map((t) => t.id);
 function readStoredTheme(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME;
   const stored = safeStorage.get(STORAGE_KEY);
-  if (stored === 'monarch' || stored === 'classic') return 'minty';
+  if (stored === 'classic') return 'minty';
   if (VALID_THEME_IDS.includes(stored as ThemeId)) return stored as ThemeId;
   return DEFAULT_THEME;
 }

@@ -1011,10 +1011,18 @@ export const api = {
     }>(`/transactions${qs ? `?${qs}` : ''}`);
   },
 
-  updateTransaction: (id: string, body: { category?: string; merchantName?: string; notes?: string; excluded?: boolean }) =>
+  updateTransaction: (id: string, body: { category?: string; merchantName?: string | null; notes?: string; excluded?: boolean }) =>
     request<{ success: boolean }>(`/transactions/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
+    }),
+
+  getMerchants: () => request<{ merchants: string[] }>('/transactions/merchants'),
+
+  bulkUpdateTransactions: (ids: string[], body: { category?: string; merchantName?: string | null; notes?: string; excluded?: boolean }) =>
+    request<{ success: boolean; updated: number }>('/transactions/bulk', {
+      method: 'PATCH',
+      body: JSON.stringify({ ids, ...body }),
     }),
 
   updateTransactionCategory: (id: string, category: string) =>
@@ -1329,6 +1337,7 @@ export interface TxnQueryBody {
     search?: string; categories?: string[]; excludeCategories?: string[]; accountIds?: string[];
     startDate?: string; endDate?: string;
     amountMin?: number; amountMax?: number; merchant?: string;
+    direction?: 'credit' | 'debit';
   };
   groupBy?: 'date' | 'category' | 'group' | 'merchant';
   sort?: { field: 'date' | 'amount'; dir: 'asc' | 'desc' };
@@ -1349,6 +1358,9 @@ export interface TxnQuerySummary {
   totalDebits: number;
   /** Raw money in (sum of |negative amounts|) over the full filtered match. */
   totalCredits: number;
+  /** Biggest single money in / money out over the match (excluded rows left out); null when there is none. First page only. */
+  largestCredit?: TxnQueryRow | null;
+  largestDebit?: TxnQueryRow | null;
   /** Date span of the match; null when nothing matches. ISO timestamp strings. */
   earliest: string | null;
   latest: string | null;

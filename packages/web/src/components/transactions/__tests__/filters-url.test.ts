@@ -84,6 +84,26 @@ describe('filtersFromQuery', () => {
     expect(filtersFromQuery(`?${query}`).categories).toEqual([]);
   });
 
+  it('round-trips a merchant and accounts from a row click', () => {
+    const scoped: TxnFilters = { ...EMPTY_FILTERS, merchant: 'Blue Bottle & Co', accountIds: ['acc-1', 'acc-2'] };
+    const query = filtersToSearchParams(scoped);
+    expect(query).toBe('merchant=Blue%20Bottle%20%26%20Co&accountIds=acc-1,acc-2');
+    expect(filtersFromQuery(`?${query}`)).toEqual(scoped);
+    expect(filtersToQuery(scoped)).toMatchObject({ merchant: 'Blue Bottle & Co', accountIds: ['acc-1', 'acc-2'] });
+  });
+
+  it('round-trips the type and an amount range', () => {
+    const scoped: TxnFilters = { ...EMPTY_FILTERS, direction: 'debit', amountOp: 'between', amountMin: '20', amountMax: '100' };
+    const query = filtersToSearchParams(scoped);
+    expect(query).toBe('direction=debit&amountOp=between&amountMin=20&amountMax=100');
+    expect(filtersFromQuery(`?${query}`)).toEqual(scoped);
+    expect(filtersToQuery(scoped)).toMatchObject({ direction: 'debit', amountMin: 20, amountMax: 100 });
+  });
+
+  it('sends only the side of the range the operator uses', () => {
+    expect(filtersToQuery({ ...EMPTY_FILTERS, amountOp: 'atLeast', amountMin: '50', amountMax: '10' })).toEqual({ amountMin: 50 });
+  });
+
   it('keeps the two lists apart where a URL carries both', () => {
     const f = filtersFromQuery('?categories=a&excludeCategories=b');
     expect(f.categories).toEqual(['a']);

@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, type CategoryRule, type CategoryRuleInput } from '../../lib/api';
-import { Button, Field, Input, Modal, Select, Skeleton } from '../uikit';
+import { Button, Field, Input, Modal, Skeleton, useToast } from '../uikit';
 import { useConfirm } from '../ds';
-import { categoryOptionLabel, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
+import { useTaxonomy } from '../../lib/taxonomy';
+import { CategoryPicker } from '../common/CategoryPicker';
+import { OptionMenu } from '../common/OptionMenu';
+
+// Amount inputs carry no stepper arrows, as on the transactions filters.
+const AMOUNT_INPUT = 'ui-tnum [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
 // ---------------------------------------------------------------------------
 // RulesPanel — manage category rules from /spending. A single modal that swaps
@@ -16,7 +21,7 @@ type AccountOption = { accountId: string; name: string };
 type View =
   | { mode: 'list' }
   | { mode: 'form'; rule: CategoryRule | null }
-  | { mode: 'confirm'; ruleId: string; count: number };
+  | { mode: 'confirm'; ruleId: string; count: number; wasEdit: boolean };
 
 // matchCategory/setCategory hold category IDS (uuids) — the API field names
 // are historical.
@@ -117,14 +122,17 @@ export function RulesPanel({
   onClose,
   seed,
   onChanged,
+  onViewRules,
 }: {
   open: boolean;
   onClose: () => void;
   seed: { merchantText: string; category: string } | null;
   onChanged: () => void;
+  /** Reopens this panel on its list; the "View rules" link in the created toast calls it. */
+  onViewRules?: () => void;
 }) {
   const confirm = useConfirm();
-  const pickerGroups = usePickerGroups();
+  const toast = useToast();
   const { byId } = useTaxonomy();
   // Label a category reference by its taxonomy id.
   const labelFor = (id: string | null): string =>
@@ -220,17 +228,40 @@ export function RulesPanel({
     try {
       const { count } = await api.previewRule(savedRule.id);
       if (count > 0) {
-        setView({ mode: 'confirm', ruleId: savedRule.id, count });
+        setView({ mode: 'confirm', ruleId: savedRule.id, count, wasEdit: !!view.rule });
       } else {
-        setSavedNote(true);
-        setView({ mode: 'list' });
+        finishSave(!!view.rule);
       }
     } catch {
-      setSavedNote(true);
-      setView({ mode: 'list' });
+      finishSave(!!view.rule);
     } finally {
       setSaving(false);
     }
+  };
+
+  // A new rule ends here: the panel closes and a toast confirms it, with a
+  // way to the list. An edit came from the list, so it goes back there.
+  const finishSave = (wasEdit: boolean) => {
+    if (wasEdit) {
+      setSavedNote(true);
+      backToList();
+      return;
+    }
+    onClose();
+    toast({
+      tone: 'positive',
+      title: 'Rule created',
+      duration: 6000,
+      description: onViewRules ? (
+        <button
+          type="button"
+          onClick={onViewRules}
+          className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+        >
+          View rules
+        </button>
+      ) : undefined,
+    });
   };
 
   const handleApply = async () => {
@@ -239,7 +270,7 @@ export function RulesPanel({
     try {
       await api.applyRule(view.ruleId);
       onChanged();
-      backToList();
+      finishSave(view.wasEdit);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Apply failed');
     } finally {
@@ -318,16 +349,18 @@ export function RulesPanel({
       </Field>
       <Field label="Amount">
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Select
+          <OptionMenu
+            portal
+            ariaLabel="Amount condition"
             value={form.amountMode}
-            onChange={(e) => set({ amountMode: e.target.value as FormState['amountMode'] })}
-            className="sm:w-[132px]"
-            aria-label="Amount condition"
-          >
-            <option value="any">Any</option>
-            <option value="equals">Exactly</option>
-            <option value="between">Between</option>
-          </Select>
+            options={[
+              { value: 'any', label: 'Any' },
+              { value: 'equals', label: 'Exactly' },
+              { value: 'between', label: 'Between' },
+            ]}
+            onChange={(amountMode) => set({ amountMode })}
+            className="shrink-0 sm:w-[132px]"
+          />
           {form.amountMode === 'equals' && (
             <Input
               type="number"
@@ -336,7 +369,7 @@ export function RulesPanel({
               onChange={(e) => set({ amountEquals: e.target.value })}
               placeholder="0.00"
               aria-label="Amount"
-              className="ui-tnum"
+              className={AMOUNT_INPUT}
             />
           )}
           {form.amountMode === 'between' && (
@@ -348,7 +381,7 @@ export function RulesPanel({
                 onChange={(e) => set({ amountMin: e.target.value })}
                 placeholder="Min"
                 aria-label="Minimum amount"
-                className="ui-tnum"
+                className={AMOUNT_INPUT}
               />
               <Input
                 type="number"
@@ -357,43 +390,50 @@ export function RulesPanel({
                 onChange={(e) => set({ amountMax: e.target.value })}
                 placeholder="Max"
                 aria-label="Maximum amount"
-                className="ui-tnum"
+                className={AMOUNT_INPUT}
               />
             </>
           )}
         </div>
       </Field>
       <Field label="Account">
-        <Select value={form.accountId} onChange={(e) => set({ accountId: e.target.value })}>
-          <option value="">Any account</option>
-          {accounts.map((a) => (
-            <option key={a.accountId} value={a.accountId}>{a.name}</option>
-          ))}
-        </Select>
+        <OptionMenu
+          portal
+          ariaLabel="Account"
+          value={form.accountId}
+          options={[{ value: '', label: 'Any account' }, ...accounts.map((a) => ({ value: a.accountId, label: a.name }))]}
+          onChange={(accountId) => set({ accountId })}
+        />
       </Field>
       <Field label="Current category">
-        <Select value={form.matchCategory} onChange={(e) => set({ matchCategory: e.target.value })}>
-          <option value="">Any</option>
-          {pickerGroups.map(({ group, categories }) => (
-            <optgroup key={group.id} label={group.name}>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
-              ))}
-            </optgroup>
-          ))}
-        </Select>
+        {/* The shared category dropdown. It has no "Any" row, so a set value
+             gets a reset link beside it instead. */}
+        <div className="flex items-center gap-3">
+          <CategoryPicker
+            variant="field"
+            value={form.matchCategory}
+            currentLabel="Any category"
+            onChange={(matchCategory) => set({ matchCategory })}
+            className="min-w-0 flex-1"
+          />
+          {form.matchCategory && (
+            <button
+              type="button"
+              onClick={() => set({ matchCategory: '' })}
+              className="ui-focus touch-target-inline shrink-0 rounded-ui-xs text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+            >
+              Any
+            </button>
+          )}
+        </div>
       </Field>
       <Field label="Set category" required>
-        <Select value={form.setCategory} onChange={(e) => set({ setCategory: e.target.value })}>
-          <option value="" disabled>Choose a category…</option>
-          {pickerGroups.map(({ group, categories }) => (
-            <optgroup key={group.id} label={group.name}>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
-              ))}
-            </optgroup>
-          ))}
-        </Select>
+        <CategoryPicker
+          variant="field"
+          value={form.setCategory}
+          currentLabel="Choose a category"
+          onChange={(setCategory) => set({ setCategory })}
+        />
       </Field>
       {error && <p className="text-[12.5px] font-medium text-negative">{error}</p>}
     </div>
@@ -412,7 +452,7 @@ export function RulesPanel({
         <span className="mr-auto text-[13px] font-medium text-content-secondary">
           Apply to {view.count} existing transaction{view.count === 1 ? '' : 's'}?
         </span>
-        <Button variant="secondary" size="sm" onClick={backToList} disabled={saving}>Skip</Button>
+        <Button variant="secondary" size="sm" onClick={() => finishSave(view.wasEdit)} disabled={saving}>Skip</Button>
         <Button variant="primary" size="sm" onClick={() => void handleApply()} loading={saving}>
           {saving ? 'Applying…' : 'Apply'}
         </Button>

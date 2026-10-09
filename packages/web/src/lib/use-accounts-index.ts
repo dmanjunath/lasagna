@@ -13,6 +13,8 @@ export interface AccountIndexEntry {
   mask: string | null;
   institution: string;
   isManual: boolean;
+  /** accounts.type: depository, credit, investment, loan, real_estate, alternative. */
+  type: string;
 }
 
 let cache: Promise<AccountIndexEntry[]> | null = null;
@@ -29,6 +31,7 @@ function fetchIndex(): Promise<AccountIndexEntry[]> {
             mask: a.mask,
             institution: item.institutionName || 'Manual',
             isManual: item.institutionId === 'manual',
+            type: a.type,
           })),
         ),
       )

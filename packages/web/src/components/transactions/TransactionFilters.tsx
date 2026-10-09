@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Link } from 'wouter';
+import { ITEM_CLASS, OptionMenu, PANEL_CLASS, TriggerInner, triggerClass, type ToolbarField } from '../common/OptionMenu';
 import type { TxnQueryBody } from '../../lib/api';
 import type { AccountIndexEntry } from '../../lib/use-accounts-index';
-import { Badge } from '../uikit';
+import { Badge, SegmentedControl, button } from '../uikit';
 import { cn, formatStoredDay, formatStoredMonth } from '../../lib/utils';
 import { InstIcon } from '../common/InstIcon';
 import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../common/CategoryMultiSelect';
@@ -13,6 +15,8 @@ import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../common
 
 export interface TxnFilters {
   search: string;
+  /** Exact merchant, as the row shows it. Set by clicking a row's merchant. */
+  merchant: string;
   categories: string[];
   /** Category ids to drop. Arrives from a /spending exclude scope. */
   excludeCategories: string[];
@@ -20,31 +24,42 @@ export interface TxnFilters {
   datePreset: 'all' | 'this-month' | 'last-month' | 'last-3-months' | 'ytd' | 'custom';
   customStart: string;   // 'YYYY-MM-DD' or ''
   customEnd: string;
+  amountOp: 'any' | 'atLeast' | 'atMost' | 'between';
   amountMin: string;     // raw input; '' = unset
   amountMax: string;
+  /** credit = money in, debit = money out. */
+  direction: 'all' | 'credit' | 'debit';
 }
 
 export const EMPTY_FILTERS: TxnFilters = {
   search: '',
+  merchant: '',
   categories: [],
   excludeCategories: [],
   accountIds: [],
   datePreset: 'all',
   customStart: '',
   customEnd: '',
+  amountOp: 'any',
   amountMin: '',
   amountMax: '',
+  direction: 'all',
 };
 
 // ---------------------------------------------------------------------------
 // filtersToQuery — converts UI filter state to TxnQueryBody['filters'].
 // ---------------------------------------------------------------------------
 
+export function amountRangeInverted(f: TxnFilters): boolean {
+  return f.amountOp === 'between' && f.amountMin !== '' && f.amountMax !== '' && Number(f.amountMin) > Number(f.amountMax);
+}
+
 export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryBody['filters'] {
   const result: TxnQueryBody['filters'] = {};
 
   const search = f.search.trim();
   if (search) result.search = search;
+  if (f.merchant) result.merchant = f.merchant;
   if (f.categories.length > 0) result.categories = f.categories;
   if (f.excludeCategories.length > 0) result.excludeCategories = f.excludeCategories;
   if (f.accountIds.length > 0) result.accountIds = f.accountIds;
@@ -86,10 +101,15 @@ export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryB
     }
   }
 
-  const min = parseFloat(f.amountMin);
-  if (!isNaN(min)) result.amountMin = min;
-  const max = parseFloat(f.amountMax);
-  if (!isNaN(max)) result.amountMax = max;
+  // A range whose min is above its max matches nothing, so it is left out
+  // until fixed. The Amount field says "Min is more than max." meanwhile.
+  if (!amountRangeInverted(f)) {
+    const min = parseFloat(f.amountMin);
+    if (!isNaN(min) && (f.amountOp === 'atLeast' || f.amountOp === 'between')) result.amountMin = min;
+    const max = parseFloat(f.amountMax);
+    if (!isNaN(max) && (f.amountOp === 'atMost' || f.amountOp === 'between')) result.amountMax = max;
+  }
+  if (f.direction !== 'all') result.direction = f.direction;
 
   return result;
 }
@@ -120,11 +140,27 @@ export function filtersFromQuery(queryString: string): TxnFilters {
   const search = params.get('search')?.trim();
   if (search) filters.search = search;
 
+  const merchant = params.get('merchant');
+  if (merchant) filters.merchant = merchant;
+
   const categories = params.get('categories');
   if (categories) filters.categories = categories.split(',').filter(Boolean);
 
   const excludeCategories = params.get('excludeCategories');
   if (excludeCategories) filters.excludeCategories = excludeCategories.split(',').filter(Boolean);
+
+  const accountIds = params.get('accountIds');
+  if (accountIds) filters.accountIds = accountIds.split(',').filter(Boolean);
+
+  const direction = params.get('direction');
+  if (direction === 'credit' || direction === 'debit') filters.direction = direction;
+
+  const amountOp = params.get('amountOp');
+  if (amountOp === 'atLeast' || amountOp === 'atMost' || amountOp === 'between') {
+    filters.amountOp = amountOp;
+    filters.amountMin = params.get('amountMin') ?? '';
+    filters.amountMax = params.get('amountMax') ?? '';
+  }
 
   const start = isoDay(params.get('startDate'));
   const end = isoDay(params.get('endDate'));
@@ -144,11 +180,21 @@ export function filtersToSearchParams(f: TxnFilters): string {
   const parts: string[] = [];
   const search = f.search.trim();
   if (search) parts.push(`search=${encodeURIComponent(search)}`);
+  if (f.merchant) parts.push(`merchant=${encodeURIComponent(f.merchant)}`);
   if (f.categories.length > 0) {
     parts.push(`categories=${f.categories.map(encodeURIComponent).join(',')}`);
   }
   if (f.excludeCategories.length > 0) {
     parts.push(`excludeCategories=${f.excludeCategories.map(encodeURIComponent).join(',')}`);
+  }
+  if (f.accountIds.length > 0) {
+    parts.push(`accountIds=${f.accountIds.map(encodeURIComponent).join(',')}`);
+  }
+  if (f.direction !== 'all') parts.push(`direction=${f.direction}`);
+  if (f.amountOp !== 'any') {
+    parts.push(`amountOp=${f.amountOp}`);
+    if (f.amountMin && f.amountOp !== 'atMost') parts.push(`amountMin=${encodeURIComponent(f.amountMin)}`);
+    if (f.amountMax && f.amountOp !== 'atLeast') parts.push(`amountMax=${encodeURIComponent(f.amountMax)}`);
   }
   if (f.datePreset === 'custom') {
     if (f.customStart) parts.push(`startDate=${f.customStart}`);
@@ -240,6 +286,22 @@ export function dateRangeLabel(start: string, end: string): string | null {
   return null;
 }
 
+// Account types in the order a person reads their money: cash, then cards,
+// then what they own, then what they owe.
+const ACCOUNT_TYPE_GROUPS: Array<[string, string]> = [
+  ['depository', 'Cash'],
+  ['credit', 'Credit cards'],
+  ['investment', 'Investments'],
+  ['real_estate', 'Property'],
+  ['alternative', 'Other assets'],
+  ['loan', 'Loans'],
+];
+const accountTypeRank = (type: string) => {
+  const i = ACCOUNT_TYPE_GROUPS.findIndex(([t]) => t === type);
+  return i === -1 ? ACCOUNT_TYPE_GROUPS.length : i;
+};
+const accountTypeGroup = (type: string) => ACCOUNT_TYPE_GROUPS.find(([t]) => t === type)?.[1] ?? 'Other';
+
 // ---------------------------------------------------------------------------
 // MultiSelectDropdown — the flat Account picker; hand-rolled, outside-click +
 // Escape to close. Categories are grouped and tri-state, and live in the shared
@@ -252,11 +314,16 @@ function MultiSelectDropdown({
   options,
   selected,
   onChange,
+  toolbar,
 }: {
   label: string;
   pluralLabel: string;
-  /** `icon` renders left of the label; `sublabel` renders muted beneath it. */
-  options: Array<{ value: string; label: string; icon?: React.ReactNode; sublabel?: string }>;
+  toolbar?: ToolbarField;
+  /**
+   * `icon` renders left of the label; `sublabel` renders muted beneath it.
+   * Options sharing a `group` sit under one band; pass them already in order.
+   */
+  options: Array<{ value: string; label: string; icon?: React.ReactNode; sublabel?: string; group?: string }>;
   selected: string[];
   onChange: (selected: string[]) => void;
 }) {
@@ -298,20 +365,24 @@ function MultiSelectDropdown({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
-        className="ui-focus touch-target relative h-10 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm"
+        className={cn('group/trigger', triggerClass(toolbar))}
       >
-        {triggerLabel}
-        <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
+        <TriggerInner label={triggerLabel} toolbar={toolbar} />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-[320px] w-full min-w-[200px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised shadow-ui-lg">
-          {options.map((opt) => {
+        <div className={cn('absolute left-0 top-full max-h-[320px] w-full min-w-[280px] overflow-y-auto', PANEL_CLASS)}>
+          {options.map((opt, i) => {
             const checked = selected.includes(opt.value);
+            const band = opt.group && opt.group !== options[i - 1]?.group;
             return (
-              <label
-                key={opt.value}
-                className="flex min-h-touch cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-canvas-sunken"
-              >
+              <React.Fragment key={opt.value}>
+              {band && (
+                // The same tinted section band as the category menu.
+                <div className="rounded-ui-sm bg-canvas-sunken px-2 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
+                  {opt.group}
+                </div>
+              )}
+              <label className={cn(ITEM_CLASS, 'focus-within:bg-canvas-sunken')}>
                 <input
                   type="checkbox"
                   checked={checked}
@@ -331,6 +402,7 @@ function MultiSelectDropdown({
                   )}
                 </span>
               </label>
+              </React.Fragment>
             );
           })}
         </div>
@@ -349,10 +421,13 @@ export function ChipBadge({
   label,
   tone,
   removeLabel,
+  href,
   onClear,
 }: {
   label: string;
   tone?: 'brand' | 'neutral';
+  /** A page for the filtered thing, linked from inside the chip. */
+  href?: string;
   /** Overrides the default "Remove X filter" accessible name. */
   removeLabel?: string;
   onClear: () => void;
@@ -363,6 +438,14 @@ export function ChipBadge({
            itself (a shared link is never rewritten), and 36 characters ran past
            a 390px screen, carrying the × off the edge with it. */}
       <span className="max-w-[16rem] truncate" title={label}>{label}</span>
+      {href && (
+        <Link
+          href={href}
+          className="ui-focus touch-target-inline ml-1.5 rounded-ui-xs font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
+        >
+          View
+        </Link>
+      )}
       <button
         type="button"
         onClick={onClear}
@@ -397,9 +480,13 @@ export function TransactionFilters({
   trailing?: React.ReactNode;
 }) {
   const [searchInput, setSearchInput] = useState(filters.search);
-  const [panelOpen, setPanelOpen] = useState(false);
+  // 'all' = the phone's combined Filters panel. 'more' = the wider toolbar's
+  // panel holding just the filters that didn't fit in the row.
+  const [openPanel, setOpenPanel] = useState<'all' | 'more' | null>(null);
+  const panelOpen = openPanel !== null;
   const panelRef = useRef<HTMLDivElement>(null);
   const filtersBtnRef = useRef<HTMLButtonElement>(null);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
 
   // Keep a ref to the latest filters/onChange so the debounce closure isn't stale.
   const filtersRef = useRef(filters);
@@ -429,13 +516,16 @@ export function TransactionFilters({
     if (!panelOpen) return;
     function onMouseDown(e: MouseEvent) {
       const t = e.target as Node;
-      if (panelRef.current?.contains(t) || filtersBtnRef.current?.contains(t)) return;
-      setPanelOpen(false);
+      if (panelRef.current?.contains(t) || filtersBtnRef.current?.contains(t) || moreBtnRef.current?.contains(t)) return;
+      // A picker's phone sheet portals outside the panel. A tap in it is still
+      // a tap inside the panel's job.
+      if ((t as Element).closest?.('[data-sheet]')) return;
+      setOpenPanel(null);
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        setPanelOpen(false);
-        filtersBtnRef.current?.focus();
+        (openPanel === 'more' ? moreBtnRef : filtersBtnRef).current?.focus();
+        setOpenPanel(null);
       }
     }
     document.addEventListener('mousedown', onMouseDown);
@@ -444,7 +534,7 @@ export function TransactionFilters({
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [panelOpen]);
+  }, [panelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fully-selected groups collapse to one unit, so the trigger label, the
   // Filters badge, and the chips all agree on how a group selection is counted.
@@ -467,16 +557,24 @@ export function TransactionFilters({
     clear: cat.remove,
   }));
   // Account options carry the institution identity so several accounts named
-  // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ••1234").
-  const accountOptions = accounts.map((a) => ({
-    value: a.id,
-    label: a.name,
-    icon: <InstIcon institution={a.institution} isManual={a.isManual} size="sm" />,
-    sublabel: `${a.institution}${a.mask ? ` ••${a.mask}` : ''}`,
-  }));
+  // e.g. "CREDIT CARD" stay distinguishable (logo + "Chase ••1234"). Grouped
+  // by account type, in the order the types appear here.
+  const accountOptions = [...accounts]
+    .sort((a, b) => accountTypeRank(a.type) - accountTypeRank(b.type))
+    .map((a) => ({
+      value: a.id,
+      label: a.name,
+      icon: <InstIcon institution={a.institution} isManual={a.isManual} size="sm" />,
+      sublabel: `${a.institution}${a.mask ? ` ••${a.mask}` : ''}`,
+      group: accountTypeGroup(a.type),
+    }));
   // Names shared by 2+ accounts — their chips get a ••mask suffix.
   const nameCounts = new Map<string, number>();
   for (const a of accounts) nameCounts.set(a.name, (nameCounts.get(a.name) ?? 0) + 1);
+
+  // "Custom range" with no dates typed yet filters nothing, so it isn't counted
+  // or chipped until a date is entered.
+  const dateActive = filters.datePreset !== 'all' && (filters.datePreset !== 'custom' || !!filters.customStart || !!filters.customEnd);
 
   // Active-filter count for the Filters button badge (search lives outside).
   // A whole selected group counts as one, matching the collapsed chips.
@@ -484,8 +582,10 @@ export function TransactionFilters({
     categoryCount +
     excludeCount +
     filters.accountIds.length +
-    (filters.datePreset !== 'all' ? 1 : 0) +
-    (filters.amountMin || filters.amountMax ? 1 : 0);
+    (filters.merchant ? 1 : 0) +
+    (dateActive ? 1 : 0) +
+    ((filters.amountMin || filters.amountMax) && !amountRangeInverted(filters) ? 1 : 0) +
+    (filters.direction !== 'all' ? 1 : 0);
 
   // Build active chips.
   type Chip = {
@@ -494,6 +594,8 @@ export function TransactionFilters({
     clear: () => void;
     tone?: 'brand' | 'neutral';
     removeLabel?: string;
+    /** A page for the filtered thing, linked from inside the chip. */
+    href?: string;
   };
   const chips: Chip[] = [];
 
@@ -502,6 +604,13 @@ export function TransactionFilters({
       key: 'search',
       label: `"${filters.search}"`,
       clear: () => { setSearchInput(''); onChange({ ...filters, search: '' }); },
+    });
+  }
+  if (filters.merchant) {
+    chips.push({
+      key: 'merchant',
+      label: `Merchant: ${filters.merchant}`,
+      clear: () => onChange({ ...filters, merchant: '' }),
     });
   }
   // A fully-selected group is one chip; leftover loose categories get their own.
@@ -520,10 +629,11 @@ export function TransactionFilters({
     chips.push({
       key: `acc-${accId}`,
       label,
+      href: acc ? `/accounts/${accId}` : undefined,
       clear: () => onChange({ ...filters, accountIds: filters.accountIds.filter((id) => id !== accId) }),
     });
   }
-  if (filters.datePreset !== 'all') {
+  if (dateActive) {
     const presetLabels: Record<string, string> = {
       'this-month': 'This month',
       'last-month': 'Last month',
@@ -546,7 +656,7 @@ export function TransactionFilters({
       clear: () => onChange({ ...filters, datePreset: 'all', customStart: '', customEnd: '' }),
     });
   }
-  if (filters.amountMin || filters.amountMax) {
+  if ((filters.amountMin || filters.amountMax) && !amountRangeInverted(filters)) {
     const label = filters.amountMin && filters.amountMax
       ? `$${filters.amountMin} to $${filters.amountMax}`
       : filters.amountMin
@@ -555,7 +665,14 @@ export function TransactionFilters({
     chips.push({
       key: 'amount',
       label,
-      clear: () => onChange({ ...filters, amountMin: '', amountMax: '' }),
+      clear: () => onChange({ ...filters, amountOp: 'any', amountMin: '', amountMax: '' }),
+    });
+  }
+  if (filters.direction !== 'all') {
+    chips.push({
+      key: 'direction',
+      label: filters.direction === 'credit' ? 'Credit' : 'Debit',
+      clear: () => onChange({ ...filters, direction: 'all' }),
     });
   }
 
@@ -567,14 +684,288 @@ export function TransactionFilters({
   // already carries those, and on a wide screen both are on screen at once.
   const excludeCaptionId = 'txn-filters-excluded';
 
+  const amountChip = chips.find((c) => c.key === 'amount');
+  const inputClass = 'ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel px-3 text-[13px] text-content shadow-ui-sm';
+
+  const customDateInputs = filters.datePreset === 'custom' && (
+    <div className="grid grid-cols-2 gap-2">
+      <input
+        type="date"
+        aria-label="Start date"
+        value={filters.customStart}
+        onChange={(e) => onChange({ ...filters, customStart: e.target.value })}
+        className={inputClass}
+      />
+      <input
+        type="date"
+        aria-label="End date"
+        value={filters.customEnd}
+        onChange={(e) => onChange({ ...filters, customEnd: e.target.value })}
+        className={inputClass}
+      />
+    </div>
+  );
+
+  // No stepper arrows: nobody nudges a dollar filter by 1. The keypad on a
+  // phone stays decimal.
+  const amountInputClass = cn(inputClass, '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none');
+  const amountInputs = filters.amountOp !== 'any' && (
+    <div>
+      <div className={cn('grid gap-2', filters.amountOp === 'between' && 'grid-cols-2')}>
+        {(filters.amountOp === 'atLeast' || filters.amountOp === 'between') && (
+          <input
+            type="number"
+            placeholder={filters.amountOp === 'between' ? '$ min' : '$ amount'}
+            aria-label="Minimum amount"
+            value={filters.amountMin}
+            onChange={(e) => onChange({ ...filters, amountMin: e.target.value })}
+            min="0"
+            inputMode="decimal"
+            className={amountInputClass}
+          />
+        )}
+        {(filters.amountOp === 'atMost' || filters.amountOp === 'between') && (
+          <input
+            type="number"
+            placeholder={filters.amountOp === 'between' ? '$ max' : '$ amount'}
+            aria-label="Maximum amount"
+            value={filters.amountMax}
+            onChange={(e) => onChange({ ...filters, amountMax: e.target.value })}
+            min="0"
+            inputMode="decimal"
+            className={amountInputClass}
+          />
+        )}
+      </div>
+      {amountRangeInverted(filters) && (
+        <p className="mt-1.5 text-[12px] font-medium text-negative">Min is more than max.</p>
+      )}
+    </div>
+  );
+
+  const DATE_OPTIONS: Array<{ value: TxnFilters['datePreset']; label: string }> = [
+    { value: 'all', label: 'All time' },
+    { value: 'this-month', label: 'This month' },
+    { value: 'last-month', label: 'Last month' },
+    { value: 'last-3-months', label: 'Last 3 months' },
+    { value: 'ytd', label: 'Year to date' },
+    { value: 'custom', label: 'Custom range' },
+  ];
+  const AMOUNT_OPTIONS: Array<{ value: TxnFilters['amountOp']; label: string }> = [
+    { value: 'any', label: 'Any amount' },
+    { value: 'atLeast', label: 'At least' },
+    { value: 'atMost', label: 'At most' },
+    { value: 'between', label: 'Between' },
+  ];
+  const TYPE_OPTIONS: Array<{ value: TxnFilters['direction']; label: string }> = [
+    { value: 'all', label: 'All types' },
+    { value: 'credit', label: 'Credit' },
+    { value: 'debit', label: 'Debit' },
+  ];
+
+  // Each filter, renderable two ways: `inline` is one compact trigger in the
+  // wide toolbar row, the other is a labelled section of a stacked panel.
+  type FilterField = { key: string; label: string; active: boolean; render: (inline: boolean) => React.ReactNode };
+  const fields: FilterField[] = [
+    {
+      key: 'category',
+      label: 'Category',
+      active: categoryCount + excludeCount > 0,
+      render: (inline) => (
+        <>
+          {/* Above the trigger, not below it: the picker's popover opens
+               downward and covered the caption at exactly the moment the
+               user is choosing categories. */}
+          {!inline && excludeChips.length > 0 && (
+            <p id={excludeCaptionId} className="mb-1.5 text-[12px] font-medium text-content-muted">
+              Except {excludeChips.map((c) => c.label).join(', ')}
+            </p>
+          )}
+          <CategoryMultiSelect
+            variant="field"
+            toolbar={inline ? { name: 'Category', count: categoryCount + excludeCount } : undefined}
+            describedBy={!inline && excludeChips.length > 0 ? excludeCaptionId : undefined}
+            selected={filters.categories}
+            // Including a category that is also excluded matches nothing,
+            // so ticking one here drops it from the exclude list rather
+            // than leaving two chips that contradict each other over an
+            // empty result.
+            onChange={(cats) => onChange({
+              ...filters,
+              categories: cats,
+              excludeCategories: filters.excludeCategories.filter((id) => !cats.includes(id)),
+            })}
+          />
+        </>
+      ),
+    },
+    ...(accounts.length > 0 ? [{
+      key: 'account',
+      label: 'Account',
+      active: filters.accountIds.length > 0,
+      render: (inline: boolean) => (
+        <MultiSelectDropdown
+          toolbar={inline ? { name: 'Account', count: filters.accountIds.length } : undefined}
+          label="All accounts"
+          pluralLabel="accounts"
+          options={accountOptions}
+          selected={filters.accountIds}
+          onChange={(ids) => onChange({ ...filters, accountIds: ids })}
+        />
+      ),
+    }] : []),
+    {
+      key: 'date',
+      label: 'Date',
+      active: dateActive,
+      render: (inline) => (
+        <>
+          <OptionMenu
+            ariaLabel="Date"
+            value={filters.datePreset}
+            options={DATE_OPTIONS}
+            toolbar={inline ? { name: 'Date', count: dateActive ? 1 : 0, badge: false } : undefined}
+            // Inline, the range inputs live in this panel, so it stays open
+            // for them. Stacked, they sit below the menu, so it closes.
+            keepOpen={inline ? (v) => v === 'custom' : undefined}
+            onChange={(datePreset) => onChange({ ...filters, datePreset, customStart: '', customEnd: '' })}
+            panelClassName={inline && customDateInputs ? 'w-[300px]' : undefined}
+          >
+            {inline && customDateInputs && <div className="mt-1 border-t border-line px-1.5 pb-1.5 pt-2.5">{customDateInputs}</div>}
+          </OptionMenu>
+          {!inline && customDateInputs && <div className="mt-2">{customDateInputs}</div>}
+        </>
+      ),
+    },
+    {
+      key: 'type',
+      label: 'Type',
+      active: filters.direction !== 'all',
+      render: (inline) => inline ? (
+        <OptionMenu
+          ariaLabel="Type"
+          toolbar={{ name: 'Type', count: filters.direction !== 'all' ? 1 : 0, badge: false }}
+          value={filters.direction}
+          options={TYPE_OPTIONS}
+          onChange={(direction) => onChange({ ...filters, direction })}
+        />
+      ) : (
+        <SegmentedControl
+          aria-label="Type"
+          size="sm"
+          value={filters.direction}
+          onChange={(direction) => onChange({ ...filters, direction })}
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'credit', label: 'Credit' },
+            { value: 'debit', label: 'Debit' },
+          ]}
+        />
+      ),
+    },
+    {
+      key: 'amount',
+      label: 'Amount',
+      active: !!amountChip,
+      render: (inline) => (
+        <>
+          <OptionMenu
+            ariaLabel="Amount"
+            value={filters.amountOp}
+            options={AMOUNT_OPTIONS}
+            toolbar={inline ? { name: 'Amount', count: amountChip ? 1 : 0, badge: false } : undefined}
+            keepOpen={inline ? (v) => v !== 'any' : undefined}
+            onChange={(amountOp) => onChange({ ...filters, amountOp, amountMin: '', amountMax: '' })}
+            panelClassName={inline && amountInputs ? 'w-[260px]' : undefined}
+          >
+            {inline && amountInputs && <div className="mt-1 border-t border-line px-1.5 pb-1.5 pt-2.5">{amountInputs}</div>}
+          </OptionMenu>
+          {!inline && amountInputs && <div className="mt-2">{amountInputs}</div>}
+        </>
+      ),
+    },
+  ];
+
+  // Wide toolbar: as many filters inline as fit, the rest under "More". An
+  // invisible copy of the row measures each trigger at its natural width.
+  const areaRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [fitCount, setFitCount] = useState(fields.length);
+  useLayoutEffect(() => {
+    const area = areaRef.current;
+    const measure = measureRef.current;
+    if (!area || !measure) return;
+    const GAP = 8;
+    const fit = () => {
+      const kids = Array.from(measure.children) as HTMLElement[];
+      const moreWidth = kids[kids.length - 1]?.offsetWidth ?? 0;
+      const widths = kids.slice(0, -1).map((k) => k.offsetWidth);
+      const available = area.clientWidth;
+      const total = widths.reduce((a, w) => a + w + GAP, 0) - GAP;
+      if (total <= available) { setFitCount(widths.length); return; }
+      let used = moreWidth;
+      let n = 0;
+      for (const w of widths) {
+        if (used + GAP + w > available) break;
+        used += GAP + w;
+        n++;
+      }
+      setFitCount(n);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(area);
+    ro.observe(measure);
+    return () => ro.disconnect();
+  }, [fields.length]);
+
+  const shown = fields.slice(0, fitCount);
+  const overflow = fields.slice(fitCount);
+  const overflowActive = overflow.filter((f) => f.active).length;
+  const inlineWrap = 'max-w-[220px] shrink-0';
+
+  const stackedPanel = (list: FilterField[], align: 'left' | 'right') => (
+    <div
+      ref={panelRef}
+      className={cn(
+        'absolute top-full space-y-4', PANEL_CLASS, 'mt-2 p-4',
+        align === 'left' ? 'left-0 right-0 sm:right-auto sm:w-[380px]' : 'right-0 w-[380px]',
+      )}
+    >
+      {list.map((f) => (
+        <div key={f.key}>
+          <div className={sectionLabel}>{f.label}</div>
+          {f.render(false)}
+        </div>
+      ))}
+    </div>
+  );
+
+  const moreLabel = shown.length === 0 ? 'Filters' : 'More';
+  const moreButton = (ref?: React.Ref<HTMLButtonElement>, count = 0) => (
+    <button
+      ref={ref}
+      type="button"
+      onClick={ref ? () => setOpenPanel((v) => (v === 'more' ? null : 'more')) : undefined}
+      aria-expanded={ref ? openPanel === 'more' : undefined}
+      aria-haspopup="true"
+      tabIndex={ref ? undefined : -1}
+      className={cn(button({ variant: count > 0 ? 'primary' : 'secondary', size: 'sm' }), 'shrink-0 px-3')}
+    >
+      <SlidersHorizontal size={14} className="opacity-70" aria-hidden />
+      {moreLabel}
+      {count > 0 && <Badge tone="brand" size="sm">{count}</Badge>}
+    </button>
+  );
+
   return (
     <div className="space-y-2">
       {/* Toolbar row — also the popover anchor so the panel can go full-width
            under the toolbar on mobile. */}
       <div className="relative">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           {/* Debounced search */}
-          <div className="relative min-w-0 flex-1 sm:flex-none">
+          <div className="relative min-w-0 flex-1 sm:w-[200px] sm:flex-none">
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
             <input
               type="text"
@@ -582,7 +973,7 @@ export function TransactionFilters({
               aria-label="Search merchants"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:w-[220px]"
+              className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:h-9"
             />
             {searchInput && (
               <button
@@ -596,139 +987,60 @@ export function TransactionFilters({
             )}
           </div>
 
-          {/* Filters popover trigger */}
+          {/* Phones: one Filters button over every filter. */}
           <button
             ref={filtersBtnRef}
             type="button"
-            onClick={() => setPanelOpen((v) => !v)}
-            aria-expanded={panelOpen}
+            onClick={() => setOpenPanel((v) => (v === 'all' ? null : 'all'))}
+            aria-expanded={openPanel === 'all'}
             aria-haspopup="true"
-            className="ui-focus touch-target inline-flex h-10 shrink-0 items-center gap-2 rounded-ui-md border border-line bg-panel px-3 text-[13px] font-medium text-content shadow-ui-sm"
+            className={cn(button({ variant: 'secondary', size: 'sm' }), 'h-10 shrink-0 px-3 sm:hidden')}
           >
             <SlidersHorizontal size={14} className="text-content-muted" aria-hidden />
             Filters
             {activeCount > 0 && <Badge tone="brand" size="sm">{activeCount}</Badge>}
           </button>
 
-          {trailing}
-        </div>
-
-        {/* Filters panel — Category / Account / Date / Amount. */}
-        {panelOpen && (
-          <div
-            ref={panelRef}
-            className="absolute left-0 right-0 top-full z-50 mt-2 space-y-4 rounded-ui-md border border-line-strong bg-panel-raised p-4 shadow-ui-lg sm:right-auto sm:w-[380px]"
-          >
-            <div>
-              <div className={sectionLabel}>Category</div>
-              {/* Above the trigger, not below it: the picker's popover opens
-                   downward and covered the caption at exactly the moment the
-                   user is choosing categories. */}
-              {excludeChips.length > 0 && (
-                <p id={excludeCaptionId} className="mb-1.5 text-[12px] font-medium text-content-muted">
-                  Except {excludeChips.map((c) => c.label).join(', ')}
-                </p>
-              )}
-              <CategoryMultiSelect
-                variant="field"
-                describedBy={excludeChips.length > 0 ? excludeCaptionId : undefined}
-                selected={filters.categories}
-                // Including a category that is also excluded matches nothing,
-                // so ticking one here drops it from the exclude list rather
-                // than leaving two chips that contradict each other over an
-                // empty result.
-                onChange={(cats) => onChange({
-                  ...filters,
-                  categories: cats,
-                  excludeCategories: filters.excludeCategories.filter((id) => !cats.includes(id)),
-                })}
-              />
-            </div>
-
-            {accounts.length > 0 && (
-              <div>
-                <div className={sectionLabel}>Account</div>
-                <MultiSelectDropdown
-                  label="All accounts"
-                  pluralLabel="accounts"
-                  options={accountOptions}
-                  selected={filters.accountIds}
-                  onChange={(ids) => onChange({ ...filters, accountIds: ids })}
-                />
-              </div>
-            )}
-
-            <div>
-              <div className={sectionLabel}>Date</div>
-              <div className="relative">
-                <select
-                  value={filters.datePreset}
-                  onChange={(e) =>
-                    onChange({
-                      ...filters,
-                      datePreset: e.target.value as TxnFilters['datePreset'],
-                      customStart: '',
-                      customEnd: '',
-                    })
-                  }
-                  className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm"
-                >
-                  <option value="all">All time</option>
-                  <option value="this-month">This month</option>
-                  <option value="last-month">Last month</option>
-                  <option value="last-3-months">Last 3 months</option>
-                  <option value="ytd">Year to date</option>
-                  <option value="custom">Custom…</option>
-                </select>
-                <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted" />
-              </div>
-              {filters.datePreset === 'custom' && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <input
-                    type="date"
-                    aria-label="Start date"
-                    value={filters.customStart}
-                    onChange={(e) => onChange({ ...filters, customStart: e.target.value })}
-                    className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel px-3 text-[13px] text-content shadow-ui-sm"
-                  />
-                  <input
-                    type="date"
-                    aria-label="End date"
-                    value={filters.customEnd}
-                    onChange={(e) => onChange({ ...filters, customEnd: e.target.value })}
-                    className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel px-3 text-[13px] text-content shadow-ui-sm"
-                  />
+          {/* Wider screens: each filter that fits, then More. */}
+          <div ref={areaRef} className="relative hidden min-w-0 flex-1 sm:block">
+            <div className="flex items-center gap-2">
+              {shown.map((f) => (
+                <div key={f.key} className={inlineWrap}>{f.render(true)}</div>
+              ))}
+              {overflow.length > 0 && (
+                <div className="relative">
+                  {moreButton(moreBtnRef, overflowActive)}
+                  {openPanel === 'more' && stackedPanel(overflow, 'right')}
                 </div>
               )}
             </div>
-
-            <div>
-              <div className={sectionLabel}>Amount</div>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  placeholder="$ min"
-                  aria-label="Minimum amount"
-                  value={filters.amountMin}
-                  onChange={(e) => onChange({ ...filters, amountMin: e.target.value })}
-                  min="0"
-                  className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel px-3 text-[13px] text-content shadow-ui-sm"
-                />
-                <input
-                  type="number"
-                  placeholder="$ max"
-                  aria-label="Maximum amount"
-                  value={filters.amountMax}
-                  onChange={(e) => onChange({ ...filters, amountMax: e.target.value })}
-                  min="0"
-                  className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel px-3 text-[13px] text-content shadow-ui-sm"
-                />
+            {/* Clipped wrapper: the copy is wider than the column on a narrow
+                 window and would otherwise widen the page sideways. */}
+            <div aria-hidden className="pointer-events-none invisible absolute inset-0 overflow-hidden">
+              <div
+                ref={measureRef}
+                // inert: the copies are for measuring only, never for use.
+                inert
+                className="absolute left-0 top-0 flex w-max items-center gap-2"
+              >
+                {fields.map((f) => (
+                  <div key={f.key} className={inlineWrap}>{f.render(true)}</div>
+                ))}
+                {moreButton(undefined, 9)}
               </div>
-              {filters.amountMin !== '' && filters.amountMax !== '' && Number(filters.amountMin) > Number(filters.amountMax) && (
-                <p className="mt-1.5 text-[12px] font-medium text-negative">Min is more than max.</p>
-              )}
             </div>
           </div>
+
+          {trailing}
+        </div>
+
+        {openPanel === 'all' && (
+          <>
+            {/* Takes the tap that closes the panel, so it can't also land on
+                 the row underneath and filter the list. */}
+            <div aria-hidden className="fixed inset-0 z-40 sm:hidden" onClick={() => setOpenPanel(null)} />
+            {stackedPanel(fields, 'left')}
+          </>
         )}
       </div>
 
@@ -744,6 +1056,7 @@ export function TransactionFilters({
               label={chip.label}
               tone={chip.tone}
               removeLabel={chip.removeLabel}
+              href={chip.href}
               onClear={chip.clear}
             />
           ))}

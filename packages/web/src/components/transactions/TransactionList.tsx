@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Search, X, DollarSign, Banknote } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Search, X, DollarSign, Banknote } from 'lucide-react';
 import { Link } from 'wouter';
 import { api } from '../../lib/api';
 import { cn, formatStoredDay } from '../../lib/utils';
@@ -8,6 +8,7 @@ import { HiddenAmount, Badge, EmptyState, Skeleton, useToast } from '../uikit';
 import { categoryOptionLabel, useCategoryDisplay, usePickerGroups } from '../../lib/taxonomy';
 import { CategoryPicker } from '../common/CategoryPicker';
 import { TransactionDetail } from './TransactionDetail';
+import { MerchantNameInput } from './MerchantNameInput';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -91,6 +92,8 @@ export function CreateRuleBar({
 
 export function TxnRow({
   merchant, icon, isIncome, categoryNode, date, amount, accountName, excluded, onOpenDetail,
+  showDate = true, onMerchantClick, onAccountClick, selected, selecting, onToggleSelect,
+  columns, accountIcon, onRenameMerchant,
 }: {
   merchant: string;
   icon: React.ReactNode;
@@ -102,19 +105,108 @@ export function TxnRow({
   excluded?: boolean;
   // When set, the merchant becomes the keyboard-accessible "open details"
   // control, so the row wrapper doesn't need role=button (which would nest an
-  // ARIA button around the inner category picker).
+  // ARIA button around the inner category picker). With onMerchantClick the
+  // merchant filters instead, and the amount carries "open details".
   onOpenDetail?: () => void;
+  /** false under a day heading, which already names the date. */
+  showDate?: boolean;
+  onMerchantClick?: () => void;
+  onAccountClick?: () => void;
+  /**
+   * Selection: a checkbox column left of the medallion. Its space is kept on
+   * wider screens and the box fades in on hover, focus, or while selecting.
+   * Phones have no hover, so there it only appears while selecting.
+   */
+  selected?: boolean;
+  selecting?: boolean;
+  onToggleSelect?: () => void;
+  /** Wide screens (xl+) lay merchant, category, account, and amount out as columns. */
+  columns?: boolean;
+  /** Institution logo shown beside the account in the column layout. */
+  accountIcon?: React.ReactNode;
+  /** Inline rename: a pencil beside the merchant on row hover opens an editor with suggestions. */
+  onRenameMerchant?: (name: string) => void;
 }) {
+  const showCheckbox = selecting || selected;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const doneRef = React.useRef(false);
+  const startEdit = () => { setDraft(merchant); doneRef.current = false; setEditing(true); };
+  const finishEdit = (value: string | null) => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setEditing(false);
+    const name = value?.trim();
+    if (name && name !== merchant) onRenameMerchant?.(name);
+  };
+  const amountText = isAmountsHidden() ? <HiddenAmount /> : `${isIncome ? '+' : ''}${formatCurrencyExact(Math.abs(amount))}`;
+  const amountClass = cn('shrink-0 text-[14.5px] font-bold tracking-[-0.01em] ui-tnum', isIncome && !isAmountsHidden() && 'text-positive', excluded && 'opacity-50');
   return (
-    <div className="flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
+    <div className="group/txn flex items-center gap-3.5 border-t border-line px-4 py-3 first:border-t-0 last:rounded-b-ui-xl sm:px-5">
+      {onToggleSelect && (
+        <label
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            '-mx-1.5 grid h-9 w-8 shrink-0 cursor-pointer place-items-center rounded-ui-md',
+            !showCheckbox && 'max-sm:hidden opacity-0 [@media(hover:hover)]:group-hover/txn:opacity-100 group-focus-within/txn:opacity-100',
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={onToggleSelect}
+            // Repeat merchants are common, so the date and amount tell rows apart.
+            aria-label={`Select ${merchant}, ${formatStoredDay(date)}${isAmountsHidden() ? '' : `, ${formatCurrencyExact(Math.abs(amount))}`}`}
+            className="ui-focus h-4 w-4 cursor-pointer rounded border-line accent-[rgb(var(--ui-brand))]"
+          />
+        </label>
+      )}
       <span className={cn(
         'grid h-9 w-9 shrink-0 place-items-center rounded-ui-md',
         isIncome ? 'bg-positive-soft text-positive' : 'bg-canvas-sunken text-content-secondary',
       )}>
         {icon}
       </span>
-      <div className="min-w-0 flex-1">
-        {onOpenDetail ? (
+      <div className={cn('min-w-0 flex-1', columns && 'xl:flex-[1.4]')}>
+        {editing ? (
+          <div onClick={(e) => e.stopPropagation()} className="relative max-w-[320px]">
+            <MerchantNameInput
+              autoFocus
+              floating
+              exclude={merchant}
+              ariaLabel="Merchant name"
+              value={draft}
+              onChange={setDraft}
+              onCommit={(v) => finishEdit(v)}
+              onCancel={() => finishEdit(null)}
+              inputClassName="h-8 min-h-0 py-0 text-[14px] font-bold"
+            />
+          </div>
+        ) : onMerchantClick ? (
+          <div className="flex min-w-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onMerchantClick(); }}
+              // Above the category trigger, whose touch-target-inline margin
+              // reaches up over a short merchant name on phones.
+              className="ui-focus relative z-[1] min-w-0 truncate rounded-ui-xs text-left text-[14px] font-bold leading-tight [@media(hover:hover)]:hover:underline"
+              title={`Show only ${merchant}`}
+            >
+              {merchant}
+            </button>
+            {onRenameMerchant && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); startEdit(); }}
+                aria-label={`Rename ${merchant}`}
+                title="Rename"
+                className="ui-focus relative z-[1] grid h-6 w-6 shrink-0 place-items-center rounded-ui-xs text-content-muted opacity-0 transition-colors hover:bg-canvas-sunken hover:text-content focus:opacity-100 [@media(hover:hover)]:group-hover/txn:opacity-100 [@media(hover:none)]:hidden"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
+          </div>
+        ) : onOpenDetail ? (
           <button
             type="button"
             onClick={onOpenDetail}
@@ -126,16 +218,65 @@ export function TxnRow({
         ) : (
           <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
         )}
-        <div className={cn('mt-0.5 flex min-w-0 items-center gap-2.5 text-[12.5px] text-content-muted sm:gap-3', excluded && 'opacity-50')}>
+        <div className={cn('mt-0.5 flex min-w-0 items-center gap-2.5 text-[12.5px] text-content-muted sm:gap-3', excluded && 'opacity-50', columns && 'xl:hidden')}>
           {categoryNode}
           {excluded && <Badge tone="neutral" className="shrink-0">Excluded</Badge>}
-          <span className="ui-tnum shrink-0 whitespace-nowrap">{formatStoredDay(date)}</span>
-          {accountName && <span className="hidden truncate sm:inline">{accountName}</span>}
+          {showDate && <span className="ui-tnum shrink-0 whitespace-nowrap">{formatStoredDay(date)}</span>}
+          {accountName && (onAccountClick ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAccountClick(); }}
+              className="ui-focus hidden min-w-0 truncate rounded-ui-xs text-left transition-colors [@media(hover:hover)]:hover:text-content [@media(hover:hover)]:hover:underline sm:inline"
+              title={`Show only ${accountName}`}
+            >
+              {accountName}
+            </button>
+          ) : (
+            <span className="hidden truncate sm:inline">{accountName}</span>
+          ))}
         </div>
       </div>
-      <span className={cn('shrink-0 text-[14.5px] font-bold tracking-[-0.01em] ui-tnum', isIncome && !isAmountsHidden() && 'text-positive', excluded && 'opacity-50')}>
-        {isAmountsHidden() ? <HiddenAmount /> : `${isIncome ? '+' : ''}${formatCurrencyExact(Math.abs(amount))}`}
-      </span>
+      {columns && (
+        <>
+          {/* Column cells, wide screens only. The stacked meta line above
+               carries the same fields below xl. */}
+          <div className={cn('hidden min-w-0 flex-1 items-center gap-2 text-[13px] text-content-secondary xl:flex', excluded && 'opacity-50')}>
+            {categoryNode}
+            {excluded && <Badge tone="neutral" className="shrink-0">Excluded</Badge>}
+          </div>
+          <div className={cn('hidden min-w-0 flex-1 items-center gap-2 text-[13px] text-content-secondary xl:flex', excluded && 'opacity-50')}>
+            {accountName && accountIcon && <span className="shrink-0">{accountIcon}</span>}
+            {accountName && (onAccountClick ? (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onAccountClick(); }}
+                className="ui-focus min-w-0 truncate rounded-ui-xs text-left transition-colors [@media(hover:hover)]:hover:text-content [@media(hover:hover)]:hover:underline"
+                title={`Show only ${accountName}`}
+              >
+                {accountName}
+              </button>
+            ) : (
+              <span className="truncate">{accountName}</span>
+            ))}
+          </div>
+          {showDate && (
+            <span className="ui-tnum hidden w-[72px] shrink-0 text-[13px] text-content-muted xl:block">{formatStoredDay(date)}</span>
+          )}
+        </>
+      )}
+      {onMerchantClick && onOpenDetail ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
+          aria-label={`Open details for ${merchant}`}
+          className={cn('ui-focus flex items-center gap-1.5 rounded-ui-xs', columns && 'xl:min-w-[120px] xl:justify-end', amountClass)}
+        >
+          {amountText}
+          {columns && <ChevronRight size={16} className="hidden text-content-faint xl:block" aria-hidden />}
+        </button>
+      ) : (
+        <span className={cn(amountClass, columns && 'xl:min-w-[120px] xl:pr-[22px] xl:text-right')}>{amountText}</span>
+      )}
     </div>
   );
 }

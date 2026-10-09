@@ -578,6 +578,7 @@ export function Settings() {
         seed={null}
         onClose={() => setRulesOpen(false)}
         onChanged={() => {}}
+        onViewRules={() => setRulesOpen(true)}
       />
     </div>
   );

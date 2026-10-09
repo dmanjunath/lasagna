@@ -3,7 +3,7 @@ import { niceTicks, formatShortMoney } from '../ds/TrendChart';
 import { isAmountsHidden } from '../../lib/hide-amounts';
 
 // ---------------------------------------------------------------------------
-// CashflowBars — Monarch-style diverging income/expense bars on --ui-* tokens.
+// CashflowBars — diverging income/expense bars on --ui-* tokens.
 // One column per period: income bar up (viz-2), expenses bar down (viz-4),
 // shared zero axis, named by the legend under the plot. Click selects a period;
 // hover bubbles the index up so the hero value can swap (same contract as the
