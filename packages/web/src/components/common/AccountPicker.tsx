@@ -191,7 +191,8 @@ export function AccountPicker(props: (Multi | Single) & {
       style={portal && fixedPos ? { position: 'fixed', left: fixedPos.left, top: fixedPos.top, bottom: fixedPos.bottom, width: Math.max(fixedPos.width, 280) } : undefined}
       className={cn(
         !portal && 'absolute left-0 top-full w-full min-w-[280px]',
-        'max-h-[320px] overflow-y-auto',
+        // Room on the right for an overlay scrollbar, as in the category list.
+        'max-h-[320px] overflow-y-auto pr-2 [scrollbar-gutter:stable]',
         PANEL_CLASS,
         portal && 'z-[95]',
       )}

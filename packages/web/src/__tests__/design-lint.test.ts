@@ -128,11 +128,7 @@ const UIKIT_SELECT_ALLOWED: Record<string, number> = {
   'pages/_styleguide.tsx': 2,
 };
 
-// Dead code (no importers). Listed, not fixed: delete the files instead.
-const NUMBER_STEPPER_ALLOWED: Record<string, number> = {
-  'components/common/editable-stat-card.tsx': 1,
-  'components/simulation/strategy-config.tsx': 2,
-};
+const NUMBER_STEPPER_ALLOWED: Record<string, number> = {};
 
 const PICKER_GROUPS_ALLOWED: Record<string, number> = {
   // Sanctioned: the hook itself, the one list that renders it, and the chips

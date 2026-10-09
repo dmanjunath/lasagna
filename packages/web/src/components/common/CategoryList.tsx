@@ -61,8 +61,8 @@ export function CategoryList({
   const [, navigate] = useLocation();
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
-  // The active-row fill shows once the keyboard is in use (or the pointer
-  // hovers). At rest it read as a second, unlabelled section band.
+  // The active-row fill shows only while the keyboard is in use. At rest it
+  // read as a second, unlabelled section band.
   const [showActive, setShowActive] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -164,7 +164,9 @@ export function CategoryList({
         id={listId}
         // The hover fill follows the pointer only while it's over the list.
         onPointerLeave={(e) => { if (e.pointerType !== 'touch') setShowActive(false); }}
-        className={cn('mt-1 min-h-0 overflow-y-auto overscroll-contain', scrollerClassName ?? 'max-h-[320px]')}
+        // Room on the right for the scrollbar: an overlay one (macOS) drew over
+        // the bands' All link and the row checks.
+        className={cn('mt-1 min-h-0 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable]', scrollerClassName ?? 'max-h-[320px]')}
       >
         {loading && pickerGroups.length === 0 ? (
           [0, 1, 2].map((i) => (
@@ -242,7 +244,9 @@ export function CategoryList({
                         onClick={() => activate(cat.id)}
                         // On touch, the tap-synthesized mousemove would leave a
                         // stray gray active row beside the green selected one.
-                        onPointerMove={(e) => { if (e.pointerType !== 'touch') { setActiveIdx(idx); setShowActive(true); } }}
+                        // The pointer shows its place with CSS hover alone. A JS active row
+                        // as well went stale on scroll, leaving two rows lit.
+                        onPointerMove={(e) => { if (e.pointerType !== 'touch') setShowActive(false); }}
                         className={cn(
                           'flex w-full items-center gap-2.5 rounded-ui-sm px-2 py-2 text-left transition-colors focus:outline-none max-sm:min-h-touch',
                           isSel ? 'bg-brand-softer' : isActive ? 'bg-canvas-sunken' : 'hover:bg-canvas-sunken',
