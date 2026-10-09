@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useDragControls, type PanInfo } from 'framer-motion';
 import { SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, SegmentedControl } from '../uikit';
+import { Badge, Button, SegmentedControl, button } from '../uikit';
 import { cn } from '../../lib/utils';
 import { type ToolbarField } from './OptionMenu';
 import { CategoryList } from './CategoryList';
@@ -265,9 +265,10 @@ export function CategoryMultiSelect({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="ui-focus touch-target inline-flex h-10 shrink-0 items-center gap-2 rounded-ui-md border border-line bg-panel px-3 text-[13px] font-medium text-content shadow-ui-sm transition-colors hover:bg-canvas-sunken"
+        // The toolbar button look shared with /transactions' filter buttons.
+        className={cn(button({ variant: count > 0 ? 'primary' : 'secondary', size: 'sm' }), 'shrink-0 px-3')}
       >
-        <SlidersHorizontal size={14} className="text-content-muted" aria-hidden />
+        <SlidersHorizontal size={14} className="opacity-70" aria-hidden />
         Filters
         {count > 0 && <Badge tone="brand" size="sm">{count}</Badge>}
       </button>

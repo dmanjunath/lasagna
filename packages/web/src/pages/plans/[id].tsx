@@ -3,8 +3,6 @@ import { useParams, useLocation, Link } from "wouter";
 import {
   History,
   Trash2,
-  Loader2,
-  X,
   ArrowLeft,
   Target,
   TrendingUp,
@@ -16,7 +14,8 @@ import type { PlanType, PlanStatus } from "../../lib/types.js";
 import { api, API_BASE, authHeaders } from "../../lib/api.js";
 import { exactSyncTime, formatInstant } from "../../lib/utils.js";
 import { ChatPanel } from "../../components/chat/index.js";
-import { Badge, Button, PageMeta, PageMetaItem, type BadgeProps } from "../../components/uikit";
+import { Badge, Button, EmptyState, Modal, PageMeta, PageMetaItem, Skeleton, useToast, type BadgeProps } from "../../components/uikit";
+import { deletePlanConfirm, PLAN_DELETED_TOAST } from "./index.js";
 import { EditableTitle } from "../../components/ui/editable-title.js";
 import { PromptTransition, type TransitionState } from "../../components/plan/prompt-transition.js";
 import { PlanResponse } from "../../components/plan-response/index.js";
@@ -27,8 +26,8 @@ import { isResponseV2 } from "../../lib/types-v2.js";
 
 const PLAN_META: Record<PlanType, { label: string; icon: typeof Target; accent: string }> = {
   retirement: { label: "Retirement", icon: Target, accent: "var(--ui-viz-1)" },
-  net_worth: { label: "Net Worth", icon: TrendingUp, accent: "var(--ui-viz-2)" },
-  debt_payoff: { label: "Debt Payoff", icon: CreditCard, accent: "var(--ui-viz-4)" },
+  net_worth: { label: "Net worth", icon: TrendingUp, accent: "var(--ui-viz-2)" },
+  debt_payoff: { label: "Debt payoff", icon: CreditCard, accent: "var(--ui-viz-4)" },
   custom: { label: "Custom", icon: Sparkles, accent: "var(--ui-viz-5)" },
 };
 
@@ -37,6 +36,7 @@ const statusTone = (status: PlanStatus): BadgeProps["tone"] =>
 
 export function PlanDetailPage() {
   const confirm = useConfirm();
+  const toast = useToast();
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -142,16 +142,12 @@ export function PlanDetailPage() {
 
   const handleDelete = async () => {
     if (!id || !plan) return;
-    const confirmed = await confirm({
-      title: `Delete "${plan.title}"?`,
-      body: "This archives the plan. You can still find it in your history.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
+    const confirmed = await confirm(deletePlanConfirm(plan.title));
     if (!confirmed) return;
 
     try {
       await api.deletePlan(id);
+      toast(PLAN_DELETED_TOAST);
       setLocation("/plans");
     } catch (err) {
       console.error("Failed to delete plan:", err);
@@ -262,16 +258,10 @@ export function PlanDetailPage() {
 
             <div className="mt-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em]"
-                  style={{
-                    background: `color-mix(in srgb, ${meta.accent} 13%, transparent)`,
-                    color: meta.accent,
-                  }}
-                >
-                  <TypeIcon className="h-3 w-3" />
+                <Badge>
+                  <TypeIcon className="h-3 w-3" style={{ color: meta.accent }} aria-hidden />
                   {meta.label}
-                </span>
+                </Badge>
 
                 <div className="mt-2.5">
                   {import.meta.env.VITE_DEMO_MODE !== "true" ? (
@@ -373,73 +363,50 @@ export function PlanDetailPage() {
         )}
       </AnimatePresence>
 
-      {/* History panel overlay */}
-      <AnimatePresence>
-        {showHistory && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowHistory(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0, y: 8 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0, y: 8 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-panel-raised border border-line rounded-ui-xl shadow-ui-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-line">
-                <h2 className="font-editorial text-[20px] font-bold tracking-[-0.018em] text-content">
-                  Plan history
-                </h2>
-                <Button variant="ghost" size="icon" onClick={() => setShowHistory(false)} aria-label="Close">
-                  <X className="h-[18px] w-[18px]" />
-                </Button>
-              </div>
-              <div className="p-4 overflow-y-auto max-h-[calc(80vh-76px)]">
-                {historyLoading ? (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-6 w-6 animate-spin text-brand" />
+      <Modal open={showHistory} onClose={() => setShowHistory(false)} title="Plan history">
+        <div className="max-h-[60vh] overflow-y-auto p-4 sm:p-5">
+          {historyLoading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-[72px] w-full rounded-ui-lg" />
+              ))}
+            </div>
+          ) : history.length === 0 ? (
+            <EmptyState
+              icon={<History className="h-5 w-5" />}
+              title="No earlier versions"
+              description="Each time the plan changes, the version before it shows here."
+            />
+          ) : (
+            <div className="space-y-3">
+              {history.map((edit) => (
+                <div
+                  key={edit.id}
+                  className="flex items-center justify-between gap-4 rounded-ui-lg border border-line bg-panel p-4 transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-ui-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[14.5px] font-bold text-content">
+                      {edit.changeDescription || "Plan updated"}
+                    </p>
+                    <p className="mt-0.5 text-[12.5px] font-semibold text-content-muted ui-tnum">
+                      by {edit.editedBy === "agent" ? "Lasagna" : "you"} on {exactSyncTime(edit.createdAt)}
+                    </p>
                   </div>
-                ) : history.length === 0 ? (
-                  <p className="py-10 text-center text-[14px] font-semibold text-content-muted">
-                    No previous versions found.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {history.map((edit) => (
-                      <div
-                        key={edit.id}
-                        className="flex items-center justify-between gap-4 rounded-ui-lg border border-line bg-panel p-4 transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-ui-sm"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-[14.5px] font-bold text-content">
-                            {edit.changeDescription || "Plan updated"}
-                          </p>
-                          <p className="mt-0.5 text-[12.5px] font-semibold text-content-muted ui-tnum">
-                            {exactSyncTime(edit.createdAt)} • by {edit.editedBy}
-                          </p>
-                        </div>
-                        {import.meta.env.VITE_DEMO_MODE !== "true" && (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleRestoreVersion(edit.id)}
-                          >
-                            Restore
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  {import.meta.env.VITE_DEMO_MODE !== "true" && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleRestoreVersion(edit.id)}
+                    >
+                      Restore
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

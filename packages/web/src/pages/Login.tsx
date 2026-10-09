@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { AlertCircle, ScanFace } from "lucide-react";
+import { ScanFace } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
 import { api, API_BASE } from "../lib/api.js";
 import { isNativeApp } from "../lib/native.js";
 import { hasRegisteredPasskey } from "../lib/passkey-hint.js";
-import { Button, Input, Field } from "../components/uikit";
+import { Button, Input, Field, Alert, TextLink } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 import { GoogleButton } from "../components/common/GoogleButton";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
@@ -221,7 +221,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
     : isSignup
     ? "Create Account"
     : isDemo || step === "password"
-    ? "Sign In"
+    ? "Sign in"
     : "Continue";
 
   return (
@@ -305,13 +305,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
 
             {/* "Use a different email" — login password step only */}
             {!isSignup && !isDemo && step === "password" && (
-              <button
-                type="button"
-                onClick={resetToLoginEmail}
-                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-xs text-content-secondary hover:text-content underline underline-offset-2"
-              >
-                Use a different email
-              </button>
+              <TextLink onClick={resetToLoginEmail} chevron={false}>Use a different email</TextLink>
             )}
 
             {/* Signup: optional password is hidden behind a toggle */}
@@ -369,12 +363,9 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
             )}
 
             {error && error !== passwordFieldError && error !== emailFieldError && (
-              // Submitting can move focus to the field an error names, so without
-              // this a screen reader is never told what went wrong.
-              <div role="alert" className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
-                <AlertCircle className="w-4 h-4 text-negative flex-shrink-0" />
-                <span className="text-negative text-sm">{error}</span>
-              </div>
+              // Submitting can move focus to the field an error names, so the
+              // Alert's live region is what tells a screen reader what went wrong.
+              <Alert tone="negative">{error}</Alert>
             )}
 
             <Button
@@ -391,22 +382,9 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
           {/* Login helpers — password step (and demo) */}
           {!isSignup && (isDemo || step === "password") && (
             <div className="flex items-center justify-between mt-2.5">
-              <button
-                type="button"
-                onClick={() => navigate("/forgot-password")}
-                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-sm text-content-secondary hover:text-content underline underline-offset-2"
-              >
-                Forgot password?
-              </button>
+              <TextLink href="/forgot-password" chevron={false}>Forgot password?</TextLink>
               {!isDemo && (
-                <button
-                  type="button"
-                  onClick={handleEmailACode}
-                  disabled={loading}
-                  className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-sm text-brand hover:text-brand-hover underline underline-offset-2"
-                >
-                  Email a code instead ↩
-                </button>
+                <TextLink onClick={handleEmailACode} chevron={false}>Email a code instead</TextLink>
               )}
             </div>
           )}
@@ -452,13 +430,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
           {!isDemo && (
             <p className="text-center text-content-secondary text-sm mt-4 sm:mt-6">
               {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-              <button
-                type="button"
-                onClick={toggleSignup}
-                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-brand hover:text-brand-hover transition-colors font-medium"
-              >
-                {isSignup ? "Sign in" : "Sign up"}
-              </button>
+              <TextLink onClick={toggleSignup} chevron={false}>{isSignup ? "Sign in" : "Sign up"}</TextLink>
             </p>
           )}
 

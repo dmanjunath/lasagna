@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, FileText, Download, X, ChevronDown, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, FileText, Download, X, ChevronDown, RefreshCw } from "lucide-react";
 import { api } from "../../lib/api.js";
 import { watchReport } from "../../lib/report-watcher.js";
-import { Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
+import { Alert, Badge, Button, Stat, Skeleton, EmptyState } from "../../components/uikit";
 import { SegmentedControl } from "../../components/uikit/SegmentedControl.js";
 import { vizColor } from "../../components/uikit/viz.js";
 import { exactSyncTime, formatInstant, formatMoney, splitParagraphs } from "../../lib/utils.js";
@@ -217,14 +217,14 @@ function ThemeLede({ body, className }: { body: string | null; className?: strin
 // ── Retirement Readiness ──────────────────────────────────────────────────────
 
 // Short money label for the growth chart axis, matching the retirement page's
-// terse "$1.2M / $340k" style. Drops a trailing ".0" so round decade ticks read
+// terse "$1.2M / $340K" style. Drops a trailing ".0" so round decade ticks read
 // as "$1M" not "$1.0M", and handles billions for long-horizon terminal values.
 function fmtShortMoney(v: number): string {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const trim = (s: string) => s.replace(/\.0$/, "");
   if (v >= 1e9) return `$${trim((v / 1e9).toFixed(1))}B`;
   if (v >= 1e6) return `$${trim((v / 1e6).toFixed(1))}M`;
-  if (v >= 1e3) return `$${Math.round(v / 1e3)}k`;
+  if (v >= 1e3) return `$${Math.round(v / 1e3)}K`;
   return `$${Math.round(v)}`;
 }
 
@@ -491,9 +491,7 @@ function RetirementReadinessSectionView({
               <span className="flex flex-wrap items-center gap-2.5">
                 <span className="text-[14px] font-semibold text-content">{m.label}</span>
                 {m.recommended && (
-                  <span className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
-                    Recommended
-                  </span>
+                  <Badge tone="brand" size="sm" className="shrink-0">Recommended</Badge>
                 )}
               </span>
               <span className="shrink-0 whitespace-nowrap sm:text-right ui-tnum">
@@ -806,9 +804,7 @@ function SuggestionsSectionView({
                   <span className="min-w-0 break-words">{maskCurrencyInText(s.title)}</span>
                 </h3>
                 {s.category && (
-                  <span className="mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft">
-                    {s.category}
-                  </span>
+                  <Badge tone="brand" size="sm" className="mt-0.5 shrink-0">{s.category}</Badge>
                 )}
               </div>
               <p className="mt-2 max-w-[660px] text-[14.5px] leading-[1.56] text-content-secondary">
@@ -1029,20 +1025,10 @@ function FreeformReportView({
   if (status === "generating") {
     return (
       <div className="mt-6">
-        <div className="rounded-ui-md border border-line bg-panel px-5 py-5 shadow-ui-sm">
-          <div className="flex items-center gap-3">
-            <Loader2 className="h-4.5 w-4.5 animate-spin text-content-muted" aria-hidden />
-            <div>
-              <p className="text-[14.5px] font-bold text-content">
-                Writing your plan
-              </p>
-              <p className="mt-0.5 text-[13px] text-content-secondary">
-                Usually about ten minutes. Feel free to browse the rest of the app. A
-                notification will let you know the moment it&apos;s ready.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert tone="info" title="Writing your plan">
+          Usually about ten minutes. Feel free to browse the rest of the app. A
+          notification will let you know the moment it&apos;s ready.
+        </Alert>
         <div className="mt-5 space-y-4">
           <Skeleton className="h-40 w-full" />
           <Skeleton className="h-5 w-2/3" />
@@ -1072,12 +1058,7 @@ function FreeformReportView({
     <div className="mt-6">
       {/* Revising: the previous report stays readable underneath. */}
       {status === "revising" && (
-        <div className="mb-4 flex items-center gap-3 rounded-ui-md border border-line bg-canvas-sunken px-4 py-3">
-          <Loader2 className="h-4 w-4 animate-spin text-content-muted" aria-hidden />
-          <p className="text-[13px] text-content-secondary">
-            Updating the plan.
-          </p>
-        </div>
+        <Alert tone="info" className="mb-4">Updating the plan.</Alert>
       )}
 
       {/* Plan actions — separate from feedback: Refresh rebuilds from CURRENT
@@ -1378,9 +1359,7 @@ function ScheduleTableView({
                       <span>{row.age}</span>
                     )}
                     {row.age === firstRetirementAge && (
-                      <span className="ml-1.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[rgb(var(--ui-brand-ink))] bg-brand-soft rounded-full px-1.5 py-0.5">
-                        Retire
-                      </span>
+                      <Badge tone="brand" size="sm" className="ml-1.5">Retire</Badge>
                     )}
                   </td>
                   {visibleBuckets.map((b) => (

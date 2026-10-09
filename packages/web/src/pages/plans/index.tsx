@@ -15,7 +15,7 @@ import {
 import { motion } from "framer-motion";
 import { api } from "../../lib/api.js";
 import { formatInstant } from "../../lib/utils.js";
-import { Button, PageMeta, PageMetaItem, Skeleton } from "../../components/uikit";
+import { Badge, Button, PageMeta, PageMetaItem, Skeleton } from "../../components/uikit";
 import { useConfirm } from "../../components/ds";
 import { PageTitle } from "../../components/ds/PageTitle";
 import { useToast } from "../../components/uikit";
@@ -30,8 +30,6 @@ type PlanMeta = {
   label: string;
   icon: typeof Target;
   accent: string;
-  // Darker, AA-safe text shade for the type pill (bright viz colors fail as text).
-  ink: string;
   description: string;
   tooltip: string;
 };
@@ -41,25 +39,22 @@ const PLAN_META: Record<PlanType, PlanMeta> = {
     label: "Retirement",
     icon: Target,
     accent: "var(--ui-viz-1)",
-    ink: "rgb(var(--ui-positive))",
     description: "Plan when you can retire and test scenarios",
     tooltip:
       "Plan your retirement with Monte Carlo simulations, withdrawal strategies, and scenario analysis",
   },
   net_worth: {
-    label: "Net Worth",
+    label: "Net worth",
     icon: TrendingUp,
     accent: "var(--ui-viz-2)",
-    ink: "rgb(var(--ui-accent-ink))",
     description: "Track wealth and optimize allocation",
     tooltip:
       "Track your total wealth across all accounts, analyze trends, and optimize asset allocation",
   },
   debt_payoff: {
-    label: "Debt Payoff",
+    label: "Debt payoff",
     icon: CreditCard,
     accent: "var(--ui-viz-4)",
-    ink: "rgb(var(--ui-negative))",
     description: "Create a debt payoff strategy",
     tooltip:
       "Create a strategy to pay off debt using avalanche or snowball methods, see payoff timelines",
@@ -68,7 +63,6 @@ const PLAN_META: Record<PlanType, PlanMeta> = {
     label: "Custom",
     icon: Sparkles,
     accent: "var(--ui-accent)",
-    ink: "rgb(var(--ui-accent-ink))",
     description: "Any financial goal with AI assistance",
     tooltip:
       "Create a custom plan for any financial goal: saving for a house, college fund, vacation, etc.",
@@ -76,6 +70,19 @@ const PLAN_META: Record<PlanType, PlanMeta> = {
 };
 
 const PLAN_ORDER: PlanType[] = ["retirement", "net_worth", "debt_payoff", "custom"];
+
+// The one copy for deleting a plan, on this list, a plan page, and the
+// retirement plans list. The API archives the row, and every list and page
+// skips archived plans, so to the user it is gone for good.
+export function deletePlanConfirm(title: string) {
+  return {
+    title: `Delete "${title}"?`,
+    body: "You can't undo this.",
+    confirmLabel: "Delete",
+    destructive: true,
+  };
+}
+export const PLAN_DELETED_TOAST = { tone: "positive" as const, title: "Plan deleted" };
 
 export function PlansPage() {
   const confirm = useConfirm();
@@ -97,18 +104,14 @@ export function PlansPage() {
     e.preventDefault(); // Prevent navigation to plan detail
     e.stopPropagation();
 
-    const confirmed = await confirm({
-      title: `Delete "${planTitle}"?`,
-      body: "This archives the plan. You can still find it in your history.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
+    const confirmed = await confirm(deletePlanConfirm(planTitle));
     if (!confirmed) return;
 
     setDeletingPlanId(planId);
     try {
       await api.deletePlan(planId);
       setPlans((prevPlans) => prevPlans.filter((plan) => plan.id !== planId));
+      toast(PLAN_DELETED_TOAST);
     } catch (error) {
       console.error("Failed to delete plan:", error);
       toast({ tone: "negative", title: "Could not delete the plan", description: "Please try again." });
@@ -291,15 +294,7 @@ function PlanCard({
           >
             <Icon className="h-[22px] w-[22px]" />
           </span>
-          <span
-            className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em]"
-            style={{
-              background: `color-mix(in srgb, ${meta.accent} 12%, transparent)`,
-              color: meta.ink,
-            }}
-          >
-            {meta.label}
-          </span>
+          <Badge>{meta.label}</Badge>
         </div>
 
         <h3 className="mt-4 font-editorial text-[19px] font-bold leading-[1.25] tracking-[-0.015em] text-content line-clamp-2">
@@ -308,11 +303,7 @@ function PlanCard({
 
         <div className="mt-auto flex items-center justify-between gap-3 pt-5">
           <span className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-content-muted">
-            <span
-              className="inline-flex items-center rounded-full bg-canvas-sunken px-2 py-0.5 text-[11px] font-bold capitalize text-content-secondary"
-            >
-              {plan.status}
-            </span>
+            <Badge size="sm" className="capitalize">{plan.status}</Badge>
             <span className="ui-tnum">
               Updated {formatInstant(plan.updatedAt, { month: "numeric", day: "numeric", year: "numeric" })}
             </span>

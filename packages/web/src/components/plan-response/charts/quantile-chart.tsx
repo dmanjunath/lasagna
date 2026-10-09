@@ -31,11 +31,11 @@ interface QuantileChartProps {
   showAllQuantiles?: boolean;
 }
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number): string => {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  if (value < 0) return `-$${Math.abs(value / 1000).toFixed(0)}K`;
+  if (value < 0) return `\u2212${formatCurrency(-value)}`;
   return `$${value.toLocaleString()}`;
 };
 
@@ -46,7 +46,7 @@ const formatFullCurrency = (value: number) => {
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value).replace(/^-/, '\u2212');
 };
 
 // Custom tooltip
@@ -70,37 +70,37 @@ function CustomTooltip({
   // only thing left that carries information, so that is all we render.
   if (isAmountsHidden()) {
     return (
-      <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl">
-        <div className="text-text font-semibold">Year {label}</div>
+      <div className="bg-panel-raised border border-line rounded-ui-lg p-4 shadow-ui-md">
+        <div className="text-content font-semibold">Year {label}</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl min-w-[200px]">
-      <div className="text-text font-semibold mb-3 pb-2 border-b border-[#27272a]">
+    <div className="bg-panel-raised border border-line rounded-ui-lg p-4 shadow-ui-md min-w-[200px]">
+      <div className="text-content font-semibold mb-3 pb-2 border-b border-line">
         Year {label}
       </div>
       <div className="space-y-2 text-[13px]">
         <div className="flex justify-between">
-          <span className="text-text-secondary">95th Percentile (Best)</span>
-          <span className="text-green-400 font-medium tabular-nums">{formatFullCurrency(dataPoint.p95)}</span>
+          <span className="text-content-secondary">95th Percentile (Best)</span>
+          <span className="text-positive font-medium tabular-nums">{formatFullCurrency(dataPoint.p95)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-text-secondary">75th Percentile</span>
-          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.p75)}</span>
+          <span className="text-content-secondary">75th Percentile</span>
+          <span className="text-content font-medium tabular-nums">{formatFullCurrency(dataPoint.p75)}</span>
         </div>
-        <div className="flex justify-between bg-accent/10 -mx-2 px-2 py-1 rounded">
-          <span className="text-accent font-medium">Median</span>
-          <span className="text-accent font-semibold tabular-nums">{formatFullCurrency(dataPoint.p50)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-text-secondary">25th Percentile</span>
-          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.p25)}</span>
+        <div className="flex justify-between bg-brand-soft -mx-2 px-2 py-1 rounded">
+          <span className="text-[rgb(var(--ui-brand-ink))] font-medium">Median</span>
+          <span className="text-[rgb(var(--ui-brand-ink))] font-semibold tabular-nums">{formatFullCurrency(dataPoint.p50)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-text-secondary">5th Percentile (Worst)</span>
-          <span className="text-red-400 font-medium tabular-nums">{formatFullCurrency(dataPoint.p5)}</span>
+          <span className="text-content-secondary">25th Percentile</span>
+          <span className="text-content font-medium tabular-nums">{formatFullCurrency(dataPoint.p25)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-content-secondary">5th Percentile (Worst)</span>
+          <span className="text-negative font-medium tabular-nums">{formatFullCurrency(dataPoint.p5)}</span>
         </div>
       </div>
     </div>
@@ -134,47 +134,47 @@ export function QuantileChart({
   }, [data]);
 
   if (!finalStats) {
-    return <div className="text-text-secondary p-4">No projection data available</div>;
+    return <div className="text-content-secondary p-4">No projection data available</div>;
   }
 
   return (
-    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl shadow-lg overflow-hidden">
+    <div className="bg-panel border border-line rounded-ui-xl shadow-ui-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-border/50">
+      <div className="flex items-center justify-between p-5 border-b border-line">
         <div>
-          <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-secondary mt-1">
+          <h3 className="text-base font-semibold text-content">{title}</h3>
+          <p className="text-sm text-content-secondary mt-1">
             Portfolio value range over {yearsShown} years
           </p>
         </div>
       </div>
 
       {/* Final year stats */}
-      <div className="grid grid-cols-5 gap-4 p-5 border-b border-border/50 bg-[#0f0f11]">
+      <div className="grid grid-cols-5 gap-4 p-5 border-b border-line bg-panel-inset">
         <div className="text-center">
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Worst 5%</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Worst 5%</div>
           <div className={cn(
             "text-sm font-semibold tabular-nums",
-            finalStats.p5 <= 0 && !hideAmounts ? "text-red-400" : "text-text"
+            finalStats.p5 <= 0 && !hideAmounts ? "text-negative" : "text-content"
           )}>
             {formatCurrency(finalStats.p5)}
           </div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">25th %ile</div>
-          <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(finalStats.p25)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">25th %ile</div>
+          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(finalStats.p25)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-accent uppercase tracking-wide mb-1">Median</div>
-          <div className="text-lg font-bold text-accent tabular-nums">{formatCurrency(finalStats.p50)}</div>
+          <div className="text-xs text-[rgb(var(--ui-brand-ink))] uppercase tracking-wide mb-1">Median</div>
+          <div className="text-lg font-bold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(finalStats.p50)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">75th %ile</div>
-          <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(finalStats.p75)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">75th %ile</div>
+          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(finalStats.p75)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Best 5%</div>
-          <div className="text-sm font-semibold text-green-400 tabular-nums">{formatCurrency(finalStats.p95)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Best 5%</div>
+          <div className="text-sm font-semibold text-positive tabular-nums">{formatCurrency(finalStats.p95)}</div>
         </div>
       </div>
 
@@ -195,25 +195,25 @@ export function QuantileChart({
               <defs>
                 {/* Outer band (5-95) gradient */}
                 <linearGradient id="gradient-outer" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.1} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.05} />
+                  <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity={0.1} />
+                  <stop offset="100%" stopColor="var(--ui-viz-2)" stopOpacity={0.05} />
                 </linearGradient>
                 {/* Middle band (25-75) gradient */}
                 <linearGradient id="gradient-middle" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.15} />
+                  <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="var(--ui-viz-2)" stopOpacity={0.15} />
                 </linearGradient>
               </defs>
 
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="#27272a"
+                stroke="var(--ui-line)"
                 strokeOpacity={0.5}
                 vertical={false}
               />
               <XAxis
                 dataKey="year"
-                stroke="#57534e"
+                stroke="rgb(var(--ui-content-muted))"
                 fontSize={11}
                 tickLine={false}
                 axisLine={false}
@@ -223,7 +223,7 @@ export function QuantileChart({
                   and the 60px they reserved with them. The band geometry is
                   untouched: the domain is fit to the data. */}
               <YAxis
-                stroke="#57534e"
+                stroke="rgb(var(--ui-content-muted))"
                 fontSize={11}
                 tickLine={false}
                 axisLine={false}
@@ -232,19 +232,19 @@ export function QuantileChart({
                 width={60}
                 hide={hideAmounts}
               />
-              <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }} />
+              <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--ui-viz-2)', strokeWidth: 1, strokeDasharray: '4 4' }} />
 
               {/* Reference lines */}
               {retirementYear && (
                 <ReferenceLine
                   x={retirementYear}
-                  stroke="#f97316"
+                  stroke="var(--ui-viz-3)"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
-                  label={{ value: 'Retire', position: 'top', fill: '#f97316', fontSize: 11 }}
+                  label={{ value: 'Retire', position: 'top', fill: 'var(--ui-viz-3)', fontSize: 11 }}
                 />
               )}
-              <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1} />
+              <ReferenceLine y={0} stroke="rgb(var(--ui-negative))" strokeWidth={1} />
 
               {/* 5-95 percentile band (outer) */}
               <Area
@@ -273,14 +273,14 @@ export function QuantileChart({
                 type="monotone"
                 dataKey="p25"
                 stroke="none"
-                fill="#0f0f11"
+                fill="rgb(var(--ui-panel))"
               />
 
               {/* Median line */}
               <Area
                 type="monotone"
                 dataKey="p50"
-                stroke="#6366f1"
+                stroke="var(--ui-viz-2)"
                 strokeWidth={2.5}
                 fill="none"
                 dot={false}
@@ -290,7 +290,7 @@ export function QuantileChart({
               <Area
                 type="monotone"
                 dataKey="p5"
-                stroke="#ef4444"
+                stroke="rgb(var(--ui-negative))"
                 strokeWidth={1}
                 strokeDasharray="4 4"
                 fill="none"
@@ -299,7 +299,7 @@ export function QuantileChart({
               <Area
                 type="monotone"
                 dataKey="p95"
-                stroke="#22c55e"
+                stroke="rgb(var(--ui-positive))"
                 strokeWidth={1}
                 strokeDasharray="4 4"
                 fill="none"
@@ -310,17 +310,17 @@ export function QuantileChart({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-text-secondary">
+        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-content-secondary">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-0.5 bg-[#6366f1]" />
+            <div className="w-6 h-0.5 bg-viz-2" />
             <span>Median (50th)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-3 bg-[#6366f1]/20 rounded-sm" />
+            <div className="w-4 h-3 bg-viz-2 opacity-20 rounded-sm" />
             <span>25th-75th</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-3 bg-[#6366f1]/10 rounded-sm" />
+            <div className="w-4 h-3 bg-viz-2 opacity-10 rounded-sm" />
             <span>5th-95th</span>
           </div>
         </div>

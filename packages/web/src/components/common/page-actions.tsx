@@ -4,7 +4,7 @@ import { useInsights } from '../../hooks/useInsights';
 import { useActionLifecycle } from '../../hooks/useActionLifecycle';
 import { actionArea, areaKey } from '../../lib/action-destination';
 import { rankActions, savingsSentence, toActionRow } from '../../lib/action-rows';
-import { MaskedText } from '../uikit';
+import { MaskedText, TextLink } from '../uikit';
 import { ActionItem } from './action-item';
 import { UndoToast } from './undo-toast';
 
@@ -56,12 +56,7 @@ function EmbeddedActions({ types, viewAllHref }: PageActionsProps) {
 
         <div className="flex items-center gap-3">
           {viewAllHref && (
-            <a
-              href={viewAllHref}
-              className="text-[12.5px] font-semibold text-content-muted hover:text-brand transition-colors"
-            >
-              View all →
-            </a>
+            <TextLink href={viewAllHref}>View all</TextLink>
           )}
           <button
             type="button"
@@ -88,6 +83,9 @@ function EmbeddedActions({ types, viewAllHref }: PageActionsProps) {
             description={insight.description}
             impact={insight.impact ?? ''}
             impactColor={(insight.impactColor as 'green' | 'amber' | 'red') ?? 'amber'}
+            // The area sets the pill's colour, so the same action reads the
+            // same on every page.
+            area={{ tone: actionArea(insight.type, insight.category).tone }}
             chatPrompt={insight.chatPrompt ?? insight.title}
             onDismiss={() => dismiss(insight.id)}
           />

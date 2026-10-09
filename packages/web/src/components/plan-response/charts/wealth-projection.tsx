@@ -35,8 +35,9 @@ interface WealthProjectionProps {
   retirementAge?: number;
 }
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number): string => {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
+  if (value < 0) return `\u2212${formatCurrency(-value)}`;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toLocaleString()}`;
@@ -49,7 +50,7 @@ const formatFullCurrency = (value: number) => {
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value).replace(/^-/, '\u2212');
 };
 
 // Custom tooltip component
@@ -69,8 +70,8 @@ function CustomTooltip({
   const total = payload.reduce((sum, p) => sum + (p.value || 0), 0);
 
   return (
-    <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl min-w-[200px]">
-      <div className="text-text font-semibold mb-3 pb-2 border-b border-[#27272a]">
+    <div className="bg-panel-raised border border-line rounded-ui-lg p-4 shadow-ui-md min-w-[200px]">
+      <div className="text-content font-semibold mb-3 pb-2 border-b border-line">
         Year {label}
       </div>
       <div className="space-y-2">
@@ -84,15 +85,15 @@ function CustomTooltip({
                   className="w-3 h-3 rounded-sm"
                   style={{ backgroundColor: entry.fill }}
                 />
-                <span className="text-[13px] text-text-secondary">
+                <span className="text-[13px] text-content-secondary">
                   {category?.label || entry.dataKey}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[13px] text-text font-medium tabular-nums">
+                <span className="text-[13px] text-content font-medium tabular-nums">
                   {formatFullCurrency(entry.value)}
                 </span>
-                <span className="text-[11px] text-text-secondary ml-2">
+                <span className="text-[11px] text-content-secondary ml-2">
                   ({percentage}%)
                 </span>
               </div>
@@ -100,9 +101,9 @@ function CustomTooltip({
           );
         })}
       </div>
-      <div className="mt-3 pt-2 border-t border-[#27272a] flex justify-between">
-        <span className="text-[13px] text-text-secondary">Total</span>
-        <span className="text-[15px] text-accent font-semibold tabular-nums">
+      <div className="mt-3 pt-2 border-t border-line flex justify-between">
+        <span className="text-[13px] text-content-secondary">Total</span>
+        <span className="text-[15px] text-[rgb(var(--ui-brand-ink))] font-semibold tabular-nums">
           {formatFullCurrency(total)}
         </span>
       </div>
@@ -143,10 +144,10 @@ export function WealthProjection({
   }, [currentAge, retirementAge]);
 
   return (
-    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl shadow-lg overflow-hidden">
+    <div className="bg-panel border border-line rounded-ui-xl shadow-ui-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-border/50">
-        <h3 className="text-base font-semibold text-text">{title}</h3>
+      <div className="flex items-center justify-between p-5 border-b border-line">
+        <h3 className="text-base font-semibold text-content">{title}</h3>
         {scenarios && scenarios.length > 1 && (
           <div className="flex gap-1">
             {scenarios.map((scenario) => (
@@ -156,8 +157,8 @@ export function WealthProjection({
                 className={cn(
                   'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
                   activeScenario === scenario.id
-                    ? 'bg-accent text-white'
-                    : 'bg-surface text-text-secondary hover:bg-surface-elevated'
+                    ? 'bg-brand text-brand-fg'
+                    : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
                 )}
               >
                 {scenario.label}
@@ -173,10 +174,10 @@ export function WealthProjection({
           {/* Year summary above chart */}
           {selectedData && (
             <div className="mb-4 flex items-baseline gap-3">
-              <span className="text-text-secondary text-sm">
+              <span className="text-content-secondary text-sm">
                 At age {currentAge + (displayYear - years.start)}
               </span>
-              <span className="text-2xl font-semibold text-text tabular-nums">
+              <span className="text-2xl font-semibold text-content tabular-nums">
                 {formatFullCurrency(selectedData.total)}
               </span>
             </div>
@@ -197,13 +198,13 @@ export function WealthProjection({
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke="#27272a"
+                  stroke="var(--ui-line)"
                   strokeOpacity={0.5}
                   vertical={false}
                 />
                 <XAxis
                   dataKey="year"
-                  stroke="#57534e"
+                  stroke="rgb(var(--ui-content-muted))"
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
@@ -215,7 +216,7 @@ export function WealthProjection({
                     the domain is fit to the data, so the drawn heights are
                     already magnitude-free. */}
                 <YAxis
-                  stroke="#57534e"
+                  stroke="rgb(var(--ui-content-muted))"
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
@@ -226,19 +227,19 @@ export function WealthProjection({
                 />
                 <Tooltip
                   content={<CustomTooltip categories={categories} />}
-                  cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                  cursor={{ fill: 'var(--ui-hairline)' }}
                 />
                 {/* Retirement age reference line */}
                 {retirementYear >= years.start && retirementYear <= years.end && (
                   <ReferenceLine
                     x={retirementYear}
-                    stroke="#f97316"
+                    stroke="var(--ui-viz-3)"
                     strokeDasharray="4 4"
                     strokeWidth={1.5}
                     label={{
                       value: 'Retirement',
                       position: 'top',
-                      fill: '#f97316',
+                      fill: 'var(--ui-viz-3)',
                       fontSize: 11,
                     }}
                   />
@@ -281,8 +282,8 @@ export function WealthProjection({
         </div>
 
         {/* Legend sidebar */}
-        <div className="w-48 border-l border-border/50 p-5 bg-[#0f0f11]">
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-4">
+        <div className="w-48 border-l border-line p-5 bg-panel-inset">
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-4">
             Asset Allocation
           </div>
           <div className="space-y-3">
@@ -298,13 +299,13 @@ export function WealthProjection({
                       className="w-3 h-3 rounded-sm"
                       style={{ backgroundColor: category.color }}
                     />
-                    <span className="text-[13px] text-text">{category.label}</span>
+                    <span className="text-[13px] text-content">{category.label}</span>
                   </div>
                   <div className="flex items-baseline gap-2 pl-5">
-                    <span className="text-sm font-semibold text-text tabular-nums">
+                    <span className="text-sm font-semibold text-content tabular-nums">
                       {formatCurrency(value)}
                     </span>
-                    <span className="text-[11px] text-text-secondary">({percentage}%)</span>
+                    <span className="text-[11px] text-content-secondary">({percentage}%)</span>
                   </div>
                 </div>
               );
@@ -312,11 +313,11 @@ export function WealthProjection({
           </div>
 
           {/* Total */}
-          <div className="mt-6 pt-4 border-t border-border/50">
-            <div className="text-xs text-text-secondary uppercase tracking-wide mb-2">
+          <div className="mt-6 pt-4 border-t border-line">
+            <div className="text-xs text-content-secondary uppercase tracking-wide mb-2">
               Net Worth
             </div>
-            <div className="text-lg font-semibold text-accent tabular-nums">
+            <div className="text-lg font-semibold text-[rgb(var(--ui-brand-ink))] tabular-nums">
               {formatFullCurrency(selectedData?.total || 0)}
             </div>
           </div>

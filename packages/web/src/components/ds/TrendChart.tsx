@@ -13,9 +13,9 @@ export interface TrendPoint { date: string; value: number; }
 
 export const CHART_H = 240;
 export const CHART_M = { top: 16, right: 12, bottom: 36, left: 56 };
-// Single source of truth for the chart accent — matches `text-success` /
-// `--color-success` (#4C7A3E) so palette changes propagate automatically.
-export const CHART_COLOR = 'rgb(var(--color-success))';
+// Single source of truth for the chart accent — the brand green, which .dark
+// remaps, so the line follows the light/dark mode.
+export const CHART_COLOR = 'rgb(var(--ui-brand))';
 
 const fmtUsd = (n: number, frac = 0) =>
   isAmountsHidden()
@@ -174,7 +174,7 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
               cy={yAt(points[points.length - 1].value)}
               r={5.5}
               fill="currentColor"
-              stroke="rgb(var(--color-bg))"
+              stroke="rgb(var(--ui-panel))"
               strokeWidth={2.5}
             />
           </>
@@ -188,7 +188,7 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
               cy={yAt(hover.value)}
               r={5.5}
               fill="currentColor"
-              stroke="rgb(var(--color-bg))"
+              stroke="rgb(var(--ui-panel))"
               strokeWidth={2.5}
             />
           </g>
@@ -256,7 +256,7 @@ export function tickDecimals(ticks: number[], minDecimals = 2): number {
 export function formatShortMoney(n: number, decimals?: number): string {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const abs = Math.abs(n);
-  const sign = n < 0 ? '-' : '';
+  const sign = n < 0 ? '\u2212' : '';
   if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(decimals ?? (abs >= 1e7 ? 0 : 1))}M`;
   if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(decimals ?? (abs >= 1e4 ? 0 : 1))}K`;
   return `${sign}$${decimals != null ? abs.toFixed(decimals) : Math.round(abs)}`;

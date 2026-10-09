@@ -15,7 +15,7 @@ import { formatInstant, stripAccountMask } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { useAuth } from '../lib/auth';
 import type { LucideIcon } from 'lucide-react';
-import { Button, EmptyState, MaskedText, Skeleton, Textarea, useToast } from '../components/uikit';
+import { Badge, Button, button, EmptyState, MaskedText, Skeleton, Textarea, useToast } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
 import { type LevelState, levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 import { ActionItem } from '../components/common/action-item';
@@ -172,28 +172,24 @@ function StatePill({ state, rateShaped = false, className = '' }: {
   rateShaped?: boolean;
   className?: string;
 }) {
-  const base = `inline-flex items-center gap-1 h-[22px] px-2.5 rounded-full text-[10.5px] font-extrabold uppercase tracking-[0.06em] whitespace-nowrap ${className}`;
+  const cls = `gap-1 ${className}`;
   // Before either verdict, because a standing monthly condition is neither.
   // Read only in `future`, the pill said Ongoing while short and then wore a
   // DONE tick the month the rate was met, which is the same overclaim the
   // Ahead-to-Ongoing change existed to remove, in the other direction.
   if (state === 'ongoing' || rateShaped)
-    return <span className={`${base} bg-brand-soft text-[rgb(var(--ui-brand-ink))]`}>Ongoing</span>;
-  // current: readable brand-ink on the soft tint + a brand ring + leading dot,
-  // so it passes AA on light and stays visually distinct from the "Done" pill.
+    return <Badge tone="brand" size="sm" className={cls}>Ongoing</Badge>;
+  // current: a brand ring + leading dot, so it stays visually distinct from
+  // the "Done" pill.
   if (state === 'current')
     return (
-      <span
-        className={`${base} bg-brand-soft text-[rgb(var(--ui-brand-ink))]`}
-        style={{ boxShadow: 'inset 0 0 0 1.5px var(--ui-brand-ring)' }}
-      >
-        <span className="h-[7px] w-[7px] rounded-full bg-brand shrink-0" />
+      <Badge tone="brand" size="sm" dot className={cls} style={{ boxShadow: 'inset 0 0 0 1.5px var(--ui-brand-ring)' }}>
         You are here
-      </span>
+      </Badge>
     );
   if (state === 'done')
-    return <span className={`${base} bg-brand-soft text-[rgb(var(--ui-brand-ink))]`}><Check className="h-3 w-3" strokeWidth={3} />Done</span>;
-  return <span className={`${base} bg-canvas-sunken text-content-muted`}>Ahead</span>;
+    return <Badge tone="brand" size="sm" className={cls}><Check className="h-3 w-3" strokeWidth={3} />Done</Badge>;
+  return <Badge size="sm" className={cls}>Ahead</Badge>;
 }
 
 // ── WhyThisPathPopover — Bright panel ────────────────────────────────────────
@@ -894,23 +890,12 @@ export function FinancialLevel() {
       // way out at the bottom of the page.
       if (status === 'not_applicable') {
         toast({
+          tone: 'positive',
           title: `${title} is off your path`,
           duration: 8000,
-          // The uikit button, not a text link. Once the toast expires this is
-          // the only way back short of scrolling to the bottom of the page, so
-          // it has to be a target a thumb can hit. The negative margin cancels
-          // the button's own padding, so the label still lines up under the
-          // title rather than sitting indented from it.
-          description: (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="-ml-3.5"
-              onClick={() => { void markStep(stepId, 'pending'); }}
-            >
-              Put back
-            </Button>
-          ),
+          // Once the toast expires this is the only way back short of
+          // scrolling to the bottom of the page.
+          action: { label: 'Put back', onClick: () => { void markStep(stepId, 'pending'); } },
         });
       }
       return true;
@@ -1020,8 +1005,8 @@ export function FinancialLevel() {
         description="Add your income and accounts and we'll build the steps that apply to you."
         action={
           <div className="flex flex-wrap justify-center gap-2.5">
-            <a href="/onboarding" className="inline-flex items-center justify-center h-11 px-5 rounded-ui-md bg-brand-soft text-[rgb(var(--ui-brand-ink))] text-sm font-bold hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]">Get started →</a>
-            <a href="/accounts" className="inline-flex items-center justify-center h-11 px-5 rounded-ui-md bg-panel border border-line-strong text-content text-sm font-semibold shadow-ui-sm hover:bg-canvas-sunken transition-colors">Link account</a>
+            <Link href="/onboarding" className={button({ variant: 'primary' })}>Get started</Link>
+            <Link href="/accounts" className={button({ variant: 'secondary' })}>Link account</Link>
           </div>
         }
       />

@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { Treemap, ResponsiveContainer } from 'recharts';
-import { colors } from '../../styles/theme';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface TreemapDataPoint {
@@ -51,7 +50,7 @@ const CustomTreemapContent = ({
         width={width}
         height={height}
         fill={color}
-        stroke={colors.bg.DEFAULT}
+        stroke="rgb(var(--ui-panel))"
         strokeWidth={2}
         rx={4}
       />
@@ -132,7 +131,7 @@ export function TreemapChart({
           data={chartData}
           dataKey="size"
           aspectRatio={4 / 3}
-          stroke={colors.bg.DEFAULT}
+          stroke="rgb(var(--ui-panel))"
           content={
             <CustomTreemapContent
               onClick={onClick}
@@ -150,8 +149,8 @@ export function TreemapChart({
             left: tooltip.x,
             top: tooltip.y,
             transform: 'translateX(-50%)',
-            background: colors.bg.elevated,
-            border: `1px solid ${colors.border.DEFAULT}`,
+            background: 'rgb(var(--ui-panel-raised))',
+            border: '1px solid var(--ui-line)',
             borderRadius: '12px',
             padding: '8px 12px',
             fontFamily: 'DM Sans, system-ui, sans-serif',
@@ -162,7 +161,7 @@ export function TreemapChart({
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: '2px' }}>{tooltip.name}</div>
-          <div style={{ color: colors.text.muted }}>
+          <div style={{ color: 'rgb(var(--ui-content-muted))' }}>
             {isAmountsHidden() ? HIDDEN_AMOUNT : `$${tooltip.value.toLocaleString()}`}
           </div>
         </div>

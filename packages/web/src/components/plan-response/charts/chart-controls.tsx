@@ -42,7 +42,7 @@ export function ChartControls({
   onSliderChange,
 }: ChartControlsProps) {
   return (
-    <div className="space-y-4 p-4 bg-surface/50 rounded-xl border border-border/50">
+    <div className="space-y-4 p-4 bg-canvas-sunken rounded-ui-lg border border-line">
       {/* Scenario toggles */}
       {scenarios && scenarios.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -53,8 +53,8 @@ export function ChartControls({
               className={cn(
                 'px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all',
                 activeScenario === scenario.id
-                  ? 'bg-accent text-white'
-                  : 'bg-surface text-text-secondary hover:bg-surface-elevated'
+                  ? 'bg-brand text-brand-fg'
+                  : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
               )}
             >
               {scenario.label}
@@ -69,8 +69,8 @@ export function ChartControls({
           {sliders.map((slider) => (
             <div key={slider.id} className="space-y-1.5">
               <div className="flex justify-between text-[13px]">
-                <span className="text-text-secondary">{slider.label}</span>
-                <span className="text-text font-medium">
+                <span className="text-content-secondary">{slider.label}</span>
+                <span className="text-content font-medium">
                   {formatValue(slider.value, slider.format)}
                 </span>
               </div>
@@ -81,12 +81,12 @@ export function ChartControls({
                 step={slider.step || 1}
                 value={slider.value}
                 onChange={(e) => onSliderChange?.(slider.id, Number(e.target.value))}
-                className="w-full h-1.5 bg-border rounded-full appearance-none cursor-pointer
+                className="w-full h-1.5 bg-[var(--ui-line)] rounded-full appearance-none cursor-pointer
                   [&::-webkit-slider-thumb]:appearance-none
                   [&::-webkit-slider-thumb]:w-4
                   [&::-webkit-slider-thumb]:h-4
                   [&::-webkit-slider-thumb]:rounded-full
-                  [&::-webkit-slider-thumb]:bg-accent
+                  [&::-webkit-slider-thumb]:bg-brand
                   [&::-webkit-slider-thumb]:cursor-pointer
                   [&::-webkit-slider-thumb]:transition-transform
                   [&::-webkit-slider-thumb]:hover:scale-110"

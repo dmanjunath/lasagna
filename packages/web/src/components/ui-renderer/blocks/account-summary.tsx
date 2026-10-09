@@ -11,9 +11,9 @@ function formatCurrency(value: number): string {
 
 export function AccountSummaryRenderer({ block }: { block: AccountSummaryBlock }) {
   const allocationData = [
-    { label: "Stocks", value: block.allocation.stocks, color: "#22c55e" },
-    { label: "Bonds", value: block.allocation.bonds, color: "#3b82f6" },
-    { label: "Cash", value: block.allocation.cash, color: "#a855f7" },
+    { label: "Stocks", value: block.allocation.stocks, color: "var(--ui-viz-2)" },
+    { label: "Bonds", value: block.allocation.bonds, color: "var(--ui-viz-5)" },
+    { label: "Cash", value: block.allocation.cash, color: "var(--ui-viz-1)" },
   ].filter((d) => d.value > 0);
 
   return (

@@ -34,8 +34,9 @@ interface WithdrawalTimelineProps {
   showSources?: boolean;
 }
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number): string => {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
+  if (value < 0) return `\u2212${formatCurrency(-value)}`;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toLocaleString()}`;
@@ -48,7 +49,7 @@ const formatFullCurrency = (value: number) => {
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value).replace(/^-/, '\u2212');
 };
 
 // Custom tooltip
@@ -71,8 +72,8 @@ function CustomTooltip({
   // is the only line left that says anything.
   if (isAmountsHidden()) {
     return (
-      <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl">
-        <div className="text-text font-semibold">
+      <div className="bg-panel-raised border border-line rounded-ui-lg p-4 shadow-ui-md">
+        <div className="text-content font-semibold">
           {dataPoint.age ? `Age ${dataPoint.age}` : `Year ${dataPoint.year}`}
         </div>
       </div>
@@ -87,8 +88,8 @@ function CustomTooltip({
   );
 
   return (
-    <div className="bg-[#0c0a09]/95 border border-[#3f3f46] rounded-xl p-4 shadow-2xl min-w-[220px]">
-      <div className="text-text font-semibold mb-3 pb-2 border-b border-[#27272a]">
+    <div className="bg-panel-raised border border-line rounded-ui-lg p-4 shadow-ui-md min-w-[220px]">
+      <div className="text-content font-semibold mb-3 pb-2 border-b border-line">
         {dataPoint.age ? `Age ${dataPoint.age}` : `Year ${dataPoint.year}`}
       </div>
 
@@ -96,52 +97,52 @@ function CustomTooltip({
         {/* Income sources */}
         <div className="flex justify-between">
           <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-sm bg-[#6366f1]" />
-            <span className="text-text-secondary">Portfolio Withdrawal</span>
+            <span className="w-2 h-2 rounded-sm bg-viz-2" />
+            <span className="text-content-secondary">Portfolio Withdrawal</span>
           </span>
-          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.withdrawal)}</span>
+          <span className="text-content font-medium tabular-nums">{formatFullCurrency(dataPoint.withdrawal)}</span>
         </div>
 
         {showSources && dataPoint.socialSecurity > 0 && (
           <div className="flex justify-between">
             <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-sm bg-[#22c55e]" />
-              <span className="text-text-secondary">Social Security</span>
+              <span className="w-2 h-2 rounded-sm bg-viz-1" />
+              <span className="text-content-secondary">Social Security</span>
             </span>
-            <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.socialSecurity)}</span>
+            <span className="text-content font-medium tabular-nums">{formatFullCurrency(dataPoint.socialSecurity)}</span>
           </div>
         )}
 
         {showSources && dataPoint.pension > 0 && (
           <div className="flex justify-between">
             <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-sm bg-[#f97316]" />
-              <span className="text-text-secondary">Pension</span>
+              <span className="w-2 h-2 rounded-sm bg-viz-3" />
+              <span className="text-content-secondary">Pension</span>
             </span>
-            <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.pension)}</span>
+            <span className="text-content font-medium tabular-nums">{formatFullCurrency(dataPoint.pension)}</span>
           </div>
         )}
 
         {showSources && dataPoint.otherIncome > 0 && (
           <div className="flex justify-between">
             <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-sm bg-[#a855f7]" />
-              <span className="text-text-secondary">Other Income</span>
+              <span className="w-2 h-2 rounded-sm bg-[var(--ui-viz-8)]" />
+              <span className="text-content-secondary">Other Income</span>
             </span>
-            <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.otherIncome)}</span>
+            <span className="text-content font-medium tabular-nums">{formatFullCurrency(dataPoint.otherIncome)}</span>
           </div>
         )}
 
         {/* Total */}
-        <div className="flex justify-between pt-2 mt-2 border-t border-[#27272a]">
-          <span className="text-accent font-medium">Total Annual Income</span>
-          <span className="text-accent font-semibold tabular-nums">{formatFullCurrency(totalIncome)}</span>
+        <div className="flex justify-between pt-2 mt-2 border-t border-line">
+          <span className="text-[rgb(var(--ui-brand-ink))] font-medium">Total Annual Income</span>
+          <span className="text-[rgb(var(--ui-brand-ink))] font-semibold tabular-nums">{formatFullCurrency(totalIncome)}</span>
         </div>
 
         {/* Portfolio value */}
-        <div className="flex justify-between pt-2 mt-2 border-t border-[#27272a]">
-          <span className="text-text-secondary">Remaining Portfolio</span>
-          <span className="text-text font-medium tabular-nums">{formatFullCurrency(dataPoint.portfolioValue)}</span>
+        <div className="flex justify-between pt-2 mt-2 border-t border-line">
+          <span className="text-content-secondary">Remaining Portfolio</span>
+          <span className="text-content font-medium tabular-nums">{formatFullCurrency(dataPoint.portfolioValue)}</span>
         </div>
       </div>
     </div>
@@ -187,16 +188,16 @@ export function WithdrawalTimeline({
   }, [data]);
 
   if (!stats) {
-    return <div className="text-text-secondary p-4">No withdrawal data available</div>;
+    return <div className="text-content-secondary p-4">No withdrawal data available</div>;
   }
 
   return (
-    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl shadow-lg overflow-hidden">
+    <div className="bg-panel border border-line rounded-ui-xl shadow-ui-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-border/50">
+      <div className="flex items-center justify-between p-5 border-b border-line">
         <div>
-          <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-secondary mt-1">
+          <h3 className="text-base font-semibold text-content">{title}</h3>
+          <p className="text-sm text-content-secondary mt-1">
             {stats.years}-year withdrawal plan
           </p>
         </div>
@@ -206,8 +207,8 @@ export function WithdrawalTimeline({
             className={cn(
               'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
               view === 'withdrawal'
-                ? 'bg-accent text-white'
-                : 'bg-surface text-text-secondary hover:bg-surface-elevated'
+                ? 'bg-brand text-brand-fg'
+                : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
             )}
           >
             Withdrawals
@@ -217,8 +218,8 @@ export function WithdrawalTimeline({
             className={cn(
               'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
               view === 'portfolio'
-                ? 'bg-accent text-white'
-                : 'bg-surface text-text-secondary hover:bg-surface-elevated'
+                ? 'bg-brand text-brand-fg'
+                : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
             )}
           >
             Portfolio
@@ -227,24 +228,24 @@ export function WithdrawalTimeline({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 p-5 border-b border-border/50 bg-[#0f0f11]">
+      <div className="grid grid-cols-4 gap-4 p-5 border-b border-line bg-panel-inset">
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Avg Annual</div>
-          <div className="text-sm font-semibold text-accent tabular-nums">{formatCurrency(stats.avgWithdrawal)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Avg Annual</div>
+          <div className="text-sm font-semibold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(stats.avgWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Minimum</div>
-          <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.minWithdrawal)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Minimum</div>
+          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.minWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Maximum</div>
-          <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.maxWithdrawal)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Maximum</div>
+          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.maxWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">End Portfolio</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">End Portfolio</div>
           <div className={cn(
             "text-sm font-semibold tabular-nums",
-            stats.finalPortfolio > 0 || hideAmounts ? "text-green-400" : "text-red-400"
+            stats.finalPortfolio > 0 || hideAmounts ? "text-positive" : "text-negative"
           )}>
             {formatCurrency(stats.finalPortfolio)}
           </div>
@@ -258,24 +259,24 @@ export function WithdrawalTimeline({
             <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="withdrawal-gradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.05} />
+                  <stop offset="0%" stopColor="var(--ui-viz-2)" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="var(--ui-viz-2)" stopOpacity={0.05} />
                 </linearGradient>
                 <linearGradient id="portfolio-gradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0.05} />
+                  <stop offset="0%" stopColor="var(--ui-viz-1)" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="var(--ui-viz-1)" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
 
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="#27272a"
+                stroke="var(--ui-line)"
                 strokeOpacity={0.5}
                 vertical={false}
               />
               <XAxis
                 dataKey={data[0]?.age ? 'age' : 'year'}
-                stroke="#57534e"
+                stroke="rgb(var(--ui-content-muted))"
                 fontSize={11}
                 tickLine={false}
                 axisLine={false}
@@ -285,7 +286,7 @@ export function WithdrawalTimeline({
                   the 60px they reserved with them. The bars are unchanged: the
                   domain is fit to the data. */}
               <YAxis
-                stroke="#57534e"
+                stroke="rgb(var(--ui-content-muted))"
                 fontSize={11}
                 tickLine={false}
                 axisLine={false}
@@ -300,16 +301,16 @@ export function WithdrawalTimeline({
               {targetWithdrawal && view === 'withdrawal' && (
                 <ReferenceLine
                   y={targetWithdrawal}
-                  stroke="#f97316"
+                  stroke="var(--ui-viz-3)"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
-                  label={{ value: 'Target', position: 'right', fill: '#f97316', fontSize: 11 }}
+                  label={{ value: 'Target', position: 'right', fill: 'var(--ui-viz-3)', fontSize: 11 }}
                 />
               )}
 
               {/* Zero line for portfolio */}
               {view === 'portfolio' && (
-                <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1} />
+                <ReferenceLine y={0} stroke="rgb(var(--ui-negative))" strokeWidth={1} />
               )}
 
               {view === 'withdrawal' ? (
@@ -317,15 +318,15 @@ export function WithdrawalTimeline({
                   {/* Stacked income sources */}
                   {hasMultipleSources && showSources && (
                     <>
-                      <Bar dataKey="otherIncome" stackId="income" fill="#a855f7" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="pension" stackId="income" fill="#f97316" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="socialSecurity" stackId="income" fill="#22c55e" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="otherIncome" stackId="income" fill="var(--ui-viz-8)" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="pension" stackId="income" fill="var(--ui-viz-3)" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="socialSecurity" stackId="income" fill="var(--ui-viz-1)" radius={[0, 0, 0, 0]} />
                     </>
                   )}
                   <Bar
                     dataKey="withdrawal"
                     stackId={hasMultipleSources && showSources ? "income" : undefined}
-                    fill="#6366f1"
+                    fill="var(--ui-viz-2)"
                     radius={hasMultipleSources ? [4, 4, 0, 0] : [4, 4, 4, 4]}
                   />
                 </>
@@ -333,7 +334,7 @@ export function WithdrawalTimeline({
                 <Area
                   type="monotone"
                   dataKey="portfolioValue"
-                  stroke="#22c55e"
+                  stroke="var(--ui-viz-1)"
                   strokeWidth={2}
                   fill="url(#portfolio-gradient)"
                 />
@@ -344,21 +345,21 @@ export function WithdrawalTimeline({
 
         {/* Legend */}
         {view === 'withdrawal' && hasMultipleSources && showSources && (
-          <div className="flex items-center justify-center gap-4 mt-4 text-xs text-text-secondary">
+          <div className="flex items-center justify-center gap-4 mt-4 text-xs text-content-secondary">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-[#6366f1]" />
+              <div className="w-3 h-3 rounded-sm bg-viz-2" />
               <span>Portfolio</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-[#22c55e]" />
+              <div className="w-3 h-3 rounded-sm bg-viz-1" />
               <span>Social Security</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-[#f97316]" />
+              <div className="w-3 h-3 rounded-sm bg-viz-3" />
               <span>Pension</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-[#a855f7]" />
+              <div className="w-3 h-3 rounded-sm bg-[var(--ui-viz-8)]" />
               <span>Other</span>
             </div>
           </div>

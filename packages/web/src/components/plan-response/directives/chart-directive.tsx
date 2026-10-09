@@ -13,7 +13,16 @@ import {
   Legend,
 } from 'recharts';
 
-const COLORS = ['#f5a623', '#4a90d9', '#7ed321', '#d0021b', '#9013fe'];
+// Recharts' default tooltip is a white box, so it is set to the panel tokens.
+const tooltipStyle = {
+  background: 'rgb(var(--ui-panel-raised))',
+  border: '1px solid var(--ui-line)',
+  borderRadius: 12,
+  boxShadow: 'var(--ui-shadow-md)',
+  color: 'rgb(var(--ui-content))',
+};
+
+const COLORS = ['var(--ui-viz-1)', 'var(--ui-viz-2)', 'var(--ui-viz-3)', 'var(--ui-viz-4)', 'var(--ui-viz-5)'];
 
 interface ChartDirectiveProps {
   config: {
@@ -62,26 +71,26 @@ export function ChartDirective({ config, toolResults }: ChartDirectiveProps) {
                 <Cell key={i} fill={COLORS[i % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip contentStyle={tooltipStyle} />
             <Legend />
           </PieChart>
         ) : config.type === 'bar' ? (
           <BarChart data={data}>
-            <XAxis dataKey="label" stroke="#666" />
-            <YAxis stroke="#666" />
-            <Tooltip />
-            <Bar dataKey="value" fill="#f5a623" />
+            <XAxis dataKey="label" stroke="rgb(var(--ui-content-muted))" />
+            <YAxis stroke="rgb(var(--ui-content-muted))" />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Bar dataKey="value" fill="rgb(var(--ui-brand))" />
           </BarChart>
         ) : (
           <AreaChart data={data}>
-            <XAxis dataKey="label" stroke="#666" />
-            <YAxis stroke="#666" />
-            <Tooltip />
+            <XAxis dataKey="label" stroke="rgb(var(--ui-content-muted))" />
+            <YAxis stroke="rgb(var(--ui-content-muted))" />
+            <Tooltip contentStyle={tooltipStyle} />
             <Area
               type="monotone"
               dataKey="value"
-              stroke="#f5a623"
-              fill="#f5a623"
+              stroke="rgb(var(--ui-brand))"
+              fill="rgb(var(--ui-brand))"
               fillOpacity={0.3}
             />
           </AreaChart>

@@ -1,5 +1,4 @@
 import { PieChart as RechartsPieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { colors } from '../../styles/theme';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface PieDataPoint {
@@ -73,7 +72,7 @@ const renderOuterLabel = ({
     <text
       x={x}
       y={y}
-      fill={colors.text.secondary}
+      fill="rgb(var(--ui-content-secondary))"
       textAnchor={x > cx ? 'start' : 'end'}
       dominantBaseline="central"
       style={{
@@ -138,7 +137,7 @@ const renderCombinedLabel = ({
         <text
           x={outerX}
           y={outerY}
-          fill={colors.text.secondary}
+          fill="rgb(var(--ui-content-secondary))"
           textAnchor={outerX > cx ? 'start' : 'end'}
           dominantBaseline="central"
           style={{
@@ -178,7 +177,7 @@ export function DonutChart({
             paddingAngle={2}
             dataKey="value"
             label={showLabels ? renderCombinedLabel : undefined}
-            labelLine={showLabels ? { stroke: colors.text.muted, strokeWidth: 1 } : false}
+            labelLine={showLabels ? { stroke: 'rgb(var(--ui-content-muted))', strokeWidth: 1 } : false}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
@@ -186,8 +185,8 @@ export function DonutChart({
           </Pie>
           <Tooltip
             contentStyle={{
-              background: colors.bg.elevated,
-              border: `1px solid ${colors.border.DEFAULT}`,
+              background: 'rgb(var(--ui-panel-raised))',
+              border: '1px solid var(--ui-line)',
               borderRadius: '12px',
               fontFamily: 'DM Sans, system-ui, sans-serif',
             }}

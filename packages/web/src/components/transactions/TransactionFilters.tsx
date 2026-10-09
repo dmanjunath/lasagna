@@ -549,7 +549,8 @@ export function TransactionFilters({
   const excludeCaptionId = 'txn-filters-excluded';
 
   const amountChip = chips.find((c) => c.key === 'amount');
-  const inputClass = 'ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel px-3 text-[13px] text-content shadow-ui-sm';
+  // The uikit field box, matching the menus above them in the panel.
+  const inputClass = 'ui-focus h-11 min-h-touch w-full rounded-ui-md border border-line-strong bg-panel px-3.5 text-sm text-content shadow-ui-sm';
 
   const customDateInputs = filters.datePreset === 'custom' && (
     <div className="grid grid-cols-2 gap-2">

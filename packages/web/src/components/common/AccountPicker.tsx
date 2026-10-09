@@ -48,7 +48,7 @@ export function AccountPicker(props: (Multi | Single) & {
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [fixedPos, setFixedPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [fixedPos, setFixedPos] = useState<{ left: number; top?: number; bottom?: number; width: number } | null>(null);
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
   // The sheet floats over a document that still scrolls.
   useBodyScrollLock(open && isPhone);
@@ -80,7 +80,8 @@ export function AccountPicker(props: (Multi | Single) & {
     if (!open || !portal) return;
     const place = () => {
       const r = triggerRef.current?.getBoundingClientRect();
-      if (r) setFixedPos({ left: r.left, top: r.bottom, width: r.width });
+      // Open upward when the space below can't hold the panel.
+      if (r) setFixedPos({ left: r.left, width: r.width, ...(window.innerHeight - r.bottom < 340 && r.top > window.innerHeight - r.bottom ? { bottom: window.innerHeight - r.top } : { top: r.bottom }) });
     };
     place();
     window.addEventListener('scroll', place, true);
@@ -187,7 +188,7 @@ export function AccountPicker(props: (Multi | Single) & {
       data-sheet={portal || undefined}
       role={props.multiple ? undefined : 'listbox'}
       aria-label={props.multiple ? undefined : 'Account'}
-      style={portal && fixedPos ? { position: 'fixed', left: fixedPos.left, top: fixedPos.top, width: Math.max(fixedPos.width, 280) } : undefined}
+      style={portal && fixedPos ? { position: 'fixed', left: fixedPos.left, top: fixedPos.top, bottom: fixedPos.bottom, width: Math.max(fixedPos.width, 280) } : undefined}
       className={cn(
         !portal && 'absolute left-0 top-full w-full min-w-[280px]',
         'max-h-[320px] overflow-y-auto',

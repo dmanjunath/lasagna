@@ -14,7 +14,8 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
-import { Button, Surface, Field, Input, Label, MoneyInput, Select } from '../components/uikit';
+import { Button, Surface, Field, Input, Label, MoneyInput, useToast } from '../components/uikit';
+import { OptionMenu } from '../components/common/OptionMenu';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
@@ -197,11 +198,18 @@ function Chips<T extends string>({ options, value, onChange, className, align = 
  * `id` and `aria-describedby` Field hands down go to the month list, so the
  * "Date of birth" label and its hint still name the control.
  */
-function DateOfBirthFields({ id, value, onChange, 'aria-describedby': describedBy }: {
-  id?: string;
+// The step scrolls under a pinned footer, so a menu low on the screen opened
+// behind it. Bring the field up first, the way StatePicker does.
+function centerBeforeOpen(e: React.MouseEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  // A click in the portaled panel still bubbles here through React.
+  if (!el.contains(e.target as Node)) return;
+  if (window.innerHeight - el.getBoundingClientRect().bottom < 340) el.scrollIntoView({ block: 'center' });
+}
+
+function DateOfBirthFields({ value, onChange }: {
   value: string;
   onChange: (iso: string) => void;
-  'aria-describedby'?: string;
 }) {
   // The three lists hold their own answers. A half-filled date is not a date,
   // so the parent only ever sees '' or a whole one, and picking a month first
@@ -233,44 +241,36 @@ function DateOfBirthFields({ id, value, onChange, 'aria-describedby': describedB
     onChange(m && safeDay && y ? `${y}-${m}-${safeDay}` : '');
   };
 
-  const faint = 'text-content-faint';
+  // An unanswered list reads as a placeholder, not a value.
+  const faint = '[&>button]:text-content-faint';
   return (
-    <div className="grid grid-cols-[1.35fr_0.8fr_0.85fr] gap-2">
-      <Select
-        id={id}
-        aria-describedby={describedBy}
+    <div className="grid grid-cols-[1.35fr_0.8fr_0.85fr] gap-2" onClickCapture={centerBeforeOpen}>
+      <OptionMenu
+        ariaLabel="Month"
         value={month}
-        onChange={(e) => emit(e.target.value, day, year)}
-        compact
+        triggerLabel={month ? undefined : 'Month'}
+        options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))}
+        onChange={(m) => emit(m, day, year)}
         className={cn(!month && faint)}
-      >
-        <option value="">Month</option>
-        {MONTHS.map((name, i) => (
-          <option key={name} value={String(i + 1).padStart(2, '0')}>{name}</option>
-        ))}
-      </Select>
-      <Select
-        aria-label="Day"
+      />
+      <OptionMenu
+        ariaLabel="Day"
         value={day}
-        onChange={(e) => emit(month, e.target.value, year)}
-        compact
+        triggerLabel={day ? undefined : 'Day'}
+        options={Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => ({ value: d, label: String(Number(d)) }))}
+        onChange={(d) => emit(month, d, year)}
         className={cn(!day && faint)}
-      >
-        <option value="">Day</option>
-        {Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => (
-          <option key={d} value={d}>{Number(d)}</option>
-        ))}
-      </Select>
-      <Select
-        aria-label="Year"
+      />
+      <OptionMenu
+        ariaLabel="Year"
         value={year}
-        onChange={(e) => emit(month, day, e.target.value)}
-        compact
+        triggerLabel={year ? undefined : 'Year'}
+        options={years.map((y) => ({ value: y, label: y }))}
+        onChange={(y) => emit(month, day, y)}
         className={cn('ui-tnum', !year && faint)}
-      >
-        <option value="">Year</option>
-        {years.map((y) => <option key={y} value={y}>{y}</option>)}
-      </Select>
+        // The rightmost list opens leftward, or it runs off a phone screen.
+        panelClassName="left-auto right-0"
+      />
     </div>
   );
 }
@@ -348,8 +348,8 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
       e.preventDefault();
       if (!open) { openList(); return; }
       if (matches.length === 0) return;
-      const next = e.key === 'ArrowDown' ? active + 1 : active - 1;
-      setActive((next + matches.length) % matches.length);
+      // Clamped at the ends, the same as the merchant typeahead.
+      setActive((i) => (e.key === 'ArrowDown' ? Math.min(matches.length - 1, i + 1) : Math.max(0, i - 1)));
     } else if (e.key === 'Enter' && open) {
       e.preventDefault();
       if (matches[active]) pick(matches[active].code);
@@ -392,32 +392,31 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
           id={listId}
           role="listbox"
           className={cn(
-            'absolute left-0 right-0 z-30 max-h-[240px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel p-1 shadow-ui-lg',
+            'absolute left-0 right-0 z-30 max-h-[240px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised py-1 shadow-ui-lg',
             dropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
           )}
         >
           {matches.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-content-muted">No state matches that.</p>
+            <p className="px-3 py-2 text-[13px] font-medium text-content-muted">No state matches that.</p>
           ) : (
             matches.map((s, i) => (
-              <button
+              <div
                 key={s.code}
                 id={`${listId}-${s.code}`}
-                type="button"
                 role="option"
                 aria-selected={s.code === value}
                 data-active={i === active}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pick(s.code)}
+                // mousedown, not click: the input's blur would close the list first.
+                onMouseDown={(e) => { e.preventDefault(); pick(s.code); }}
+                onMouseEnter={() => setActive(i)}
                 className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-ui-sm px-3 py-2 text-left text-sm transition-colors duration-100',
-                  'hover:bg-canvas-sunken hover:text-content',
-                  i === active ? 'bg-canvas-sunken text-content' : 'text-content-secondary',
+                  'flex min-h-touch cursor-pointer items-center justify-between gap-2 px-3 text-[13px] font-medium text-content sm:min-h-0 sm:py-2',
+                  i === active && 'bg-canvas-sunken',
                 )}
               >
-                <span>{s.name}</span>
+                <span className="truncate">{s.name}</span>
                 {s.code === value && <Check className="h-4 w-4 shrink-0 text-brand" aria-hidden />}
-              </button>
+              </div>
             ))
           )}
         </div>
@@ -622,12 +621,16 @@ export function Onboarding() {
 
               <Field label="Filing status"
                 hint="Tax rules differ by filing status, and it changes what you can save tax-free.">
-                <Select value={filingStatus} onChange={(e) => setFilingStatus(e.target.value)}
-                  className={cn(!filingStatus && 'text-content-faint')}>
-                  <option value="">Select one</option>
-                  {FILING_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  <option value="unsure">I&apos;m not sure</option>
-                </Select>
+                <div onClickCapture={centerBeforeOpen}>
+                  <OptionMenu
+                    ariaLabel="Filing status"
+                    value={filingStatus}
+                    triggerLabel={filingStatus ? undefined : 'Select one'}
+                    options={[...FILING_STATUSES, { value: 'unsure', label: "I'm not sure" }]}
+                    onChange={setFilingStatus}
+                    className={cn(!filingStatus && '[&>button]:text-content-faint')}
+                  />
+                </div>
               </Field>
 
               <Field label="State of residence"
@@ -933,7 +936,7 @@ function InvitePartnerCard() {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
+  const toast = useToast();
 
   const invite = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -946,7 +949,7 @@ function InvitePartnerCard() {
     try {
       await api.household.createInvite(trimmed);
       setEmail('');
-      setSent(true);
+      toast({ tone: 'positive', title: 'Invite sent', description: `${trimmed} will get a link by email.` });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send that invite.");
     } finally {
@@ -968,7 +971,7 @@ function InvitePartnerCard() {
           type="email"
           enterKeyHint="send"
           value={email}
-          onChange={(e) => { setEmail(e.target.value); setSent(false); }}
+          onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void invite(); }}
           placeholder="partner@example.com"
           leadingIcon={<Mail className="h-4 w-4" />}
@@ -979,9 +982,6 @@ function InvitePartnerCard() {
         </Button>
       </div>
       {error && <p role="alert" className="text-[12.5px] font-medium text-negative">{error}</p>}
-      {sent && !error && (
-        <p className="text-[12.5px] font-medium text-positive">Invite sent. They'll get a link by email.</p>
-      )}
     </Surface>
   );
 }

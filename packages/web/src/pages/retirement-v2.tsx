@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { useBodyScrollLock } from '../lib/hooks/use-body-scroll-lock';
+import { niceTicks } from '../components/ds/TrendChart';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
 import { FinancialPlansList } from './financial-plans/index';
+import { OptionMenu } from '../components/common/OptionMenu';
 import { PlanFreshnessBanner } from '../components/common/plan-freshness-banner';
 import { planFreshness } from '../lib/plan-freshness';
 import type { FinancialPlanSummary } from '../lib/types';
 import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-amounts';
-import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Check, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Info } from 'lucide-react';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Badge, Button, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
@@ -55,13 +57,17 @@ const fmtShort = (v: number) =>
   isAmountsHidden() ? HIDDEN_AMOUNT
   : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
   : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M`
-  : v >= 1e3 ? `$${Math.round(v / 1e3)}k`
+  : v >= 1e3 ? `$${Math.round(v / 1e3)}K`
   : `$${Math.round(v)}`;
+// Ticks sit at quarters of the max, so they are rarely round. One decimal
+// below 10 of a unit keeps neighbours distinct ($1.6M, $2.4M, not $2M, $2M).
+const axisUnit = (n: number, unit: string) =>
+  `$${n >= 10 ? Math.round(n) : Number(n.toFixed(1))}${unit}`;
 const fmtAxis = (v: number) =>
   isAmountsHidden() ? HIDDEN_AMOUNT
-  : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B`
-  : v >= 1e6 ? `$${Math.round(v / 1e6)}M`
-  : v >= 1e3 ? `$${Math.round(v / 1e3)}k`
+  : v >= 1e9 ? axisUnit(v / 1e9, 'B')
+  : v >= 1e6 ? axisUnit(v / 1e6, 'M')
+  : v >= 1e3 ? axisUnit(v / 1e3, 'K')
   : `$${Math.round(v)}`;
 
 // Money for a chat prompt, never masked: the payload the model reads is not a
@@ -93,104 +99,6 @@ function Section({ title, description, right, children, className }: { title?: R
       {description && <p className="mb-4 text-[12.5px] text-content-muted ui-tnum">{description}</p>}
       {children}
     </section>
-  );
-}
-
-// Single-select dropdown styled to match the app's other custom dropdowns
-// (trigger button + portaled popover, like the transactions filter menus)
-// rather than a native <select> whose option list is the OS's own chrome. The
-// menu is portaled to <body> so the verdict card's overflow-hidden can't clip
-// it. Closes on select, outside-click, Escape, scroll, or resize.
-function MethodDropdown<T extends string>({ value, onChange, options, ariaLabel, triggerTestId }: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-  ariaLabel?: string;
-  triggerTestId?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  useBodyScrollLock(open);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
-    const menuH = options.length * 38 + 10;
-    const up = r.bottom + menuH + 8 > window.innerHeight && r.top - menuH > 8;
-    setPos({ top: up ? r.top - menuH - 6 : r.bottom + 6, left: r.left, width: r.width });
-  }, [open, options.length]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); } };
-    const onReflow = () => setOpen(false);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onReflow, true);
-    window.addEventListener('resize', onReflow);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onReflow, true);
-      window.removeEventListener('resize', onReflow);
-    };
-  }, [open]);
-
-  const current = options.find(o => o.value === value);
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={ariaLabel}
-        data-testid={triggerTestId}
-        className="ui-focus touch-target relative h-9 w-full appearance-none truncate rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-semibold text-content shadow-ui-sm"
-      >
-        {current?.label ?? ''}
-        <ChevronDown size={15} className={cn('pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-muted transition-transform', open && 'rotate-180')} />
-      </button>
-      {open && pos && createPortal(
-        <div
-          ref={menuRef}
-          role="listbox"
-          aria-label={ariaLabel}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 60 }}
-          className="max-h-[280px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised py-1 shadow-ui-lg"
-        >
-          {options.map(opt => {
-            const active = opt.value === value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="option"
-                aria-selected={active}
-                onClick={() => { onChange(opt.value); setOpen(false); triggerRef.current?.focus(); }}
-                className={cn(
-                  'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium transition-colors',
-                  active ? 'bg-brand-soft text-brand' : 'text-content hover:bg-canvas-sunken',
-                )}
-              >
-                <Check size={14} className={cn('shrink-0', active ? 'opacity-100' : 'opacity-0')} aria-hidden />
-                <span className="truncate">{opt.label}</span>
-              </button>
-            );
-          })}
-        </div>,
-        document.body,
-      )}
-    </>
   );
 }
 
@@ -324,7 +232,8 @@ function FanChartV2({ bands, currentAge, retireAge, clipLabel = 'best 5%', perce
 
   const xf = (i: number) => PL + (i / Math.max(n - 1, 1)) * chartW;
   const yf = (v: number) => PT + chartH - Math.max(0, Math.min(1, v / yMax)) * chartH;
-  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => ({ pct, val: yMax * pct, y: PT + chartH - pct * chartH }));
+  // Round steps, not quarters of the maximum.
+  const yTicks = niceTicks(0, yMax, 4).filter((v) => v > 0).map((val) => ({ pct: val / yMax, val, y: PT + chartH - (val / yMax) * chartH }));
 
   const band = (upper: number[], lower: number[]) => {
     let d = `M ${xf(0)},${yf(upper[0])}`;
@@ -388,7 +297,7 @@ function FanChartV2({ bands, currentAge, retireAge, clipLabel = 'best 5%', perce
             <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="var(--ui-line)" strokeDasharray="2 4" />
             {!hideAmounts && (
               <text x={PL - 6} y={y + 4} textAnchor="end" fontFamily="inherit" style={{ fontVariantNumeric: 'tabular-nums' }} fontSize={11} fill="rgb(var(--ui-content-muted))">
-                {fmtAxis(val)}{pct === 1 && clipped ? '+' : ''}
+                {fmtAxis(val)}{val === yTicks[yTicks.length - 1].val && clipped ? '+' : ''}
               </text>
             )}
           </g>
@@ -471,7 +380,7 @@ function BlendedChartV2({ values, currentAge, retireAge, runsShortAge }: {
   const maxV = Math.max(...values, 1) * 1.08;
   const xf = (i: number) => PL + (i / (n - 1)) * chartW;
   const yf = (v: number) => PT + chartH - Math.max(0, Math.min(1, v / maxV)) * chartH;
-  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => ({ pct, val: maxV * pct, y: PT + chartH - pct * chartH }));
+  const yTicks = niceTicks(0, maxV, 4).filter((v) => v > 0).map((val) => ({ pct: val / maxV, val, y: PT + chartH - (val / maxV) * chartH }));
 
   let lineD = `M ${xf(0)},${yf(values[0])}`;
   for (let i = 1; i < n; i++) lineD += ` L ${xf(i)},${yf(values[i])}`;
@@ -860,7 +769,8 @@ function DrawdownChart({ units, rows, currentAge, hidden, onToggleSeries }: {
     return Math.max(0, Math.min(n - 1, Math.round(((svgX - PL) / chartW) * (n - 1))));
   };
 
-  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => maxV * pct);
+  // Round steps ($500K, $1M, …), not quarters of the maximum.
+  const yTicks = niceTicks(0, maxV, 4).filter((v) => v > 0);
   const hi = hoverIdx;
   const TT_W = 216;
   const ttLeft = hi !== null ? Math.max(PL, Math.min(xf(hi) + 12, W - PR - TT_W)) : 0;
@@ -972,7 +882,8 @@ function DrawdownBarsChart({ units, rows, currentAge, hidden, onToggleSeries }: 
     return Math.max(0, Math.min(n - 1, Math.floor((svgX - PL) / slot)));
   };
 
-  const yTicks = [0.25, 0.5, 0.75, 1].map(pct => maxV * pct);
+  // Round steps ($500K, $1M, …), not quarters of the maximum.
+  const yTicks = niceTicks(0, maxV, 4).filter((v) => v > 0);
   const midI = Math.floor((n - 1) / 2);
   const hi = hoverIdx;
   const TT_W = 216;
@@ -1069,9 +980,7 @@ function DrawdownBarsChart({ units, rows, currentAge, hidden, onToggleSeries }: 
 // ── Summary chip (closed inputs section) ─────────────────────────────────────
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-line bg-canvas-sunken px-2.5 py-0.5 text-[12px] font-semibold text-content-secondary ui-tnum whitespace-nowrap">
-      {children}
-    </span>
+    <Badge className="ui-tnum">{children}</Badge>
   );
 }
 
@@ -1840,15 +1749,14 @@ export function RetirementV2() {
   // Rendered twice: top-right on desktop, above the KPI grid on mobile — the
   // parent wrappers handle which one shows at each breakpoint.
   const renderAskLasagna = (testId: string) => (
-    <button
-      type="button"
+    <Button
+      size="sm"
       data-testid={testId}
       onClick={() => openChat(askLasagnaPrompt)}
-      className="touch-target inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
+      leadingIcon={<Sparkles className="h-[15px] w-[15px]" aria-hidden />}
     >
-      <Sparkles className="h-[15px] w-[15px]" />
       Ask Lasagna
-    </button>
+    </Button>
   );
 
   if (loading) {
@@ -2111,7 +2019,7 @@ export function RetirementV2() {
           aria-label="Retirement page view"
           options={[
             { value: 'overview', label: 'Overview' },
-            { value: 'reports', label: 'Retirement Plans' },
+            { value: 'reports', label: 'Retirement plans' },
           ]}
         />
       </header>
@@ -2727,19 +2635,18 @@ export function RetirementV2() {
           /* No "Projection" kicker: the section is already titled, the
              description already names the method, and the control carries its
              own accessible name. */
-          <div className="w-[150px]">
-            <MethodDropdown
-              value={method}
-              onChange={setMethod}
-              ariaLabel="Projection method"
-              triggerTestId="rv2-method-trigger"
-              options={[
-                { value: 'mc', label: 'Monte Carlo' },
-                { value: 'hist', label: 'Historical' },
-                { value: 'blend', label: 'Blended return' },
-              ]}
-            />
-          </div>
+          <OptionMenu
+            value={method}
+            onChange={setMethod}
+            ariaLabel="Projection method"
+            toolbar={{ count: 0 }}
+            panelClassName="right-0 left-auto"
+            options={[
+              { value: 'mc', label: 'Monte Carlo' },
+              { value: 'hist', label: 'Historical' },
+              { value: 'blend', label: 'Blended return' },
+            ]}
+          />
         }
       >
         <Card>

@@ -53,24 +53,24 @@ export function TimelineScrubber({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-between font-mono text-[11px] text-text-secondary uppercase tracking-[0.14em]">
+      <div className="flex justify-between font-mono text-[11px] text-content-secondary uppercase tracking-[0.14em]">
         <span>{startYear}</span>
-        <span className="text-accent font-medium">{currentYear}</span>
+        <span className="text-[rgb(var(--ui-brand-ink))] font-medium">{currentYear}</span>
         <span>{endYear}</span>
       </div>
       <div
         ref={trackRef}
         onMouseDown={handleMouseDown}
-        className="relative h-2 bg-border rounded-full cursor-pointer"
+        className="relative h-2 bg-[var(--ui-line)] rounded-full cursor-pointer"
       >
         <div
-          className="absolute left-0 top-0 h-full bg-accent/30 rounded-full"
+          className="absolute left-0 top-0 h-full bg-brand/30 rounded-full"
           style={{ width: `${progress}%` }}
         />
         <div
           className={cn(
-            'absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-accent rounded-full',
-            'shadow-lg shadow-accent/20 transition-transform',
+            'absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-brand rounded-full',
+            'shadow-lg shadow-brand/20 transition-transform',
             isDragging ? 'scale-125' : 'hover:scale-110'
           )}
           style={{ left: `calc(${progress}% - 8px)` }}

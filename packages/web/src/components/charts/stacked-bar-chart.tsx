@@ -8,7 +8,6 @@ import {
   Cell,
   LabelList,
 } from 'recharts';
-import { colors } from '../../styles/theme';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface StackedBarDataPoint {
@@ -51,8 +50,8 @@ export function StackedBarChart({
           <YAxis type="category" hide />
           <Tooltip
             contentStyle={{
-              background: colors.bg.elevated,
-              border: `1px solid ${colors.border.DEFAULT}`,
+              background: 'rgb(var(--ui-panel-raised))',
+              border: '1px solid var(--ui-line)',
               borderRadius: '12px',
               fontFamily: 'DM Sans, system-ui, sans-serif',
             }}

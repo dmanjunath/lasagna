@@ -7,7 +7,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { colors } from '../../styles/theme';
 import { isAmountsHidden } from '../../lib/hide-amounts';
 
 interface HistogramBucket {
@@ -22,9 +21,9 @@ interface HistogramChartProps {
 }
 
 const STATUS_COLORS = {
-  success: '#4ade80',
-  close: '#f59e0b',
-  failure: '#ef4444',
+  success: 'rgb(var(--ui-brand))',
+  close: 'rgb(var(--ui-caution))',
+  failure: 'rgb(var(--ui-negative))',
 };
 
 // NOT masked: the string it builds is the bar's CATEGORY KEY, and masking it
@@ -32,7 +31,7 @@ const STATUS_COLORS = {
 // are suppressed at the axis and in the tooltip instead.
 function formatValue(v: number): string {
   if (v === 0) return '$0';
-  if (v < 0) return `-$${formatValue(Math.abs(v)).slice(1)}`;
+  if (v < 0) return `\u2212$${formatValue(Math.abs(v)).slice(1)}`;
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(v >= 10_000_000 ? 0 : 1)}M`;
   if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
   return `$${v.toFixed(0)}`;
@@ -163,31 +162,31 @@ export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
         <BarChart data={displayData} barCategoryGap="8%">
           <XAxis
             dataKey="label"
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={11}
             tickLine={false}
             axisLine={false}
             interval="preserveStartEnd"
           />
           <YAxis
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={11}
             tickLine={false}
             axisLine={false}
-            label={{ value: 'Simulations', angle: -90, position: 'insideLeft', fill: colors.text.muted, fontSize: 11, dy: 40 }}
+            label={{ value: 'Simulations', angle: -90, position: 'insideLeft', fill: 'rgb(var(--ui-content-muted))', fontSize: 11, dy: 40 }}
           />
           <Tooltip
             contentStyle={{
-              background: colors.bg.elevated,
-              border: `1px solid ${colors.border.DEFAULT}`,
+              background: 'rgb(var(--ui-panel-raised))',
+              border: '1px solid var(--ui-line)',
               borderRadius: '12px',
               fontSize: '13px',
-              color: colors.text.DEFAULT,
+              color: 'rgb(var(--ui-content))',
             }}
-            itemStyle={{ color: colors.text.DEFAULT }}
-            labelStyle={{ color: colors.text.muted }}
+            itemStyle={{ color: 'rgb(var(--ui-content))' }}
+            labelStyle={{ color: 'rgb(var(--ui-content-muted))' }}
             wrapperStyle={{ outline: 'none' }}
-            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+            cursor={{ fill: 'var(--ui-hairline)' }}
             separator=""
             formatter={(value: any, _name: any, props: any) => {
               const pct = totalSimulations > 0
@@ -205,15 +204,15 @@ export function HistogramChart({ data, height = 250 }: HistogramChartProps) {
         </BarChart>
       </ResponsiveContainer>
       <div className="flex items-center justify-center gap-6 mt-3">
-        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+        <div className="flex items-center gap-1.5 text-xs text-content-secondary">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ background: STATUS_COLORS.success }} />
           Succeeded
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+        <div className="flex items-center gap-1.5 text-xs text-content-secondary">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ background: STATUS_COLORS.close }} />
           Close call
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+        <div className="flex items-center gap-1.5 text-xs text-content-secondary">
           <span className="w-2.5 h-2.5 rounded-sm" style={{ background: STATUS_COLORS.failure }} />
           Ran out
         </div>

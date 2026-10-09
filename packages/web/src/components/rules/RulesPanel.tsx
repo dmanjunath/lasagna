@@ -161,20 +161,11 @@ export function RulesPanel({
     onChanged();
     onClose();
     const onSettings = location === '/profile';
-    let dismiss = () => {};
-    dismiss = toast({
+    toast({
       tone: 'positive',
       title: wasEdit ? 'Rule saved' : 'Rule created',
       duration: 6000,
-      description: onSettings ? undefined : (
-        <button
-          type="button"
-          onClick={() => { dismiss(); navigate('/profile#rules'); }}
-          className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-        >
-          View rules
-        </button>
-      ),
+      action: onSettings ? undefined : { label: 'View rules', onClick: () => navigate('/profile#rules') },
     });
   };
 

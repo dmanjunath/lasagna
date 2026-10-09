@@ -24,6 +24,7 @@ import { PageTitle } from '../components/ds/PageTitle';
 import { CashflowBars, isCurrentPeriod, type CashflowPeriod } from '../components/charts/CashflowBars';
 import { TransactionList } from '../components/transactions/TransactionList';
 import { ChipBadge, transactionsHref } from '../components/transactions/TransactionFilters';
+import { OptionMenu } from '../components/common/OptionMenu';
 import { RulesPanel } from '../components/rules/RulesPanel';
 import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../components/common/CategoryMultiSelect';
 import {
@@ -1115,23 +1116,24 @@ export function Spending() {
                   { value: 'group', label: 'Group' },
                 ]}
               />
-              <div className="relative">
-                <select
-                  aria-label="Sort breakdown"
-                  value={`${sort.key}:${sort.dir}`}
-                  onChange={(e) => {
-                    const [key, dir] = e.target.value.split(':') as ['label' | 'amount', 'asc' | 'desc'];
-                    setSort({ key, dir });
-                  }}
-                  className="ui-focus touch-target h-9 appearance-none rounded-ui-md border border-line-heavy bg-panel pl-3 pr-8 text-[13px] font-medium text-content shadow-ui-sm"
-                >
-                  <option value="amount:desc">Largest</option>
-                  <option value="amount:asc">Smallest</option>
-                  <option value="label:asc">A to Z</option>
-                  <option value="label:desc">Z to A</option>
-                </select>
-                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted" />
-              </div>
+              {/* The same sort control as /transactions. */}
+              <OptionMenu
+                ariaLabel="Sort breakdown"
+                prefix="Sorted by"
+                toolbar={{ count: 0 }}
+                value={`${sort.key}:${sort.dir}`}
+                options={[
+                  { value: 'amount:desc', label: 'Largest' },
+                  { value: 'amount:asc', label: 'Smallest' },
+                  { value: 'label:asc', label: 'A to Z' },
+                  { value: 'label:desc', label: 'Z to A' },
+                ]}
+                onChange={(v) => {
+                  const [key, dir] = v.split(':') as ['label' | 'amount', 'asc' | 'desc'];
+                  setSort({ key, dir });
+                }}
+                panelClassName="left-auto right-0"
+              />
             </div>
             )}
           </div>

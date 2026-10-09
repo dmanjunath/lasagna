@@ -9,17 +9,14 @@ import { api, type FinancialPath } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
 import { toActionRow, type ActionRow } from '../lib/action-rows';
 import { useChatStore } from '../lib/chat-store';
-import { Button, button, EmptyState, Skeleton, useToast } from '../components/uikit';
+import { Badge, Button, button, EmptyState, Skeleton, TextLink, useToast } from '../components/uikit';
+import { TransactionDetail, type DetailTx } from '../components/transactions/TransactionDetail';
+import { transactionsHref } from '../components/transactions/TransactionFilters';
 import { ActionItem } from '../components/common/action-item';
 import { levelStateOf, SegmentedRail, LegendSwatch } from '../components/common/level-rail';
 import { BriefingCard, GREETING_CLS } from '../components/home/BriefingCard';
 import { actionSentence, netWorthChange, quickLinks } from '../lib/home-briefing';
 import { formatStoredDay } from '../lib/utils';
-
-// Shared style for "go to this page" affordances on the home page, so every page
-// link reads as the same soft-brand button.
-const pageLinkCls =
-  'ui-focus inline-flex items-center gap-1.5 h-9 px-3.5 rounded-ui-md text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]';
 import { formatCurrency, goalAccent, iconFor } from './goal-shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -74,6 +71,8 @@ interface RecentTxn {
   date: string;
   amount: number;
   pending: boolean;
+  /** The row as the transaction drawer reads it. */
+  tx: DetailTx;
 }
 
 interface NetBreakdown {
@@ -299,28 +298,20 @@ export function SimpleHome() {
         // step card on /financial-level says the same thing the same way.
         if (status !== 'pending') {
           toast({
+            tone: 'positive',
             title:
               status === 'done'
                 ? maskCurrencyInText(`${step.title} is done`)
                 : maskCurrencyInText(`${step.title} is off your path`),
             duration: 8000,
-            // The uikit button, not a text link. Home moves the card on to the
-            // next step, so once this toast expires there is no way back to the
-            // one they just acted on at all, and it has to be a target a thumb
-            // can hit. The negative margin cancels the button's own padding, so
-            // the label lines up under the title rather than sitting indented.
-            description: (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="-ml-3.5"
-                onClick={() => {
-                  void api.markPathStep(step.id, 'pending').then(applyPath).catch(() => loadPath());
-                }}
-              >
-                {status === 'done' ? 'Undo' : 'Put back'}
-              </Button>
-            ),
+            // Home moves the card on to the next step, so once this toast
+            // expires there is no way back to the one they just acted on.
+            action: {
+              label: status === 'done' ? 'Undo' : 'Put back',
+              onClick: () => {
+                void api.markPathStep(step.id, 'pending').then(applyPath).catch(() => loadPath());
+              },
+            },
           });
         }
       } catch {
@@ -483,6 +474,7 @@ export function SimpleHome() {
             date: t.date,
             amount: parseFloat(t.amount),
             pending: !!t.pending,
+            tx: t as DetailTx,
           })),
         ),
       )
@@ -744,7 +736,7 @@ export function SimpleHome() {
             ) : txnsFailed ? (
               <CardLoadError title="Couldn't load recent activity" />
             ) : (
-              <RecentActivity txns={recentTxns} />
+              <RecentActivity txns={recentTxns} onPatch={(id, row) => setRecentTxns((prev) => prev.map((r) => (r.id === id ? row : r)))} />
             )}
           </aside>
           )}
@@ -1105,9 +1097,7 @@ export function ActionsSection({
         <h2 id="home-actions-title" className="text-[17px] font-bold tracking-[-0.01em]">Actions</h2>
         {/* Only offered when there is more behind it than the page is showing. */}
         {actions.length > shown.length && (
-          <Link href="/insights" className="ui-focus inline-flex items-center gap-1 text-[14px] font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline">
-            View all<ArrowRight className="h-4 w-4" />
-          </Link>
+          <TextLink href="/insights">View all</TextLink>
         )}
       </div>
 
@@ -1214,9 +1204,7 @@ export function LevelSection({
       <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold leading-[1.1] tracking-[-0.02em]">
         Personalized Financial Journey
       </h2>
-      <Link href="/financial-level" className={`shrink-0 ${pageLinkCls}`}>
-        All steps<ArrowRight className="h-4 w-4" />
-      </Link>
+      <TextLink href="/financial-level" className="shrink-0">All steps</TextLink>
     </div>
   );
 
@@ -1454,7 +1442,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
         <div className="text-[15px] font-semibold text-content mb-2.5">Goals</div>
         <p className="text-[14px] text-content-muted">
           No active goals yet.{' '}
-          <Link href="/goals" className="font-semibold text-brand hover:underline">Set a savings goal →</Link>
+          <TextLink href="/goals">Set a savings goal</TextLink>
         </p>
       </Card>
     );
@@ -1466,7 +1454,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
     <Card className="p-[22px]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Goals</div>
-        <Link href="/goals" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
+        <TextLink href="/goals" className="shrink-0">View all</TextLink>
       </div>
       <ul>
         {shown.map((g) => {
@@ -1493,7 +1481,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
                     <span className="truncate group-hover:text-brand transition-colors">{g.name}</span>
                   </span>
                   {reached ? (
-                    <span className="text-[11px] font-extrabold uppercase tracking-[0.04em] text-brand bg-panel px-2 py-0.5 rounded-full shadow-ui-sm shrink-0">Funded</span>
+                    <Badge tone="brand" size="sm" className="shrink-0">Funded</Badge>
                   ) : (
                     <span className="font-editorial text-[13px] font-extrabold text-content-muted shrink-0 ui-tnum">{Math.round(pct)}%</span>
                   )}
@@ -1533,6 +1521,18 @@ function thisMonthPeriod(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// This month to date, the window the side-rail summaries are counted over, so a
+// category row lands on exactly the transactions behind its figure.
+function thisMonthTransactionsHref(categoryId: string): string {
+  const d = new Date();
+  const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return transactionsHref({
+    startDate: `${ym}-01`,
+    endDate: `${ym}-${String(d.getDate()).padStart(2, '0')}`,
+    categories: [categoryId],
+  });
+}
+
 function SpendingPulse({ flow }: { flow: MonthFlow }) {
   const pctVsPrev =
     flow.prevSpending != null && flow.prevSpending > 0
@@ -1544,7 +1544,7 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
     <Card className="p-[22px]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Spending this month</div>
-        <Link href={`/spending?period=${thisMonthPeriod()}`} className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
+        <TextLink href={`/spending?period=${thisMonthPeriod()}`} className="shrink-0">View all</TextLink>
       </div>
       <div className="mt-3 flex items-end gap-x-2.5 gap-y-1 flex-wrap">
         <span className="font-editorial text-[27px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(flow.spending)}</span>
@@ -1558,21 +1558,25 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
         )}
       </div>
       {flow.topCats.length > 0 ? (
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-2.5 -mx-2 flex flex-col gap-0.5">
           {flow.topCats.map((c, i) => (
-            <div key={c.id}>
+            <Link
+              key={c.id}
+              href={thisMonthTransactionsHref(c.id)}
+              className="ui-focus group block rounded-ui-sm px-2 py-1.5 no-underline text-inherit transition-colors hover:bg-canvas-sunken"
+            >
               <div className="flex items-baseline justify-between gap-2 text-[12.5px]">
-                <span className="font-bold truncate">{c.name}</span>
+                <span className="font-bold truncate group-hover:text-[rgb(var(--ui-brand-ink))] transition-colors">{c.name}</span>
                 <span className="font-semibold text-content-muted ui-tnum shrink-0">{fmtUsd(c.total)}</span>
               </div>
               <div className="mt-1.5">
                 <Track pct={c.pct} color={SPEND_VIZ[i % SPEND_VIZ.length]} />
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-[13px] text-content-muted">No spending yet this month.</p>
+        <EmptyState className="mt-4 py-6" title="No spending yet this month" />
       )}
     </Card>
   );
@@ -1588,7 +1592,7 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
     <Card className="p-[22px]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Cash flow this month</div>
-        <Link href={`/spending?period=${thisMonthPeriod()}`} className={`shrink-0 ${pageLinkCls}`}>Details<ArrowRight className="h-4 w-4" /></Link>
+        <TextLink href={`/spending?period=${thisMonthPeriod()}`} className="shrink-0">Details</TextLink>
       </div>
       {hasFlow ? (
         <>
@@ -1621,7 +1625,7 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
           </div>
         </>
       ) : (
-        <p className="mt-3 text-[13px] text-content-muted">No activity yet this month.</p>
+        <EmptyState className="mt-4 py-6" title="No money in or out yet this month" />
       )}
     </Card>
   );
@@ -1629,39 +1633,64 @@ function CashFlowPulse({ flow }: { flow: MonthFlow }) {
 
 // ─── Recent activity — the latest transactions ───────────────────────────────────
 
-function RecentActivity({ txns }: { txns: RecentTxn[] }) {
+function RecentActivity({ txns, onPatch }: { txns: RecentTxn[]; onPatch: (id: string, row: RecentTxn) => void }) {
+  const [detail, setDetail] = useState<RecentTxn | null>(null);
+
   return (
     <Card className="p-[22px]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[15px] font-semibold text-content">Recent activity</div>
-        <Link href="/transactions" className={`shrink-0 ${pageLinkCls}`}>View all<ArrowRight className="h-4 w-4" /></Link>
+        <TextLink href="/transactions" className="shrink-0">View all</TextLink>
       </div>
       {txns.length === 0 ? (
-        <p className="mt-3 text-[13px] text-content-muted">No transactions yet.</p>
+        <EmptyState className="mt-4 py-6" title="No transactions yet" />
       ) : (
-        <ul>
+        <ul className="mt-1.5 -mx-2">
           {txns.map((t) => {
             const income = t.amount < 0;
             return (
-              <li key={t.id} className="mt-3.5 first:mt-3 flex items-baseline justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[13.5px] font-bold truncate">{t.name}</div>
-                  <div className="mt-0.5 text-[11.5px] font-semibold text-content-muted">
-                    {formatStoredDay(t.date)}
-                    {t.pending ? ', pending' : ''}
-                  </div>
-                </div>
-                <span
-                  className="text-[13.5px] font-extrabold ui-tnum shrink-0"
-                  style={income ? { color: 'rgb(var(--ui-positive))' } : undefined}
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => setDetail(t)}
+                  className="ui-focus flex w-full items-baseline justify-between gap-3 rounded-ui-sm px-2 py-2 text-left transition-colors hover:bg-canvas-sunken"
                 >
-                  {isAmountsHidden() ? <HiddenAmount /> : income ? `+${fmtUsd(Math.abs(t.amount), 2)}` : fmtUsd(t.amount, 2)}
-                </span>
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-bold truncate">{t.name}</div>
+                    <div className="mt-0.5 text-[11.5px] font-semibold text-content-muted">
+                      {formatStoredDay(t.date)}
+                      {t.pending ? ', pending' : ''}
+                    </div>
+                  </div>
+                  <span
+                    className="text-[13.5px] font-extrabold ui-tnum shrink-0"
+                    style={income ? { color: 'rgb(var(--ui-positive))' } : undefined}
+                  >
+                    {isAmountsHidden() ? <HiddenAmount /> : income ? `+${fmtUsd(Math.abs(t.amount), 2)}` : fmtUsd(t.amount, 2)}
+                  </span>
+                </button>
               </li>
             );
           })}
         </ul>
       )}
+      <TransactionDetail
+        open={detail !== null}
+        tx={detail?.tx ?? null}
+        onClose={() => setDetail(null)}
+        onSaved={(patch) => {
+          if (!detail) return;
+          const tx: DetailTx = {
+            ...detail.tx,
+            ...(patch.merchantName !== undefined ? { merchantName: patch.merchantName } : {}),
+            ...(patch.categoryId !== undefined ? { categoryId: patch.categoryId } : {}),
+            ...(patch.notes !== undefined ? { notes: patch.notes.trim() === '' ? null : patch.notes } : {}),
+            ...(patch.excluded !== undefined ? { excludedAt: patch.excluded ? new Date().toISOString() : null } : {}),
+          };
+          // Patches the row in place, the way /transactions does.
+          onPatch(detail.id, { ...detail, name: tx.merchantName || tx.name, tx });
+        }}
+      />
     </Card>
   );
 }

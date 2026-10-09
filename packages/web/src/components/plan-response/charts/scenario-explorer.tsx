@@ -35,8 +35,9 @@ interface ScenarioExplorerProps {
   onSliderChange?: (values: Record<string, number>) => void;
 }
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number): string => {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
+  if (value < 0) return `\u2212${formatCurrency(-value)}`;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toLocaleString()}`;
@@ -49,7 +50,7 @@ const formatFullCurrency = (value: number) => {
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value).replace(/^-/, '\u2212');
 };
 
 export function ScenarioExplorer({
@@ -83,13 +84,13 @@ export function ScenarioExplorer({
   const activeScenarioConfig = scenarios.find(s => s.id === activeScenario);
 
   return (
-    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl p-5 shadow-lg space-y-4">
+    <div className="bg-panel border border-line rounded-ui-xl p-5 shadow-ui-sm space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-text">{title}</h3>
+        <h3 className="text-base font-semibold text-content">{title}</h3>
         {selectedValue !== undefined && (
           <div className="text-right">
-            <span className="text-xs text-text-secondary uppercase tracking-wide">At {selectedYear}</span>
-            <p className="text-xl font-semibold text-text tabular-nums">{formatFullCurrency(selectedValue)}</p>
+            <span className="text-xs text-content-secondary uppercase tracking-wide">At {selectedYear}</span>
+            <p className="text-xl font-semibold text-content tabular-nums">{formatFullCurrency(selectedValue)}</p>
           </div>
         )}
       </div>
@@ -105,10 +106,10 @@ export function ScenarioExplorer({
                 </linearGradient>
               ))}
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" strokeOpacity={0.5} vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--ui-line)" strokeOpacity={0.5} vertical={false} />
             <XAxis
               dataKey="year"
-              stroke="#57534e"
+              stroke="rgb(var(--ui-content-muted))"
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -118,7 +119,7 @@ export function ScenarioExplorer({
                 60px they reserved with them. The curve is unchanged: the domain
                 is fit to the data. */}
             <YAxis
-              stroke="#57534e"
+              stroke="rgb(var(--ui-content-muted))"
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -132,22 +133,22 @@ export function ScenarioExplorer({
                 dropped and the year label is what remains. */}
             <Tooltip
               contentStyle={{
-                backgroundColor: 'rgba(12, 10, 9, 0.95)',
-                border: '1px solid #3f3f46',
+                backgroundColor: 'rgb(var(--ui-panel-raised))',
+                border: '1px solid var(--ui-line)',
                 borderRadius: '12px',
                 fontSize: '13px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                boxShadow: 'var(--ui-shadow-md)',
                 padding: '12px 16px',
               }}
               formatter={(value) => [formatFullCurrency(Number(value) || 0), activeScenarioConfig?.label]}
-              labelStyle={{ color: '#f5f5f5', fontWeight: 600, marginBottom: hideAmounts ? 0 : 4 }}
-              itemStyle={hideAmounts ? { display: 'none' } : { color: '#a8a29e' }}
+              labelStyle={{ color: 'rgb(var(--ui-content))', fontWeight: 600, marginBottom: hideAmounts ? 0 : 4 }}
+              itemStyle={hideAmounts ? { display: 'none' } : { color: 'rgb(var(--ui-content-secondary))' }}
               cursor={{ stroke: activeScenarioConfig?.color, strokeWidth: 1, strokeDasharray: '4 4' }}
             />
             <Area
               type="monotone"
               dataKey={activeScenario}
-              stroke={activeScenarioConfig?.color || '#6366f1'}
+              stroke={activeScenarioConfig?.color || 'var(--ui-viz-2)'}
               strokeWidth={2.5}
               fill={`url(#gradient-${activeScenario})`}
               animationDuration={500}

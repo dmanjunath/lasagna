@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp, Lock } from 'lucide-react';
+import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
-import { cn, stripAccountMask, exactSyncTime, formatStoredDay, formatStoredMonth, localDayKey } from '../lib/utils';
-import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
+import { cn, formatMoney, stripAccountMask, exactSyncTime, formatStoredDay, formatStoredMonth, localDayKey } from '../lib/utils';
+import { isAmountsHidden } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
-import { Button, Field, Input, PageMeta, PageMetaItem, Select, SegmentedControl, Skeleton, Tooltip } from '../components/uikit';
+import { Alert, Button, EmptyState, Field, Input, PageMeta, PageMetaItem, SegmentedControl, Skeleton, TextLink, Tooltip, useToast } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { InstIcon } from '../components/common/InstIcon';
@@ -14,7 +14,8 @@ import { AddressAutocomplete } from '../components/common/AddressAutocomplete';
 import { ValueSourceBadge, type ValueSource } from '../components/common/ValueSourceBadge';
 import { ValueSourceControl } from '../components/common/ValueSourceControl';
 import { AccountLinkPicker, type AccountPickerOption } from '../components/common/AccountLinkPicker';
-import { ACCOUNT_TYPE_CATALOG, accountTypeLabel, canonicalSubtype } from '../lib/account-types';
+import { AccountTypeMenu } from '../components/accounts/AccountTypeMenu';
+import { ACCOUNT_TYPE_CATALOG, accountTypeLabel, canonicalSubtype, type AccountCategory } from '../lib/account-types';
 import { TransactionList } from '../components/transactions/TransactionList';
 
 // ---------------------------------------------------------------------------
@@ -28,6 +29,7 @@ interface TypeOption {
   label: string;
   type: string;
   subtype: string | null;
+  category?: AccountCategory;
 }
 
 // Reclassifying is the edit side of the same decision the create modal makes, so
@@ -36,10 +38,8 @@ const TYPE_OPTIONS: TypeOption[] = ACCOUNT_TYPE_CATALOG;
 
 const LIABILITY_TYPES = new Set(['credit', 'loan']);
 const keyFor = (type: string, subtype: string | null) => `${type}:${subtype ?? ''}`;
-const fmtUsd = (n: number) =>
-  isAmountsHidden()
-    ? HIDDEN_AMOUNT
-    : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+// Whole dollars, with a true minus where the sign carries meaning.
+const fmtUsd = (n: number) => formatMoney(n, true);
 
 // getItems' account type doesn't declare the per-account overrides, but the
 // API returns them — widen it locally so we can read them without a `any`.
@@ -59,6 +59,7 @@ interface LoadedData {
   institution: string;
   isManual: boolean;
   status: string;
+  itemId: string;
   lastSyncedAt: string | null;
   snapshots: Snapshot[];
   // Every account across all items — for the property↔mortgage link pickers
@@ -66,6 +67,8 @@ interface LoadedData {
   allAccounts: DetailAccount[];
   // accountId → institution display name, for favicons in the link pickers.
   accountInstitution: Record<string, string>;
+  // Accounts on manual items, which get a monogram instead of a logo.
+  manualAccountIds: Set<string>;
 }
 
 export function AccountDetail() {
@@ -73,6 +76,14 @@ export function AccountDetail() {
   const id = params?.id ?? '';
   const [, setLocation] = useLocation();
   const confirm = useConfirm();
+  const toast = useToast();
+  // One toast at a time on this page: a link, its unlink and the Undo are one
+  // subject, and a stack of them contradicts itself.
+  const dismissLast = useRef<(() => void) | null>(null);
+  const say = (t: Parameters<typeof toast>[0]) => {
+    dismissLast.current?.();
+    dismissLast.current = toast(t);
+  };
 
   const [data, setData] = useState<LoadedData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,19 +153,10 @@ export function AccountDetail() {
     );
   };
 
-  // Sync / delete actions.
+  // Sync / delete actions. Their outcomes, and Save's, confirm in a toast,
+  // which stays in view however far down the settings panel is scrolled.
   const [actionPending, setActionPending] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  // Transient success confirmation (Saved ✓ / Synced ✓), auto-clears.
-  const [flash, setFlash] = useState<string | null>(null);
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showFlash = useCallback((msg: string) => {
-    setFlash(msg);
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlash(null), 2500);
-  }, []);
-  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
+  const fail = (title: string) => say({ tone: 'negative', title });
 
   // `keepForm` refreshes the read-only `data` (chart, linked accounts, key
   // facts) without re-seeding the editable Settings fields — used by the
@@ -167,7 +169,7 @@ export function AccountDetail() {
         // whole account read as not-found — fall back to no snapshots.
         api.getHistory(id).catch(() => ({ snapshots: [] as Snapshot[] })),
       ]);
-      let found: Omit<LoadedData, 'snapshots' | 'allAccounts' | 'accountInstitution'> | null = null;
+      let found: Omit<LoadedData, 'snapshots' | 'allAccounts' | 'accountInstitution' | 'manualAccountIds'> | null = null;
       for (const item of items) {
         const match = (item.accounts as DetailAccount[]).find((a) => a.id === id);
         if (match) {
@@ -176,6 +178,7 @@ export function AccountDetail() {
             institution: item.institutionName || 'Manual',
             isManual: item.institutionId === 'manual',
             status: item.status,
+            itemId: item.id,
             lastSyncedAt: item.lastSyncedAt,
           };
           break;
@@ -186,15 +189,20 @@ export function AccountDetail() {
         return;
       }
       const accountInstitution: Record<string, string> = {};
+      const manualAccountIds = new Set<string>();
       for (const item of items) {
         const inst = item.institutionName || 'Manual';
-        for (const a of item.accounts) accountInstitution[a.id] = inst;
+        for (const a of item.accounts) {
+          accountInstitution[a.id] = inst;
+          if (item.institutionId === 'manual') manualAccountIds.add(a.id);
+        }
       }
       setData({
         ...found,
         snapshots: history.snapshots,
         allAccounts: items.flatMap((i) => i.accounts as DetailAccount[]),
         accountInstitution,
+        manualAccountIds,
       });
       // Skip re-seeding the editable Settings fields when only refreshing data
       // (e.g. after linking a mortgage) so in-progress edits survive.
@@ -205,7 +213,12 @@ export function AccountDetail() {
       setExcludeNW(Boolean(found.acct.excludeFromNetWorth));
       setExcludeTx(Boolean(found.acct.excludeTransactions));
       setInvert(Boolean(found.acct.invertBalance));
-      setEditValue(found.acct.balance ?? '');
+      // Two decimals, as money is typed: the column's "-5098.6400" is storage.
+      // A debt shows what's owed, unsigned, under "Amount owed". Save puts the
+      // stored sign back.
+      const stored = found.acct.balance != null ? parseFloat(found.acct.balance) : NaN;
+      const isDebt = LIABILITY_TYPES.has(found.acct.type);
+      setEditValue(Number.isNaN(stored) ? '' : (isDebt ? Math.abs(stored) : stored).toFixed(2));
 
       // Pre-fill loan-detail fields from parsed metadata + the apr column.
       const meta = (found.acct.metadata ?? {}) as Record<string, unknown>;
@@ -263,7 +276,7 @@ export function AccountDetail() {
       const source: 'market' | 'own' = ve.override === true ? 'own' : 'market';
       setValueSourceChoice(source);
       initialValueSourceRef.current = source;
-      setOwnValue(source === 'own' ? (found.acct.balance ?? '') : '');
+      setOwnValue(source === 'own' && found.acct.balance != null ? parseFloat(found.acct.balance).toFixed(2) : '');
       setAddressRejected(false);
     } catch {
       setNotFound(true);
@@ -319,8 +332,14 @@ export function AccountDetail() {
   // read, not a bucketed day. Order on that moment, then key it to the viewer's
   // own calendar day, so a balance recorded at 11pm stays on that evening and
   // every reader below is handling a genuine stored day.
+  // A debt is plotted as the amount owed, the same unsigned number the hero
+  // shows, so the chart, the hero and the change chip read one way.
+  const owedOnly = LIABILITY_TYPES.has(acct.type);
   const allPoints: TrendPoint[] = snapshots
-    .map((s) => ({ date: s.snapshotAt, value: parseFloat(s.balance ?? '0') }))
+    .map((s) => {
+      const v = parseFloat(s.balance ?? '0');
+      return { date: s.snapshotAt, value: owedOnly ? Math.abs(v) : v };
+    })
     .filter((p) => Number.isFinite(p.value))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .map((p) => ({ ...p, date: localDayKey(p.date) }));
@@ -374,6 +393,9 @@ export function AccountDetail() {
     name: titleCase(a.name),
     institution: data.accountInstitution[a.id] ?? 'Manual',
     meta: accountTypeLabel(a.type, a.subtype),
+    type: a.type,
+    isManual: data.manualAccountIds.has(a.id),
+    mask: a.mask,
   });
   const loanOptions: AccountPickerOption[] = data.allAccounts
     .filter((a) => a.type === 'loan' && !a.propertyAccountId)
@@ -430,7 +452,6 @@ export function AccountDetail() {
   }
 
   const save = async () => {
-    setActionError(null);
     if (crossesBucket) {
       const ok = await confirm({
         title: 'Change net worth?',
@@ -457,8 +478,10 @@ export function AccountDetail() {
     setSaving(true);
     try {
       if (isManual) {
-        const newBalance = parseFloat(editValue);
-        if (!Number.isNaN(newBalance) && newBalance !== parseFloat(acct.balance ?? '0')) {
+        const storedBalance = parseFloat(acct.balance ?? '0');
+        const typed = parseFloat(editValue);
+        const newBalance = isLiabilityAcct && storedBalance < 0 ? -Math.abs(typed) : typed;
+        if (!Number.isNaN(newBalance) && newBalance !== storedBalance) {
           await api.updateManualAccount(id, { balance: newBalance });
         }
       }
@@ -549,9 +572,9 @@ export function AccountDetail() {
       }
 
       await load();
-      showFlash('Saved ✓');
+      say({ tone: 'positive', title: 'Changes saved' });
     } catch {
-      setActionError("Couldn't save changes. Try again.");
+      fail("Couldn't save changes. Try again.");
     } finally {
       setSaving(false);
     }
@@ -559,28 +582,32 @@ export function AccountDetail() {
 
   // Link/unlink a debt to THIS property — these PATCH the debt account (not
   // the one this page's Save batches for), so they act immediately.
+  const debtName = (debtId: string) =>
+    titleCase(data.allAccounts.find((a) => a.id === debtId)?.name ?? 'the loan');
   const linkDebt = async (debtId: string) => {
-    setActionError(null);
     setSaving(true);
     try {
       await api.updateAccount(debtId, { propertyAccountId: id });
       await load({ keepForm: true });
-      showFlash('Linked ✓');
+      say({ tone: 'positive', title: `Linked ${debtName(debtId)}` });
     } catch {
-      setActionError("Couldn't link that account. Try again.");
+      fail("Couldn't link that account. Try again.");
     } finally {
       setSaving(false);
     }
   };
   const unlinkDebt = async (debtId: string) => {
-    setActionError(null);
     setSaving(true);
     try {
       await api.updateAccount(debtId, { propertyAccountId: null });
       await load({ keepForm: true });
-      showFlash('Unlinked ✓');
+      say({
+        tone: 'positive',
+        title: `Unlinked ${debtName(debtId)}`,
+        action: { label: 'Undo', onClick: () => linkDebt(debtId) },
+      });
     } catch {
-      setActionError("Couldn't unlink that account. Try again.");
+      fail("Couldn't unlink that account. Try again.");
     } finally {
       setSaving(false);
     }
@@ -588,19 +615,17 @@ export function AccountDetail() {
 
   // Checkout failures were swallowed here while /accounts surfaces them.
   const handleUpgrade = () => {
-    setActionError(null);
-    startUpgrade().catch(() => setActionError('Could not start checkout. Please try again.'));
+    startUpgrade().catch(() => fail("Couldn't start checkout. Try again."));
   };
 
   const handleSync = async () => {
     setActionPending(true);
-    setActionError(null);
     try {
       await api.syncAccount(id);
       await load();
-      showFlash('Synced ✓');
+      say({ tone: 'positive', title: 'Account synced' });
     } catch {
-      setActionError('Could not sync this account. Please try again.');
+      fail("Couldn't sync this account. Try again.");
     } finally {
       setActionPending(false);
     }
@@ -615,12 +640,11 @@ export function AccountDetail() {
     });
     if (!ok) return;
     setActionPending(true);
-    setActionError(null);
     try {
       await api.deleteManualAccount(id);
       setLocation('/money');
     } catch {
-      setActionError('Could not delete this account. Please try again.');
+      fail("Couldn't delete this account. Try again.");
       setActionPending(false);
     }
   };
@@ -700,60 +724,28 @@ export function AccountDetail() {
       </header>
 
       {acct.frozen && (
-        <div className="mt-4 rounded-ui-md border border-info/30 bg-info-soft px-4 py-3">
-          <p className="inline-flex items-start gap-1.5 text-[13.5px] font-semibold text-info">
-            <Lock size={13} strokeWidth={2.2} className="mt-[3px] shrink-0" aria-hidden="true" />
-            Frozen: {institution} is past the Free plan's institution limit, so this account isn't syncing.
-          </p>
-          {/* Links inherit the banner's info ink: `text-brand` is the fill token
-              and only reaches 2.2:1 on this tint. Bold + underline carry the
-              affordance. py/-my grow the inline hit box to ~31px without
-              changing the line box (an inline link can't reach 44px inside a
-              wrapped paragraph without swallowing the line below it). */}
-          <p className="mt-1 text-[12.5px] font-medium text-info">
-            <button
-              type="button"
-              onClick={handleUpgrade}
-              className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-info underline underline-offset-2 hover:opacity-80"
-            >
-              Upgrade to resume
-            </button>
-            , or{' '}
-            <button
-              type="button"
-              onClick={() => setLocation('/accounts')}
-              className="ui-focus -my-1.5 rounded-ui-sm py-1.5 font-bold text-info underline underline-offset-2 hover:opacity-80"
-            >
-              disconnect an institution
-            </button>{' '}
-            you no longer use to free its slot.
-          </p>
-        </div>
+        <Alert
+          tone="info"
+          className="mt-4"
+          title="This account isn't syncing"
+          action={<TextLink onClick={handleUpgrade}>Upgrade to resume</TextLink>}
+        >
+          {institution} is past the Free plan's institution limit. You can also{' '}
+          <TextLink href="/accounts" chevron={false}>disconnect an institution</TextLink>{' '}
+          you no longer use to free its slot.
+        </Alert>
       )}
 
       {needsAttention && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3">
-          <span className="text-[13.5px] font-semibold text-caution">
-            {status === 'item_login_required' ? 'Login expired. Reconnect to resume syncing.' : 'This account needs attention. Try reconnecting.'}
-          </span>
-          <button
-            type="button"
-            onClick={() => setLocation('/accounts')}
-            className="ui-focus shrink-0 rounded-ui-sm text-[13px] font-bold text-brand hover:underline"
-          >
-            Reconnect →
-          </button>
-        </div>
-      )}
-
-      {(actionError || flash) && (
-        <p
-          role="status"
-          aria-live="polite"
-          className={cn('mt-3 text-[12.5px] font-semibold', actionError ? 'text-negative' : 'text-[rgb(var(--ui-brand-ink))]')}
+        <Alert
+          tone="caution"
+          className="mt-4"
+          title={`${institution} needs to reconnect`}
+          // Plaid's update mode runs on /accounts, which starts it on arrival.
+          action={<TextLink href={`/accounts?reconnect=${data.itemId}`}>Reconnect</TextLink>}
         >
-          {actionError ?? flash}
-        </p>
+          Balances and transactions stop updating until you reconnect.
+        </Alert>
       )}
 
       {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
@@ -777,8 +769,10 @@ export function AccountDetail() {
                 <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />
               )}
             </div>
-            <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum">
-              <MaskedText text={fmtUsd(heroValue)} />
+            {/* "Balance owed" already says it's debt, so the amount is unsigned
+                and reads in the negative ink rather than as a double negative. */}
+            <div className={cn('mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
+              <MaskedText text={fmtUsd(isLiabilityAcct ? Math.abs(heroValue) : heroValue)} />
             </div>
             <div className="mt-3 flex min-h-7 items-center gap-2.5 flex-wrap">
               {hoveredPoint ? (
@@ -788,7 +782,7 @@ export function AccountDetail() {
                 </span>
               ) : hasHistory && heroChange !== 0 ? (
                 <>
-                  <DeltaChip delta={heroChange} />
+                  <DeltaChip delta={heroChange} goodWhenDown={isLiabilityAcct} />
                   <span className="text-[13px] font-medium text-content-muted">over this period</span>
                 </>
               ) : !isManual && lastSyncedAt && exactSyncTime(lastSyncedAt) ? (
@@ -834,15 +828,12 @@ export function AccountDetail() {
             </p>
           )
         ) : (
-          <div className="relative mt-5 grid place-items-center rounded-ui-md border border-dashed border-line-strong bg-canvas-sunken/40 px-3 py-8 text-center">
-            <div className="mb-2.5 grid h-11 w-11 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
-              <TrendingUp size={20} />
-            </div>
-            <div className="text-[15px] font-semibold">No history yet</div>
-            <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-content-muted">
-              A value trend appears once we have a few days of history.
-            </p>
-          </div>
+          <EmptyState
+            className="relative mt-5 py-8"
+            icon={<TrendingUp size={20} />}
+            title="No history yet"
+            description="A value trend appears once we have a few days of history."
+          />
         )}
 
         {/* Key facts — read-only, at-a-glance context for this one account. */}
@@ -940,10 +931,10 @@ export function AccountDetail() {
                 {/* Property value is edited in "Address & value" above (via the
                     value-source control), so skip the plain Value field here. */}
                 {isManual && !isPropertyAcct && (
-                  <Field label="Value">
+                  <Field label={isLiabilityAcct ? 'Amount owed' : 'Value'}>
                     <MoneyInput
                       type="number"
-                      inputMode="decimal"
+                      step="0.01"
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       className="ui-tnum"
@@ -962,11 +953,7 @@ export function AccountDetail() {
             {/* Classification — the reclassify select + cross-bucket warning. */}
             <SettingsGroup title="Classification" className="mt-6">
               <Field label="Account type">
-                <Select value={typeKey} onChange={(e) => setTypeKey(e.target.value)}>
-                  {options.map((o) => (
-                    <option key={keyFor(o.type, o.subtype)} value={keyFor(o.type, o.subtype)}>{o.label}</option>
-                  ))}
-                </Select>
+                <AccountTypeMenu types={options} value={typeKey} onChange={setTypeKey} ariaLabel="Account type" />
                 {crossesBucket && (
                   <p className="mt-2 text-[12px] leading-relaxed text-negative">
                     This moves the account {willBeLiability ? 'into debt' : 'into assets'}. It will change your net worth.
@@ -1040,13 +1027,9 @@ export function AccountDetail() {
             {isLiabilityAcct && (
               <SettingsGroup title="Linked property" className="mt-6">
                 {linkedPropertyId && (
-                  <button
-                    type="button"
-                    onClick={() => setLocation(`/accounts/${linkedPropertyId}`)}
-                    className="ui-focus mb-3 inline-flex items-center gap-1 rounded-ui-sm text-[13px] font-bold text-brand hover:underline"
-                  >
-                    View {titleCase(data.allAccounts.find((a) => a.id === linkedPropertyId)?.name ?? 'property')} →
-                  </button>
+                  <TextLink href={`/accounts/${linkedPropertyId}`} className="mb-3">
+                    View {titleCase(data.allAccounts.find((a) => a.id === linkedPropertyId)?.name ?? 'property')}
+                  </TextLink>
                 )}
                 <Field label="Secured by">
                   <AccountLinkPicker
@@ -1073,16 +1056,12 @@ export function AccountDetail() {
                   <div className="divide-y divide-line rounded-ui-md border border-line">
                     {linkedDebts.map((d) => (
                       <div key={d.id} className="flex items-center gap-3 px-3.5 py-3">
-                        <button
-                          type="button"
-                          onClick={() => setLocation(`/accounts/${d.id}`)}
-                          className="ui-focus min-w-0 flex-1 rounded-ui-sm text-left"
-                        >
-                          <span className="inline-flex items-center gap-1 text-[14px] font-bold text-brand hover:underline">View {titleCase(d.name)} →</span>
+                        <div className="min-w-0 flex-1">
+                          <TextLink href={`/accounts/${d.id}`}>View {titleCase(d.name)}</TextLink>
                           <span className="mt-0.5 block text-[12.5px] text-content-muted ui-tnum">
                             {fmtUsd(Math.abs(parseFloat(d.balance ?? '0')))} owed
                           </span>
-                        </button>
+                        </div>
                         <Button size="sm" variant="ghost" disabled={saving} onClick={() => unlinkDebt(d.id)}>
                           Unlink
                         </Button>
@@ -1098,7 +1077,8 @@ export function AccountDetail() {
                           value={pendingDebtId}
                           onChange={setPendingDebtId}
                           disabled={saving}
-                          placeholder="Choose a loan…"
+                          placeholder="Choose a loan"
+                          noneLabel="No loan"
                           addLabel="Add a mortgage"
                           onAdd={() => setLocation(`/accounts?add=loan:mortgage&link=${id}`)}
                         />
@@ -1135,20 +1115,6 @@ export function AccountDetail() {
               <Button variant="primary" disabled={saving} loading={saving} onClick={save}>
                 {saving ? 'Saving…' : 'Save changes'}
               </Button>
-              {/* The top status line sits off-viewport when the panel is scrolled
-                  down, so mirror it next to Save. aria-hidden — the top line
-                  already announces via role="status". */}
-              {(actionError || flash) && (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'text-[12.5px] font-semibold',
-                    actionError ? 'text-negative' : 'text-[rgb(var(--ui-brand-ink))]',
-                  )}
-                >
-                  {actionError ?? flash}
-                </span>
-              )}
               {/* Sync / delete also surfaced here for mobile (header actions are desktop-only). */}
               {!isManual && !acct.frozen && (
                 <Button
@@ -1252,17 +1218,9 @@ function PropertyEstimateStatus({
           : { title: 'Couldn’t estimate this address', body: 'Enter a value manually in Settings below.' };
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="mt-4 flex items-center gap-2.5 rounded-ui-md border border-line bg-info-soft px-4 py-3"
-    >
-      {state === 'pending' && <RefreshCw size={15} className="shrink-0 animate-spin text-info" aria-hidden="true" />}
-      <span className="min-w-0">
-        <span className="block text-[13.5px] font-bold text-content">{copy.title}</span>
-        <span className="mt-0.5 block text-[12.5px] text-content-muted">{copy.body}</span>
-      </span>
-    </div>
+    <Alert tone={state === 'pending' || state === 'timeout' ? 'info' : 'caution'} className="mt-4" title={copy.title}>
+      {copy.body}
+    </Alert>
   );
 }
 
@@ -1294,8 +1252,11 @@ function relativeTime(iso: string): string {
 // Delta chip — sign + arrow + tinted color (never color-only). Mirrors Money.
 // ---------------------------------------------------------------------------
 
-function DeltaChip({ delta }: { delta: number }) {
-  const positive = delta >= 0;
+// goodWhenDown: a debt shrinking is the good direction, so its tint flips
+// while the arrow and sign still follow the number.
+function DeltaChip({ delta, goodWhenDown = false }: { delta: number; goodWhenDown?: boolean }) {
+  const up = delta >= 0;
+  const positive = goodWhenDown ? !up : up;
   // The chip is sign, arrow and tint around one number. Masked, all three go:
   // the arrow and the sign are siblings of the value, so the mask span's own
   // color cannot neutralise them.
@@ -1317,9 +1278,9 @@ function DeltaChip({ delta }: { delta: number }) {
       ) : (
         <>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
+            {up ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
           </svg>
-          {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}
+          {up ? '+' : '−'}{fmtUsd(Math.abs(delta))}
         </>
       )}
     </span>
@@ -1382,9 +1343,9 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
       : 0;
     return (t: number): string => {
       if (unit > 1 && decimals >= 2) {
-        return t.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+        return t.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).replace(/^-/, '\u2212');
       }
-      return `${t < 0 ? '-' : ''}$${(Math.abs(t) / unit).toFixed(decimals)}${suffix}`;
+      return `${t < 0 ? '\u2212' : ''}$${(Math.abs(t) / unit).toFixed(decimals)}${suffix}`;
     };
   }, [yTicks]);
 

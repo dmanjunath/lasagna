@@ -8,6 +8,7 @@ export type { InputProps } from './Field';
 export { Select } from './Select';
 export type { SelectProps } from './Select';
 export { Badge } from './Badge';
+export { TextLink } from './TextLink';
 export type { BadgeProps } from './Badge';
 export { PageMeta, PageMetaItem, PageMetaSkeleton } from './PageMeta';
 export type { PageMetaItemProps } from './PageMeta';

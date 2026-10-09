@@ -31,12 +31,13 @@ export function formatMoney(value: number | string | null, compact = false): str
   if (isNaN(num)) return '—';
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
 
+  // A true minus sign (U+2212), not the hyphen Intl prints.
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: compact ? 0 : 2,
     maximumFractionDigits: compact ? 0 : 2,
-  }).format(num);
+  }).format(num).replace(/^-/, '\u2212');
 }
 
 export function formatPercent(value: number, decimals = 1): string {

@@ -47,8 +47,8 @@ export function PlanUsage({ className, onNavigate }: { className?: string; onNav
     setUpgrading(true);
     try {
       await startUpgrade();
-    } catch (err) {
-      toast({ tone: 'negative', title: err instanceof Error ? err.message : 'Failed to start upgrade' });
+    } catch {
+      toast({ tone: 'negative', title: 'Could not start the upgrade', description: 'Please try again.' });
     } finally {
       setUpgrading(false);
     }

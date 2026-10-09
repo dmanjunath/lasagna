@@ -11,7 +11,6 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { MonteCarloChartBlock } from "../../../lib/types.js";
-import { colors } from "../../../styles/theme.js";
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
 function formatCurrency(value: number): string {
@@ -44,13 +43,13 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
         {title && (
-          <h3 className="text-base font-semibold tracking-tight text-text">{maskCurrencyInText(title)}</h3>
+          <h3 className="text-base font-semibold tracking-tight text-content">{maskCurrencyInText(title)}</h3>
         )}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-text-secondary">Success Rate:</span>
+          <span className="text-sm text-content-secondary">Success Rate:</span>
           <span className={`text-lg font-semibold ${
-            data.successRate >= 0.9 ? "text-success" :
-            data.successRate >= 0.8 ? "text-warning" : "text-danger"
+            data.successRate >= 0.9 ? "text-positive" :
+            data.successRate >= 0.8 ? "text-caution" : "text-negative"
           }`}>
             {(data.successRate * 100).toFixed(0)}%
           </span>
@@ -62,31 +61,31 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id="p95" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={colors.accent.DEFAULT} stopOpacity={0.1} />
-                <stop offset="95%" stopColor={colors.accent.DEFAULT} stopOpacity={0} />
+                <stop offset="5%" stopColor="rgb(var(--ui-brand))" stopOpacity={0.1} />
+                <stop offset="95%" stopColor="rgb(var(--ui-brand))" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="p75" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={colors.accent.DEFAULT} stopOpacity={0.2} />
-                <stop offset="95%" stopColor={colors.accent.DEFAULT} stopOpacity={0.05} />
+                <stop offset="5%" stopColor="rgb(var(--ui-brand))" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="rgb(var(--ui-brand))" stopOpacity={0.05} />
               </linearGradient>
               <linearGradient id="p50" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={colors.accent.DEFAULT} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={colors.accent.DEFAULT} stopOpacity={0.1} />
+                <stop offset="5%" stopColor="rgb(var(--ui-brand))" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="rgb(var(--ui-brand))" stopOpacity={0.1} />
               </linearGradient>
             </defs>
             <XAxis
               dataKey="year"
-              stroke={colors.text.muted}
+              stroke="rgb(var(--ui-content-muted))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              label={{ value: "Years", position: "bottom", fill: colors.text.muted }}
+              label={{ value: "Years", position: "bottom", fill: "rgb(var(--ui-content-muted))" }}
             />
             {/* Money tick labels are removed while amounts are hidden, and the
                 width they reserved with them. The bands are unchanged: the
                 domain is fit to the data. */}
             <YAxis
-              stroke={colors.text.muted}
+              stroke="rgb(var(--ui-content-muted))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
@@ -100,8 +99,8 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
               itemStyle={hideAmounts ? { display: "none" } : undefined}
               formatter={(value) => formatCurrency(value as number)}
               contentStyle={{
-                background: colors.bg.elevated,
-                border: `1px solid ${colors.border.DEFAULT}`,
+                background: "rgb(var(--ui-panel-raised))",
+                border: "1px solid var(--ui-line)",
                 borderRadius: "12px",
                 padding: "12px",
               }}
@@ -124,7 +123,7 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
             <Area
               type="monotone"
               dataKey="p50"
-              stroke={colors.accent.DEFAULT}
+              stroke="rgb(var(--ui-brand))"
               strokeWidth={2}
               fill="url(#p50)"
               name="Median"
@@ -143,22 +142,22 @@ function FanChart({ data, title }: { data: MonteCarloChartBlock["data"]; title?:
               fill="url(#p95)"
               name="5th percentile"
             />
-            <ReferenceLine y={0} stroke={colors.danger} strokeDasharray="3 3" />
+            <ReferenceLine y={0} stroke="rgb(var(--ui-negative))" strokeDasharray="3 3" />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="flex justify-center gap-6 mt-4 text-xs text-text-secondary">
+      <div className="flex justify-center gap-6 mt-4 text-xs text-content-secondary">
         <span className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full" style={{ background: colors.accent.DEFAULT, opacity: 0.4 }} />
+          <span className="w-3 h-3 rounded-full" style={{ background: "rgb(var(--ui-brand))", opacity: 0.4 }} />
           Median
         </span>
         <span className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full" style={{ background: colors.accent.DEFAULT, opacity: 0.2 }} />
+          <span className="w-3 h-3 rounded-full" style={{ background: "rgb(var(--ui-brand))", opacity: 0.2 }} />
           25th-75th
         </span>
         <span className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full" style={{ background: colors.accent.DEFAULT, opacity: 0.1 }} />
+          <span className="w-3 h-3 rounded-full" style={{ background: "rgb(var(--ui-brand))", opacity: 0.1 }} />
           5th-95th
         </span>
       </div>
@@ -173,12 +172,12 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
 
     const labels = ["$0", "$250K", "$500K", "$1M", "$2M", "$3M+"];
     const statusColors = [
-      colors.danger,
-      colors.warning,
-      colors.success,
-      colors.success,
-      colors.success,
-      colors.success,
+      "rgb(var(--ui-negative))",
+      "rgb(var(--ui-caution))",
+      "rgb(var(--ui-brand))",
+      "rgb(var(--ui-brand))",
+      "rgb(var(--ui-brand))",
+      "rgb(var(--ui-brand))",
     ];
 
     return data.distribution.buckets.map((_, idx) => ({
@@ -194,13 +193,13 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
         {title && (
-          <h3 className="text-base font-semibold tracking-tight text-text">{maskCurrencyInText(title)}</h3>
+          <h3 className="text-base font-semibold tracking-tight text-content">{maskCurrencyInText(title)}</h3>
         )}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-text-secondary">Success Rate:</span>
+          <span className="text-sm text-content-secondary">Success Rate:</span>
           <span className={`text-lg font-semibold ${
-            data.successRate >= 0.9 ? "text-success" :
-            data.successRate >= 0.8 ? "text-warning" : "text-danger"
+            data.successRate >= 0.9 ? "text-positive" :
+            data.successRate >= 0.8 ? "text-caution" : "text-negative"
           }`}>
             {(data.successRate * 100).toFixed(0)}%
           </span>
@@ -216,14 +215,14 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
                 because it is the bar's category key. */}
             <XAxis
               dataKey="label"
-              stroke={colors.text.muted}
+              stroke="rgb(var(--ui-content-muted))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
               hide={hideAmounts}
             />
             <YAxis
-              stroke={colors.text.muted}
+              stroke="rgb(var(--ui-content-muted))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
@@ -232,15 +231,15 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
             <Tooltip
               formatter={(value) => [`${(((value as number) / total) * 100).toFixed(1)}%`, "Probability"]}
               contentStyle={{
-                background: colors.bg.elevated,
-                border: `1px solid ${colors.border.DEFAULT}`,
+                background: "rgb(var(--ui-panel-raised))",
+                border: "1px solid var(--ui-line)",
                 borderRadius: "12px",
               }}
             />
             <Bar
               dataKey="count"
               radius={[4, 4, 0, 0]}
-              fill={colors.accent.DEFAULT}
+              fill="rgb(var(--ui-brand))"
             />
           </BarChart>
         </ResponsiveContainer>
@@ -248,16 +247,16 @@ function Histogram({ data, title }: { data: MonteCarloChartBlock["data"]; title?
 
       <div className="flex justify-center gap-4 mt-4 text-xs">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-danger" />
-          <span className="text-text-secondary">Depleted</span>
+          <span className="w-2 h-2 rounded-full bg-negative" />
+          <span className="text-content-secondary">Depleted</span>
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-warning" />
-          <span className="text-text-secondary">Struggling</span>
+          <span className="w-2 h-2 rounded-full bg-caution" />
+          <span className="text-content-secondary">Struggling</span>
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-text-secondary">Comfortable</span>
+          <span className="w-2 h-2 rounded-full bg-brand" />
+          <span className="text-content-secondary">Comfortable</span>
         </span>
       </div>
     </div>

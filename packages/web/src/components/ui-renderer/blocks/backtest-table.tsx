@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Filter } from "lucide-react";
-import { Select } from '../../uikit';
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { OptionMenu } from "../../common/OptionMenu.js";
 import type { BacktestTableBlock } from "../../../lib/types.js";
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
@@ -19,13 +19,13 @@ function formatCurrency(value: number): string {
 }
 
 function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(0)}%`;
+  return `${(value * 100).toFixed(0)}%`.replace(/^-/, "\u2212");
 }
 
 const statusColors = {
-  success: "text-success",
-  failed: "text-danger",
-  close: "text-warning",
+  success: "text-positive",
+  failed: "text-negative",
+  close: "text-caution",
 };
 
 const statusIcons = {
@@ -92,37 +92,38 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
   return (
     <div className="glass-card p-6 col-span-full">
       {block.title && (
-        <h3 className="text-base font-semibold tracking-tight text-text mb-2">
+        <h3 className="text-base font-semibold tracking-tight text-content mb-2">
           {maskCurrencyInText(block.title)}
         </h3>
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-text-secondary">
+        <div className="text-sm text-content-secondary">
           {block.data.successfulPeriods} of {block.data.totalPeriods} periods successful ({formatPercent(block.data.successRate)})
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-text-secondary" />
-          <Select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterStatus)}
-            className="h-9 w-auto"
-          >
-            <option value="all">All</option>
-            <option value="failed">Failed Only</option>
-            <option value="close">Close Calls</option>
-            <option value="success">Successes</option>
-          </Select>
-        </div>
+        <OptionMenu
+          ariaLabel="Show periods"
+          prefix="Show"
+          toolbar={{ count: filter === "all" ? 0 : 1, badge: false }}
+          value={filter}
+          options={[
+            { value: "all", label: "All" },
+            { value: "failed", label: "Failed Only" },
+            { value: "close", label: "Close Calls" },
+            { value: "success", label: "Successes" },
+          ]}
+          onChange={setFilter}
+          panelClassName="left-auto right-0"
+        />
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-line">
               <th
-                className="text-left py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
+                className="text-left py-3 px-2 text-sm text-content-secondary font-medium cursor-pointer hover:text-content"
                 onClick={() => handleSort("startYear")}
               >
                 <span className="flex items-center gap-1">
@@ -130,7 +131,7 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
                 </span>
               </th>
               <th
-                className="text-right py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
+                className="text-right py-3 px-2 text-sm text-content-secondary font-medium cursor-pointer hover:text-content"
                 onClick={() => handleSort("endBalance")}
               >
                 <span className="flex items-center justify-end gap-1">
@@ -138,18 +139,18 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
                 </span>
               </th>
               <th
-                className="text-right py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
+                className="text-right py-3 px-2 text-sm text-content-secondary font-medium cursor-pointer hover:text-content"
                 onClick={() => handleSort("worstDrawdown")}
               >
                 <span className="flex items-center justify-end gap-1">
                   Worst Drawdown <SortIcon field="worstDrawdown" />
                 </span>
               </th>
-              <th className="text-right py-3 px-2 text-sm text-text-secondary font-medium">
+              <th className="text-right py-3 px-2 text-sm text-content-secondary font-medium">
                 Best Year
               </th>
               <th
-                className="text-center py-3 px-2 text-sm text-text-secondary font-medium cursor-pointer hover:text-text"
+                className="text-center py-3 px-2 text-sm text-content-secondary font-medium cursor-pointer hover:text-content"
                 onClick={() => handleSort("status")}
               >
                 <span className="flex items-center justify-center gap-1">
@@ -160,15 +161,15 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
           </thead>
           <tbody>
             {visiblePeriods.map((period) => (
-              <tr key={period.startYear} className="border-b border-border/50 hover:bg-surface/50">
-                <td className="py-3 px-2 text-text font-medium">{period.startYear}</td>
-                <td className="py-3 px-2 text-right text-text tabular-nums">
+              <tr key={period.startYear} className="border-b border-line hover:bg-canvas-sunken">
+                <td className="py-3 px-2 text-content font-medium">{period.startYear}</td>
+                <td className="py-3 px-2 text-right text-content tabular-nums">
                   {formatCurrency(period.endBalance)}
                 </td>
-                <td className="py-3 px-2 text-right text-danger tabular-nums">
+                <td className="py-3 px-2 text-right text-negative tabular-nums">
                   {formatPercent(period.worstDrawdown.percent)} ({period.worstDrawdown.year})
                 </td>
-                <td className="py-3 px-2 text-right text-success tabular-nums">
+                <td className="py-3 px-2 text-right text-positive tabular-nums">
                   +{formatPercent(period.bestYear.percent)} ({period.bestYear.year})
                 </td>
                 <td className={`py-3 px-2 text-center ${statusColors[period.status]}`}>
@@ -183,7 +184,7 @@ export function BacktestTableRenderer({ block }: { block: BacktestTableBlock }) 
       {showCount < filteredAndSorted.length && (
         <button
           onClick={() => setShowCount((prev) => prev + 10)}
-          className="mt-4 w-full py-2 text-sm text-accent hover:opacity-80"
+          className="mt-4 w-full py-2 text-sm text-[rgb(var(--ui-brand-ink))] hover:opacity-80"
         >
           Show more ({filteredAndSorted.length - showCount} remaining)
         </button>

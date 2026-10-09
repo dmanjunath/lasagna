@@ -24,41 +24,44 @@ import {
   CartesianGrid,
   Label,
 } from "recharts";
-import { colors } from "../../styles/theme.js";
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../../lib/hide-amounts.js";
 import type { RechartsConfig, RechartsComponent, AxisConfig } from "../../lib/types.js";
 import { ChartError } from "./chart-error.js";
 
 const CHART_COLORS = [
-  colors.accent.DEFAULT,
-  colors.success,
-  "#3b82f6",
-  "#a855f7",
-  colors.danger,
-  "#06b6d4",
+  "var(--ui-viz-1)",
+  "var(--ui-viz-2)",
+  "var(--ui-viz-3)",
+  "var(--ui-viz-4)",
+  "var(--ui-viz-5)",
+  "var(--ui-viz-6)",
 ];
 
 // Format large numbers with K/M suffixes
 function formatCompactNumber(value: number): string {
-  if (Math.abs(value) >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
+  const sign = value < 0 ? "\u2212" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
   }
-  if (Math.abs(value) >= 1_000) {
-    return `${(value / 1_000).toFixed(0)}K`;
+  if (abs >= 1_000) {
+    return `${sign}${(abs / 1_000).toFixed(0)}K`;
   }
-  return value.toLocaleString();
+  return `${sign}${abs.toLocaleString()}`;
 }
 
 // Format currency with commas and compact notation
 function formatCurrency(value: number): string {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
-  if (Math.abs(value) >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`;
+  const sign = value < 0 ? "\u2212" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
   }
-  if (Math.abs(value) >= 1_000) {
-    return `$${(value / 1_000).toFixed(0)}K`;
+  if (abs >= 1_000) {
+    return `${sign}$${(abs / 1_000).toFixed(0)}K`;
   }
-  return `$${value.toLocaleString()}`;
+  return `${sign}$${abs.toLocaleString()}`;
 }
 
 // Format full currency for tooltips
@@ -69,7 +72,7 @@ function formatFullCurrency(value: number): string {
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value).replace(/^-/, "\u2212");
 }
 
 // Map chartType to container component
@@ -130,7 +133,7 @@ function mapAxisConfig(config: AxisConfig) {
     // as every other masked chart.
     domain: maskMoney ? undefined : domain,
     yAxisId,
-    stroke: colors.text.muted,
+    stroke: "rgb(var(--ui-content-muted))",
     fontSize: 12,
     tickLine: false,
     axisLine: false,
@@ -154,7 +157,7 @@ const renderPieLabel = (props: any) => {
     <text
       x={x}
       y={y}
-      fill={colors.text.DEFAULT}
+      fill="#fff"
       textAnchor="middle"
       dominantBaseline="central"
       className="text-xs font-semibold"
@@ -188,7 +191,7 @@ function renderComponent(comp: RechartsComponent, index: number, data?: any[]) {
 
   // Special handling for Pie charts - add labels and cells
   if (type === "Pie" && data) {
-    const pieColors = [colors.accent.DEFAULT, colors.danger, colors.success, "#3b82f6", "#a855f7"];
+    const pieColors = ["var(--ui-viz-1)", "var(--ui-viz-2)", "var(--ui-viz-3)", "var(--ui-viz-4)", "var(--ui-viz-5)"];
     return (
       <Pie
         key={`${type}-${index}`}
@@ -201,7 +204,7 @@ function renderComponent(comp: RechartsComponent, index: number, data?: any[]) {
         outerRadius={props.outerRadius || 80}
         label={renderPieLabel}
         labelLine={false}
-        stroke={colors.bg.DEFAULT}
+        stroke="rgb(var(--ui-panel))"
         strokeWidth={2}
       >
         {data.map((_, i) => (
@@ -268,7 +271,7 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke={colors.border.DEFAULT}
+              stroke="var(--ui-line)"
               strokeOpacity={0.3}
               vertical={false}
             />
@@ -286,16 +289,16 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
           {config.tooltip !== false && (
             <Tooltip
               contentStyle={{
-                background: 'rgba(12, 10, 9, 0.95)',
-                border: `1px solid ${colors.border.DEFAULT}`,
+                background: 'rgb(var(--ui-panel-raised))',
+                border: "1px solid var(--ui-line)",
                 borderRadius: "12px",
-                boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                boxShadow: 'var(--ui-shadow-md)',
                 padding: '12px 16px',
               }}
-              labelStyle={{ color: colors.text.DEFAULT, fontWeight: 600, marginBottom: 4 }}
-              itemStyle={{ color: colors.text.muted, fontSize: 13 }}
+              labelStyle={{ color: "rgb(var(--ui-content))", fontWeight: 600, marginBottom: 4 }}
+              itemStyle={{ color: "rgb(var(--ui-content-muted))", fontSize: 13 }}
               formatter={tooltipFormatter}
-              cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+              cursor={{ fill: 'var(--ui-hairline)' }}
             />
           )}
 
@@ -316,8 +319,8 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
             <Brush
               dataKey={config.brush.dataKey}
               height={config.brush.height || 30}
-              fill={colors.surface.DEFAULT}
-              stroke={colors.border.DEFAULT}
+              fill="rgb(var(--ui-panel))"
+              stroke="var(--ui-line)"
             />
           )}
 
@@ -332,7 +335,7 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
               key={i}
               {...line}
               label={line.label ? maskCurrencyInText(line.label) : line.label}
-              stroke={line.stroke || colors.text.muted}
+              stroke={line.stroke || "rgb(var(--ui-content-muted))"}
               strokeDasharray="4 4"
             />
           ))}

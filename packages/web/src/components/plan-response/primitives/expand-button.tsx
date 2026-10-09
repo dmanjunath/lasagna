@@ -11,7 +11,7 @@ export function ExpandButton({ expanded, onToggle, label }: ExpandButtonProps) {
   return (
     <button
       onClick={onToggle}
-      className="flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors"
+      className="flex items-center gap-1.5 text-[13px] text-[rgb(var(--ui-brand-ink))] hover:opacity-80 transition-colors"
     >
       <span>{expanded ? (label ? 'Hide' : 'Less') : (label || 'Show more')}</span>
       <ChevronDown

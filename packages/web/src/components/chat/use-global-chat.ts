@@ -59,6 +59,15 @@ function turnAlreadyResolved(t: ThreadData): boolean {
   return t.messages[t.messages.length - 1]?.role === 'assistant';
 }
 
+// The one confirm for deleting a conversation, from the chat sidebar and the
+// chat history list. The API hard-deletes the thread.
+export const DELETE_CONVERSATION_CONFIRM = {
+  title: 'Delete this conversation?',
+  body: 'Its messages are removed for good.',
+  confirmLabel: 'Delete',
+  destructive: true,
+};
+
 export function useGlobalChat() {
   const { currentPage } = usePageContext();
   const {
@@ -456,12 +465,7 @@ export function useGlobalChat() {
     const idx = indexOverride ?? activeThreadIndex;
     if (idx === null || idx === undefined) return;
     const t = threads[idx];
-    const ok = await confirm({
-      title: 'Delete this conversation?',
-      body: 'This conversation and all its messages will be permanently removed. This can’t be undone.',
-      confirmLabel: 'Delete',
-      destructive: true,
-    });
+    const ok = await confirm(DELETE_CONVERSATION_CONFIRM);
     if (!ok) return;
     if (t?.apiThreadId) {
       try { await api.deleteThread(t.apiThreadId); } catch { /* ignore */ }

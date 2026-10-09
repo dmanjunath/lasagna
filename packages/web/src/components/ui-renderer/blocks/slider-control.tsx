@@ -28,8 +28,8 @@ export function SliderControlRenderer({ block }: { block: SliderControlBlock }) 
   return (
     <div className="glass-card p-6">
       <div className="flex items-center justify-between mb-4">
-        <label className="text-sm font-medium text-text">{block.label}</label>
-        <span className="text-lg font-semibold text-accent tabular-nums">
+        <label className="text-sm font-medium text-content">{block.label}</label>
+        <span className="text-lg font-semibold text-[rgb(var(--ui-brand-ink))] tabular-nums">
           {formatValue(value)}
         </span>
       </div>
@@ -42,24 +42,24 @@ export function SliderControlRenderer({ block }: { block: SliderControlBlock }) 
           step={block.step}
           value={value}
           onChange={(e) => setValue(parseFloat(e.target.value))}
-          className="w-full h-2 bg-surface rounded-full appearance-none cursor-pointer
+          className="w-full h-2 bg-canvas-sunken rounded-full appearance-none cursor-pointer
                      [&::-webkit-slider-thumb]:appearance-none
                      [&::-webkit-slider-thumb]:w-5
                      [&::-webkit-slider-thumb]:h-5
                      [&::-webkit-slider-thumb]:rounded-full
-                     [&::-webkit-slider-thumb]:bg-accent
+                     [&::-webkit-slider-thumb]:bg-brand
                      [&::-webkit-slider-thumb]:cursor-pointer
                      [&::-webkit-slider-thumb]:shadow-lg
                      [&::-webkit-slider-thumb]:transition-transform
                      [&::-webkit-slider-thumb]:hover:scale-110"
         />
         <div
-          className="absolute top-0 left-0 h-2 bg-accent/30 rounded-full pointer-events-none"
+          className="absolute top-0 left-0 h-2 bg-brand/30 rounded-full pointer-events-none"
           style={{ width: `${percentage}%` }}
         />
       </div>
 
-      <div className="flex justify-between text-xs text-text-secondary mt-2">
+      <div className="flex justify-between text-xs text-content-secondary mt-2">
         <span>{formatValue(block.min)}</span>
         <span>{formatValue(block.max)}</span>
       </div>
@@ -69,10 +69,10 @@ export function SliderControlRenderer({ block }: { block: SliderControlBlock }) 
           key={value}
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-4 p-3 bg-surface rounded-lg border border-border"
+          className="mt-4 p-3 bg-canvas-sunken rounded-ui-md border border-line"
         >
-          <span className="text-sm text-text-secondary">{block.impactPreview.label}: </span>
-          <span className="text-sm font-medium text-text">{getImpactForValue(value)}</span>
+          <span className="text-sm text-content-secondary">{block.impactPreview.label}: </span>
+          <span className="text-sm font-medium text-content">{getImpactForValue(value)}</span>
         </motion.div>
       )}
     </div>

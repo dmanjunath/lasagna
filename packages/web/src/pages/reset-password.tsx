@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { AlertCircle } from "lucide-react";
 import { api } from "../lib/api.js";
-import { Button, Input, Field } from "../components/uikit";
+import { Button, Input, Field, Alert, TextLink } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 
 function readToken(): string | null {
@@ -33,7 +32,9 @@ export function ResetPassword() {
       await api.resetPassword(token, password);
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      // The server's reason ("Not supported", a token code) means nothing here.
+      console.error(err);
+      setError("Couldn't reset your password. The link may have expired.");
     } finally {
       setLoading(false);
     }
@@ -113,10 +114,7 @@ export function ResetPassword() {
               </Field>
 
               {error && (
-                <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
-                  <AlertCircle className="w-4 h-4 text-negative flex-shrink-0" />
-                  <span className="text-negative text-sm">{error}</span>
-                </div>
+                <Alert tone="negative" action={<TextLink href="/forgot-password">Request a new link</TextLink>}>{error}</Alert>
               )}
 
               <Button

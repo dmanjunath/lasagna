@@ -19,6 +19,7 @@ import {
   Input,
   EmptyState,
   Modal,
+  TextLink,
 } from '../components/uikit';
 
 interface DebtAccount {
@@ -398,7 +399,7 @@ function DebtBreakdown({ debts }: { debts: DebtAccount[] }) {
               {r.mask && <span className="shrink-0">&nbsp;••{r.mask}</span>}
             </span>
             <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
-              <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-content"><MaskedText text={formatCurrency(r.value)} /></span>
+              <span className="font-editorial text-[14px] font-extrabold tracking-[-0.01em] text-negative"><MaskedText text={formatCurrency(r.value)} /></span>
               <span className="ml-2 text-[12.5px] font-semibold text-content-muted">{pct < 0.1 ? '<0.1%' : `${pct.toFixed(0)}%`}</span>
             </span>
           </div>
@@ -457,14 +458,9 @@ function AttackList({ debts }: { debts: DebtAccount[] }) {
                   <span className="min-w-0 truncate">{d.name}</span>
                   {d.mask && <span className="shrink-0">&nbsp;••{d.mask}</span>}
                 </span>
-                <span
-                  className={cn(
-                    'shrink-0 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold ui-tnum',
-                    high ? 'bg-negative-soft text-negative' : 'bg-canvas-sunken text-content-muted',
-                  )}
-                >
+                <Badge tone={high ? 'negative' : 'neutral'} size="sm" className="shrink-0 ui-tnum">
                   {d.apr}%
-                </span>
+                </Badge>
               </div>
               {/* No "first" chip on the lead row. The section heading says "Pay
                   in this order", the card above says "Highest rate first", and
@@ -478,7 +474,7 @@ function AttackList({ debts }: { debts: DebtAccount[] }) {
               <div className="mt-0.5 text-balance text-[12px] font-medium text-content-muted">{role}</div>
             </div>
             <div className="shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-negative ui-tnum">
-              {isAmountsHidden() ? <HiddenAmount /> : `−${formatCurrency(d.balance)}`}
+              {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(d.balance)}
             </div>
           </li>
         );
@@ -530,7 +526,7 @@ function AccountCard({
           </div>
         </div>
         <div className="shrink-0 pt-0.5 text-right font-editorial text-[17px] font-extrabold tracking-[-0.015em] text-negative ui-tnum">
-          {isAmountsHidden() ? <HiddenAmount /> : `−${formatCurrency(d.balance)}`}
+          {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(d.balance)}
         </div>
       </div>
 
@@ -547,23 +543,13 @@ function AccountCard({
 
       <div className="mt-3.5 flex items-center gap-2">
         {!isDemo && (
-          <button
-            type="button"
-            onClick={onEdit}
-            aria-label="Edit loan details"
-            className="ui-focus grid h-11 w-11 shrink-0 place-items-center rounded-ui-sm border border-line text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content"
-          >
+          <Button variant="secondary" size="icon" className="shrink-0" onClick={onEdit} aria-label="Edit loan details">
             <Pencil size={15} />
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
-          onClick={onPlan}
-          className="ui-focus inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-ui-sm"
-        >
+        <Button className="flex-1" onClick={onPlan} trailingIcon={<ArrowRight className="h-4 w-4" />}>
           Plan payoff
-          <ArrowRight className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -631,7 +617,8 @@ function HasDebtView({
         <div className="relative">
           <div className="text-[13px] font-semibold text-content-muted">Total debt</div>
           <div className="mt-2 font-editorial text-[40px] sm:text-[56px] font-extrabold leading-[0.9] tracking-[-0.035em] text-negative ui-tnum">
-            {isAmountsHidden() ? <HiddenAmount /> : `−${formatCurrency(totalDebt)}`}
+            {/* Owed by definition under this label, so red and unsigned. */}
+            {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(totalDebt)}
           </div>
           <p className="mt-4 max-w-[54ch] text-[14.5px] leading-[1.55] text-content-secondary ui-tnum">
             {noNeverDate ? (
@@ -723,14 +710,9 @@ function HasDebtView({
             {/* Aimed at the question the page still answers. It used to read
                 "Avalanche or snowball?", which was the last thing on the page
                 offering a choice that no longer exists. */}
-            <button
-              type="button"
-              onClick={() => openChat('Why should I pay my highest-rate debt first?')}
-              className="group ui-focus touch-target-inline inline-flex items-center gap-1.5 rounded-ui-sm text-[13px] font-bold text-[rgb(var(--ui-brand-ink))] transition-colors hover:text-brand"
-            >
+            <TextLink onClick={() => openChat('Why should I pay my highest-rate debt first?')}>
               Why highest rate first?
-              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </button>
+            </TextLink>
           </div>
         </div>
 

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Plus, Loader2, Trash2, FileText, ChevronRight, Pencil, Check } from "lucide-react";
 import { api } from "../../lib/api.js";
-import { Button, Skeleton, EmptyState, Modal, useToast } from "../../components/uikit";
+import { Badge, Button, Skeleton, EmptyState, Modal, useToast } from "../../components/uikit";
+import { deletePlanConfirm, PLAN_DELETED_TOAST } from "../plans/index.js";
 import { PlanFreshnessBanner } from "../../components/common/plan-freshness-banner.js";
 import { planFreshness } from "../../lib/plan-freshness.js";
 import { formatRelativeTime } from "../../lib/utils.js";
@@ -152,17 +153,13 @@ export function FinancialPlansList({
   const handleDelete = async (id: string, title: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const ok = await confirm({
-      title: `Delete "${title}"?`,
-      body: "This archives the plan. You can still find it in your history.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
+    const ok = await confirm(deletePlanConfirm(title));
     if (!ok) return;
     setDeletingId(id);
     try {
       await api.deleteFinancialPlan(id);
       setPlans((prev) => prev.filter((p) => p.id !== id));
+      toast(PLAN_DELETED_TOAST);
     } catch {
       toast({ tone: "negative", title: "Could not delete the plan", description: "Please try again." });
     } finally {
@@ -323,9 +320,7 @@ export function FinancialPlansList({
 
                   <div className="mt-auto flex items-center justify-between gap-3 pt-5">
                     <span className="inline-flex items-center gap-2 text-[12.5px] font-semibold text-content-muted">
-                      <span className="inline-flex items-center rounded-full bg-canvas-sunken px-2 py-0.5 text-[11px] font-bold capitalize text-content-secondary">
-                        {plan.status}
-                      </span>
+                      <Badge size="sm" className="capitalize">{plan.status}</Badge>
                       <span className="ui-tnum">
                         Created {formatRelativeTime(new Date(plan.createdAt))}
                       </span>

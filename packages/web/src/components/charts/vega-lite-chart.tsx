@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import embed from "vega-embed";
 import type { VegaLiteSpec } from "../../lib/types.js";
-import { colors } from "../../styles/theme.js";
 import { useAmountsHidden } from "../../lib/hide-amounts.js";
 import { ChartError } from "./chart-error.js";
 
@@ -39,23 +38,23 @@ export function VegaLiteChart({ spec, title }: VegaLiteChartProps) {
       config: {
         ...spec.config,
         axis: {
-          labelColor: colors.text.muted,
-          titleColor: colors.text.secondary,
-          gridColor: colors.border.DEFAULT,
-          domainColor: colors.border.DEFAULT,
+          labelColor: "rgb(var(--ui-content-muted))",
+          titleColor: "rgb(var(--ui-content-secondary))",
+          gridColor: "var(--ui-line)",
+          domainColor: "var(--ui-line)",
         },
         legend: {
-          labelColor: colors.text.secondary,
-          titleColor: colors.text.secondary,
+          labelColor: "rgb(var(--ui-content-secondary))",
+          titleColor: "rgb(var(--ui-content-secondary))",
         },
         title: {
-          color: colors.text.DEFAULT,
+          color: "rgb(var(--ui-content))",
         },
         view: {
           stroke: "transparent",
         },
         range: {
-          category: [colors.accent.DEFAULT, colors.success, "#3b82f6", "#a855f7", colors.danger, "#06b6d4"],
+          category: ["var(--ui-viz-1)", "var(--ui-viz-2)", "var(--ui-viz-3)", "var(--ui-viz-4)", "var(--ui-viz-5)", "var(--ui-viz-6)"],
         },
       },
     };
@@ -84,7 +83,7 @@ export function VegaLiteChart({ spec, title }: VegaLiteChartProps) {
   return (
     <div className="glass-card p-4">
       {title && (
-        <h4 className="text-sm font-medium text-text-secondary mb-3">{title}</h4>
+        <h4 className="text-sm font-medium text-content-secondary mb-3">{title}</h4>
       )}
       {hidden ? (
         <div className="rounded-ui-lg border border-line bg-canvas-sunken p-4 min-h-[200px] flex items-center justify-center">

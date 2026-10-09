@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
-import { Loader2, Sparkles, X, ChevronDown, ChevronUp, AlertCircle, Check } from 'lucide-react';
+import { Loader2, Sparkles, X, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { formatMoney } from '../lib/utils';
-import { MASK_TEXT_STYLE, Select, useRevealOnFocus } from '../components/uikit';
-import { HIDDEN_AMOUNT } from '../lib/hide-amounts';
+import { Alert, Input, MoneyInput } from '../components/uikit';
+import { OptionMenu } from '../components/common/OptionMenu';
 import { api, type QuickImportParseResult, type QuickImportAccount, type QuickImportGoal, type QuickImportProfile, type QuickImportCurrentProfile } from '../lib/api';
 
 type Stage = 'input' | 'preview' | 'done';
@@ -152,7 +152,8 @@ export function QuickImport() {
 
       setStage('preview');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
+      console.error(e);
+      setError("Couldn't read that. Check the text and try again.");
     } finally {
       setParsing(false);
     }
@@ -208,7 +209,8 @@ export function QuickImport() {
 
       setStage('done');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save');
+      console.error(e);
+      setError("Couldn't save your import. Try again.");
     } finally {
       setCommitting(false);
     }
@@ -330,10 +332,7 @@ function InputStage({
       <SuggestionChips text={text} />
 
       {error && (
-        <div className="mt-4 flex items-start gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25 text-sm text-negative">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Alert tone="negative" className="mt-4">{error}</Alert>
       )}
 
       <StickyFooter>
@@ -473,10 +472,7 @@ function PreviewStage({
       )}
 
       {error && (
-        <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25 text-sm text-negative">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
+        <Alert tone="negative">{error}</Alert>
       )}
 
       <StickyFooter>
@@ -528,7 +524,7 @@ function ProfileCard({
   return (
     <div className="space-y-3">
       <SectionHeader title="Profile" count={fields.length} />
-      <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm divide-y divide-line overflow-hidden">
+      <div className="bg-panel border border-line rounded-ui-lg shadow-ui-sm divide-y divide-line">
         {fields.map(([field, value]) => {
           const existing = currentProfile ? (currentProfile as unknown as Record<string, unknown>)[field] : null;
           const hasConflict =
@@ -575,8 +571,26 @@ const US_STATE_CODES = [
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
 ];
 
-const inputCls =
-  'w-full bg-panel border border-line-strong rounded-ui-md px-3 py-2 text-sm text-content outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] transition-[border-color,box-shadow] duration-150 ease-ui';
+const FILING_STATUS_OPTIONS = [
+  { value: 'single', label: 'Single' },
+  { value: 'married_joint', label: 'Married filing jointly' },
+  { value: 'married_separate', label: 'Married filing separately' },
+  { value: 'head_of_household', label: 'Head of household' },
+];
+const EMPLOYMENT_TYPE_OPTIONS = [
+  { value: 'w2', label: 'W2 employee' },
+  { value: 'self_employed', label: 'Self-employed' },
+  { value: '1099', label: '1099 contractor' },
+  { value: 'business_owner', label: 'Business owner' },
+];
+const RISK_TOLERANCE_OPTIONS = [
+  { value: 'conservative', label: 'Conservative' },
+  { value: 'moderate_conservative', label: 'Moderately Conservative' },
+  { value: 'moderate', label: 'Moderate' },
+  { value: 'moderate_aggressive', label: 'Moderately Aggressive' },
+  { value: 'aggressive', label: 'Aggressive' },
+];
+const STATE_OPTIONS = US_STATE_CODES.map((s) => ({ value: s, label: s }));
 
 function EditProfileField({
   field,
@@ -590,12 +604,11 @@ function EditProfileField({
   // Plain text
   if (field === 'name') {
     return (
-      <input
+      <Input
         type="text"
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value || null)}
         placeholder="Your name"
-        className={inputCls}
       />
     );
   }
@@ -611,13 +624,13 @@ function EditProfileField({
   }
   if (field === 'employerMatch' || field === 'retirementAge' || field === 'dependentCount') {
     return (
-      <input
+      <Input
         type="number"
         inputMode="decimal"
         step={field === 'employerMatch' ? '0.5' : '1'}
         value={value === null || value === undefined ? '' : String(value)}
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className={`${inputCls} ui-tnum`}
+        className="ui-tnum"
       />
     );
   }
@@ -626,74 +639,32 @@ function EditProfileField({
   if (field === 'dateOfBirth') {
     const s = typeof value === 'string' && value ? value.slice(0, 10) : '';
     return (
-      <input
+      <Input
         type="date"
         value={s}
         onChange={(e) => onChange(e.target.value || null)}
-        className={inputCls}
       />
     );
   }
 
-  // State
-  if (field === 'stateOfResidence') {
+  // State and enums. Each row has its own keep checkbox, so a menu never
+  // needs an empty "clear" option. The cards around these menus do not clip
+  // overflow, so the panel opens in place.
+  const menuOptions =
+    field === 'stateOfResidence' ? STATE_OPTIONS
+    : field === 'filingStatus' ? FILING_STATUS_OPTIONS
+    : field === 'employmentType' ? EMPLOYMENT_TYPE_OPTIONS
+    : field === 'riskTolerance' ? RISK_TOLERANCE_OPTIONS
+    : null;
+  if (menuOptions) {
     return (
-      <Select
+      <OptionMenu
+        ariaLabel={PROFILE_FIELD_LABELS[field]}
         value={typeof value === 'string' ? value : ''}
-        onChange={(e) => onChange(e.target.value || null)}
-      >
-        <option value="">Select…</option>
-        {US_STATE_CODES.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </Select>
-    );
-  }
-
-  // Enums
-  if (field === 'filingStatus') {
-    return (
-      <Select
-        value={typeof value === 'string' ? value : ''}
-        onChange={(e) => onChange(e.target.value || null)}
-      >
-        <option value="">Select…</option>
-        <option value="single">Single</option>
-        <option value="married_joint">Married filing jointly</option>
-        <option value="married_separate">Married filing separately</option>
-        <option value="head_of_household">Head of household</option>
-      </Select>
-    );
-  }
-  if (field === 'employmentType') {
-    return (
-      <Select
-        value={typeof value === 'string' ? value : ''}
-        onChange={(e) => onChange(e.target.value || null)}
-      >
-        <option value="">Select…</option>
-        <option value="w2">W2 employee</option>
-        <option value="self_employed">Self-employed</option>
-        <option value="1099">1099 contractor</option>
-        <option value="business_owner">Business owner</option>
-      </Select>
-    );
-  }
-  if (field === 'riskTolerance') {
-    return (
-      <Select
-        value={typeof value === 'string' ? value : ''}
-        onChange={(e) => onChange(e.target.value || null)}
-      >
-        <option value="">Select…</option>
-        <option value="conservative">Conservative</option>
-        <option value="moderate_conservative">Moderately Conservative</option>
-        <option value="moderate">Moderate</option>
-        <option value="moderate_aggressive">Moderately Aggressive</option>
-        <option value="aggressive">Aggressive</option>
-      </Select>
+        triggerLabel={typeof value === 'string' && value ? undefined : 'Select…'}
+        onChange={(v) => onChange(v)}
+        options={menuOptions}
+      />
     );
   }
 
@@ -735,7 +706,7 @@ function AccountCard({
     : ACCOUNT_TYPE_LABELS[account.type];
 
   return (
-    <div className={`bg-panel border rounded-ui-lg shadow-ui-sm overflow-hidden ${
+    <div className={`bg-panel border rounded-ui-lg shadow-ui-sm ${
       missingBalance ? 'border-caution/50' : 'border-line'
     }`}>
       <div className="px-4 py-3 flex items-center gap-3">
@@ -770,35 +741,27 @@ function AccountCard({
       {expanded && (
         <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line">
           <Field label="Name">
-            <input
+            <Input
               type="text"
               value={account.name}
               onChange={(e) => onChange({ ...account, name: e.target.value })}
-              className={inputCls}
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Type">
-              <Select
+              <OptionMenu
+                ariaLabel="Type"
                 value={account.type}
-                onChange={(e) =>
-                  onChange({ ...account, type: e.target.value as QuickImportAccount['type'] })
-                }
-              >
-                {Object.entries(ACCOUNT_TYPE_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </Select>
+                onChange={(v) => onChange({ ...account, type: v as QuickImportAccount['type'] })}
+                options={Object.entries(ACCOUNT_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+              />
             </Field>
             <Field label="Subtype">
-              <input
+              <Input
                 type="text"
                 value={account.subtype ?? ''}
                 onChange={(e) => onChange({ ...account, subtype: e.target.value || null })}
                 placeholder="optional"
-                className={inputCls}
               />
             </Field>
           </div>
@@ -810,27 +773,29 @@ function AccountCard({
           </Field>
           {(account.type === 'loan' || account.type === 'credit') && (
             <Field label="APR (%)">
-              <input
+              <Input
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={account.apr ?? ''}
                 onChange={(e) =>
                   onChange({ ...account, apr: e.target.value === '' ? null : Number(e.target.value) })
                 }
-                className={`${inputCls} ui-tnum`}
+                className="ui-tnum"
               />
             </Field>
           )}
           {account.type === 'depository' && (
             <Field label="APY (%)">
-              <input
+              <Input
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={account.apy ?? ''}
                 onChange={(e) =>
                   onChange({ ...account, apy: e.target.value === '' ? null : Number(e.target.value) })
                 }
-                className={`${inputCls} ui-tnum`}
+                className="ui-tnum"
               />
             </Field>
           )}
@@ -886,11 +851,10 @@ function GoalCard({
       {expanded && (
         <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line">
           <Field label="Name">
-            <input
+            <Input
               type="text"
               value={goal.name}
               onChange={(e) => onChange({ ...goal, name: e.target.value })}
-              className={inputCls}
             />
           </Field>
           <Field label="Target amount">
@@ -900,11 +864,10 @@ function GoalCard({
             />
           </Field>
           <Field label="Deadline (YYYY-MM-DD)">
-            <input
+            <Input
               type="date"
               value={goal.deadline ?? ''}
               onChange={(e) => onChange({ ...goal, deadline: e.target.value || null })}
-              className={inputCls}
             />
           </Field>
         </div>
@@ -1166,36 +1129,25 @@ function CurrencyInput({
   onChange: (v: number | null) => void;
 }) {
   const [text, setText] = useState(value === null || value === undefined ? '' : String(value));
-  // An empty field has no amount to hide, and masking it would cover the
-  // placeholder and read as a filled one.
-  const reveal = useRevealOnFocus();
-  const masked = reveal.masked && text !== '';
-
   // Keep local text in sync if parent resets the number (e.g., after re-parse).
   useEffect(() => {
     setText(value === null || value === undefined ? '' : String(value));
   }, [value]);
 
   return (
-    <div className="relative">
-      {!masked && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted text-sm">$</span>}
-      <input
-        type="text"
-        inputMode="decimal"
-        value={masked ? HIDDEN_AMOUNT : text}
-        readOnly={masked}
-        onFocus={reveal.onFocus}
-        onBlur={reveal.onBlur}
-        style={masked ? MASK_TEXT_STYLE : undefined}
-        onChange={(e) => {
-          const clean = e.target.value.replace(/[^0-9.]/g, '');
-          setText(clean);
-          onChange(clean === '' ? null : Number(clean));
-        }}
-        placeholder="0"
-        className={`w-full bg-panel border border-line-strong rounded-ui-md ${masked ? 'pl-3' : 'pl-7'} pr-3 py-2 text-sm text-content ui-tnum outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] transition-[border-color,box-shadow] duration-150 ease-ui`}
-      />
-    </div>
+    <MoneyInput
+      type="text"
+      inputMode="decimal"
+      leadingIcon="$"
+      value={text}
+      onChange={(e) => {
+        const clean = e.target.value.replace(/[^0-9.]/g, '');
+        setText(clean);
+        onChange(clean === '' ? null : Number(clean));
+      }}
+      placeholder="0"
+      className="ui-tnum"
+    />
   );
 }
 

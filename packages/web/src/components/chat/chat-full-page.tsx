@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Minimize2, SquarePen, Trash2, Send, Sparkles, ArrowUpRight } from 'lucide-react';
+import { Minimize2, SquarePen, Trash2, Send, Sparkles, ArrowUpRight, MessageSquare } from 'lucide-react';
+import { EmptyState } from '../uikit';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore, setChatExpanded } from '../../lib/chat-store';
 import { useGlobalChat } from './use-global-chat';
@@ -190,7 +191,11 @@ export function ChatFullPage() {
 
         <div className="flex-1 overflow-y-auto min-h-0">
           {threadSummaries.length === 0 ? (
-            <p className="px-4 py-6 text-xs text-content-muted">No conversations yet.</p>
+            <EmptyState
+              icon={<MessageSquare className="h-5 w-5" />}
+              title="No conversations yet"
+              className="m-3 px-4 py-8"
+            />
           ) : (
             <div className="px-2 py-2">
               <p className="px-2.5 pt-2 pb-2 text-[13px] font-semibold text-content-muted">

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { ListFilter, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, type CategoryRule } from '../../lib/api';
-import { Button, Skeleton, Surface } from '../uikit';
+import { Button, EmptyState, Skeleton, Surface, useToast } from '../uikit';
 import { useConfirm } from '../ds';
 import { useTaxonomy } from '../../lib/taxonomy';
+import { cn } from '../../lib/utils';
 import { useAccountsIndex } from '../../lib/use-accounts-index';
 import { RulesPanel, ruleSentence } from '../rules/RulesPanel';
 
@@ -15,6 +16,7 @@ import { RulesPanel, ruleSentence } from '../rules/RulesPanel';
 
 export function RulesManager() {
   const confirm = useConfirm();
+  const toast = useToast();
   const { byId } = useTaxonomy();
   const { list: accountIndex } = useAccountsIndex();
   const accounts = accountIndex.map((a) => ({ accountId: a.id, name: a.name }));
@@ -46,37 +48,52 @@ export function RulesManager() {
     try {
       await api.deleteRule(id);
       load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed');
+      toast({ tone: 'positive', title: 'Rule deleted' });
+    } catch {
+      setError("Couldn't delete that rule. Try again.");
     }
   };
+
+  const newRule = (
+    <Button variant="secondary" size="sm" leadingIcon={<Plus size={14} />} onClick={() => setEditing({ rule: null })}>
+      New rule
+    </Button>
+  );
+  // With no rules the empty state carries New rule, so the header strip would
+  // hold nothing else.
+  const empty = !loading && rules.length === 0;
 
   return (
     <>
       <Surface pad="none" className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
-          {/* The section heading above already names this card, so it carries
-               no title of its own. */}
-          <p className="ui-tnum min-w-0 text-[13px] font-medium text-content-muted">
-            {loading ? '' : rules.length === 0 ? 'No rules yet' : `${rules.length} rule${rules.length === 1 ? '' : 's'}, applied in this order`}
-          </p>
-          <Button variant="secondary" size="sm" leadingIcon={<Plus size={14} />} onClick={() => setEditing({ rule: null })}>
-            New rule
-          </Button>
-        </div>
+        {!empty && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
+            {/* The section heading above already names this card, so it carries
+                 no title of its own. */}
+            <p className="ui-tnum min-w-0 text-[13px] font-medium text-content-muted">
+              {loading ? '' : `${rules.length} rule${rules.length === 1 ? '' : 's'}, applied in this order`}
+            </p>
+            {newRule}
+          </div>
+        )}
 
-        {error && <p className="px-5 pb-3 text-[12.5px] font-medium text-negative sm:px-6">{error}</p>}
+        {error && <p className={cn('px-5 pb-3 text-[12.5px] font-medium text-negative sm:px-6', empty && 'pt-4')}>{error}</p>}
 
-        <div className="border-t border-line">
+        <div className={cn(!empty && 'border-t border-line')}>
           {loading ? (
             <div className="space-y-3 p-5 sm:px-6">
               {[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full rounded-ui-md" />)}
             </div>
           ) : rules.length === 0 ? (
-            <p className="px-5 py-5 text-[13.5px] text-content-muted sm:px-6">
-              A rule files matching transactions automatically, for example anything containing
-              &ldquo;AMZN&rdquo; as Shopping.
-            </p>
+            <div className="p-3">
+              <EmptyState
+                icon={<ListFilter size={22} />}
+                title="No rules yet"
+                // The section hint above already says what a rule does.
+                description={<>For example, file anything containing &ldquo;AMZN&rdquo; as Shopping.</>}
+                action={newRule}
+              />
+            </div>
           ) : (
             <ul className="divide-y divide-line">
               {rules.map((rule) => (
@@ -89,7 +106,7 @@ export function RulesManager() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 min-h-0 min-w-0 shrink-0"
+                    className="h-11 w-11 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0 shrink-0"
                     aria-label="Edit rule"
                     onClick={() => setEditing({ rule })}
                   >
@@ -98,7 +115,7 @@ export function RulesManager() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 min-h-0 min-w-0 shrink-0 text-negative hover:text-negative"
+                    className="h-11 w-11 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0 shrink-0 text-negative hover:text-negative"
                     aria-label="Delete rule"
                     onClick={() => void handleDelete(rule.id)}
                   >

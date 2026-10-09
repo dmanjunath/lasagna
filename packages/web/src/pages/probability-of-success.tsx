@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
-  Target, TrendingUp, AlertTriangle, RefreshCw, Calendar, Wallet,
-  Building2, Plus, ArrowUp, ArrowDown,
+  Target, TrendingUp, RefreshCw, Calendar, Wallet,
+  Building2, Plus, ArrowUp, ArrowDown, ChevronRight,
 } from "lucide-react";
 import {
   ComposedChart, Area, Line, LineChart, BarChart, Bar, Cell,
@@ -13,7 +13,7 @@ import { cn, formatMoney } from "../lib/utils";
 import { HIDDEN_AMOUNT, isAmountsHidden } from "../lib/hide-amounts";
 import { api, API_BASE, authHeaders } from "../lib/api";
 import { usePageContext } from "../lib/page-context";
-import { Button, EmptyState, MASK_TEXT_STYLE, MaskedText, Skeleton, useRevealOnFocus } from "../components/uikit";
+import { Alert, Badge, Button, EmptyState, MaskedText, MoneyInput, Skeleton } from "../components/uikit";
 import { PageTitle } from "../components/ds/PageTitle";
 
 // ── Chart palette (resolves via CSS vars, so light/dark swap automatically) ──
@@ -36,7 +36,7 @@ const tooltipStyle = {
 };
 
 function fmtShortRaw(value: number): string {
-  const sign = value < 0 ? "-" : "";
+  const sign = value < 0 ? "\u2212" : "";
   const v = Math.abs(value);
   if (v >= 1_000_000) return `${sign}$${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `${sign}$${(v / 1_000).toFixed(0)}K`;
@@ -213,6 +213,7 @@ function EditableStatCard({
       <input
         type="number"
         inputMode="numeric"
+        className="ui-focus mt-2 w-full rounded-ui-sm border border-transparent bg-transparent font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-brand-ink))] ui-tnum outline-none focus:border-line hover:bg-canvas-sunken [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         value={draft}
         min={min}
         max={max}
@@ -227,7 +228,6 @@ function EditableStatCard({
           onChange(clamped);
           setDraft(String(clamped));
         }}
-        className="ui-focus mt-2 w-full rounded-ui-sm border border-transparent bg-transparent font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-brand-ink))] ui-tnum outline-none focus:border-line hover:bg-canvas-sunken [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       />
     </div>
   );
@@ -516,7 +516,6 @@ function StrategyConfig({ strategy, params, monthlySpend, onMonthlySpendChange, 
   const rate = params.withdrawalRate ?? 4;
   // Resting, this field is the user's real monthly spend in plain digits,
   // directly above the masked "/yr" it derives. It shows the mask until focused.
-  const spendField = useRevealOnFocus();
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -543,22 +542,15 @@ function StrategyConfig({ strategy, params, monthlySpend, onMonthlySpendChange, 
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-[13px] font-medium text-content-secondary">Monthly spending</label>
-            <div className="relative max-w-[220px]">
-              {!spendField.masked && <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] text-content-muted">$</span>}
-              <input
-                type={spendField.masked ? "text" : "number"}
-                value={spendField.masked ? HIDDEN_AMOUNT : monthlySpend}
-                readOnly={spendField.masked}
-                onFocus={spendField.onFocus}
-                onBlur={spendField.onBlur}
-                style={spendField.masked ? MASK_TEXT_STYLE : undefined}
+            <div className="max-w-[220px]">
+              <MoneyInput
+                aria-label="Monthly spending"
+                leadingIcon="$"
+                value={monthlySpend}
                 min={0}
                 max={100000}
                 onChange={(e) => { const v = parseInt(e.target.value, 10); if (!isNaN(v) && v >= 0) onMonthlySpendChange(v); }}
-                className={cn(
-                  "ui-focus h-11 w-full rounded-ui-md border border-line-strong bg-panel pr-3.5 text-content ui-tnum shadow-ui-sm outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none",
-                  spendField.masked ? "pl-3.5" : "pl-7",
-                )}
+                className="ui-tnum"
               />
             </div>
             <p className="text-[12px] text-content-muted ui-tnum">
@@ -578,11 +570,11 @@ function StrategyConfig({ strategy, params, monthlySpend, onMonthlySpendChange, 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-[13px] font-medium text-content-secondary">Floor (optional)</label>
-              <input type="number" placeholder="Min annual withdrawal" value={params.floor ?? ""} onChange={(e) => onParamsChange({ ...params, floor: e.target.value ? parseFloat(e.target.value) : null })} className="ui-focus h-11 w-full rounded-ui-md border border-line-strong bg-panel px-3.5 text-content shadow-ui-sm outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)]" />
+              <MoneyInput aria-label="Floor" leadingIcon="$" placeholder="Min annual withdrawal" value={params.floor ?? ""} onChange={(e) => onParamsChange({ ...params, floor: e.target.value ? parseFloat(e.target.value) : null })} className="ui-tnum" />
             </div>
             <div className="space-y-2">
               <label className="text-[13px] font-medium text-content-secondary">Ceiling (optional)</label>
-              <input type="number" placeholder="Max annual withdrawal" value={params.ceiling ?? ""} onChange={(e) => onParamsChange({ ...params, ceiling: e.target.value ? parseFloat(e.target.value) : null })} className="ui-focus h-11 w-full rounded-ui-md border border-line-strong bg-panel px-3.5 text-content shadow-ui-sm outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)]" />
+              <MoneyInput aria-label="Ceiling" leadingIcon="$" placeholder="Max annual withdrawal" value={params.ceiling ?? ""} onChange={(e) => onParamsChange({ ...params, ceiling: e.target.value ? parseFloat(e.target.value) : null })} className="ui-tnum" />
             </div>
           </div>
           <p className="text-[12px] text-content-muted ui-tnum">Withdraw {rate}% of your portfolio each year.</p>
@@ -611,16 +603,12 @@ const statusOrder: Record<string, number> = { success: 0, close: 1, failed: 2 };
 const STATUS_META: Record<string, { label: string; tone: "brand" | "caution" | "negative" }> = {
   success: { label: "Success", tone: "brand" },
   close: { label: "Close", tone: "caution" },
-  failed: { label: "Failed", tone: "negative" },
+  failed: { label: "Ran out", tone: "negative" },
 };
 
 function StatusPill({ status }: { status: "success" | "close" | "failed" }) {
   const m = STATUS_META[status];
-  const cls =
-    m.tone === "brand" ? "bg-brand-soft text-[rgb(var(--ui-brand-ink))]"
-    : m.tone === "caution" ? "bg-caution-soft text-caution"
-    : "bg-negative-soft text-negative";
-  return <span className={cn("inline-block rounded-full px-2 py-0.5 text-[11px] font-bold", cls)}>{m.label}</span>;
+  return <Badge tone={m.tone === "brand" ? "brand" : m.tone === "caution" ? "caution" : "negative"} size="sm">{m.label}</Badge>;
 }
 
 function YearDetail({ yearByYear, useRealDollars }: { yearByYear: YearDetailData[]; useRealDollars: boolean }) {
@@ -638,11 +626,11 @@ function YearDetail({ yearByYear, useRealDollars }: { yearByYear: YearDetailData
           {yearByYear.map((y) => (
             <tr key={y.year} className="border-t border-line" style={{ background: y.marketReturn > 0 ? "var(--ui-brand-softer)" : y.marketReturn < 0 ? "var(--ui-negative-soft)" : undefined }}>
               <td className="px-3 py-2 text-[13px] font-semibold text-content">{y.year}</td>
-              <td className="px-3 py-2 text-[13px] text-content">{formatMoney(useRealDollars ? y.portfolioValueReal : y.portfolioValue)}</td>
+              <td className="px-3 py-2 text-[13px] text-content">{formatMoney(useRealDollars ? y.portfolioValueReal : y.portfolioValue, true)}</td>
               <td className={cn("px-3 py-2 text-[13px] font-semibold", y.marketReturn >= 0 ? "text-[rgb(var(--ui-brand-ink))]" : "text-negative")}>
-                {y.marketReturn >= 0 ? "+" : ""}{(y.marketReturn * 100).toFixed(1)}%
+                {y.marketReturn >= 0 ? "+" : "\u2212"}{Math.abs(y.marketReturn * 100).toFixed(1)}%
               </td>
-              <td className="px-3 py-2 text-[13px] text-content-secondary">{formatMoney(useRealDollars ? y.withdrawalAmountReal : y.withdrawalAmount)}</td>
+              <td className="px-3 py-2 text-[13px] text-content-secondary">{formatMoney(useRealDollars ? y.withdrawalAmountReal : y.withdrawalAmount, true)}</td>
               <td className="max-w-[250px] px-3 py-2 text-[13px] text-content-muted">{y.notes.length > 0 ? y.notes.join(", ") : "—"}</td>
             </tr>
           ))}
@@ -684,6 +672,7 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
   const visibleRows = showAll ? rows : rows.slice(0, VISIBLE_ROWS);
   const hiddenCount = rows.length - visibleRows.length;
 
+  const toggleRow = (year: number) => setExpandedRow((prev) => (prev === year ? null : year));
   const toggleFilter = (status: "success" | "close" | "failed") => setFilter((prev) => (prev === status ? null : status));
 
   const summary: Array<{ key: "success" | "close" | "failed"; label: string; count: number; cls: string }> = [
@@ -745,17 +734,33 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
           <tbody>
             {visibleRows.map((period) => (
               <Fragment key={period.startYear}>
+                {/* The whole row toggles on click. The keyboard and screen
+                    reader path is the real button in the first cell, which
+                    keeps the row a table row. */}
                 <tr
-                  onClick={() => setExpandedRow((prev) => (prev === period.startYear ? null : period.startYear))}
+                  onClick={() => toggleRow(period.startYear)}
                   className="cursor-pointer border-t border-line transition-colors hover:bg-brand-softer"
                 >
-                  <td className="px-3 py-2.5 text-[13px] font-semibold text-content">{period.startYear} to {period.startYear + period.yearsLasted}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-[13px] font-semibold text-content">
+                    <button
+                      type="button"
+                      aria-expanded={expandedRow === period.startYear}
+                      onClick={(e) => { e.stopPropagation(); toggleRow(period.startYear); }}
+                      className="ui-focus inline-flex items-center gap-1.5 rounded-ui-xs text-left"
+                    >
+                      <ChevronRight
+                        aria-hidden
+                        className={cn("-ml-0.5 h-3.5 w-3.5 shrink-0 text-content-muted transition-transform duration-150", expandedRow === period.startYear && "rotate-90")}
+                      />
+                      {period.startYear} to {period.startYear + period.yearsLasted}
+                    </button>
+                  </td>
                   <td className="px-3 py-2.5 text-[13px] text-content-secondary">{period.yearsLasted}</td>
                   <td className="px-3 py-2.5 text-[13px] text-content">
-                    {formatMoney(useRealDollars && period.yearByYear.length > 0 ? period.yearByYear[period.yearByYear.length - 1].portfolioValueReal : period.endBalance)}
+                    {formatMoney(useRealDollars && period.yearByYear.length > 0 ? period.yearByYear[period.yearByYear.length - 1].portfolioValueReal : period.endBalance, true)}
                   </td>
                   <td className="px-3 py-2.5"><StatusPill status={period.status} /></td>
-                  <td className="px-3 py-2.5 text-[13px] text-content-secondary">{(-period.worstDrawdown * 100).toFixed(1)}%</td>
+                  <td className="px-3 py-2.5 text-[13px] text-content-secondary">{period.worstDrawdown > 0 ? "\u2212" : ""}{(period.worstDrawdown * 100).toFixed(1)}%</td>
                 </tr>
                 {expandedRow === period.startYear && (
                   <tr>
@@ -966,7 +971,8 @@ export function ProbabilityOfSuccess() {
       }
     } catch (err) {
       console.error("Simulation error:", err);
-      setError(err instanceof Error ? err.message : "Failed to run simulations");
+      console.error(err);
+      setError("Couldn't run the simulation. Try again in a moment.");
     } finally {
       setSimulating(false);
     }
@@ -1079,14 +1085,14 @@ export function ProbabilityOfSuccess() {
               </div>
             </div>
           ) : error ? (
-            <div className="relative flex flex-wrap items-center gap-4">
-              <AlertTriangle className="h-9 w-9 shrink-0 text-negative" />
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-negative">Simulation error</p>
-                <p className="mt-1 text-[13px] text-content-muted">{error}</p>
-              </div>
-              <Button variant="secondary" onClick={runSimulations} leadingIcon={<RefreshCw className="h-4 w-4" />}>Retry</Button>
-            </div>
+            <Alert
+              tone="negative"
+              title="Simulation error"
+              className="relative"
+              action={<Button variant="secondary" size="sm" onClick={runSimulations} leadingIcon={<RefreshCw className="h-4 w-4" />}>Retry</Button>}
+            >
+              {error}
+            </Alert>
           ) : successRate !== null ? (
             <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-5">
@@ -1107,7 +1113,7 @@ export function ProbabilityOfSuccess() {
               <div className="text-[13px] text-content-muted ui-tnum md:text-right">
                 Based on a {projectionYears}-year projection
                 <br />
-                <span>Starting balance: {formatMoney(totalValue)}</span>
+                <span>Starting balance: {formatMoney(totalValue, true)}</span>
               </div>
             </div>
           ) : null}
@@ -1116,10 +1122,7 @@ export function ProbabilityOfSuccess() {
 
       {/* ════════ Warning ════════ */}
       {warning && (
-        <div className="mt-4 flex items-start gap-3 rounded-ui-md border border-caution/40 bg-caution-soft px-4 py-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-caution" />
-          <p className="text-[13px] text-content-secondary">{warning}</p>
-        </div>
+        <Alert tone="caution" className="mt-4">{warning}</Alert>
       )}
 
       {/* ════════ Stat cards ════════ */}
@@ -1204,18 +1207,18 @@ export function ProbabilityOfSuccess() {
                   {key === "cash" ? (
                     <div className="flex items-center gap-1">
                       <input
-                        type="number" value={cashGrowthRate} step="0.1" min="0" max="10"
+                        type="number" inputMode="decimal" value={cashGrowthRate} step="0.1" min="0" max="10"
                         onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0 && v <= 10) setCashGrowthRate(v); }}
-                        className="w-14 rounded-ui-sm border border-line bg-canvas-sunken px-1.5 py-0.5 text-[11px] text-content-secondary ui-tnum [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-14 rounded-ui-sm border border-line bg-canvas-sunken px-1.5 py-0.5 text-[11px] text-content-secondary ui-tnum [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                       <span className="text-[11px] text-content-muted">% growth</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
                       <input
-                        type="number" value={fees[feeKey as keyof typeof fees]} step="0.01" min="0" max="5"
+                        type="number" inputMode="decimal" value={fees[feeKey as keyof typeof fees]} step="0.01" min="0" max="5"
                         onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0 && v <= 5) setFees((prev) => ({ ...prev, [feeKey]: v })); }}
-                        className="w-14 rounded-ui-sm border border-line bg-canvas-sunken px-1.5 py-0.5 text-[11px] text-content-secondary ui-tnum [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-14 rounded-ui-sm border border-line bg-canvas-sunken px-1.5 py-0.5 text-[11px] text-content-secondary ui-tnum [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                       <span className="text-[11px] text-content-muted">%/yr</span>
                     </div>

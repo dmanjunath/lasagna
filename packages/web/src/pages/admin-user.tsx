@@ -3,7 +3,8 @@ import { Link, useLocation, useRoute } from 'wouter';
 import { ArrowLeft, PauseCircle, PlayCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Button, Modal, Skeleton } from '../components/uikit';
+import { Alert, Button, Skeleton } from '../components/uikit';
+import { useConfirm } from '../components/ds';
 import { cn, formatInstant } from '../lib/utils';
 import { AdminShell } from '../components/admin/admin-shell';
 import { PlanChip } from '../components/admin/plan-chip';
@@ -33,11 +34,10 @@ export function AdminUser() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pauseConfirm, setPauseConfirm] = useState(false);
+  const confirm = useConfirm();
   // Which connection the confirm dialog is asking about, which one is mid-request,
   // and which ones have been kicked off this visit. The replay itself runs in the
   // background, so "started" is the honest end state to show here.
-  const [replayTarget, setReplayTarget] = useState<{ id: string; name: string } | null>(null);
   const [replaying, setReplaying] = useState<string | null>(null);
   const [replayed, setReplayed] = useState<string[]>([]);
 
@@ -92,6 +92,33 @@ export function AdminUser() {
     }
   };
 
+  const confirmPause = async () => {
+    const ok = await confirm({
+      title: 'Pause this account?',
+      body: <>Pausing <b className="text-content">{primaryEmail}</b> stops account syncing and action generation. They can still log in and view their data.</>,
+      confirmLabel: 'Pause account',
+    });
+    if (ok) await toggleDisabled();
+  };
+
+  const confirmReplay = async (target: { id: string; name: string }) => {
+    const ok = await confirm({
+      title: 'Replay this connection?',
+      body: <>
+        <p>
+          Re-fetches the full transaction history for <b className="text-content">{target.name}</b>.
+          Use it when the ledger still shows a pending charge next to the posted one that replaced it.
+        </p>
+        <p className="mt-2 text-content-muted">
+          No other connection is touched. Transactions already stored are not duplicated, and manual
+          categories, renames and notes are kept. The replay runs in the background and can take a minute.
+        </p>
+      </>,
+      confirmLabel: 'Replay transactions',
+    });
+    if (ok) await runReplay(target.id);
+  };
+
   const sectionTitle = 'text-[15px] font-semibold text-content';
 
   return (
@@ -106,10 +133,14 @@ export function AdminUser() {
       </div>
 
       {error && !detail && (
-        <div className="mt-6 rounded-ui-md border border-negative/25 bg-negative-soft px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[13.5px] font-medium text-negative">{error}</p>
-          <Button variant="secondary" size="sm" onClick={() => { setError(''); void load(); }}>Retry</Button>
-        </div>
+        <Alert
+          tone="negative"
+          title="Couldn't load this user"
+          className="mt-6"
+          action={<Button variant="secondary" size="sm" onClick={() => { setError(''); void load(); }}>Retry</Button>}
+        >
+          {error}
+        </Alert>
       )}
       {/* Skeletons mirror the identity card + account card shapes below. */}
       {!detail && !error && (
@@ -214,7 +245,7 @@ export function AdminUser() {
                 variant="secondary"
                 size="sm"
                 disabled={busy || (detail.isSelf && !disabled)}
-                onClick={() => (disabled ? void toggleDisabled() : setPauseConfirm(true))}
+                onClick={() => void (disabled ? toggleDisabled() : confirmPause())}
                 data-testid="toggle-disabled"
               >
                 {disabled ? <><PlayCircle size={15} className="mr-1.5" /> Resume</> : <><PauseCircle size={15} className="mr-1.5" /> Pause</>}
@@ -273,7 +304,7 @@ export function AdminUser() {
                           loading={replaying === i.id}
                           disabled={busy || replaying !== null}
                           leadingIcon={<RefreshCw className="h-3.5 w-3.5" aria-hidden />}
-                          onClick={() => setReplayTarget({ id: i.id, name: i.institutionName || 'this connection' })}
+                          onClick={() => void confirmReplay({ id: i.id, name: i.institutionName || 'this connection' })}
                         >
                           Replay
                         </Button>
@@ -337,40 +368,6 @@ export function AdminUser() {
             </Button>
           </div>
 
-          <Modal open={!!replayTarget} onClose={() => setReplayTarget(null)} title="Replay this connection?">
-            <p className="text-[13.5px] text-content-secondary leading-[1.55]">
-              Re-fetches the full transaction history for <b className="text-content">{replayTarget?.name}</b>.
-              Use it when the ledger still shows a pending charge next to the posted one that replaced it.
-            </p>
-            <p className="mt-2 text-[13px] text-content-muted leading-[1.55]">
-              No other connection is touched. Transactions already stored are not duplicated, and manual
-              categories, renames and notes are kept. The replay runs in the background and can take a minute.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setReplayTarget(null)}>Cancel</Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  const target = replayTarget;
-                  setReplayTarget(null);
-                  if (target) void runReplay(target.id);
-                }}
-              >
-                Replay transactions
-              </Button>
-            </div>
-          </Modal>
-
-          <Modal open={pauseConfirm} onClose={() => setPauseConfirm(false)} title="Pause this account?">
-            <p className="text-[13.5px] text-content-secondary leading-[1.55]">
-              Pausing <b className="text-content">{primaryEmail}</b> stops account syncing and action
-              generation. They can still log in and view their data.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setPauseConfirm(false)}>Cancel</Button>
-              <Button size="sm" onClick={() => { setPauseConfirm(false); void toggleDisabled(); }}>Pause account</Button>
-            </div>
-          </Modal>
 
           <DeleteTenantModal
             open={confirmOpen}

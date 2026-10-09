@@ -471,15 +471,7 @@ export function Transactions() {
         tone: 'positive',
         title: `Moved to ${displayOf({ categoryId: newCatId }).label}`,
         duration: 6000,
-        description: prevCatId ? (
-          <button
-            type="button"
-            onClick={undo}
-            className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-          >
-            Undo
-          </button>
-        ) : undefined,
+        action: prevCatId ? { label: 'Undo', onClick: () => void undo() } : undefined,
       });
     } catch (err) {
       console.error(err);
@@ -583,15 +575,7 @@ export function Transactions() {
       tone: 'positive',
       title,
       duration: 6000,
-      description: groups.size > 0 ? (
-        <button
-          type="button"
-          onClick={undo}
-          className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-        >
-          Undo
-        </button>
-      ) : undefined,
+      action: groups.size > 0 ? { label: 'Undo', onClick: () => void undo() } : undefined,
     });
     return true;
   }
@@ -634,15 +618,7 @@ export function Transactions() {
       tone: 'positive',
       title: `Renamed to ${name}`,
       duration: 6000,
-      description: (
-        <button
-          type="button"
-          onClick={undo}
-          className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-        >
-          Undo
-        </button>
-      ),
+      action: { label: 'Undo', onClick: () => void undo() },
     });
   }
 
@@ -861,25 +837,16 @@ export function Transactions() {
              native select on top opens the OS picker (field + order in one). */}
         {rows.length > 0 && (
           <div className="flex items-stretch border-b border-line sm:hidden">
-          <div className="relative flex flex-1 items-center justify-between px-4 py-2.5">
-            <span className="text-[13px] font-semibold text-content-muted">
-              Sorted by
-            </span>
-            <span className="flex items-center gap-1 text-[13px] font-semibold text-content">
-              {SORT_LABELS[sortKey]}
-              <ChevronRight size={14} className="rotate-90 text-content-muted" />
-            </span>
-            <select
+          {/* The same sort menu as Spending's on a phone. */}
+          <div className="flex flex-1 items-center px-3 py-2">
+            <OptionMenu
+              ariaLabel="Sort transactions"
+              prefix="Sorted by"
+              toolbar={{ count: 0 }}
               value={sortKey}
-              onChange={(e) => setSortKey(e.target.value as SortKey)}
-              aria-label="Sort transactions"
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            >
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="largest">Largest amount</option>
-              <option value="smallest">Smallest amount</option>
-            </select>
+              options={(Object.keys(SORT_LABELS) as SortKey[]).map((k) => ({ value: k, label: SORT_LABELS[k] }))}
+              onChange={setSortKey}
+            />
           </div>
           {/* Phones have no hover to reveal the row checkboxes. */}
           <button

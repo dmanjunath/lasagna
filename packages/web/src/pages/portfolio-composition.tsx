@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Building2, ChevronRight, ChevronDown, Check } from 'lucide-react';
+import { ITEM_CLASS, PANEL_CLASS, TriggerInner, triggerClass } from '../components/common/OptionMenu';
+import { Plus, Building2, ChevronRight, ChevronDown } from 'lucide-react';
 import { formatMoney, cn } from '../lib/utils';
 import { isAmountsHidden } from '../lib/hide-amounts';
 import { api } from '../lib/api';
 import { usePageContext } from '../lib/page-context';
 import { useLocation } from 'wouter';
 import { PageActions } from '../components/common/page-actions';
-import { Button, Surface, SegmentedControl, EmptyState, MaskedText, PageMeta, PageMetaItem, Skeleton } from '../components/uikit';
+import { Badge, Button, Surface, SegmentedControl, EmptyState, MaskedText, PageMeta, PageMetaItem, Skeleton } from '../components/uikit';
 import { faviconUrl, tickerToIssuer } from '../components/ds/institutions';
 import { PageTitle } from '../components/ds/PageTitle';
 
@@ -441,7 +442,7 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
               ))}
             </div>
           ) : (
-            <div className="py-1 text-[12.5px] text-content-muted">No account breakdown available.</div>
+            <EmptyState title="No account breakdown for this holding" className="px-4 py-5" />
           )}
         </div>
       )}
@@ -489,14 +490,26 @@ function AccountFilterDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    // Escape closes this menu only (capture phase, stopped there).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', onKey, true);
+    };
   }, [open]);
 
   const allActive = activeAccounts === null;
@@ -505,62 +518,52 @@ function AccountFilterDropdown({
 
   return (
     <div ref={ref} className="relative inline-block">
+      {/* The shared toolbar dropdown look (OptionMenu), with checkbox rows
+           like the transactions Account filter. */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="ui-focus inline-flex items-center gap-1.5 rounded-ui-md border border-line bg-canvas-sunken px-3 py-1.5 text-[13px] font-semibold text-content transition-colors hover:border-line-strong"
+        aria-expanded={open}
+        aria-haspopup="true"
+        className={cn('group/trigger', triggerClass({ count: allActive ? 0 : 1, badge: false }))}
       >
-        {displayLabel}
-        <ChevronDown size={14} className={cn('text-content-muted transition-transform', open && 'rotate-180')} />
+        <TriggerInner label={displayLabel} toolbar={{ count: allActive ? 0 : 1, badge: false }} />
       </button>
 
       {open && (
-        <div className="animate-scale-in absolute left-0 top-[calc(100%+6px)] z-30 max-h-[320px] w-[240px] origin-top-left overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised p-1.5 shadow-ui-lg">
-          <button
-            type="button"
-            onClick={() => { onSelectAll(); setOpen(false); }}
-            className="ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13px] font-semibold text-content transition-colors hover:bg-canvas-sunken"
-          >
-            <FilterCheck checked={allActive} />
+        <div className={cn('absolute left-0 top-full max-h-[320px] w-[260px] overflow-y-auto', PANEL_CLASS)}>
+          <label className={cn(ITEM_CLASS, 'font-semibold focus-within:bg-canvas-sunken')}>
+            <input
+              type="checkbox"
+              checked={allActive}
+              onChange={() => { onSelectAll(); setOpen(false); }}
+              className="h-4 w-4 rounded border-line accent-[rgb(var(--ui-brand))]"
+            />
             <span>All accounts</span>
-          </button>
+          </label>
           <div className="my-1 h-px bg-line" />
           {accounts.map(name => {
             const checked = activeAccounts === null || activeAccounts.has(name);
             const type = accountTypeMap.get(name);
             return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => onToggle(name)}
-                className="ui-focus flex w-full items-center gap-2.5 rounded-ui-sm px-2.5 py-2 text-left text-[13px] font-medium text-content-secondary transition-colors hover:bg-canvas-sunken"
-              >
-                <FilterCheck checked={checked} />
+              <label key={name} className={cn(ITEM_CLASS, 'focus-within:bg-canvas-sunken')}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggle(name)}
+                  className="h-4 w-4 rounded border-line accent-[rgb(var(--ui-brand))]"
+                />
                 <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
                 {type && (
-                  <span className="shrink-0 rounded-full bg-canvas-sunken px-1.5 py-0.5 text-[10px] font-semibold text-content-muted ui-tnum">
-                    {ACCOUNT_TYPE_LABELS[type] ?? type}
-                  </span>
+                  <Badge size="sm" className="shrink-0">{ACCOUNT_TYPE_LABELS[type] ?? type}</Badge>
                 )}
-              </button>
+              </label>
             );
           })}
         </div>
       )}
     </div>
-  );
-}
-
-function FilterCheck({ checked }: { checked: boolean }) {
-  return (
-    <span
-      className={cn(
-        'grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border transition-colors',
-        checked ? 'border-transparent bg-brand text-brand-fg' : 'border-line-strong bg-transparent',
-      )}
-    >
-      {checked && <Check size={11} strokeWidth={3} />}
-    </span>
   );
 }
 

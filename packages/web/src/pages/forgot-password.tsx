@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { AlertCircle } from "lucide-react";
 import { api } from "../lib/api.js";
-import { Button, Input, Field } from "../components/uikit";
+import { Button, Input, Field, Alert, TextLink } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 
 export function ForgotPassword() {
@@ -18,7 +17,9 @@ export function ForgotPassword() {
       await api.forgotPassword(email);
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      // The server's reason ("Not supported") means nothing to the reader.
+      console.error(err);
+      setError("Couldn't send the reset link. Check the email and try again.");
     } finally {
       setLoading(false);
     }
@@ -54,12 +55,7 @@ export function ForgotPassword() {
                 If an account exists for that email, we've sent a password reset link.
               </div>
               <p className="text-center mt-5">
-                <a
-                  href="/"
-                  className="text-sm text-brand hover:text-brand-hover underline underline-offset-2"
-                >
-                  Back to sign in
-                </a>
+                <TextLink href="/" chevron={false}>Back to sign in</TextLink>
               </p>
             </>
           ) : (
@@ -78,10 +74,7 @@ export function ForgotPassword() {
               </Field>
 
               {error && (
-                <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
-                  <AlertCircle className="w-4 h-4 text-negative flex-shrink-0" />
-                  <span className="text-negative text-sm">{error}</span>
-                </div>
+                <Alert tone="negative">{error}</Alert>
               )}
 
               <Button
@@ -95,12 +88,7 @@ export function ForgotPassword() {
               </Button>
 
               <p className="text-center pt-1">
-                <a
-                  href="/"
-                  className="text-sm text-content-secondary hover:text-content underline underline-offset-2"
-                >
-                  Back to sign in
-                </a>
+                <TextLink href="/" chevron={false}>Back to sign in</TextLink>
               </p>
             </form>
           )}

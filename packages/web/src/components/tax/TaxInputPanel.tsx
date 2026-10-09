@@ -3,7 +3,7 @@ import { Upload, FileText, X, PenLine, Check, AlertTriangle } from "lucide-react
 import { cn } from "../../lib/utils.js";
 import { api } from "../../lib/api.js";
 import type { TaxInputResult } from "../../lib/types.js";
-import { Button, Alert } from "../uikit";
+import { Button, Alert, TextLink } from "../uikit";
 
 const ACCEPTED_MIME = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -121,7 +121,8 @@ export function TaxInputPanel({ onDocument, onBatchSettled }: TaxInputPanelProps
         setText("");
         onBatchSettled(docs);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save that. Try again.");
+        console.error(err);
+        setError("Couldn't save that. Try again.");
       } finally {
         setLoading(false);
       }
@@ -299,16 +300,10 @@ export function TaxInputPanel({ onDocument, onBatchSettled }: TaxInputPanelProps
                 feel comfortable uploading?" after the user has committed files
                 arrives too late to be an option. */}
             {queue.length === 0 && (
-              <div className="flex items-center justify-center">
-                <button
-                  type="button"
-                  onClick={switchToText}
-                  className="touch-target ui-focus inline-block rounded-ui-sm px-2 text-center text-[13px] text-content-muted transition-colors"
-                >
-                  Don't feel comfortable uploading tax documents?{" "}
-                  <span className="font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline">Describe your situation instead →</span>
-                </button>
-              </div>
+              <p className="px-2 text-center text-[13px] text-content-muted">
+                Don't feel comfortable uploading tax documents?{" "}
+                <TextLink onClick={switchToText}>Describe your situation instead</TextLink>
+              </p>
             )}
 
             <style>{`
@@ -348,13 +343,7 @@ export function TaxInputPanel({ onDocument, onBatchSettled }: TaxInputPanelProps
 
             {/* Switch back to upload */}
             <div className="flex items-center justify-center">
-              <button
-                type="button"
-                onClick={switchToFile}
-                className="touch-target ui-focus inline-flex items-center rounded-ui-sm px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:underline"
-              >
-                ← Upload a document instead
-              </button>
+              <TextLink onClick={switchToFile} chevron={false}>Upload a document instead</TextLink>
             </div>
           </>
         )}

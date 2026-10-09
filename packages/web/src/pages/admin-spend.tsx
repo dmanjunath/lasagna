@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { api } from '../lib/api';
-import { Button, Skeleton } from '../components/uikit';
+import { Alert, Button, Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
 import { cn, formatStoredDay } from '../lib/utils';
 
@@ -149,10 +149,14 @@ export function AdminSpend() {
       </div>
 
       {error ? (
-        <div className="mt-6 rounded-ui-md border border-negative/25 bg-negative-soft px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[13.5px] font-medium text-negative">Could not load spend: {error}</p>
-          <Button variant="secondary" size="sm" onClick={() => load(days)}>Retry</Button>
-        </div>
+        <Alert
+          tone="negative"
+          title="Couldn't load spend"
+          className="mt-6"
+          action={<Button variant="secondary" size="sm" onClick={() => load(days)}>Retry</Button>}
+        >
+          {error}
+        </Alert>
       ) : loading || !data ? (
         <div className="mt-6 grid gap-4">
           <Skeleton className="h-24 rounded-ui-md" />

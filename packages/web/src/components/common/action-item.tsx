@@ -18,10 +18,10 @@ import { useChatStore } from '../../lib/chat-store';
 import { TONE_STYLE, type AreaTone } from '../../lib/action-destination';
 import { maskCurrencyInText } from '../../lib/hide-amounts';
 import { amountLabel, type ActionAmount } from '../../lib/spend-cuts';
-import { impactNote, type ActionTransaction, type Effort } from '../../lib/action-rows';
+import { type ActionTransaction, type Effort } from '../../lib/action-rows';
 import { cn } from '../../lib/utils';
 import { MaskedText } from '../uikit/MaskedText';
-import { button } from '../uikit/Button';
+import { Button, button } from '../uikit/Button';
 import { TxnRow } from '../transactions/TransactionList';
 
 interface ActionItemProps {
@@ -172,8 +172,10 @@ function txnCountLine(shown: number, total: number, scope?: string): string {
  * spend rather than a saving, and its own body said no action was needed. A
  * reader adding the pills up got a different answer from the sentence.
  *
- * The reduced surface has no sentence and no numeric figures at all, so its
- * rows keep printing the model's words there.
+ * A row with no summable figure prints the model's words in the pill, on both
+ * surfaces, so an action's figure has one form everywhere. Those words are not
+ * money-shaped labels, the same way the awareness row's are not, so the
+ * sentence above the list still reads as the sum of the labels that are.
  *
  * A figure that is NOT money back prints the row's own words instead of the
  * money-shaped label: "$367 above usual", not "about $367 a month". The
@@ -189,7 +191,7 @@ function rowFigure(
   >,
 ): string | null {
   if (amount) return handsMoneyBack === false ? impact || null : amountLabel(amount);
-  return full ? null : impact || null;
+  return impact || null;
 }
 
 // Action cards render as one accordion row per action: a scannable collapsed
@@ -202,15 +204,9 @@ export function ActionItem(props: ActionItemProps) {
 // one control group rather than three buttons that happen to sit together.
 function VerbButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      // These carried no resting border or fill, so they read as plain text
-      // sitting beside the real button. The inset ring is the row header's.
-      className="touch-target h-9 px-3 rounded-ui-md border border-line bg-canvas-sunken text-[12.5px] font-semibold text-content-secondary hover:border-line-strong hover:text-content hover:shadow-ui-sm transition-[color,border-color,box-shadow] focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]"
-    >
+    <Button size="sm" variant="secondary" onClick={onClick}>
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -232,10 +228,8 @@ function DenseRowInner({
   const cat = catForTag(tag);
   const Icon = cat.icon;
   const figure = rowFigure({ amount, impact, full, handsMoneyBack });
-  // What the model's words add to the title, where they add anything at all.
-  // Body text, because they are not a summable figure, and dropped entirely
-  // where they only restate the title's own number.
-  const subtitle = evidence ?? (full ? impactNote(title, impact) : null);
+  // The receipt. The model's words are in the pill, so they are not repeated here.
+  const subtitle = evidence ?? null;
   const areaLabel = area?.label;
 
   return (
@@ -471,8 +465,9 @@ function AccordionActionItem(props: ActionItemProps) {
                 {/* Steps back where the row has somewhere to go: two brand-soft
                     pills side by side gave one row two primary controls and
                     neither read as the thing to press. */}
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant={destination ? 'secondary' : 'primary'}
                   onClick={() =>
                     openChat(
                       // Same rule as the pill: an awareness row states what it
@@ -480,29 +475,21 @@ function AccordionActionItem(props: ActionItemProps) {
                       `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${rowFigure({ ...props, full: false }) ?? ''}\n\n${chatPrompt}`
                     )
                   }
-                  // Same inset ring as the row header and the three verbs. Both
-                  // shapes of this control carried no focus style at all, so a
-                  // keyboard user got the UA's blue outline.
-                  className={cn(
-                    'focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]',
-                    destination
-                      ? 'touch-target inline-flex items-center gap-1.5 h-9 px-2.5 rounded-ui-md border border-line bg-canvas-sunken text-[12.5px] font-semibold text-content-secondary hover:border-line-strong hover:text-brand hover:shadow-ui-sm transition-[color,border-color,box-shadow] group'
-                      : 'touch-target inline-flex items-center gap-1.5 h-9 px-3 rounded-ui-md text-[12.5px] font-bold text-[rgb(var(--ui-brand-ink))] bg-brand-soft hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow] group',
-                  )}
+                  leadingIcon={<Sparkles className="h-[14px] w-[14px]" />}
+                  trailingIcon={<ArrowRight className="h-[14px] w-[14px]" />}
                 >
-                  <Sparkles className="h-[14px] w-[14px]" />
                   Ask Lasagna about this
-                  <ArrowRight className="h-[14px] w-[14px] transition-transform group-hover:translate-x-0.5" />
-                </button>
+                </Button>
 
                 {onContextClick && (
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     onClick={onContextClick}
-                    className="touch-target h-9 px-2.5 rounded-ui-md border border-line bg-canvas-sunken text-[12.5px] font-semibold text-content-secondary hover:border-line-strong hover:text-content hover:shadow-ui-sm transition-[color,border-color,box-shadow]"
+                    trailingIcon={<ArrowRight className="h-[14px] w-[14px]" />}
                   >
-                    See in context →
-                  </button>
+                    See in context
+                  </Button>
                 )}
 
                 {/* A verb with no handler renders no button. */}

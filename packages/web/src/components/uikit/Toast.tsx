@@ -13,17 +13,28 @@ import { cn } from '../../lib/utils';
 
 type ToastTone = 'info' | 'positive' | 'caution' | 'negative';
 
+/**
+ * The toast's one follow-up: Undo, or a link to the next place ("View rules").
+ * Using it runs the handler and closes the toast, which the action makes stale.
+ */
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastItem {
   id: number;
   tone: ToastTone;
   title: ReactNode;
   description?: ReactNode;
+  action?: ToastAction;
 }
 
 interface ToastInput {
   tone?: ToastTone;
   title: ReactNode;
   description?: ReactNode;
+  action?: ToastAction;
   duration?: number;
 }
 
@@ -54,7 +65,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback(
     (input: ToastInput) => {
       const id = ++idRef.current;
-      setToasts((prev) => [...prev, { id, tone: input.tone ?? 'info', title: input.title, description: input.description }]);
+      setToasts((prev) => [...prev, { id, tone: input.tone ?? 'info', title: input.title, description: input.description, action: input.action }]);
       const duration = input.duration ?? 4000;
       window.setTimeout(() => remove(id), duration);
       return () => remove(id);
@@ -104,6 +115,15 @@ function ToastCard({ toast, onClose }: { toast: ToastItem; onClose: () => void }
         <p className="text-[14px] font-semibold text-content">{toast.title}</p>
         {toast.description && (
           <p className="mt-0.5 text-[13px] leading-relaxed text-content-muted">{toast.description}</p>
+        )}
+        {toast.action && (
+          <button
+            type="button"
+            onClick={() => { toast.action?.onClick(); onClose(); }}
+            className="ui-focus touch-target-inline mt-0.5 rounded-ui-sm text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] [@media(hover:hover)]:hover:underline"
+          >
+            {toast.action.label}
+          </button>
         )}
       </div>
       <button

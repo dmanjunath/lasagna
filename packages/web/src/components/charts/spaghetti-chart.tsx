@@ -7,7 +7,6 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { colors } from '../../styles/theme';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface SpaghettiChartProps {
@@ -25,7 +24,7 @@ function formatValue(value: number): string {
     return `$${(value / 1000).toFixed(0)}K`;
   }
   if (value < 0) {
-    return `-$${Math.abs(value).toFixed(0)}`;
+    return `\u2212$${Math.abs(value).toFixed(0)}`;
   }
   return `$${value.toFixed(0)}`;
 }
@@ -33,7 +32,7 @@ function formatValue(value: number): string {
 export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartProps) {
   if (!paths || paths.length === 0) {
     return (
-      <div style={{ height }} className="flex items-center justify-center text-text-secondary">
+      <div style={{ height }} className="flex items-center justify-center text-content-secondary">
         No simulation paths available
       </div>
     );
@@ -59,7 +58,7 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
   // Determine success/failure for each path (last value > 0 = success)
   const pathColors = paths.map((path) => {
     const finalValue = path[path.length - 1];
-    return finalValue > 0 ? '#4ade80' : '#ef4444'; // green for success, red for failure
+    return finalValue > 0 ? 'rgb(var(--ui-brand))' : 'rgb(var(--ui-negative))'; // green for success, red for failure
   });
 
   // Calculate Y-axis domain
@@ -74,7 +73,7 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
         <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
           <XAxis
             dataKey="year"
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -84,7 +83,7 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
               60px they reserved with them. The paths are unchanged: the domain
               is derived from the data, never a fixed bound. */}
           <YAxis
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -98,8 +97,8 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
               and the year label is what remains. */}
           <Tooltip
             contentStyle={{
-              background: colors.bg.elevated,
-              border: `1px solid ${colors.border.DEFAULT}`,
+              background: 'rgb(var(--ui-panel-raised))',
+              border: '1px solid var(--ui-line)',
               borderRadius: '12px',
               fontFamily: 'DM Sans, system-ui, sans-serif',
               fontSize: '12px',
@@ -109,7 +108,7 @@ export function SpaghettiChart({ paths, years, height = 300 }: SpaghettiChartPro
             formatter={(value) => [formatValue(typeof value === 'number' ? value : 0), 'Portfolio Value']}
           />
           {/* Reference line at $0 */}
-          <ReferenceLine y={0} stroke={colors.border.DEFAULT} strokeDasharray="3 3" />
+          <ReferenceLine y={0} stroke="var(--ui-line)" strokeDasharray="3 3" />
           {paths.map((_, index) => (
             <Line
               key={index}

@@ -27,11 +27,11 @@ type SortField = 'startYear' | 'endPortfolio' | 'yearsLasted' | 'maxDrawdown';
 type SortDir = 'asc' | 'desc';
 type FilterType = 'all' | 'failed' | 'close' | 'success';
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number): string => {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
   if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  if (value < 0) return `-$${Math.abs(value / 1000).toFixed(0)}K`;
+  if (value < 0) return `\u2212${formatCurrency(-value)}`;
   return `$${value.toLocaleString()}`;
 };
 
@@ -44,9 +44,9 @@ function getStatus(sim: SimulationResult): 'success' | 'close' | 'failed' {
 
 function StatusBadge({ status }: { status: 'success' | 'close' | 'failed' }) {
   const config = {
-    success: { icon: CheckCircle, color: 'text-green-400 bg-green-400/10', label: 'Success' },
-    close: { icon: AlertCircle, color: 'text-yellow-400 bg-yellow-400/10', label: 'Close' },
-    failed: { icon: AlertTriangle, color: 'text-red-400 bg-red-400/10', label: 'Failed' },
+    success: { icon: CheckCircle, color: 'text-positive bg-positive-soft', label: 'Success' },
+    close: { icon: AlertCircle, color: 'text-caution bg-caution-soft', label: 'Close' },
+    failed: { icon: AlertTriangle, color: 'text-negative bg-negative-soft', label: 'Failed' },
   };
   const { icon: Icon, color, label } = config[status];
 
@@ -126,7 +126,7 @@ export function SimulationTable({
   const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
     <button
       onClick={() => handleSort(field)}
-      className="flex items-center gap-1 text-xs text-text-secondary hover:text-text transition-colors"
+      className="flex items-center gap-1 text-xs text-content-secondary hover:text-content transition-colors"
     >
       {label}
       {sortField === field && (
@@ -136,69 +136,69 @@ export function SimulationTable({
   );
 
   return (
-    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl shadow-lg overflow-hidden">
+    <div className="bg-panel border border-line rounded-ui-xl shadow-ui-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-border/50">
+      <div className="flex items-center justify-between p-5 border-b border-line">
         <div>
-          <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-secondary mt-1">
+          <h3 className="text-base font-semibold text-content">{title}</h3>
+          <p className="text-sm text-content-secondary mt-1">
             {stats.total} historical periods analyzed
           </p>
         </div>
         <div className="text-right">
           <div className={cn(
             "text-2xl font-bold tabular-nums",
-            (stats.success / stats.total) >= 0.95 ? "text-green-400" :
-            (stats.success / stats.total) >= 0.80 ? "text-yellow-400" :
-            "text-red-400"
+            (stats.success / stats.total) >= 0.95 ? "text-positive" :
+            (stats.success / stats.total) >= 0.80 ? "text-caution" :
+            "text-negative"
           )}>
             {((stats.success / stats.total) * 100).toFixed(1)}%
           </div>
-          <div className="text-xs text-text-secondary">Success Rate</div>
+          <div className="text-xs text-content-secondary">Success Rate</div>
         </div>
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-4 gap-4 p-4 border-b border-border/50 bg-[#0f0f11]">
+      <div className="grid grid-cols-4 gap-4 p-4 border-b border-line bg-panel-inset">
         <button
           onClick={() => setFilter('all')}
           className={cn(
             'text-center p-2 rounded-lg transition-colors',
-            filter === 'all' ? 'bg-accent/20' : 'hover:bg-surface'
+            filter === 'all' ? 'bg-brand/20' : 'hover:bg-canvas-sunken'
           )}
         >
-          <div className="text-lg font-semibold text-text tabular-nums">{stats.total}</div>
-          <div className="text-xs text-text-secondary">Total</div>
+          <div className="text-lg font-semibold text-content tabular-nums">{stats.total}</div>
+          <div className="text-xs text-content-secondary">Total</div>
         </button>
         <button
           onClick={() => setFilter('success')}
           className={cn(
             'text-center p-2 rounded-lg transition-colors',
-            filter === 'success' ? 'bg-green-400/20' : 'hover:bg-surface'
+            filter === 'success' ? 'bg-positive-soft' : 'hover:bg-canvas-sunken'
           )}
         >
-          <div className="text-lg font-semibold text-green-400 tabular-nums">{stats.success}</div>
-          <div className="text-xs text-text-secondary">Success</div>
+          <div className="text-lg font-semibold text-positive tabular-nums">{stats.success}</div>
+          <div className="text-xs text-content-secondary">Success</div>
         </button>
         <button
           onClick={() => setFilter('close')}
           className={cn(
             'text-center p-2 rounded-lg transition-colors',
-            filter === 'close' ? 'bg-yellow-400/20' : 'hover:bg-surface'
+            filter === 'close' ? 'bg-caution-soft' : 'hover:bg-canvas-sunken'
           )}
         >
-          <div className="text-lg font-semibold text-yellow-400 tabular-nums">{stats.close}</div>
-          <div className="text-xs text-text-secondary">Close</div>
+          <div className="text-lg font-semibold text-caution tabular-nums">{stats.close}</div>
+          <div className="text-xs text-content-secondary">Close</div>
         </button>
         <button
           onClick={() => setFilter('failed')}
           className={cn(
             'text-center p-2 rounded-lg transition-colors',
-            filter === 'failed' ? 'bg-red-400/20' : 'hover:bg-surface'
+            filter === 'failed' ? 'bg-negative-soft' : 'hover:bg-canvas-sunken'
           )}
         >
-          <div className="text-lg font-semibold text-red-400 tabular-nums">{stats.failed}</div>
-          <div className="text-xs text-text-secondary">Failed</div>
+          <div className="text-lg font-semibold text-negative tabular-nums">{stats.failed}</div>
+          <div className="text-xs text-content-secondary">Failed</div>
         </button>
       </div>
 
@@ -206,12 +206,12 @@ export function SimulationTable({
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border/50 bg-[#0a0a0b]">
+            <tr className="border-b border-line bg-canvas-sunken">
               <th className="text-left p-3">
                 <SortHeader field="startYear" label="Period" />
               </th>
               <th className="text-left p-3">
-                <span className="text-xs text-text-secondary">Status</span>
+                <span className="text-xs text-content-secondary">Status</span>
               </th>
               <th className="text-right p-3">
                 <SortHeader field="yearsLasted" label="Years" />
@@ -231,13 +231,13 @@ export function SimulationTable({
                 <tr
                   key={sim.startYear}
                   className={cn(
-                    'border-b border-border/30 hover:bg-surface/50 cursor-pointer transition-colors',
-                    selectedSim?.startYear === sim.startYear && 'bg-accent/10'
+                    'border-b border-line hover:bg-canvas-sunken cursor-pointer transition-colors',
+                    selectedSim?.startYear === sim.startYear && 'bg-brand-soft'
                   )}
                   onClick={() => setSelectedSim(selectedSim?.startYear === sim.startYear ? null : sim)}
                 >
                   <td className="p-3">
-                    <span className="text-sm text-text font-medium tabular-nums">
+                    <span className="text-sm text-content font-medium tabular-nums">
                       {sim.startYear} - {sim.endYear}
                     </span>
                   </td>
@@ -247,7 +247,7 @@ export function SimulationTable({
                   <td className="p-3 text-right">
                     <span className={cn(
                       "text-sm tabular-nums",
-                      sim.yearsLasted >= sim.targetYears ? "text-text" : "text-red-400"
+                      sim.yearsLasted >= sim.targetYears ? "text-content" : "text-negative"
                     )}>
                       {sim.yearsLasted} / {sim.targetYears}
                     </span>
@@ -255,15 +255,15 @@ export function SimulationTable({
                   <td className="p-3 text-right">
                     <span className={cn(
                       "text-sm font-medium tabular-nums",
-                      sim.endPortfolio > 0 || hideAmounts ? "text-text" : "text-red-400"
+                      sim.endPortfolio > 0 || hideAmounts ? "text-content" : "text-negative"
                     )}>
                       {formatCurrency(sim.endPortfolio)}
                     </span>
                   </td>
                   <td className="p-3 text-right">
                     {sim.maxDrawdown !== undefined && (
-                      <span className="text-sm text-text-secondary tabular-nums">
-                        {(sim.maxDrawdown * 100).toFixed(1)}%
+                      <span className="text-sm text-content-secondary tabular-nums">
+                        {(sim.maxDrawdown * 100).toFixed(1).replace(/^-/, '\u2212')}%
                       </span>
                     )}
                   </td>
@@ -278,7 +278,7 @@ export function SimulationTable({
       {filteredSorted.length > showCount && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full p-3 text-center text-sm text-accent hover:bg-surface/50 transition-colors border-t border-border/50"
+          className="w-full p-3 text-center text-sm text-[rgb(var(--ui-brand-ink))] hover:bg-canvas-sunken transition-colors border-t border-line"
         >
           {expanded ? 'Show less' : `Show all ${filteredSorted.length} periods`}
         </button>
@@ -286,31 +286,31 @@ export function SimulationTable({
 
       {/* Selected simulation details */}
       {selectedSim && (
-        <div className="p-4 border-t border-border/50 bg-[#0f0f11]">
-          <div className="text-sm font-medium text-text mb-3">
+        <div className="p-4 border-t border-line bg-panel-inset">
+          <div className="text-sm font-medium text-content mb-3">
             Period Details: {selectedSim.startYear} - {selectedSim.endYear}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             {selectedSim.worstYear && (
               <div>
-                <div className="text-xs text-text-secondary mb-1">Worst Year</div>
-                <div className="text-red-400 font-medium">
-                  {selectedSim.worstYear.year}: {(selectedSim.worstYear.return * 100).toFixed(1)}%
+                <div className="text-xs text-content-secondary mb-1">Worst Year</div>
+                <div className="text-negative font-medium">
+                  {selectedSim.worstYear.year}: {(selectedSim.worstYear.return * 100).toFixed(1).replace(/^-/, '\u2212')}%
                 </div>
               </div>
             )}
             {selectedSim.bestYear && (
               <div>
-                <div className="text-xs text-text-secondary mb-1">Best Year</div>
-                <div className="text-green-400 font-medium">
+                <div className="text-xs text-content-secondary mb-1">Best Year</div>
+                <div className="text-positive font-medium">
                   {selectedSim.bestYear.year}: +{(selectedSim.bestYear.return * 100).toFixed(1)}%
                 </div>
               </div>
             )}
             {selectedSim.inflationAdjustedEnd !== undefined && (
               <div>
-                <div className="text-xs text-text-secondary mb-1">Real Value (Today's $)</div>
-                <div className="text-text font-medium">
+                <div className="text-xs text-content-secondary mb-1">Real Value (Today's $)</div>
+                <div className="text-content font-medium">
                   {formatCurrency(selectedSim.inflationAdjustedEnd)}
                 </div>
               </div>

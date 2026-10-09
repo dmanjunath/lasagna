@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { AlertCircle } from "lucide-react";
 import { api } from "../lib/api.js";
-import { Button } from "../components/uikit";
+import { Button, Alert } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
@@ -58,10 +57,7 @@ export function WelcomeConsent() {
             />
 
             {error && (
-              <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-ui-md bg-negative-soft border border-negative/25">
-                <AlertCircle className="w-4 h-4 text-negative flex-shrink-0" />
-                <span className="text-negative text-sm">{error}</span>
-              </div>
+              <Alert tone="negative">{error}</Alert>
             )}
 
             <Button

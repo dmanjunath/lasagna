@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { BrandMark } from './BrandMark';
+import { Button } from '../uikit';
 
 /**
  * Catches a failed lazy-chunk load during boot.
@@ -32,13 +33,7 @@ export class BootBoundary extends Component<{ children: ReactNode }, { failed: b
             Check your connection and try again.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="ui-focus rounded-ui-md bg-brand px-5 py-2.5 text-[14px] font-semibold text-white"
-        >
-          Reload
-        </button>
+        <Button onClick={() => window.location.reload()}>Reload</Button>
       </div>
     );
   }

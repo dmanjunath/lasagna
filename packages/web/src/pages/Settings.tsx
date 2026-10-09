@@ -35,17 +35,18 @@ import { isAmountsHidden, setAmountsHidden } from "../lib/hide-amounts";
 import { setPasskeyRegistered } from "../lib/passkey-hint";
 import { CategoryManager } from "../components/settings/CategoryManager";
 import { RulesManager } from "../components/settings/RulesManager";
+import { OptionMenu } from "../components/common/OptionMenu";
 import {
   Button,
   Surface,
   Field,
   Input,
   MoneyInput,
-  Select,
   Badge,
   Alert,
   Skeleton,
   useUiMode,
+  useToast,
 } from "../components/uikit";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -106,10 +107,10 @@ function canDeleteAccount(user: AuthUser | null | undefined, isDemo: boolean): u
 
 const FILING_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "single", label: "Single" },
-  { value: "married_joint", label: "Married Filing Jointly" },
-  { value: "married_separate", label: "Married Filing Separately" },
-  { value: "head_of_household", label: "Head of Household" },
-  { value: "qualifying_widow", label: "Qualifying Widow(er)" },
+  { value: "married_joint", label: "Married filing jointly" },
+  { value: "married_separate", label: "Married filing separately" },
+  { value: "head_of_household", label: "Head of household" },
+  { value: "qualifying_widow", label: "Qualifying widow(er)" },
 ];
 
 const RISK_TOLERANCE_OPTIONS: { value: string; label: string }[] = [
@@ -777,7 +778,7 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [sent, setSent] = useState(false);
+  const toast = useToast();
 
   const invite = async () => {
     const trimmed = email.trim().toLowerCase();
@@ -790,10 +791,11 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
     try {
       await api.household.createInvite(trimmed);
       setEmail("");
-      setSent(true);
+      toast({ tone: "positive", title: "Invite sent", description: `${trimmed} will get a link by email.` });
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't send that invite.");
+      console.error(err);
+      setError("Couldn't send that invite. Check the email and try again.");
     } finally {
       setBusy(false);
     }
@@ -830,7 +832,7 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
             type="email"
             enterKeyHint="send"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); setSent(false); }}
+            onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") void invite(); }}
             placeholder="partner@example.com"
             leadingIcon={<Mail className="h-4 w-4" />}
@@ -842,9 +844,6 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
         </div>
 
         {error && <p role="alert" className="mt-2 text-[12.5px] font-medium text-negative">{error}</p>}
-        {sent && !error && (
-          <p className="mt-2 text-[12.5px] font-medium text-positive">Invite sent. They'll get a link by email.</p>
-        )}
 
         {invites.length > 0 && (
           <ul className="mt-4 divide-y divide-line border-t border-line">
@@ -902,7 +901,8 @@ function PasswordSecurityCard() {
       setDone(true);
       // hasPassword flips server-side; the label refreshes on the next /me.
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not set password.");
+      console.error(err);
+      setError("Couldn't set your password. Try again.");
     } finally {
       setBusy(false);
     }
@@ -1662,7 +1662,8 @@ function PlanCard() {
     try {
       await startUpgrade();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start upgrade");
+      console.error(err);
+      setError("Couldn't start the upgrade. Try again in a moment.");
     } finally {
       // On native, startUpgrade resolves once the browser sheet is presented (the
       // page stays mounted), so always reset — otherwise the button stays stuck.
@@ -1864,27 +1865,25 @@ function PersonalEditPanel({ formData, setFormData, saving, saveError, onCancel,
         </Field>
 
         <Field label="Filing status">
-          <Select
+          <OptionMenu
+            portal
+            ariaLabel="Filing status"
             value={formData.filingStatus}
-            onChange={(e) => setFormData((f) => ({ ...f, filingStatus: e.target.value }))}
-          >
-            <option value="">Select…</option>
-            {FILING_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </Select>
+            triggerLabel={formData.filingStatus ? undefined : "Choose one"}
+            options={FILING_STATUS_OPTIONS}
+            onChange={(filingStatus) => setFormData((f) => ({ ...f, filingStatus }))}
+          />
         </Field>
 
         <Field label="Risk tolerance">
-          <Select
+          <OptionMenu
+            portal
+            ariaLabel="Risk tolerance"
             value={formData.riskTolerance}
-            onChange={(e) => setFormData((f) => ({ ...f, riskTolerance: e.target.value }))}
-          >
-            <option value="">Select…</option>
-            {RISK_TOLERANCE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </Select>
+            triggerLabel={formData.riskTolerance ? undefined : "Choose one"}
+            options={RISK_TOLERANCE_OPTIONS}
+            onChange={(riskTolerance) => setFormData((f) => ({ ...f, riskTolerance }))}
+          />
         </Field>
 
         <Field label="Retirement age" error={retAgeError}>
@@ -1949,15 +1948,18 @@ function IncomeEditPanel({ formData, setFormData, saving, saveError, onCancel, o
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Field label="Employment type" className="sm:col-span-2">
-          <Select
+          <OptionMenu
+            portal
+            ariaLabel="Employment type"
             value={formData.employmentType}
-            onChange={(e) => setFormData((f) => ({ ...f, employmentType: e.target.value }))}
-          >
-            <option value="w2">W2 employee</option>
-            <option value="self_employed">Self-employed</option>
-            <option value="1099">1099 / contractor</option>
-            <option value="business_owner">Business owner</option>
-          </Select>
+            options={[
+              { value: "w2", label: "W2 employee" },
+              { value: "self_employed", label: "Self-employed" },
+              { value: "1099", label: "1099 / contractor" },
+              { value: "business_owner", label: "Business owner" },
+            ]}
+            onChange={(employmentType) => setFormData((f) => ({ ...f, employmentType }))}
+          />
         </Field>
 
         <Field label="Annual gross income">

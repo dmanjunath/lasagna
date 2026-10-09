@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { api } from '../../lib/api';
+import { cn } from '../../lib/utils';
 import { Input } from '../uikit';
 
 // Address input backed by the Google Places proxy. Typing debounces a
@@ -23,6 +24,9 @@ export function AddressAutocomplete({
 }) {
   const [predictions, setPredictions] = useState<Array<{ description: string; placeId: string }>>([]);
   const [open, setOpen] = useState(false);
+  // The suggestion the arrow keys are on, or -1 for the typed text.
+  const [active, setActive] = useState(-1);
+  const listId = useId();
   const boxRef = useRef<HTMLDivElement>(null);
   // Suppress the fetch triggered by our own onTextChange right after a pick.
   const skipNextRef = useRef(false);
@@ -46,6 +50,7 @@ export function AddressAutocomplete({
       try {
         const { predictions } = await api.placesAutocomplete(q);
         setPredictions(predictions);
+        setActive(-1);
         setOpen(predictions.length > 0);
       } catch {
         setPredictions([]);
@@ -86,6 +91,8 @@ export function AddressAutocomplete({
     }
   };
 
+  const showList = open && predictions.length > 0;
+
   return (
     <div ref={boxRef} className="relative">
       <Input
@@ -95,21 +102,45 @@ export function AddressAutocomplete({
         onFocus={() => { focusedRef.current = true; if (predictions.length > 0) setOpen(true); }}
         autoComplete="off"
         autoFocus={autoFocus}
+        role="combobox"
+        aria-expanded={showList}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
+        onKeyDown={(e) => {
+          if (!showList) return;
+          if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(predictions.length - 1, i + 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(-1, i - 1)); }
+          else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(predictions[active]); }
+          // Stopped here: Escape closes the list, not the modal it sits in.
+          else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setOpen(false); }
+        }}
       />
-      {open && (
-        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-ui-md border border-line bg-panel py-1 shadow-ui-md">
-          {predictions.map((p) => (
-            <li key={p.placeId}>
-              <button
-                type="button"
-                className="block w-full px-3.5 py-2 text-left text-sm text-content hover:bg-line/40"
-                onClick={() => pick(p)}
-              >
-                {p.description}
-              </button>
-            </li>
+      {showList && (
+        <div
+          id={listId}
+          role="listbox"
+          aria-label="Address suggestions"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[264px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised p-1 shadow-ui-lg"
+        >
+          {predictions.map((p, i) => (
+            <div
+              key={p.placeId}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              // mousedown, not click: picking must land before the input blurs.
+              onMouseDown={(e) => { e.preventDefault(); pick(p); }}
+              onMouseEnter={() => setActive(i)}
+              className={cn(
+                'flex min-h-touch cursor-pointer items-center rounded-ui-sm px-2.5 text-[13px] font-medium text-content sm:min-h-0 sm:py-2',
+                i === active && 'bg-canvas-sunken',
+              )}
+            >
+              <span className="min-w-0 truncate">{p.description}</span>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

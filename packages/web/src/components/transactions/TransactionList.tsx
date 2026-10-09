@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight, Pencil, Search, X, DollarSign, Banknote } from 'lucide-react';
-import { Link } from 'wouter';
 import { api } from '../../lib/api';
 import { cn, formatStoredDay } from '../../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
-import { HiddenAmount, Badge, EmptyState, Skeleton, useToast } from '../uikit';
-import { categoryOptionLabel, useCategoryDisplay, usePickerGroups } from '../../lib/taxonomy';
+import { HiddenAmount, Badge, EmptyState, Skeleton, TextLink, useToast } from '../uikit';
+import { useCategoryDisplay } from '../../lib/taxonomy';
 import { CategoryPicker } from '../common/CategoryPicker';
 import { TransactionDetail } from './TransactionDetail';
 import { MerchantNameInput } from './MerchantNameInput';
@@ -332,7 +331,6 @@ export function TransactionList({
   // When `category` prop is provided (even as null) the component is controlled.
   const isControlled = category !== undefined;
 
-  const pickerGroups = usePickerGroups();
   const displayOf = useCategoryDisplay();
   const toast = useToast();
 
@@ -438,15 +436,7 @@ export function TransactionList({
               tone: 'positive',
               title: `Moved to ${displayOf({ categoryId: newCatId }).label}`,
               duration: 6000,
-              description: prevCatId ? (
-                <button
-                  type="button"
-                  onClick={undo}
-                  className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-                >
-                  Undo
-                </button>
-              ) : undefined,
+              action: prevCatId ? { label: 'Undo', onClick: () => void undo() } : undefined,
             });
           } catch (err) {
             console.error(err);
@@ -469,37 +459,28 @@ export function TransactionList({
             <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">{total} total</span>
           )}
           {viewAllHref && showPagination && (
-            <Link href={viewAllHref} className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">View all →</Link>
+            <TextLink href={viewAllHref}>View all</TextLink>
           )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {showCategoryFilter && (
-            <div className="relative">
-              <select
-                value={effectiveCategory || ''}
-                onChange={(e) => {
-                  const val = e.target.value || null;
-                  if (isControlled) {
-                    onCategoryChange?.(val);
-                  } else {
-                    setInternalCategory(val);
-                  }
-                  setPage(1);
-                }}
-                aria-label="Filter by category"
-                className="ui-focus touch-target h-10 w-full appearance-none rounded-ui-md border border-line bg-panel pl-3 pr-9 text-[13px] font-medium text-content shadow-ui-sm sm:w-auto"
-              >
-                <option value="">All categories</option>
-                {pickerGroups.map(({ group, categories }) => (
-                  <optgroup key={group.id} label={group.name}>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <ChevronRight size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-content-muted" />
-            </div>
+            // The shared category dropdown, with "All categories" as its top row.
+            <CategoryPicker
+              variant="select"
+              value={effectiveCategory || ''}
+              currentLabel="All categories"
+              anyLabel="All categories"
+              toolbar={{ count: effectiveCategory ? 1 : 0, badge: false }}
+              onChange={(id) => {
+                const val = id || null;
+                if (isControlled) {
+                  onCategoryChange?.(val);
+                } else {
+                  setInternalCategory(val);
+                }
+                setPage(1);
+              }}
+            />
           )}
           {showSearch && (
             <div className="relative">
@@ -581,11 +562,22 @@ export function TransactionList({
           </div>
         ) : !loading && transactions.length === 0 ? (
           <div className="p-3">
-            <EmptyState
-              icon={<Search size={22} />}
-              title="No transactions found"
-              description="Try adjusting your filters or the month in view."
-            />
+            {/* Only point at the filters when one is actually narrowing the list. */}
+            {(showCategoryFilter && effectiveCategory) || (showSearch && debouncedSearch) ? (
+              <EmptyState
+                icon={<Search size={22} />}
+                title="No transactions match"
+                description="Clear the category or search to see more."
+              />
+            ) : effectiveCategory || categoryIdsKey || excludeCategoryIdsKey ? (
+              // Scoped by the page around the list (e.g. /spending's Filters),
+              // which already shows that scope, so no instruction here.
+              <EmptyState icon={<Search size={22} />} title="No transactions match these filters" />
+            ) : startDate || endDate ? (
+              <EmptyState icon={<Search size={22} />} title="No transactions in this period" />
+            ) : (
+              <EmptyState icon={<Search size={22} />} title="No transactions yet" />
+            )}
           </div>
         ) : (
           <div className={cn('transition-opacity duration-200', loading && 'opacity-50')}>
@@ -665,12 +657,11 @@ export function TransactionList({
         )}
 
         {!showPagination && viewAllHref && total > 0 && (
-          <Link
-            href={viewAllHref}
-            className="ui-focus flex items-center justify-center rounded-b-ui-xl border-t border-line px-4 py-3 text-[13px] font-bold text-content-muted transition-colors hover:text-brand sm:px-5"
-          >
-            View all {total} {total === 1 ? 'transaction' : 'transactions'} →
-          </Link>
+          <div className="flex justify-center rounded-b-ui-xl border-t border-line px-4 py-3 sm:px-5">
+            <TextLink href={viewAllHref}>
+              View all {total} {total === 1 ? 'transaction' : 'transactions'}
+            </TextLink>
+          </div>
         )}
       </div>
 

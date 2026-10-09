@@ -5,6 +5,7 @@ import { MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { useChatStore } from '../lib/chat-store';
 import { api } from '../lib/api';
 import { formatInstant } from '../lib/utils';
+import { DELETE_CONVERSATION_CONFIRM } from '../components/chat/use-global-chat';
 import type { ChatThread, Message } from '../lib/types';
 import {
   Page,
@@ -697,12 +698,7 @@ function HistoryListView({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
-                  const ok = await confirm({
-                    title: 'Delete this conversation?',
-                    body: 'The messages and any Lasagna responses in this thread will be removed permanently.',
-                    confirmLabel: 'Delete',
-                    destructive: true,
-                  });
+                  const ok = await confirm(DELETE_CONVERSATION_CONFIRM);
                   if (ok) onDelete(t.id);
                 }}
                 aria-label="Delete conversation"

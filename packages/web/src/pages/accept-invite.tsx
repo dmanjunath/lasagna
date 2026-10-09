@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Loader2, Users, AlertCircle } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Button } from "../components/uikit";
+import { Button, Alert } from "../components/uikit";
 import { BrandMark } from "../components/common/BrandMark";
 import { Login } from "./Login";
 
@@ -65,10 +65,7 @@ export function AcceptInvite() {
         <div className="relative w-full max-w-[420px] rounded-ui-xl border border-line bg-panel shadow-ui-lg p-7 sm:p-8">
           <div className="flex flex-col items-center text-center">
             <BrandMark size={44} />
-            <div className="mt-5 flex items-center gap-2.5 rounded-ui-md bg-negative-soft border border-negative/25 px-3.5 py-3">
-              <AlertCircle className="h-4 w-4 shrink-0 text-negative" />
-              <span className="text-sm text-negative">{validation.message}</span>
-            </div>
+            <Alert tone="negative" className="mt-5 w-full text-left">{validation.message}</Alert>
             <Button variant="ghost" className="mt-5" onClick={() => navigate("/")}>
               Go to LasagnaFi
             </Button>

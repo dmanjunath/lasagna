@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, type TaxonomyCategory, type TaxonomyGroup } from '../../lib/api';
 import { cn } from '../../lib/utils';
-import { Alert, Badge, Button, Field, Input, Modal, Skeleton, Surface } from '../uikit';
+import { Alert, Badge, Button, Field, Input, Modal, Skeleton, Surface, useToast } from '../uikit';
 import { useConfirm } from '../ds';
 import { OptionMenu } from '../common/OptionMenu';
 import { CategoryPicker } from '../common/CategoryPicker';
@@ -60,6 +60,7 @@ function MiniToggle({ checked, onChange, label, disabled }: {
 export function CategoryManager() {
   const { groups, loading, error: taxonomyError, byId, bySystemKey, refresh } = useTaxonomy();
   const confirm = useConfirm();
+  const toast = useToast();
 
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -84,18 +85,24 @@ export function CategoryManager() {
     });
   }
 
-  async function run(id: string, fn: () => Promise<unknown>) {
+  // Resolves true when the change landed, so the caller can confirm it.
+  async function run(id: string, fn: () => Promise<unknown>, failure: string): Promise<boolean> {
     setBusyId(id);
     setError(null);
     try {
       await fn();
       await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
+      return true;
+    } catch {
+      setError(failure);
+      return false;
     } finally {
       setBusyId(null);
     }
   }
+
+  const rename = (kind: 'category' | 'group', id: string, name: string) =>
+    kind === 'category' ? api.updateCategory(id, { name }) : api.updateCategoryGroup(id, { name });
 
   async function commitRename() {
     if (!renaming) return;
@@ -105,12 +112,32 @@ export function CategoryManager() {
     const currentName = r.kind === 'category'
       ? byId.get(r.id)?.name
       : groups.find((g) => g.id === r.id)?.name;
-    if (!name || name === currentName) return;
-    await run(r.id, () =>
-      r.kind === 'category'
-        ? api.updateCategory(r.id, { name })
-        : api.updateCategoryGroup(r.id, { name }),
-    );
+    if (!name || !currentName || name === currentName) return;
+    const ok = await run(r.id, () => rename(r.kind, r.id, name), `Couldn't rename “${currentName}”. Try again.`);
+    if (!ok) return;
+    toast({
+      tone: 'positive',
+      title: `Renamed to “${name}”`,
+      action: {
+        label: 'Undo',
+        onClick: () => void run(r.id, () => rename(r.kind, r.id, currentName), `Couldn't change the name back to “${currentName}”. Try again.`),
+      },
+    });
+  }
+
+  async function toggleCategory(cat: TaxonomyCategory) {
+    const disabled = !cat.disabled;
+    const verb = disabled ? 'turn off' : 'turn on';
+    const ok = await run(cat.id, () => api.updateCategory(cat.id, { disabled }), `Couldn't ${verb} “${cat.name}”. Try again.`);
+    if (!ok) return;
+    toast({
+      tone: 'positive',
+      title: disabled ? `Turned off “${cat.name}”` : `Turned on “${cat.name}”`,
+      action: {
+        label: 'Undo',
+        onClick: () => void run(cat.id, () => api.updateCategory(cat.id, { disabled: !disabled }), `Couldn't undo that change to “${cat.name}”. Try again.`),
+      },
+    });
   }
 
   async function handleDeleteGroup(group: TaxonomyGroup) {
@@ -121,7 +148,9 @@ export function CategoryManager() {
       destructive: true,
     });
     if (!ok) return;
-    await run(group.id, () => api.deleteCategoryGroup(group.id));
+    if (await run(group.id, () => api.deleteCategoryGroup(group.id), `Couldn't delete the “${group.name}” group. Try again.`)) {
+      toast({ tone: 'positive', title: `Deleted the “${group.name}” group` });
+    }
   }
 
   async function handleCreateCategory() {
@@ -136,8 +165,9 @@ export function CategoryManager() {
       await refresh();
       setOpenGroups((prev) => new Set(prev).add(newCat.groupId));
       setNewCat(null);
-    } catch (e) {
-      setModalError(e instanceof Error ? e.message : 'Something went wrong');
+      toast({ tone: 'positive', title: `Created “${name}”`, description: `It's in ${groups.find((g) => g.id === newCat.groupId)?.name ?? 'its group'}.` });
+    } catch {
+      setModalError("Couldn't create that category. Try again.");
     } finally {
       setModalBusy(false);
     }
@@ -153,8 +183,9 @@ export function CategoryManager() {
       await api.createCategoryGroup({ name, type: newGroup.type });
       await refresh();
       setNewGroup(null);
-    } catch (e) {
-      setModalError(e instanceof Error ? e.message : 'Something went wrong');
+      toast({ tone: 'positive', title: `Created the “${name}” group` });
+    } catch {
+      setModalError("Couldn't create that group. Try again.");
     } finally {
       setModalBusy(false);
     }
@@ -169,8 +200,14 @@ export function CategoryManager() {
       await api.deleteCategory(deleting.cat.id, deleting.reassignTo);
       await refresh();
       setDeleting(null);
-    } catch (e) {
-      setModalError(e instanceof Error ? e.message : 'Something went wrong');
+      const target = byId.get(deleting.reassignTo)?.name;
+      toast({
+        tone: 'positive',
+        title: `Deleted “${deleting.cat.name}”`,
+        description: target ? `Its transactions and rules moved to ${target}.` : undefined,
+      });
+    } catch {
+      setModalError(`Couldn't delete “${deleting.cat.name}”. Try again.`);
     } finally {
       setModalBusy(false);
     }
@@ -220,12 +257,11 @@ export function CategoryManager() {
       <Surface pad="none" className="overflow-hidden">
         {/* Header strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
-          <div className="min-w-0">
-            <h3 className="font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">Categories</h3>
-            <p className="ui-tnum mt-0.5 text-[12.5px] font-medium text-content-muted">
-              {groups.length} groups, {totalCategories} categories
-            </p>
-          </div>
+          {/* The section heading above already names this card, so it carries
+               no title of its own. */}
+          <p className="ui-tnum min-w-0 text-[13px] font-medium text-content-muted">
+            {groups.length} groups, {totalCategories} categories
+          </p>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
@@ -271,14 +307,14 @@ export function CategoryManager() {
                     >
                       <ChevronDown size={16} className={cn('shrink-0 text-content-muted transition-transform', !open && '-rotate-90')} aria-hidden />
                       <span className="truncate text-[14px] font-bold text-content">{group.name}</span>
-                      <Badge tone={GROUP_TYPE_BADGE[group.type]} size="sm">{group.type}</Badge>
+                      <Badge tone={GROUP_TYPE_BADGE[group.type]} size="sm">{group.type.charAt(0).toUpperCase() + group.type.slice(1)}</Badge>
                       <span className="ui-tnum text-[12px] font-semibold text-content-muted">{group.categories.length}</span>
                     </button>
                   )}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 min-h-0 min-w-0 shrink-0"
+                    className="h-11 w-11 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0 shrink-0"
                     aria-label={`Add a category to group ${group.name}`}
                     title="Add category"
                     onClick={() => { setModalError(null); setNewCat({ name: '', groupId: group.id }); }}
@@ -288,7 +324,7 @@ export function CategoryManager() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 min-h-0 min-w-0 shrink-0"
+                    className="h-11 w-11 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0 shrink-0"
                     aria-label={`Rename group ${group.name}`}
                     onClick={() => setRenaming({ kind: 'group', id: group.id, value: group.name })}
                   >
@@ -311,7 +347,7 @@ export function CategoryManager() {
                               { value: 'income', label: 'Income' },
                               { value: 'transfer', label: 'Transfer' },
                             ]}
-                            onChange={(type: GroupType) => void run(group.id, () => api.updateCategoryGroup(group.id, { type }))}
+                            onChange={(type: GroupType) => void run(group.id, () => api.updateCategoryGroup(group.id, { type }), `Couldn't change the type of “${group.name}”. Try again.`)}
                             toolbar={{ count: 0 }}
                           />
                         </label>
@@ -356,7 +392,7 @@ export function CategoryManager() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 min-h-0 min-w-0 shrink-0"
+                            className="h-11 w-11 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0 shrink-0"
                             aria-label={`Rename ${cat.name}`}
                             onClick={() => setRenaming({ kind: 'category', id: cat.id, value: cat.name })}
                           >
@@ -366,7 +402,7 @@ export function CategoryManager() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9 min-h-0 min-w-0 shrink-0 text-negative hover:text-negative"
+                              className="h-11 w-11 sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0 shrink-0 text-negative hover:text-negative"
                               aria-label={`Delete ${cat.name}`}
                               onClick={() => {
                                 setModalError(null);
@@ -382,7 +418,7 @@ export function CategoryManager() {
                               checked={!cat.disabled}
                               disabled={busyId === cat.id}
                               label={cat.disabled ? `Enable ${cat.name}` : `Disable ${cat.name}`}
-                              onChange={() => void run(cat.id, () => api.updateCategory(cat.id, { disabled: !cat.disabled }))}
+                              onChange={() => void toggleCategory(cat)}
                             />
                           )}
                         </div>

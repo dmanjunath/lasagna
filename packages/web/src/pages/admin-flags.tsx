@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type FeatureFlag } from '../lib/api';
-import { Skeleton } from '../components/uikit';
+import { Badge, Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
 import { cn, formatInstant } from '../lib/utils';
 
@@ -65,16 +65,9 @@ export function AdminFlags() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h3 className="text-[15px] font-bold text-content">{flag.label}</h3>
-                  <span
-                    className={cn(
-                      'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em]',
-                      flag.enabled
-                        ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))]'
-                        : 'bg-canvas-sunken text-content-muted',
-                    )}
-                  >
+                  <Badge tone={flag.enabled ? 'brand' : 'neutral'} size="sm">
                     {flag.enabled ? 'On for everyone' : 'Off'}
-                  </span>
+                  </Badge>
                 </div>
                 <p className="mt-1.5 text-[13px] font-medium leading-[1.5] text-content-muted">
                   {flag.description}

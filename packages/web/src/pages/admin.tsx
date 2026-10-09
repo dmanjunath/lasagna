@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { ChevronDown, Search } from 'lucide-react';
 import { api } from '../lib/api';
-import { Badge, Button, Modal, Skeleton } from '../components/uikit';
+import { Alert, Badge, Button, Input, Skeleton } from '../components/uikit';
+import { useConfirm } from '../components/ds';
 import { AdminShell } from '../components/admin/admin-shell';
 import { PlanChip } from '../components/admin/plan-chip';
 import { useAuth } from '../lib/auth';
@@ -36,12 +37,12 @@ export function Admin() {
   // Last-login default: puts active users on top instead of empty fresh signups.
   const [sortKey, setSortKey] = useState<SortKey>('lastLoginAt');
   const [sortDesc, setSortDesc] = useState(true);
-  const [pauseTarget, setPauseTarget] = useState<AdminUser | null>(null);
   const { tenant: myTenant } = useAuth();
   const [rowBusy, setRowBusy] = useState('');       // tenantId being paused/resumed
   const [actionError, setActionError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [faceOpen, setFaceOpen] = useState(false);
+  const confirm = useConfirm();
 
   // Tenants containing an admin user can't be deleted (server enforces too).
   const adminTenants = useMemo(() => new Set(rows.filter((r) => r.isAdmin).map((r) => r.tenantId)), [rows]);
@@ -58,6 +59,15 @@ export function Admin() {
     } finally {
       setRowBusy('');
     }
+  };
+
+  const confirmPause = async (u: AdminUser) => {
+    const ok = await confirm({
+      title: 'Pause this account?',
+      body: <>Pausing <b className="text-content">{u.email}</b> stops account syncing and action generation. They can still log in and view their data.</>,
+      confirmLabel: 'Pause account',
+    });
+    if (ok) await togglePause(u);
   };
 
   const load = () => {
@@ -124,10 +134,14 @@ export function Admin() {
   if (error) {
     return (
       <AdminShell subtitle="Users, activity, and complimentary Pro grants. Billing itself lives in Stripe.">
-        <div className="mt-7 rounded-ui-md border border-negative/25 bg-negative-soft px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[13.5px] font-medium text-negative">Could not load users: {error}</p>
-          <Button variant="secondary" size="sm" onClick={() => { setLoading(true); void load(); }}>Retry</Button>
-        </div>
+        <Alert
+          tone="negative"
+          title="Couldn't load users"
+          className="mt-7"
+          action={<Button variant="secondary" size="sm" onClick={() => { setLoading(true); void load(); }}>Retry</Button>}
+        >
+          {error}
+        </Alert>
       </AdminShell>
     );
   }
@@ -172,17 +186,14 @@ export function Admin() {
 
       {/* Search */}
       <div className="mt-7 max-w-[340px]">
-        <div className="flex items-center gap-2 px-3 rounded-ui-md border border-line bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft transition-[border-color,box-shadow]">
-          <Search size={15} className="text-content-muted shrink-0" aria-hidden />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search email or name…"
-            aria-label="Search users"
-            className="touch-target flex-1 min-w-0 h-10 bg-transparent text-[14px] text-content placeholder:text-content-muted focus:outline-none"
-          />
-        </div>
+        <Input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search email or name"
+          aria-label="Search users"
+          leadingIcon={<Search size={15} aria-hidden />}
+        />
       </div>
 
       {actionError && <p role="alert" className="mt-3 text-[12.5px] text-negative">{actionError}</p>}
@@ -315,7 +326,7 @@ export function Admin() {
                         {
                           label: rowBusy === u.tenantId ? 'Working…' : u.disabledAt ? 'Resume account' : 'Pause account…',
                           // Resuming is restorative and runs directly; pausing confirms first.
-                          onSelect: () => (u.disabledAt ? void togglePause(u) : setPauseTarget(u)),
+                          onSelect: () => void (u.disabledAt ? togglePause(u) : confirmPause(u)),
                           // Server allows resuming your own tenant — only self-pause is blocked.
                           disabled: rowBusy === u.tenantId || (u.tenantId === myTenant?.id && !u.disabledAt),
                           disabledReason: u.tenantId === myTenant?.id && !u.disabledAt ? "You can't pause your own account" : undefined,
@@ -346,20 +357,6 @@ export function Admin() {
         </p>
       )}
       </div>
-      {pauseTarget && (
-        <Modal open onClose={() => setPauseTarget(null)} title="Pause this account?">
-          <p className="text-[13.5px] text-content-secondary leading-[1.55]">
-            Pausing <b className="text-content">{pauseTarget.email}</b> stops account syncing and action
-            generation. They can still log in and view their data.
-          </p>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setPauseTarget(null)}>Cancel</Button>
-            <Button size="sm" onClick={() => { const u = pauseTarget; setPauseTarget(null); void togglePause(u); }}>
-              Pause account
-            </Button>
-          </div>
-        </Modal>
-      )}
       {deleteTarget && (
         <DeleteTenantModal
           open

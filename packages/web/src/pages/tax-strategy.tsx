@@ -21,7 +21,8 @@ import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from "../lib/hide-
 import { useInsights } from "../hooks/useInsights.js";
 import { usePageContext } from "../lib/page-context.js";
 import { ActionItem } from "../components/common/action-item.js";
-import { Button, Badge, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SkeletonText, Alert, Select, Tooltip, useToast } from "../components/uikit";
+import { OptionMenu } from "../components/common/OptionMenu";
+import { Button, Badge, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, SkeletonText, Alert, Tooltip, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { PageTitle } from "../components/ds/PageTitle";
 import { useIsMobile } from "../lib/hooks/use-mobile.js";
@@ -30,9 +31,9 @@ import { useIsMobile } from "../lib/hooks/use-mobile.js";
 
 const FILING_LABELS: Record<string, string> = {
   single: "Single",
-  married_joint: "Married Filing Jointly",
-  married_separate: "Married Filing Separately",
-  head_of_household: "Head of Household",
+  married_joint: "Married filing jointly",
+  married_separate: "Married filing separately",
+  head_of_household: "Head of household",
 };
 
 /** The insight `type` this page filters on. Shared by the hook call and poll. */
@@ -1260,41 +1261,31 @@ export function TaxStrategy() {
           (showUpload && (hasDocs || docsError || insights.length > 0))) && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5 pb-3.5">
             {documentsByYear.length > 1 && (
-              <label className="flex w-full items-center gap-2 text-[13px] text-content-muted sm:w-auto sm:shrink-0">
+              <div className="flex w-full items-center gap-2 text-[13px] text-content-muted sm:w-auto sm:shrink-0">
                 Year
-                <span className="min-w-0 flex-1 sm:flex-none sm:w-[168px]">
-                <Select
-                  aria-label="Filing year"
+                <OptionMenu
+                  ariaLabel="Filing year"
                   value={activeYearKey ?? ALL_YEARS}
-                  onChange={(e) => handleYearChange(e.target.value)}
-                  className="w-full text-[13px]"
-                >
-                  <option value={ALL_YEARS}>All years ({documents.length})</option>
-                  {documentsByYear.map((g) => (
-                    <option key={yearKey(g.year)} value={yearKey(g.year)}>
-                      {yearLabel(g.year)} ({g.docs.length})
-                    </option>
-                  ))}
-                </Select>
-                </span>
-              </label>
+                  onChange={handleYearChange}
+                  className="min-w-0 flex-1 sm:flex-none sm:w-[168px]"
+                  options={[
+                    { value: ALL_YEARS, label: `All years (${documents.length})` },
+                    ...documentsByYear.map((g) => ({ value: yearKey(g.year), label: `${yearLabel(g.year)} (${g.docs.length})` })),
+                  ]}
+                />
+              </div>
             )}
             {visibleDocs.length > 1 && (
-              <label className="flex w-full items-center gap-2 text-[13px] text-content-muted sm:w-auto sm:shrink-0">
+              <div className="flex w-full items-center gap-2 text-[13px] text-content-muted sm:w-auto sm:shrink-0">
                 Sort
-                <span className="min-w-0 flex-1 sm:flex-none sm:w-[190px]">
-                <Select
-                  aria-label="Sort documents"
+                <OptionMenu
+                  ariaLabel="Sort documents"
                   value={docSort}
-                  onChange={(e) => setDocSort(e.target.value as DocSort)}
-                  className="w-full text-[13px]"
-                >
-                  {DOC_SORT_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </Select>
-                </span>
-              </label>
+                  onChange={setDocSort}
+                  className="min-w-0 flex-1 sm:flex-none sm:w-[190px]"
+                  options={DOC_SORT_OPTIONS}
+                />
+              </div>
             )}
             {showUpload && (hasDocs || docsError || insights.length > 0) && (
               <div className="flex shrink-0 items-center gap-2 sm:ml-auto">{privacyControl}</div>

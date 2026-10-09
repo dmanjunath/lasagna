@@ -6,7 +6,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { colors } from '../../styles/theme';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface DataPoint {
@@ -28,7 +27,7 @@ export function AreaChart({
   data,
   xKey,
   yKey,
-  color = colors.accent.DEFAULT,
+  color = "rgb(var(--ui-brand))",
   gradientId = 'areaGradient',
   formatY = (v) => (isAmountsHidden() ? HIDDEN_AMOUNT : `$${(v / 1000).toFixed(0)}k`),
   formatTooltip = (v) => (isAmountsHidden() ? HIDDEN_AMOUNT : `$${v.toLocaleString()}`),
@@ -47,7 +46,7 @@ export function AreaChart({
           </defs>
           <XAxis
             dataKey={xKey}
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={12}
             tickLine={false}
             axisLine={false}
@@ -56,7 +55,7 @@ export function AreaChart({
               width they reserved with them. The curve is unchanged: the domain
               is fit to the data. */}
           <YAxis
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={12}
             tickLine={false}
             axisLine={false}
@@ -65,8 +64,8 @@ export function AreaChart({
           />
           <Tooltip
             contentStyle={{
-              background: colors.bg.elevated,
-              border: `1px solid ${colors.border.DEFAULT}`,
+              background: "rgb(var(--ui-panel-raised))",
+              border: "1px solid var(--ui-line)",
               borderRadius: '12px',
             }}
             formatter={(value) => [formatTooltip(Number(value)), '']}

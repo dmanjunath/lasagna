@@ -77,22 +77,16 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  // Focus management: move focus into the dialog on open (unless a child's
-  // autoFocus already did), trap Tab inside it, and restore focus on close.
+  // Focus management, in two parts. Trapping Tab and restoring focus on close
+  // follow `open` only: re-running them on a prop change (an inline onBack is
+  // new every render) put focus back on the opener mid-typing.
+  const focusables = () =>
+    [...(panelRef.current?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ) ?? [])].filter((el) => !el.hasAttribute('disabled'));
   useEffect(() => {
     if (!open) return;
     const opener = document.activeElement as HTMLElement | null;
-    const focusables = () =>
-      [...(panelRef.current?.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      ) ?? [])].filter((el) => !el.hasAttribute('disabled'));
-    if (panelRef.current && !panelRef.current.contains(document.activeElement)) {
-      // Prefer the first control after the header's own buttons — Back (when
-      // present) then Close — so focus lands in the dialog's content, never on
-      // the control that leaves it.
-      const els = focusables();
-      (els[onBack ? 2 : 1] ?? els[0])?.focus();
-    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const els = focusables();
@@ -112,7 +106,23 @@ export function Modal({
       document.removeEventListener('keydown', onKey);
       opener?.focus?.();
     };
-  }, [open, onBack]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Moving focus in runs on open and again when a multi-step dialog changes
+  // step (its title or Back changes), but only when focus has left the panel,
+  // so it never takes focus from a field being typed in. Prefer the first
+  // control after the header's own buttons (Back, then Close), so focus lands
+  // in the content, never on the control that leaves it. On touch, a field
+  // would raise the keyboard over a sheet opened to read, so the header's own
+  // control takes it.
+  const stepKey = typeof title === 'string' ? title : '';
+  const hasBack = !!onBack;
+  useEffect(() => {
+    if (!open || !panelRef.current || panelRef.current.contains(document.activeElement)) return;
+    const els = focusables();
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    (coarse ? els[0] : (els[hasBack ? 2 : 1] ?? els[0]))?.focus();
+  }, [open, stepKey, hasBack]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open || typeof document === 'undefined') return null;
 

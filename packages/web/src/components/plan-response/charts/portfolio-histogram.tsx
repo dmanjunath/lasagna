@@ -28,7 +28,7 @@ interface PortfolioHistogramProps {
 const formatCurrencyRaw = (value: number) => {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  if (value < 0) return `-$${Math.abs(value).toLocaleString()}`;
+  if (value < 0) return `\u2212$${Math.abs(value).toLocaleString()}`;
   return `$${value.toLocaleString()}`;
 };
 
@@ -113,51 +113,51 @@ export function PortfolioHistogram({
   }, [data, bucketCount, successThreshold]);
 
   if (!stats) {
-    return <div className="text-text-secondary p-4">No simulation data available</div>;
+    return <div className="text-content-secondary p-4">No simulation data available</div>;
   }
 
   return (
-    <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl shadow-lg overflow-hidden">
+    <div className="bg-panel border border-line rounded-ui-xl shadow-ui-sm overflow-hidden">
       {/* Header with success rate */}
-      <div className="flex items-center justify-between p-5 border-b border-border/50">
+      <div className="flex items-center justify-between p-5 border-b border-line">
         <div>
-          <h3 className="text-base font-semibold text-text">{title}</h3>
-          <p className="text-sm text-text-secondary mt-1">
+          <h3 className="text-base font-semibold text-content">{title}</h3>
+          <p className="text-sm text-content-secondary mt-1">
             Based on {data.length} historical simulations
           </p>
         </div>
         <div className="text-right">
           <div className={cn(
             "text-3xl font-bold tabular-nums",
-            stats.successRate >= 95 ? "text-green-400" :
-            stats.successRate >= 80 ? "text-yellow-400" :
-            "text-red-400"
+            stats.successRate >= 95 ? "text-positive" :
+            stats.successRate >= 80 ? "text-caution" :
+            "text-negative"
           )}>
             {stats.successRate.toFixed(1)}%
           </div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide">
+          <div className="text-xs text-content-secondary uppercase tracking-wide">
             Success Rate
           </div>
         </div>
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-4 p-5 border-b border-border/50 bg-[#0f0f11]">
+      <div className="grid grid-cols-4 gap-4 p-5 border-b border-line bg-panel-inset">
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">10th Percentile</div>
-          <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.p10)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">10th Percentile</div>
+          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.p10)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Median</div>
-          <div className="text-sm font-semibold text-accent tabular-nums">{formatCurrency(stats.median)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Median</div>
+          <div className="text-sm font-semibold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(stats.median)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">90th Percentile</div>
-          <div className="text-sm font-semibold text-text tabular-nums">{formatCurrency(stats.p90)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">90th Percentile</div>
+          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.p90)}</div>
         </div>
         <div>
-          <div className="text-xs text-text-secondary uppercase tracking-wide mb-1">Best Case</div>
-          <div className="text-sm font-semibold text-green-400 tabular-nums">{formatCurrency(stats.max)}</div>
+          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Best Case</div>
+          <div className="text-sm font-semibold text-positive tabular-nums">{formatCurrency(stats.max)}</div>
         </div>
       </div>
 
@@ -168,7 +168,7 @@ export function PortfolioHistogram({
             <BarChart data={buckets} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="#27272a"
+                stroke="var(--ui-line)"
                 strokeOpacity={0.5}
                 vertical={false}
               />
@@ -178,7 +178,7 @@ export function PortfolioHistogram({
                   The bars are unchanged. */}
               <XAxis
                 dataKey="range"
-                stroke="#57534e"
+                stroke="rgb(var(--ui-content-muted))"
                 fontSize={10}
                 tickLine={false}
                 axisLine={false}
@@ -187,21 +187,21 @@ export function PortfolioHistogram({
                 hide={hideAmounts}
               />
               <YAxis
-                stroke="#57534e"
+                stroke="rgb(var(--ui-content-muted))"
                 fontSize={11}
                 tickLine={false}
                 axisLine={false}
                 dx={-8}
                 width={40}
-                label={{ value: 'Simulations', angle: -90, position: 'insideLeft', fill: '#57534e', fontSize: 11 }}
+                label={{ value: 'Simulations', angle: -90, position: 'insideLeft', fill: 'rgb(var(--ui-content-muted))', fontSize: 11 }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'rgba(12, 10, 9, 0.95)',
-                  border: '1px solid #3f3f46',
+                  backgroundColor: 'rgb(var(--ui-panel-raised))',
+                  border: '1px solid var(--ui-line)',
                   borderRadius: '12px',
                   fontSize: '13px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                  boxShadow: 'var(--ui-shadow-md)',
                   padding: '12px 16px',
                 }}
                 separator={hideAmounts ? '' : ' : '}
@@ -216,13 +216,13 @@ export function PortfolioHistogram({
                   return [count, `${formatCurrencyRaw(bucket.min)} - ${formatCurrencyRaw(bucket.max)}`];
                 }}
                 labelFormatter={() => 'Portfolio Range'}
-                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                cursor={{ fill: 'var(--ui-hairline)' }}
               />
               {/* Reference line at $0 or success threshold */}
               {successThreshold !== undefined && (
                 <ReferenceLine
                   x={formatCurrencyRaw(successThreshold)}
-                  stroke="#ef4444"
+                  stroke="rgb(var(--ui-negative))"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
                 />
@@ -231,7 +231,7 @@ export function PortfolioHistogram({
               {initialPortfolio && (
                 <ReferenceLine
                   x={formatCurrencyRaw(initialPortfolio)}
-                  stroke="#f97316"
+                  stroke="var(--ui-viz-3)"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
                 />
@@ -240,7 +240,7 @@ export function PortfolioHistogram({
                 {buckets.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.isFailure ? '#ef4444' : '#6366f1'}
+                    fill={entry.isFailure ? 'rgb(var(--ui-negative))' : 'var(--ui-viz-2)'}
                     fillOpacity={0.8}
                   />
                 ))}
@@ -250,13 +250,13 @@ export function PortfolioHistogram({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-text-secondary">
+        <div className="flex items-center justify-center gap-6 mt-4 text-xs text-content-secondary">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm bg-[#6366f1]" />
+            <div className="w-3 h-3 rounded-sm bg-viz-2" />
             <span>Successful ({data.filter(v => v > successThreshold).length})</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm bg-[#ef4444]" />
+            <div className="w-3 h-3 rounded-sm bg-negative" />
             <span>Failed ({data.filter(v => v <= successThreshold).length})</span>
           </div>
         </div>

@@ -9,17 +9,16 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { colors } from "../../../styles/theme.js";
 import { maskCurrencyInText } from "../../../lib/hide-amounts.js";
 
-// Chart colors that complement the theme
+// The categorical viz palette, which .dark remaps.
 const CHART_COLORS = [
-  colors.accent.DEFAULT,  // amber
-  colors.success,         // green
-  "#3b82f6",              // blue
-  "#a855f7",              // purple
-  colors.danger,          // red
-  "#06b6d4",              // cyan
+  "var(--ui-viz-1)",
+  "var(--ui-viz-2)",
+  "var(--ui-viz-3)",
+  "var(--ui-viz-4)",
+  "var(--ui-viz-5)",
+  "var(--ui-viz-6)",
 ];
 
 export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
@@ -70,16 +69,16 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
         )}
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={block.data}>
-            <XAxis dataKey="label" stroke={colors.text.muted} fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis stroke={colors.text.muted} fontSize={12} tickLine={false} axisLine={false} />
+            <XAxis dataKey="label" stroke="rgb(var(--ui-content-muted))" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke="rgb(var(--ui-content-muted))" fontSize={12} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={{
-                background: colors.bg.elevated,
-                border: `1px solid ${colors.border.DEFAULT}`,
+                background: "rgb(var(--ui-panel-raised))",
+                border: "1px solid var(--ui-line)",
                 borderRadius: "12px",
               }}
             />
-            <Bar dataKey="value" fill={colors.accent.DEFAULT} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="value" fill="rgb(var(--ui-brand))" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

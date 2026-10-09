@@ -135,9 +135,13 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
   //
   // Otherwise the slot is sized to the labels this particular scale produces,
   // so an unsigned four-figure axis keeps every pixel of plot it had.
+  //
+  // No decimals unless adjacent ticks need them to stay distinct: "$98K", not
+  // "$98.00K", matching the app's other compact axes.
+  const yDecimals = useMemo(() => tickDecimals(yTicks, 0), [yTicks]);
   const tickChars = useMemo(
-    () => Math.max(...yTicks.map((t) => tickLabel(t, tickDecimals(yTicks)).length), 0),
-    [yTicks],
+    () => Math.max(...yTicks.map((t) => tickLabel(t, yDecimals).length), 0),
+    [yTicks, yDecimals],
   );
   const chartLeft = hideAmounts ? 12 : tickChars > MAX_TICK_CHARS ? CHART_M_LEFT_WIDE : CHART_M.left;
 
@@ -223,7 +227,7 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
                 fill="rgb(var(--ui-content-faint))"
                 style={{ fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
               >
-                {tickLabel(t, tickDecimals(yTicks))}
+                {tickLabel(t, yDecimals)}
               </text>
             )}
           </g>

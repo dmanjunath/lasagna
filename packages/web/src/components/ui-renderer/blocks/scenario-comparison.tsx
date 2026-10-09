@@ -13,7 +13,7 @@ export function ScenarioComparisonRenderer({ block }: { block: ScenarioCompariso
   return (
     <div className="glass-card p-6 col-span-full">
       {block.title && (
-        <h3 className="text-base font-semibold tracking-tight text-text mb-4">
+        <h3 className="text-base font-semibold tracking-tight text-content mb-4">
           {maskCurrencyInText(block.title)}
         </h3>
       )}
@@ -23,32 +23,32 @@ export function ScenarioComparisonRenderer({ block }: { block: ScenarioCompariso
             key={idx}
             className={`p-4 rounded-xl border ${
               scenario.isRecommended
-                ? "border-accent bg-accent/5"
-                : "border-border bg-surface"
+                ? "border-brand bg-brand-softer"
+                : "border-line bg-panel"
             }`}
           >
             <div className="flex items-start justify-between">
-              <h4 className="font-medium text-text">{maskCurrencyInText(scenario.name)}</h4>
+              <h4 className="font-medium text-content">{maskCurrencyInText(scenario.name)}</h4>
               {scenario.isRecommended && (
-                <CheckCircle className="w-5 h-5 text-accent" />
+                <CheckCircle className="w-5 h-5 text-[rgb(var(--ui-brand-ink))]" />
               )}
             </div>
             {scenario.description && (
-              <p className="text-sm text-text-secondary mt-1">{maskCurrencyInText(scenario.description)}</p>
+              <p className="text-sm text-content-secondary mt-1">{maskCurrencyInText(scenario.description)}</p>
             )}
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">Success Rate</span>
+                <span className="text-content-secondary">Success Rate</span>
                 <span className={`font-medium ${
-                  scenario.successRate >= 0.9 ? "text-success" :
-                  scenario.successRate >= 0.8 ? "text-warning" : "text-danger"
+                  scenario.successRate >= 0.9 ? "text-positive" :
+                  scenario.successRate >= 0.8 ? "text-caution" : "text-negative"
                 }`}>
                   {(scenario.successRate * 100).toFixed(0)}%
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">End Balance</span>
-                <span className="font-medium text-text">
+                <span className="text-content-secondary">End Balance</span>
+                <span className="font-medium text-content">
                   {formatCurrency(scenario.endBalance)}
                 </span>
               </div>

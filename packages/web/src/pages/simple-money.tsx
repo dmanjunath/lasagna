@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
   Wallet, RefreshCw, Plus,
-  Lock, ChevronDown, ChevronRight, Settings2, Pencil,
+  Lock, ChevronDown, ChevronRight, Pencil,
   DollarSign, Banknote,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -11,10 +11,11 @@ import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
 import { safeStorage } from '../lib/safe-storage';
 import { HiddenAmount } from '../components/uikit';
-import { Button, SegmentedControl, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, useToast, Tooltip } from '../components/uikit';
+import { Alert, Badge, Button, button, SegmentedControl, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink, useToast, Tooltip } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
 import { CategoryPicker } from '../components/common/CategoryPicker';
 import { TxnRow } from '../components/transactions/TransactionList';
+import { TransactionDetail } from '../components/transactions/TransactionDetail';
 import { NetWorthTrendCard } from '../components/common/NetWorthTrendCard';
 import { type TrendPoint } from '../components/ds';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
@@ -46,6 +47,7 @@ interface Item {
 interface Transaction {
   id: string; date: string; name: string; merchantName: string | null;
   amount: string; categoryId: string; excludedAt: string | null;
+  notes?: string | null; accountId?: string | null; accountName?: string | null;
 }
 
 type GroupBy = 'category' | 'institution';
@@ -74,6 +76,7 @@ export function SimpleMoney() {
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [detailTx, setDetailTx] = useState<Transaction | null>(null);
   // How the account lists are grouped: by asset category (default) or by the
   // institution they're connected through. Persisted so the choice survives.
   const [groupBy, setGroupBy] = useState<GroupBy>(() => {
@@ -145,15 +148,7 @@ export function SimpleMoney() {
         tone: 'positive',
         title: `Moved to ${displayOf({ categoryId: newCatId }).label}`,
         duration: 6000,
-        description: prevCatId ? (
-          <button
-            type="button"
-            onClick={undo}
-            className="ui-focus mt-0.5 rounded-ui-sm font-semibold text-[rgb(var(--ui-brand-ink))] hover:underline"
-          >
-            Undo
-          </button>
-        ) : undefined,
+        action: prevCatId ? { label: 'Undo', onClick: () => { void undo(); } } : undefined,
       });
     } catch (err) {
       console.error(err);
@@ -252,10 +247,9 @@ export function SimpleMoney() {
             >
               {syncingAll ? 'Syncing…' : 'Sync all'}
             </Button>
-            <Link href="/accounts" className="flex-1 sm:flex-none">
-              <Button variant="primary" size="sm" className="w-full" leadingIcon={<Plus size={15} />}>
-                Add account
-              </Button>
+            <Link href="/accounts" className={cn(button({ variant: 'primary', size: 'sm' }), 'flex-1 sm:flex-none')}>
+              <Plus size={15} />
+              Add account
             </Link>
           </div>
         )}
@@ -263,15 +257,12 @@ export function SimpleMoney() {
 
       {/* ── Sync error banner (dismissible) ── */}
       {syncError && (
-        <div className="mt-6 flex items-center justify-between gap-3 rounded-ui-md border border-negative/30 bg-negative-soft px-4 py-3">
-          <span className="text-[14px] font-medium text-negative">{syncError}</span>
-          <button
-            onClick={() => setSyncError(null)}
-            className="ui-focus shrink-0 rounded-ui-sm px-2.5 py-1 text-[13px] font-semibold text-negative hover:bg-negative/10"
-          >
-            Dismiss
-          </button>
-        </div>
+        <Alert
+          tone="negative"
+          className="mt-6"
+          title={syncError}
+          action={<Button size="sm" variant="secondary" onClick={() => setSyncError(null)}>Dismiss</Button>}
+        />
       )}
 
       {/* ── Loading skeleton — reserves the chart card + two group footprints ── */}
@@ -331,9 +322,7 @@ export function SimpleMoney() {
             title="No accounts connected"
             description="Link a bank or brokerage to see your money here."
             action={
-              <Link href="/accounts">
-                <Button variant="primary">Connect an account</Button>
-              </Link>
+              <Link href="/accounts" className={button({ variant: 'primary' })}>Connect an account</Link>
             }
           />
         </div>
@@ -412,9 +401,7 @@ export function SimpleMoney() {
         <section className="mt-8">
           <div className="flex items-baseline justify-between gap-3 whitespace-nowrap px-1 pb-3">
             <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Recent activity</h2>
-            <Link href="/spending" className="ui-focus touch-target-inline rounded-ui-sm text-[13px] font-bold text-content-muted hover:text-brand transition-colors">
-              View spending →
-            </Link>
+            <TextLink href="/spending">View spending</TextLink>
           </div>
           {editError && (
             <p role="alert" className="mb-3 px-1 text-[12.5px] font-medium text-negative">{editError}</p>
@@ -425,9 +412,16 @@ export function SimpleMoney() {
               const isIncome = amount < 0;
               const display = displayOf({ categoryId: t.categoryId });
               return (
-                <TxnRow
+                // Row click opens the drawer, as on /transactions. TxnRow is the
+                // wrapper's first child, so the wrapper carries the border.
+                <div
                   key={t.id}
+                  onClick={() => setDetailTx(t)}
+                  className="cursor-pointer border-t border-line transition-colors first:border-t-0 first:rounded-t-ui-xl last:rounded-b-ui-xl hover:bg-canvas-sunken/60"
+                >
+                <TxnRow
                   merchant={t.merchantName || t.name}
+                  onOpenDetail={() => setDetailTx(t)}
                   icon={display.icon ?? (isIncome ? <DollarSign size={15} /> : <Banknote size={15} />)}
                   isIncome={isIncome}
                   categoryNode={
@@ -442,11 +436,28 @@ export function SimpleMoney() {
                   amount={amount}
                   excluded={t.excludedAt != null}
                 />
+                </div>
               );
             })}
           </div>
         </section>
       )}
+
+      <TransactionDetail
+        open={detailTx !== null}
+        tx={detailTx}
+        onClose={() => setDetailTx(null)}
+        onSaved={(patch) => {
+          if (!detailTx) return;
+          setTransactions((prev) => prev.map((t) => (t.id === detailTx.id ? {
+            ...t,
+            ...(patch.merchantName !== undefined ? { merchantName: patch.merchantName } : {}),
+            ...(patch.categoryId !== undefined ? { categoryId: patch.categoryId } : {}),
+            ...(patch.notes !== undefined ? { notes: patch.notes.trim() === '' ? null : patch.notes } : {}),
+            ...(patch.excluded !== undefined ? { excludedAt: patch.excluded ? new Date().toISOString() : null } : {}),
+          } : t)));
+        }}
+      />
     </div>
   );
 }
@@ -495,15 +506,15 @@ function GroupSection({
   return (
     <div className="mt-5">
       {errorItems.map((item) => (
-        <div key={item.id} className="mb-2.5 flex items-center justify-between gap-3 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3">
-          <div>
-            <div className="text-[14px] font-semibold text-caution">{item.institutionName || 'Institution'} needs attention</div>
-            <p className="mt-0.5 text-[12.5px] text-content-muted">
-              {item.status === 'item_login_required' ? 'Login expired. Reconnect to resume syncing.' : 'Sync error. Try reconnecting.'}
-            </p>
-          </div>
-          <Link href="/accounts" className="ui-focus shrink-0 rounded-ui-sm text-[13px] font-semibold text-brand hover:underline">Reconnect →</Link>
-        </div>
+        <Alert
+          key={item.id}
+          tone="caution"
+          className="mb-2.5"
+          title={`${item.institutionName || 'This institution'} needs to reconnect`}
+          action={<TextLink href={`/accounts?reconnect=${item.id}`}>Reconnect</TextLink>}
+        >
+          Balances and transactions stop updating until you reconnect.
+        </Alert>
       ))}
 
       <section className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
@@ -525,7 +536,9 @@ function GroupSection({
             <div className="mt-0.5 hidden truncate text-[12px] font-medium text-content-faint sm:block">{caption}</div>
           </div>
           <span className={cn('ml-3 shrink-0 font-editorial text-[16.5px] font-extrabold tracking-[-0.015em] ui-tnum', totalNeg && 'text-negative')}>
-            {isAmountsHidden() ? <HiddenAmount /> : `${totalNeg ? '−' : ''}${fmtUsd(total)}`}
+            {/* Under the Debt label the balance is owed by definition, so it is
+                red and carries no sign. */}
+            {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(total)}
           </span>
           <span className="grid h-[26px] w-[26px] shrink-0 place-items-center text-content-faint">
             <ChevronDown
@@ -564,7 +577,7 @@ function GroupSection({
                   metaSegs={metaSegs}
                   badges={badges}
                   value={bal}
-                  negative={totalNeg}
+                  owed={totalNeg}
                   frozen={frozen}
                   syncTime={synced}
                   syncIso={acct.item.lastSyncedAt}
@@ -704,14 +717,7 @@ function InstitutionSection({
           {/* Managing a connection (add accounts to it, disconnect it) lives on
               the Connected-Accounts page — link out so those flows stay intact. */}
           <div className="flex items-center border-t border-line px-4 py-2.5 sm:px-5">
-            <button
-              type="button"
-              onClick={() => setLocation('/accounts')}
-              className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-softer"
-            >
-              <Settings2 size={14} />
-              Manage connection
-            </button>
+            <TextLink href="/accounts">Manage connection</TextLink>
           </div>
         </div>
       )}
@@ -726,7 +732,7 @@ function InstitutionSection({
 // ─────────────────────────────────────────────────────────────────────────
 
 function AcctRow({
-  accountId, institution, name, mask, metaSegs, badges, value, negative, frozen, syncTime, syncIso,
+  accountId, institution, name, mask, metaSegs, badges, value, negative, owed, frozen, syncTime, syncIso,
   valueSource, metadata, onEstimateResolved, onSettings, hideIcon,
 }: {
   accountId: string;
@@ -737,6 +743,8 @@ function AcctRow({
   badges: string[];
   value: number;
   negative?: boolean;
+  /** A debt row under the Debt label: red, with no sign. */
+  owed?: boolean;
   frozen: boolean;
   syncTime: string | null;
   /** Raw last-sync ISO — feeds the exact date+time hover tooltip. */
@@ -747,7 +755,7 @@ function AcctRow({
   onSettings: () => void;
   hideIcon?: boolean;
 }) {
-  const showNeg = negative || value < 0;
+  const showNeg = owed || negative || value < 0;
   const formatted = fmtUsd(Math.abs(value));
 
   // Property whose value estimate is still pending → "Estimating…" pill; poll
@@ -791,13 +799,13 @@ function AcctRow({
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[14.5px] font-bold leading-tight" title={name}>{name}</span>
           {badges.map((b) => (
-            <span key={b} className="hidden shrink-0 rounded-full bg-canvas-sunken px-1.5 py-0.5 text-[10px] font-medium text-content-muted sm:inline">{b}</span>
+            <Badge key={b} size="sm" className="hidden shrink-0 sm:inline-flex">{b}</Badge>
           ))}
           {estimating && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-info-soft px-1.5 py-0.5 text-[10px] font-semibold text-info">
+            <Badge tone="info" size="sm" className="shrink-0">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-info" aria-hidden />
               Estimating…
-            </span>
+            </Badge>
           )}
         </div>
         <div className="mt-0.5 flex min-w-0 items-baseline gap-2 text-[12.5px] text-content-muted">
@@ -809,12 +817,12 @@ function AcctRow({
       <div className="flex shrink-0 items-center gap-3 sm:gap-4">
         <div className="text-right">
           <div className={cn('font-editorial text-[15.5px] font-extrabold tracking-[-0.015em] ui-tnum', showNeg && 'text-negative')}>
-            {isAmountsHidden() ? <HiddenAmount /> : `${showNeg ? '−' : ''}${formatted}`}
+            {isAmountsHidden() ? <HiddenAmount /> : `${showNeg && !owed ? '−' : ''}${formatted}`}
           </div>
           {frozen ? (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
+            <Badge tone="info" size="sm" className="mt-1 gap-1">
               <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
-            </span>
+            </Badge>
           ) : estimating ? null : valueSource ? (
             <span className="mt-1 inline-flex">
               <ValueSourceBadge source={valueSource} syncedAt={syncIso ?? undefined} onActivate={onSettings} />

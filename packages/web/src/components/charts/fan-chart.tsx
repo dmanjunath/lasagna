@@ -9,7 +9,6 @@ import {
   ComposedChart,
   ReferenceLine,
 } from 'recharts';
-import { colors } from '../../styles/theme';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 
 interface FanChartData {
@@ -41,11 +40,11 @@ function formatValue(value: number): string {
 export function FanChart({
   data,
   height = 300,
-  color = colors.accent.DEFAULT,
+  color = "rgb(var(--ui-brand))",
 }: FanChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div style={{ height }} className="flex items-center justify-center text-text-secondary">
+      <div style={{ height }} className="flex items-center justify-center text-content-secondary">
         No data available
       </div>
     );
@@ -85,7 +84,7 @@ export function FanChart({
           </defs>
           <XAxis
             dataKey="year"
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -95,7 +94,7 @@ export function FanChart({
               60px they reserved with them. The bands are unchanged: the domain
               is derived from the data, never a fixed bound. */}
           <YAxis
-            stroke={colors.text.muted}
+            stroke="rgb(var(--ui-content-muted))"
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -109,8 +108,8 @@ export function FanChart({
               the year label is what remains. */}
           <Tooltip
             contentStyle={{
-              background: colors.bg.elevated,
-              border: `1px solid ${colors.border.DEFAULT}`,
+              background: "rgb(var(--ui-panel-raised))",
+              border: "1px solid var(--ui-line)",
               borderRadius: '12px',
               fontFamily: 'DM Sans, system-ui, sans-serif',
               fontSize: '12px',
@@ -130,7 +129,7 @@ export function FanChart({
             }}
           />
           {/* Reference line at $0 */}
-          <ReferenceLine y={0} stroke={colors.border.DEFAULT} strokeDasharray="3 3" />
+          <ReferenceLine y={0} stroke="var(--ui-line)" strokeDasharray="3 3" />
           {/* 5th-95th percentile band (outer) */}
           <Area
             type="monotone"
@@ -143,7 +142,7 @@ export function FanChart({
             type="monotone"
             dataKey="p5"
             stroke="none"
-            fill={colors.bg.DEFAULT}
+            fill="rgb(var(--ui-panel))"
             fillOpacity={1}
           />
           {/* 25th-75th percentile band (inner) */}
@@ -158,7 +157,7 @@ export function FanChart({
             type="monotone"
             dataKey="p25"
             stroke="none"
-            fill={colors.bg.DEFAULT}
+            fill="rgb(var(--ui-panel))"
             fillOpacity={1}
           />
           {/* Median line */}

@@ -83,15 +83,7 @@ export function ReportWatcher() {
             toast({
               tone: "positive",
               title: `${w.title} is ready`,
-              description: (
-                <button
-                  type="button"
-                  className="font-semibold underline underline-offset-2"
-                  onClick={() => navigate(`/financial-plans/${w.id}`)}
-                >
-                  View the plan
-                </button>
-              ),
+              action: { label: "View the plan", onClick: () => navigate(`/financial-plans/${w.id}`) },
               duration: 15_000,
             });
           } else {
@@ -99,6 +91,7 @@ export function ReportWatcher() {
               tone: "negative",
               title: `${w.title} could not be generated`,
               description: "Open the plan to retry.",
+              action: { label: "Open the plan", onClick: () => navigate(`/financial-plans/${w.id}`) },
               duration: 15_000,
             });
           }

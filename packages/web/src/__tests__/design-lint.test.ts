@@ -90,7 +90,14 @@ describe('design lint', () => {
       lines.forEach((line, i) => {
         if (!line.includes('type="number"')) return;
         const near = lines.slice(Math.max(0, i - 8), i + 9).join('\n');
-        const ok = near.includes('inner-spin-button]:appearance-none') || consts.some((c) => new RegExp(`\\b${c}\\b`).test(near));
+        // uikit Input / MoneyInput hide the stepper themselves (fieldBase).
+        const before = lines.slice(Math.max(0, i - 8), i + 1).join('\n');
+        // Only inputs count: a chart axis takes type="number" too.
+        const tag = [...before.matchAll(/<([A-Za-z]+)/g)].pop()?.[1];
+        if (tag !== 'input' && tag !== 'Input' && tag !== 'MoneyInput') return;
+        const ok = tag !== 'input'
+          || near.includes('inner-spin-button]:appearance-none')
+          || consts.some((c) => new RegExp(`\\b${c}\\b`).test(near));
         if (!ok) bad++;
       });
       const max = NUMBER_STEPPER_ALLOWED[f.path] ?? 0;
@@ -112,45 +119,19 @@ describe('design lint', () => {
 // ── Allowances (today's counts; lower them as files are fixed) ────────────────
 
 const NATIVE_SELECT_ALLOWED: Record<string, number> = {
-  // On purpose: an invisible native <select> over the phone sort header opens
-  // the OS picker wheel, the right control on a phone.
-  'pages/transactions.tsx': 1,
   // Mentioned in a comment, not rendered.
   'lib/account-types.ts': 1,
-  // Debt, to replace with the shared menus:
-  'components/chat/admin-model-picker.tsx': 1,
-  'components/transactions/TransactionList.tsx': 1,
-  'pages/retirement-v2.tsx': 1,
-  'pages/spending.tsx': 1,
 };
 
-// Debt, to replace with OptionMenu / AccountPicker / CategoryPicker.
 const UIKIT_SELECT_ALLOWED: Record<string, number> = {
-  'components/admin/user-account-card.tsx': 1,
-  'components/common/AccountLinkPicker.tsx': 1,
-  'components/ui-renderer/blocks/backtest-table.tsx': 1,
-  'pages/Accounts.tsx': 1,
-  'pages/Settings.tsx': 3,
+  // The styleguide documents the primitive itself.
   'pages/_styleguide.tsx': 2,
-  'pages/account-detail.tsx': 1,
-  'pages/onboarding.tsx': 4,
-  'pages/quick-import.tsx': 5,
-  'pages/tax-strategy.tsx': 2,
 };
 
-// Debt, to switch to the no-stepper class.
+// Dead code (no importers). Listed, not fixed: delete the files instead.
 const NUMBER_STEPPER_ALLOWED: Record<string, number> = {
-  'components/admin/comp-control.tsx': 1,
-  'components/charts/stacked-bar-chart.tsx': 1,
   'components/common/editable-stat-card.tsx': 1,
   'components/simulation/strategy-config.tsx': 2,
-  'pages/probability-of-success.tsx': 3,
-  'pages/Accounts.tsx': 1,
-  'pages/Settings.tsx': 4,
-  'pages/account-detail.tsx': 8,
-  'pages/debt.tsx': 3,
-  'pages/quick-import.tsx': 3,
-  'pages/tax-strategy.tsx': 1,
 };
 
 const PICKER_GROUPS_ALLOWED: Record<string, number> = {
@@ -159,6 +140,4 @@ const PICKER_GROUPS_ALLOWED: Record<string, number> = {
   'lib/taxonomy.tsx': 1,
   'components/common/CategoryList.tsx': 1,
   'components/common/CategoryMultiSelect.tsx': 1,
-  // Debt: the embedded list's own category <select>.
-  'components/transactions/TransactionList.tsx': 1,
 };

@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { formatStoredMonth } from '../lib/utils';
 import { useChatStore } from '../lib/chat-store';
 import { PageActions } from '../components/common/page-actions';
-import { Badge, Button, button, EmptyState, MaskedText, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton } from '../components/uikit';
+import { Badge, Button, button, EmptyState, MaskedText, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
 import { formatCurrency, iconFor, goalAccent, GOAL_PRESETS, fetchFundableAccounts, type Account } from './goal-shared';
 import { type GoalDetails } from './goal-details';
@@ -112,7 +112,7 @@ export function Goals() {
     // brand green beside positive teal at this size read as one green smudge
     // rather than as two meanings. Funded and complete are settled facts.
     <>
-      <PageMetaItem tone="brand" className="ui-tnum">{inProgressCount} active</PageMetaItem>
+      <PageMetaItem className="ui-tnum">{inProgressCount} active</PageMetaItem>
       {fundedCount > 0 && <PageMetaItem className="ui-tnum">{fundedCount} funded</PageMetaItem>}
       {completedGoals.length > 0 && <PageMetaItem className="ui-tnum">{completedGoals.length} complete</PageMetaItem>}
     </>
@@ -486,12 +486,13 @@ function GoalCard({
           <span className="text-content-muted"> of <MaskedText text={formatCurrency(target)} /></span>
         </span>
         {goal.isAutoTracked && (
-          <span
+          <Badge
+            tone="brand"
+            size="sm"
             title={linkedNames ? `Tracked from: ${linkedNames}` : `${goal.accountIds.length} linked account${goal.accountIds.length === 1 ? '' : 's'}`}
-            className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-bold text-[rgb(var(--ui-brand-ink))]"
           >
             Auto ({goal.accountIds.length} acct{goal.accountIds.length === 1 ? '' : 's'})
-          </span>
+          </Badge>
         )}
       </div>
 
@@ -527,18 +528,18 @@ function GoalCard({
       <div className="relative mt-3.5 flex flex-wrap items-center gap-2.5">
         {complete ? (
           <>
-            <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.05em] text-[rgb(var(--ui-brand-ink))]">
+            <Badge tone="brand" className="gap-1">
               <Check className="h-3 w-3" strokeWidth={3} /> Funded 🎉
-            </span>
+            </Badge>
             <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">
               {exceeded ? `${formatCurrency(surplus)} over target` : 'Fully funded'}
             </span>
           </>
         ) : notStarted ? (
           <>
-            <span className="inline-flex items-center gap-1 rounded-full bg-canvas-sunken px-2.5 py-1 text-[12.5px] font-bold text-content-secondary">
+            <Badge className="gap-1">
               <Sparkles className="h-3 w-3" /> Just getting started
-            </span>
+            </Badge>
             {eta && (
               <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-content-muted">
                 <Clock className="h-3.5 w-3.5 text-content-faint" /> {eta}
@@ -567,33 +568,29 @@ function GoalCard({
           chat with the redirect question; set-plan deep-links to the edit form */}
       <div className="relative mt-auto flex flex-wrap items-center gap-2 border-t border-line pt-4">
         {complete ? (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            className="flex-1 sm:flex-none"
+            leadingIcon={<RotateCw className="h-4 w-4" />}
             onClick={(e) => { e.stopPropagation(); onReallocate(goal); }}
-            className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[box-shadow] hover:shadow-ui-sm sm:flex-none"
           >
-            <RotateCw className="h-4 w-4" />
             Reallocate surplus
-          </button>
+          </Button>
         ) : !(goal.monthlyContribution && parseFloat(goal.monthlyContribution) > 0) ? (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            className="flex-1 sm:flex-none"
+            leadingIcon={<Plus className="h-4 w-4" />}
             onClick={(e) => { e.stopPropagation(); onSetPlan(goal.id); }}
-            className="inline-flex min-h-touch flex-1 items-center justify-center gap-1.5 rounded-ui-sm bg-brand-soft px-3.5 text-[13.5px] font-bold text-[rgb(var(--ui-brand-ink))] transition-[box-shadow] hover:shadow-ui-sm sm:flex-none"
           >
-            <Plus className="h-4 w-4" />
             Plan monthly contribution
-          </button>
+          </Button>
         ) : null}
         <span className="hidden flex-1 sm:block" />
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onOpen(goal.id); }}
-          className="group/link inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13.5px] font-bold text-content-secondary transition-colors hover:bg-brand-softer hover:text-[rgb(var(--ui-brand-ink))]"
-        >
-          View goal
-          <ChevronRight className="h-4 w-4 transition-transform group-hover/link:translate-x-0.5" />
-        </button>
+        {/* The card opens the goal too, so the link's click stops here. */}
+        <span onClick={(e) => e.stopPropagation()}>
+          <TextLink href={`/plans/savings/${goal.id}`}>View goal</TextLink>
+        </span>
       </div>
     </article>
   );

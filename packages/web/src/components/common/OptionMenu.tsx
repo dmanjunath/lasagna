@@ -12,7 +12,9 @@ import { Badge, button } from '../uikit';
 // A toolbar filter names its field ("Account"). The chip row below names the
 // value, so the two never say the same thing.
 export const TRIGGER_CLASS =
-  'ui-focus touch-target relative h-10 w-full appearance-none truncate whitespace-nowrap rounded-ui-md border border-line bg-panel pl-3 pr-9 text-left text-[13px] font-medium text-content shadow-ui-sm transition-colors aria-expanded:border-line-strong';
+  // The same box as uikit Input (height, border, text size), so a menu and a
+  // text field side by side in a form line up.
+  'ui-focus relative h-11 min-h-touch w-full appearance-none truncate whitespace-nowrap rounded-ui-md border border-line-strong bg-panel pl-3.5 pr-9 text-left text-sm font-medium text-content shadow-ui-sm transition-[border-color,box-shadow] aria-expanded:border-brand [@media(hover:none)_and_(pointer:coarse)]:text-[16px]';
 export type ToolbarField = { name?: string; count: number; badge?: boolean };
 
 export function triggerClass(toolbar: ToolbarField | undefined): string {
@@ -72,7 +74,8 @@ export function OptionMenu<T extends string>({
   portal,
 }: {
   value: T;
-  options: Array<{ value: T; label: string }>;
+  /** Options sharing a `group` sit under one tinted band (pass them in order). */
+  options: Array<{ value: T; label: string; group?: string }>;
   onChange: (value: T) => void;
   ariaLabel: string;
   /** Overrides the selected option's label on the trigger. */
@@ -93,16 +96,27 @@ export function OptionMenu<T extends string>({
   portal?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // An in-place panel opens upward when the space below can't hold it.
+  const [dropUp, setDropUp] = useState(false);
+  const toggle = () => {
+    if (!open && !portal) {
+      const r = triggerRef.current?.getBoundingClientRect();
+      const need = Math.min(340, options.length * 40 + 16);
+      setDropUp(!!r && window.innerHeight - r.bottom < need && r.top > window.innerHeight - r.bottom);
+    }
+    setOpen((v) => !v);
+  };
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [fixedPos, setFixedPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [fixedPos, setFixedPos] = useState<{ left: number; top?: number; bottom?: number; width: number } | null>(null);
   useEffect(() => {
     if (!open || !portal) return;
     const place = () => {
       const r = triggerRef.current?.getBoundingClientRect();
-      if (r) setFixedPos({ left: r.left, top: r.bottom, width: r.width });
+      // Open upward when the space below can't hold the panel.
+      if (r) setFixedPos({ left: r.left, width: r.width, ...(window.innerHeight - r.bottom < 340 && r.top > window.innerHeight - r.bottom ? { bottom: window.innerHeight - r.top } : { top: r.bottom }) });
     };
     place();
     window.addEventListener('scroll', place, true);
@@ -137,12 +151,15 @@ export function OptionMenu<T extends string>({
   // Opening moves focus to the selected option. Arrows, Home and End walk the
   // list (roving focus), and Tab out of it closes the menu.
   const listRef = useRef<HTMLDivElement>(null);
+  // A portaled panel mounts a render later (once its position is known), so
+  // focus waits for it.
+  const panelMounted = open && (!portal || fixedPos !== null);
   useEffect(() => {
-    if (!open) return;
+    if (!panelMounted) return;
     const opts = listRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
     const sel = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
     (sel ?? opts?.[0])?.focus();
-  }, [open]);
+  }, [panelMounted]);
   const onListKey = (e: React.KeyboardEvent) => {
     const opts = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
     const i = opts.indexOf(document.activeElement as HTMLElement);
@@ -164,13 +181,13 @@ export function OptionMenu<T extends string>({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={open ? listId : undefined}
         aria-label={`${ariaLabel}: ${label}`}
         onKeyDown={(e) => {
-          if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); setOpen(true); }
+          if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); toggle(); }
         }}
         className={cn('group/trigger', triggerClass(toolbar))}
       >
@@ -180,15 +197,22 @@ export function OptionMenu<T extends string>({
         <div
           ref={panelRef}
           data-sheet={portal || undefined}
-          style={portal && fixedPos ? { position: 'fixed', left: fixedPos.left, top: fixedPos.top, minWidth: Math.max(fixedPos.width, 180) } : undefined}
-          className={cn(!portal && 'absolute left-0 top-full min-w-[max(100%,180px)]', PANEL_CLASS, portal && 'z-[95]', panelClassName)}
+          style={portal && fixedPos ? { position: 'fixed', left: fixedPos.left, top: fixedPos.top, bottom: fixedPos.bottom, minWidth: Math.max(fixedPos.width, 180) } : undefined}
+          className={cn(!portal && 'absolute left-0 top-full min-w-[max(100%,180px)]', PANEL_CLASS, !portal && dropUp && 'bottom-full top-auto mb-1.5 mt-0', portal && 'z-[95]', panelClassName)}
         >
           <div ref={listRef} id={listId} role="listbox" aria-label={ariaLabel} onKeyDown={onListKey} className="max-h-[320px] overflow-y-auto">
-            {options.map((opt) => {
+            {options.map((opt, i) => {
               const selected = opt.value === value;
+              const band = opt.group && opt.group !== options[i - 1]?.group;
               return (
+                <React.Fragment key={opt.value}>
+                {band && (
+                  // The same tinted section band as the category and account menus.
+                  <div className="mt-0.5 rounded-ui-sm bg-canvas-sunken px-2 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted first:mt-0">
+                    {opt.group}
+                  </div>
+                )}
                 <button
-                  key={opt.value}
                   type="button"
                   role="option"
                   aria-selected={selected}
@@ -205,6 +229,7 @@ export function OptionMenu<T extends string>({
                   <span className="min-w-0 flex-1 truncate">{opt.label}</span>
                   {selected && <Check size={15} className="shrink-0 text-[rgb(var(--ui-brand-ink))]" aria-hidden />}
                 </button>
+                </React.Fragment>
               );
             })}
           </div>

@@ -28,7 +28,10 @@ const fieldBase =
   'w-full rounded-ui-md bg-panel text-content placeholder:text-content-faint ' +
   'border border-line-strong shadow-ui-sm transition-[border-color,box-shadow] duration-150 ease-ui ' +
   'focus:outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] ' +
-  'disabled:cursor-not-allowed disabled:opacity-60';
+  'disabled:cursor-not-allowed disabled:opacity-60 ' +
+  // No stepper arrows on number fields: a money or rate value is typed, never
+  // nudged by 1.
+  '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   invalid?: boolean;
@@ -102,7 +105,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
  * mask can be opened.
  */
 export const MoneyInput = forwardRef<HTMLInputElement, InputProps>(function MoneyInput(
-  { type = 'number', value, readOnly, leadingIcon, style, onFocus, onBlur, 'aria-describedby': describedBy, ...props },
+  { type = 'number', inputMode = 'decimal', value, readOnly, leadingIcon, style, onFocus, onBlur, 'aria-describedby': describedBy, ...props },
   ref,
 ) {
   const reveal = useRevealOnFocus();
@@ -113,6 +116,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, InputProps>(function Mone
     <Input
       ref={ref}
       type={masked ? 'text' : type}
+      inputMode={inputMode}
       value={masked ? mask : value}
       readOnly={masked || readOnly}
       leadingIcon={leadingIcon}

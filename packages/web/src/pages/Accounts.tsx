@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useState, useRef, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import {
@@ -23,13 +23,14 @@ import { HiddenAmount, MoneyInput } from "../components/uikit";
 import { isNativeApp } from "../lib/native";
 import { useBilling, startUpgrade } from "../lib/billing";
 import { cn, stripAccountMask } from "../lib/utils";
-import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountCategory, type AccountTypeOption } from "../lib/account-types";
-import { Alert, Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Select, Skeleton, useToast } from "../components/uikit";
+import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountTypeOption } from "../lib/account-types";
+import { Alert, Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink, useToast } from "../components/uikit";
 import { useConfirm } from "../components/ds";
 import { PageTitle } from "../components/ds/PageTitle";
 import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
 import { AccountLinkPicker, type AccountPickerOption } from "../components/common/AccountLinkPicker";
 import { AddressAutocomplete } from "../components/common/AddressAutocomplete";
+import { AccountTypeMenu } from "../components/accounts/AccountTypeMenu";
 import { ValueSourceBadge } from "../components/common/ValueSourceBadge";
 import { ValueSourceControl, type ValueSourceChoice } from "../components/common/ValueSourceControl";
 
@@ -169,27 +170,6 @@ const PROPERTY_OPTION: AddOption = {
 // first: MANUAL_OPTION holds no property types, so a property falls through.
 const ADD_OPTIONS: AddOption[] = [MANUAL_OPTION, PROPERTY_OPTION];
 
-// The manual form's type list spans three categories at once, which the removed
-// category step used to scope. Grouping is what keeps a checking account from
-// sitting in one flat run beside a mortgage.
-const CATEGORY_LABELS: Record<AccountCategory, string> = {
-  bank: "Bank & investments",
-  other: "Other assets",
-  debt: "Debt",
-  realEstate: "Property",
-};
-
-/** The option's types in catalog order, split into their categories. */
-function typeGroups(types: AccountTypeOption[]): { category: AccountCategory; types: AccountTypeOption[] }[] {
-  const groups: { category: AccountCategory; types: AccountTypeOption[] }[] = [];
-  for (const t of types) {
-    const last = groups[groups.length - 1];
-    if (last?.category === t.category) last.types.push(t);
-    else groups.push({ category: t.category, types: [t] });
-  }
-  return groups;
-}
-
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -253,17 +233,6 @@ export function Accounts() {
   // the overlay, so a failure there is invisible while the form is still open.
   const [addError, setAddError] = useState("");
   const addErrorRef = useRef<HTMLDivElement>(null);
-  // Async value-estimate spinner state, shown after creating a property with an
-  // address but no manual value (we poll GET /accounts/:id/value-estimate).
-  const [estimating, setEstimating] = useState<
-    | { status: "pending" }
-    | { status: "ready"; value: number }
-    // "failed" = no estimate for this address; "timeout" = still pending at the
-    // client poll cap (the server keeps the job, so a refresh may show it).
-    | { status: "failed" }
-    | { status: "timeout" }
-    | null
-  >(null);
   const [linkedBanner, setLinkedBanner] = useState<{ message: string; actionLabel: string; onAction: () => void } | null>(null);
   // Every way out of the add dialog stays live while a create is in flight, so a
   // create can outlive the form it was started from. Each submit takes the next
@@ -324,6 +293,20 @@ export function Accounts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ?reconnect=<itemId> — the account page's Reconnect lands here and starts
+  // Plaid's update mode for that connection once the items have loaded.
+  const reconnectFired = useRef(false);
+  useEffect(() => {
+    if (reconnectFired.current || loading) return;
+    const itemId = new URLSearchParams(window.location.search).get("reconnect");
+    if (!itemId) return;
+    reconnectFired.current = true;
+    window.history.replaceState({}, "", "/accounts");
+    const item = items.find((i) => i.id === itemId);
+    if (item) handleAddAccounts(item);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, items]);
+
   // Newly linked institutions are force-expanded (drop them from collapsed).
   useEffect(() => {
     if (newlyLinkedId) {
@@ -343,20 +326,6 @@ export function Accounts() {
       else next.add(id);
       return next;
     });
-  };
-
-  // Expand + scroll a specific institution into view (used by the
-  // needs-attention banner). Honest recovery — surfaces the card, no fake API.
-  const focusItem = (id: string) => {
-    setCollapsedIds((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setTimeout(() => {
-      itemRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 60);
   };
 
   const handleLink = async () => {
@@ -441,7 +410,8 @@ export function Accounts() {
               }
             }, 2000);
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to link account");
+            console.error(err);
+            setError("Couldn't link that account. Try again.");
             setLinking(false);
           }
         },
@@ -450,7 +420,8 @@ export function Accounts() {
 
       handler.open();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start linking");
+      console.error(err);
+      setError("Couldn't open the bank connection. Try again in a moment.");
       setLinking(false);
     }
   };
@@ -509,8 +480,8 @@ export function Accounts() {
                 setLinking(false);
               }
             }, 2000);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to add accounts");
+          } catch {
+            setError(`Couldn't update ${item.institutionName ?? "this connection"}. Try again.`);
             setLinking(false);
           }
         },
@@ -518,8 +489,8 @@ export function Accounts() {
       });
 
       handler.open();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start linking");
+    } catch {
+      setError(`Couldn't open the connection to ${item.institutionName ?? "this institution"}. Try again.`);
       setLinking(false);
     }
   };
@@ -556,7 +527,7 @@ export function Accounts() {
       // and the banner renders behind its scrim — blurred and half-clipped, so
       // a failed tap looked like nothing happened at all. Toast is z-[100] over
       // the modal's z-[90], and it is what plan-usage.tsx does for this call.
-      toast({ tone: "negative", title: err instanceof Error ? err.message : "Failed to start upgrade" });
+      toast({ tone: "negative", title: "Couldn't start checkout", description: "Try again in a moment." });
     } finally {
       setUpgrading(false);
     }
@@ -569,7 +540,8 @@ export function Accounts() {
       await api.triggerSync();
       loadItems(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sync accounts");
+      console.error(err);
+      setError("Couldn't sync your accounts. Try again in a moment.");
     } finally {
       setSyncing(false);
     }
@@ -582,7 +554,8 @@ export function Accounts() {
       await api.triggerSync();
       loadItems(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sync");
+      console.error(err);
+      setError("Couldn't sync this account. Try again in a moment.");
     } finally {
       setSyncingItemId(null);
     }
@@ -611,7 +584,6 @@ export function Accounts() {
     setFormOption(null);
     setActiveType(null);
     setTypedUnder(null);
-    setEstimating(null);
     setPendingLinkedId(null);
     setAddCounterpartAfter(false);
     clearFormFields();
@@ -627,6 +599,17 @@ export function Accounts() {
     addRun.current += 1;
     setAddingAccount(false);
   };
+
+  // Back walks one step: form → connect (see the Modal's onBack). Stable across
+  // renders: Modal re-runs its focus effect when onBack changes, and that
+  // effect's cleanup puts focus back on whatever held it, so a fresh function
+  // per keystroke pulled focus out of the field being typed in.
+  const backToConnect = useCallback(() => {
+    leaveAddRun();
+    setFormOption(null);
+    // leaveAddRun reads only a ref and a setter, so the first render's copy is current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Every way out of the dialog: the X, Escape, the overlay, the swipe, Cancel.
   const closeAddModal = () => {
@@ -711,34 +694,6 @@ export function Accounts() {
     { label: "Describe your accounts in plain English", icon: Sparkles, run: startDescribe },
   ];
 
-  // Poll the async value estimate for a freshly-created property (~10s cadence,
-  // ~5min cap). Ends on ready/failed; on ready, refreshes the account list so
-  // the estimated value shows.
-  const pollValueEstimate = async (accountId: string) => {
-    const deadline = Date.now() + 5 * 60 * 1000;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 10_000));
-      let res;
-      try {
-        res = await api.getValueEstimate(accountId);
-      } catch {
-        continue; // transient — keep polling until the cap
-      }
-      if (res.status === "ready") {
-        setEstimating({ status: "ready", value: res.value ?? 0 });
-        loadItems(false);
-        return;
-      }
-      if (res.status === "failed" || res.status === "none") {
-        setEstimating({ status: "failed" });
-        return;
-      }
-    }
-    // Hit the cap while the server job is still pending — it keeps running, so
-    // a refresh may surface the value. Don't claim we'll keep trying here.
-    setEstimating({ status: "timeout" });
-  };
-
   const handleAddManualAccount = async () => {
     if (!activeType || !acctName.trim()) return;
     const isProperty = activeType.type === "real_estate";
@@ -817,8 +772,8 @@ export function Accounts() {
       });
 
       // The dialog this create was started from is gone. The account is made,
-      // so refresh the list and stop: everything below drives a dialog — an
-      // estimating spinner, the counterpart form, a follow-up banner — that is
+      // so refresh the list and stop: everything below drives a dialog — the
+      // counterpart form, a follow-up banner — that is
       // no longer this create's.
       if (!onScreen()) {
         loadItems();
@@ -842,42 +797,33 @@ export function Accounts() {
         setShowManualModal(true);
       };
 
-      // Property with an address but no manual value → the estimate runs async.
-      // Normally we hold the modal on the estimating spinner, but if the user
-      // also asked to chain the counterpart, don't block: the new property's
-      // account row polls its own estimate and shows the "Estimating…" pill
-      // (driven by valueEstimate.status, not the modal `estimating` state), so we
-      // just reload the list and advance to the counterpart form.
-      if (willEstimate) {
-        if (chainCounterpart) {
-          loadItems();
-          openCounterpartForm();
-          return;
-        }
-        setEstimating({ status: "pending" });
-        setPendingLinkedId(null);
-        loadItems();
-        void pollValueEstimate(createdId);
-        return;
-      }
+      const addedName = acctName.trim();
 
       // Chaining the counterpart: skip the banner, reset the form for the new
       // type, and advance the modal to the pre-linked counterpart form.
       if (chainCounterpart) {
         loadItems();
         openCounterpartForm();
+        toast({ tone: "positive", title: `Added ${addedName}` });
         return;
       }
 
+      // A property still being valued doesn't hold the dialog: its account row
+      // polls the estimate and wears an "Estimating…" pill until it lands.
       resetManualForm();
       setPendingLinkedId(null);
       setShowManualModal(false);
       loadItems();
+      toast({
+        tone: "positive",
+        title: `Added ${addedName}`,
+        action: { label: "View account", onClick: () => navigate(`/accounts/${createdId}`) },
+      });
 
       if (justAdded.type === "real_estate") {
         setLinkedBanner({
           message: "Have a mortgage on this property?",
-          actionLabel: "Add Mortgage",
+          actionLabel: "Add the mortgage",
           onAction: () => {
             setLinkedBanner(null);
             setPendingLinkedId(createdId);
@@ -888,7 +834,7 @@ export function Accounts() {
       } else if (justAdded.subtype === "mortgage") {
         setLinkedBanner({
           message: "Want to add the property for this mortgage?",
-          actionLabel: "Add Property",
+          actionLabel: "Add the property",
           onAction: () => {
             setLinkedBanner(null);
             setPendingLinkedId(createdId);
@@ -936,6 +882,9 @@ export function Accounts() {
         name: a.name,
         institution: i.institutionName || "Manual",
         meta: accountTypeLabel(a.type, a.subtype),
+        type: a.type,
+        isManual: i.institutionId === "manual",
+        mask: a.mask,
       })),
   );
   const offersLink =
@@ -1043,67 +992,45 @@ export function Accounts() {
 
       {/* Error banner */}
       {error && (
-        <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-5 flex items-center gap-2.5 rounded-ui-md border border-negative/30 bg-negative-soft px-4 py-3 text-[14px] font-medium text-negative"
-        >
-          <AlertTriangle size={16} className="shrink-0" />
-          <span className="flex-1">{error}</span>
-        </motion.div>
+        <Alert tone="negative" className="mt-5">{error}</Alert>
       )}
 
       {/* Linked-suggestion banner */}
       {linkedBanner && (
-        <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-5 flex items-center gap-2.5 rounded-ui-md border border-line bg-brand-soft px-4 py-3 text-[14px] font-medium text-content"
-        >
-          <span className="flex-1">{linkedBanner.message}</span>
-          <Button variant="ghost" size="sm" onClick={linkedBanner.onAction}>
-            {linkedBanner.actionLabel}
-          </Button>
-          <button
-            type="button"
-            onClick={() => setLinkedBanner(null)}
-            aria-label="Dismiss"
-            className="ui-focus grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm text-content-muted hover:bg-canvas-sunken hover:text-content"
-          >
-            <X size={15} />
-          </button>
-        </motion.div>
+        <Alert
+          tone="info"
+          className="mt-5"
+          title={linkedBanner.message}
+          action={
+            <div className="flex items-center gap-1">
+              <TextLink onClick={linkedBanner.onAction}>{linkedBanner.actionLabel}</TextLink>
+              <button
+                type="button"
+                onClick={() => setLinkedBanner(null)}
+                aria-label="Dismiss"
+                className="ui-focus ml-2 grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm text-content-muted hover:bg-canvas-sunken hover:text-content"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          }
+        />
       )}
 
-      {/* Needs-attention — connections that stopped syncing, surfaced up top. */}
+      {/* Needs-attention — connections that stopped syncing, surfaced up top.
+          Reconnect opens Plaid's update mode on the item, which is what
+          repairs an expired login. */}
       {!loading && attentionItems.length > 0 && (
         <div className="mt-5 space-y-2.5">
           {attentionItems.map((item) => (
-            <div
+            <Alert
               key={item.id}
-              className="flex items-center justify-between gap-3 rounded-ui-md border border-caution/30 bg-caution-soft px-4 py-3"
+              tone="caution"
+              title={`${item.institutionName || "This institution"} needs to reconnect`}
+              action={<TextLink onClick={() => handleAddAccounts(item)} className="text-[13px]">Reconnect</TextLink>}
             >
-              <div className="flex min-w-0 items-center gap-2.5">
-                <AlertTriangle size={16} className="shrink-0 text-caution" />
-                <div className="min-w-0">
-                  <div className="truncate text-[13.5px] font-bold text-caution">
-                    {item.institutionName || "Institution"} needs attention
-                  </div>
-                  <p className="mt-0.5 text-[12.5px] text-content-muted">
-                    {item.status === "item_login_required"
-                      ? "Login expired. Reconnect to resume syncing."
-                      : "Sync error. Try reconnecting."}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => focusItem(item.id)}
-                className="ui-focus shrink-0 rounded-ui-sm px-2.5 py-1 text-[13px] font-bold text-caution hover:underline"
-              >
-                Review →
-              </button>
-            </div>
+              Balances and transactions stop updating until you reconnect.
+            </Alert>
           ))}
         </div>
       )}
@@ -1219,11 +1146,7 @@ export function Accounts() {
         // this dialog has steps, so the header holds the Back slot open even
         // where there's nowhere back to, and the title doesn't slide sideways
         // between steps.
-        onBack={
-          estimating || !formOption
-            ? null
-            : () => { leaveAddRun(); setFormOption(null); }
-        }
+        onBack={formOption ? backToConnect : null}
         // The type answer re-shapes the form beneath it, so the panel grows
         // downward instead of recentring under what's already filled in.
         stableTop
@@ -1231,14 +1154,10 @@ export function Accounts() {
         // form that actually grows under its type answer takes one. Everything
         // else, including a category whose every type renders the same fields,
         // sizes to its content.
-        stableTopOnPhone={!!formOption?.growsWithType && !estimating}
+        stableTopOnPhone={!!formOption?.growsWithType}
         title={formOption?.label ?? "Add an account"}
         footer={
-          formOption && estimating ? (
-            <Button variant="primary" onClick={closeAddModal}>
-              {estimating.status === "pending" ? "Continue in background" : "Done"}
-            </Button>
-          ) : formOption ? (
+          formOption ? (
           <>
             <Button variant="ghost" onClick={closeAddModal}>
               Cancel
@@ -1255,70 +1174,21 @@ export function Accounts() {
           </>
         ) : undefined}
       >
-        {formOption && estimating ? (
-          <div role="status" aria-live="polite" className="flex flex-col items-center gap-3 py-8 text-center">
-            {estimating.status === "pending" ? (
-              <>
-                <RefreshCw size={22} className="animate-spin text-brand" />
-                <div className="text-[14px] font-semibold text-content">Estimating value…</div>
-                <p className="max-w-[19rem] text-[13px] text-content-secondary">
-                  We’re looking up an estimate for this address. This usually takes about a minute, and you can keep using the app while we finish.
-                </p>
-              </>
-            ) : estimating.status === "ready" ? (
-              <>
-                <div className="text-[14px] font-semibold text-content">Estimated value</div>
-                <div className="ui-tnum text-[26px] font-bold text-content">
-                  {formatTotal(estimating.value)}
-                </div>
-                <p className="text-[13px] text-content-secondary">Added to your accounts.</p>
-              </>
-            ) : estimating.status === "timeout" ? (
-              <>
-                <div className="text-[14px] font-semibold text-content">
-                  Taking longer than expected
-                </div>
-                <p className="max-w-[19rem] text-[13px] text-content-secondary">
-                  We’re still working on it. Refresh the account to check for the value.
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="text-[14px] font-semibold text-content">
-                  Couldn’t estimate this address
-                </div>
-                <p className="max-w-[19rem] text-[13px] text-content-secondary">
-                  Enter a value manually from the account’s page instead.
-                </p>
-              </>
-            )}
-          </div>
-        ) : formOption ? (
+        {formOption ? (
           <div className="flex flex-col gap-5">
             {/* The type comes first: it decides what the rest of the form is, so
                 every type-specific field appends below and nothing already
                 filled in ever moves. */}
             {formOption.types.length > 1 && (
               <Field label={formOption.typeLabel ?? "Type"}>
-                <Select
+                <AccountTypeMenu
+                  types={formOption.types}
                   value={activeType ? accountTypeKey(activeType.type, activeType.subtype) : ""}
-                  onChange={(e) => chooseType(e.target.value)}
-                  // Unanswered reads as answered when the placeholder is full
-                  // strength, so mute it until a type is picked.
-                  className={activeType ? undefined : "text-content-muted"}
-                  autoFocus
-                >
-                  <option value="" disabled>Choose a type…</option>
-                  {typeGroups(formOption.types).map((group, _i, all) =>
-                    all.length === 1 ? (
-                      group.types.map((t) => <TypeOption key={accountTypeKey(t.type, t.subtype)} type={t} />)
-                    ) : (
-                      <optgroup key={group.category} label={CATEGORY_LABELS[group.category]}>
-                        {group.types.map((t) => <TypeOption key={accountTypeKey(t.type, t.subtype)} type={t} />)}
-                      </optgroup>
-                    ),
-                  )}
-                </Select>
+                  onChange={chooseType}
+                  ariaLabel={formOption.typeLabel ?? "Type"}
+                  placeholder="Choose a type"
+                  portal
+                />
               </Field>
             )}
 
@@ -1584,10 +1454,6 @@ export function Accounts() {
   );
 }
 
-function TypeOption({ type }: { type: AccountTypeOption }) {
-  return <option value={accountTypeKey(type.type, type.subtype)}>{type.label}</option>;
-}
-
 // ---------------------------------------------------------------------------
 // First-connect empty state — the marquee moment for a brand-new user.
 // ---------------------------------------------------------------------------
@@ -1745,7 +1611,8 @@ function InstitutionArticle({
     if (a.balance === null) return sum;
     const v = parseFloat(a.balance);
     if (Number.isNaN(v)) return sum;
-    if (a.type === "credit" || a.type === "loan") return sum - v;
+    // A debt's balance may be stored with either sign, so subtract what's owed.
+    if (a.type === "credit" || a.type === "loan") return sum - Math.abs(v);
     return sum + v;
   }, 0);
   const totalNeg = total < 0;
