@@ -27,13 +27,14 @@ const source = Object.entries(files)
 const count = (text: string, re: RegExp) => (text.match(re) ?? []).length;
 
 // Every file whose count of `re` is not exactly its allowance.
-function ratchet(re: RegExp, allowed: Record<string, number>, skip: (path: string) => boolean = () => false) {
+// `fix` says what to use instead, so a failure names the shared component.
+function ratchet(re: RegExp, allowed: Record<string, number>, skip: (path: string) => boolean = () => false, fix = '') {
   const problems: string[] = [];
   for (const f of source) {
     if (skip(f.path)) continue;
     const n = count(f.text, re);
     const max = allowed[f.path] ?? 0;
-    if (n > max) problems.push(`${f.path}: ${n} (allowed ${max})`);
+    if (n > max) problems.push(`${f.path}: ${n} (allowed ${max})${fix ? `. ${fix}` : ''}`);
     else if (n < max) problems.push(`${f.path}: ${n}, lower its allowance from ${max} to ${n}`);
   }
   for (const path of Object.keys(allowed)) {
@@ -70,11 +71,11 @@ describe('design lint', () => {
    * native <select>, so it counts too.
    */
   it('does not add native selects', () => {
-    expect(ratchet(/<select[\s>]/g, NATIVE_SELECT_ALLOWED, (p) => p === 'components/uikit/Select.tsx')).toEqual([]);
+    expect(ratchet(/<select[\s>]/g, NATIVE_SELECT_ALLOWED, (p) => p === 'components/uikit/Select.tsx', 'Use OptionMenu, AccountPicker or CategoryPicker')).toEqual([]);
   });
 
   it('does not add uikit <Select> dropdowns', () => {
-    expect(ratchet(/<Select[\s>]/g, UIKIT_SELECT_ALLOWED)).toEqual([]);
+    expect(ratchet(/<Select[\s>]/g, UIKIT_SELECT_ALLOWED, undefined, 'Use OptionMenu, AccountPicker or CategoryPicker')).toEqual([]);
   });
 
   /** A money field is typed, not nudged by 1: number inputs drop the stepper arrows. */
@@ -112,7 +113,31 @@ describe('design lint', () => {
    * footer), so the taxonomy's picker groups are read in a few places only.
    */
   it('builds category lists only through CategoryList', () => {
-    expect(ratchet(/usePickerGroups\(/g, PICKER_GROUPS_ALLOWED)).toEqual([]);
+    expect(ratchet(/usePickerGroups\(/g, PICKER_GROUPS_ALLOWED, undefined, 'Use CategoryPicker or CategoryList')).toEqual([]);
+  });
+
+  /**
+   * The legacy --color-* scale is not dark-aware (.dark remaps only --ui-*), so
+   * text-text, bg-surface and border-border render light colors on a dark
+   * canvas.
+   */
+  it('does not add legacy --color-* tokens', () => {
+    const legacy = /(?<![\w-])(?:text|bg|border(?:-[trblxy])?|ring|ring-offset|fill|stroke|from|via|to|divide|outline|placeholder|decoration|caret|shadow|accent)-(?:bg|surface|border|text|accent|gold|success|warning|danger)(?:-[a-z]+)?(?:\/\d+|\/\[[^\]]+\])?(?![\w-])|var\(--color-/g;
+    expect(ratchet(legacy, LEGACY_COLOR_ALLOWED, undefined, 'Use the --ui-* tokens (content, panel, line, brand, positive, negative, caution)')).toEqual([]);
+  });
+
+  /** A link that goes somewhere is TextLink (brand ink, chevron), not text ending in an arrow. */
+  it('does not hand-roll arrow links', () => {
+    expect(ratchet(/→\s*<\/(?:a|Link|button)>/g, ARROW_LINK_ALLOWED, undefined, 'Use TextLink from components/uikit')).toEqual([]);
+  });
+
+  /**
+   * No eyebrow text: small uppercase tracked kickers above titles are banned
+   * (CLAUDE.md). The uikit primitives own the few sanctioned uses, such as
+   * table headers.
+   */
+  it('does not add uppercase text', () => {
+    expect(ratchet(/\buppercase\b/g, UPPERCASE_ALLOWED, (p) => p.startsWith('components/uikit/'), 'No eyebrow text. Use a normal heading or label, or the uikit Table for column headers')).toEqual([]);
   });
 });
 
@@ -136,4 +161,60 @@ const PICKER_GROUPS_ALLOWED: Record<string, number> = {
   'lib/taxonomy.tsx': 1,
   'components/common/CategoryList.tsx': 1,
   'components/common/CategoryMultiSelect.tsx': 1,
+};
+
+const LEGACY_COLOR_ALLOWED: Record<string, number> = {
+  'components/chat/floating-chat-pill.tsx': 4,
+  'components/chat/starter-prompts.tsx': 14,
+  'components/chat/tool-status.tsx': 1,
+  'components/common/DemoBanner.tsx': 1,
+  'components/ui/button.tsx': 16,
+  'components/ui/editable-title.tsx': 1,
+};
+
+const ARROW_LINK_ALLOWED: Record<string, number> = {
+  'components/common/DemoBanner.tsx': 1,
+  'pages/Login.tsx': 1,
+  'pages/admin-user.tsx': 1,
+};
+
+const UPPERCASE_ALLOWED: Record<string, number> = {
+  // Group band headers in the shared menus.
+  'components/common/AccountLinkPicker.tsx': 1,
+  'components/common/AccountPicker.tsx': 1,
+  'components/common/CategoryList.tsx': 1,
+  'components/common/OptionMenu.tsx': 1,
+  // The styleguide documents the type scale.
+  'pages/_styleguide.tsx': 2,
+  // Today's counts.
+  'components/admin/user-account-card.tsx': 4,
+  'components/ds/institutions.ts': 1,
+  'components/plan-response/cards/comparison-card.tsx': 1,
+  'components/plan-response/charts/portfolio-histogram.tsx': 5,
+  'components/plan-response/charts/quantile-chart.tsx': 5,
+  'components/plan-response/charts/scenario-explorer.tsx': 1,
+  'components/plan-response/charts/timeline-scrubber.tsx': 1,
+  'components/plan-response/charts/wealth-projection.tsx': 2,
+  'components/plan-response/charts/withdrawal-timeline.tsx': 4,
+  'components/plan-response/metrics-bar.tsx': 1,
+  'components/settings/display-font-picker.tsx': 1,
+  'components/transactions/TransactionList.tsx': 1,
+  'components/ui-renderer/blocks/account-summary.tsx': 2,
+  'components/ui-renderer/blocks/stat-block.tsx': 1,
+  'components/ui-renderer/blocks/table-block.tsx': 1,
+  'pages/Settings.tsx': 3,
+  'pages/admin-spend.tsx': 2,
+  'pages/admin-user.tsx': 1,
+  'pages/admin.tsx': 3,
+  'pages/financial-plans/[id].tsx': 19,
+  'pages/goals.tsx': 3,
+  'pages/plans/new.tsx': 1,
+  'pages/portfolio-composition.tsx': 5,
+  'pages/probability-of-success.tsx': 6,
+  'pages/retirement-v2.tsx': 1,
+  'pages/savings-goal.tsx': 3,
+  'pages/simple-home.tsx': 6,
+  'pages/spending.tsx': 3,
+  'pages/tax-strategy.tsx': 1,
+  'pages/transactions.tsx': 1,
 };

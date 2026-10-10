@@ -1,13 +1,13 @@
 import { ComponentType, ReactElement, useState } from 'react';
 import {
-  Check, Search,
+  Check, ChevronDown, Search,
   Target, Shield, Home as HomeIcon, Plane, Car, Heart,
   GraduationCap, Hammer, Sparkles, Palmtree, CreditCard, Wallet, Wrench,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { api } from '../lib/api';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
-import { Input, MaskedText, SegmentedControl } from '../components/uikit';
+import { Input, MaskedText } from '../components/uikit';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 
 // ---------------------------------------------------------------------------
@@ -203,25 +203,38 @@ export function InstitutionIcon({ institutionId, institutionName, size = 28 }: {
   );
 }
 
+/** The account type a goal of this kind is usually funded from. */
+export function preferredAccountType(category: string): 'depository' | 'investment' {
+  return category === 'retirement' || category === 'education' ? 'investment' : 'depository';
+}
+
+// Inset, so the list box's rounded clip can't cut the ring off a row.
+const ROW_FOCUS = 'focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]';
+
+/** Past this many accounts the list gets a search field. */
+const PICKER_SEARCH_MIN = 12;
+
 // Shared account picker — reused by the create form and the per-goal
-// "edit linked accounts" inline editor. Full-width rows (whole name visible,
-// balance right-aligned) with search and a type filter, so the right account
-// is findable even across many similarly-named ones.
-export function AccountPicker({ accounts, selected, onToggle }: AccountPickerProps): ReactElement {
+// "edit linked accounts" inline editor. Linking accounts is the normal way a
+// goal tracks progress, so this is a plain list in the form, not a tool inside
+// a fold: grouped by type with the group this kind of goal usually draws on
+// first, the whole row as the tap target with a check on the right, and the
+// running total of what the picked accounts hold. Search appears only when
+// the list is long enough to need it.
+export function AccountPicker({ accounts, selected, onToggle, preferType, target }: AccountPickerProps & {
+  /** The group listed first. */
+  preferType?: string;
+  /** The goal's target, so the total can be read against it. */
+  target?: number;
+}): ReactElement {
   const [query, setQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
   // Pin the accounts that were linked when the picker OPENED — live-sorting on
   // toggle would make rows jump under the user's finger.
   const [pinnedIds] = useState(() => new Set(selected));
 
-  const types = [...new Set(accounts.map((a) => a.type))];
   const q = query.trim().toLowerCase();
   const visible = accounts
-    .filter(
-      (a) =>
-        (typeFilter === 'all' || a.type === typeFilter) &&
-        (!q || a.name.toLowerCase().includes(q) || (a.mask ?? '').includes(q)),
-    )
+    .filter((a) => !q || a.name.toLowerCase().includes(q) || (a.mask ?? '').includes(q))
     // Already-linked first (so they're visible, not buried), then biggest
     // funding sources — goals are usually backed by the large ones.
     .sort(
@@ -229,89 +242,145 @@ export function AccountPicker({ accounts, selected, onToggle }: AccountPickerPro
         Number(pinnedIds.has(b.id)) - Number(pinnedIds.has(a.id)) ||
         parseFloat(b.balance ?? '0') - parseFloat(a.balance ?? '0'),
     );
+  const types = [...new Set(accounts.map((a) => a.type))].sort(
+    (a, b) => Number(b === preferType) - Number(a === preferType),
+  );
+  const groups = types
+    .map((t) => ({ type: t, rows: visible.filter((a) => a.type === t) }))
+    .filter((g) => g.rows.length > 0);
+  // Groups other than the preferred one start folded, unless they hold a
+  // linked account, so a cash goal is not a list of seven retirement accounts.
+  const [openTypes, setOpenTypes] = useState<Set<string>>(
+    () => new Set(accounts.filter((a) => !preferType || a.type === preferType || selected.includes(a.id)).map((a) => a.type)),
+  );
+  const groupCount = (rows: typeof accounts) => {
+    const picked = rows.filter((a) => selected.includes(a.id)).length;
+    return picked > 0 ? `${picked} of ${rows.length} selected` : `${rows.length} account${rows.length === 1 ? '' : 's'}`;
+  };
+  const total = accounts
+    .filter((a) => selected.includes(a.id))
+    .reduce((sum, a) => sum + parseFloat(a.balance ?? '0'), 0);
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="w-full sm:w-[240px]">
-          <Input
-            type="search"
-            enterKeyHint="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search accounts"
-            aria-label="Search accounts"
-            leadingIcon={<Search className="h-3.5 w-3.5" />}
-          />
-        </div>
-        {types.length > 1 && (
-          <SegmentedControl
-            size="sm"
-            stretch={false}
-            aria-label="Filter by account type"
-            value={typeFilter}
-            onChange={setTypeFilter}
-            options={[
-              { value: 'all', label: 'All' },
-              ...types.map((t) => ({ value: t, label: PICKER_TYPE_LABELS[t] ?? t })),
-            ]}
-          />
-        )}
-        {selected.length > 0 && (
-          <span className="ml-auto text-[12.5px] font-semibold text-content-muted ui-tnum">
-            {selected.length} selected
-          </span>
-        )}
-      </div>
+      {accounts.length > PICKER_SEARCH_MIN && (
+        <Input
+          type="search"
+          enterKeyHint="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search accounts"
+          aria-label="Search accounts"
+          leadingIcon={<Search className="h-3.5 w-3.5" />}
+          className="mb-3"
+        />
+      )}
 
-      <div className="mt-3 max-h-[340px] overflow-y-auto rounded-ui-lg border border-line">
-        {visible.map((acct) => {
-          const active = selected.includes(acct.id);
-          return (
-            <button
-              key={acct.id}
-              type="button"
-              onClick={() => onToggle(acct.id)}
-              aria-pressed={active}
-              className={cn(
-                'ui-focus flex w-full items-center gap-3 border-t border-line px-3.5 py-2.5 text-left transition-colors first:border-t-0',
-                active ? 'bg-brand-softer' : 'hover:bg-canvas-sunken/60',
-              )}
-            >
-              <span
-                aria-hidden
+      <div className="overflow-hidden rounded-ui-lg border border-line bg-panel">
+        {groups.map((g, gi) => (
+          <div key={g.type} role="group" aria-label={PICKER_TYPE_LABELS[g.type] ?? g.type}>
+            {/* Only worth a heading when there is more than one group. A
+                folded group's heading is the row that opens it. A search
+                shows every match, folded or not. */}
+            {groups.length > 1 && (q ? (
+              <div className={cn('px-3.5 pt-3 pb-1.5 text-[12.5px] font-semibold text-content-muted', gi > 0 && 'border-t border-line')}>
+                {PICKER_TYPE_LABELS[g.type] ?? g.type}
+              </div>
+            ) : (
+              <button
+                type="button"
+                aria-expanded={openTypes.has(g.type)}
+                aria-controls={`acct-group-${g.type}`}
+                aria-label={`${PICKER_TYPE_LABELS[g.type] ?? g.type}, ${groupCount(g.rows)}`}
+                onClick={() => setOpenTypes((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(g.type)) next.delete(g.type); else next.add(g.type);
+                  return next;
+                })}
                 className={cn(
-                  'grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border transition-colors',
-                  active ? 'border-brand bg-brand text-white' : 'border-line-strong bg-panel',
+                  ROW_FOCUS,
+                  'flex w-full items-center gap-2 px-3.5 py-2.5 min-h-touch text-left text-[13.5px] font-semibold text-content-secondary transition-colors active:bg-canvas-sunken [@media(hover:hover)]:hover:bg-canvas-sunken/60',
+                  gi > 0 && 'border-t border-line',
                 )}
               >
-                {active && <Check size={12} strokeWidth={3.5} />}
-              </span>
-              <InstitutionIcon institutionId={acct.institutionId} institutionName={acct.institutionName} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13.5px] font-bold leading-tight" title={acct.name}>
-                  {acct.name}
+                <span className="flex-1">
+                  {PICKER_TYPE_LABELS[g.type] ?? g.type}
+                  {/* Says what a folded group holds that is picked, so nothing ticked is out of sight. */}
+                  <span className="ml-1.5 font-medium text-content-muted ui-tnum">{groupCount(g.rows)}</span>
                 </span>
-                <span className="mt-0.5 block text-[12px] text-content-muted">
-                  {PICKER_TYPE_LABELS[acct.type] ?? acct.type}
-                  {acct.mask && (
-                    <>
-                      {' '}<span className="ui-tnum">••{acct.mask}</span>
-                    </>
+                <ChevronDown
+                  size={16}
+                  className={cn('shrink-0 text-content-muted transition-transform duration-200', openTypes.has(g.type) && 'rotate-180')}
+                />
+              </button>
+            ))}
+            <div id={`acct-group-${g.type}`}>
+            {(groups.length === 1 || openTypes.has(g.type) || q) && g.rows.map((acct, ri) => {
+              const active = selected.includes(acct.id);
+              return (
+                <button
+                  key={acct.id}
+                  type="button"
+                  onClick={() => onToggle(acct.id)}
+                  aria-pressed={active}
+                  className={cn(
+                    ROW_FOCUS,
+                    'flex w-full items-center gap-3 px-3.5 py-2.5 min-h-touch text-left transition-colors active:bg-canvas-sunken',
+                    (ri > 0 || groups.length > 1) && 'border-t border-line',
+                    active ? 'bg-brand-softer' : '[@media(hover:hover)]:hover:bg-canvas-sunken/60',
                   )}
-                </span>
-              </span>
-              <span className="shrink-0 font-editorial text-[14px] font-extrabold tracking-[-0.015em] ui-tnum">
-                <MaskedText text={formatCurrency(parseFloat(acct.balance ?? '0'))} />
-              </span>
-            </button>
-          );
-        })}
-        {visible.length === 0 && (
+                >
+                  <InstitutionIcon institutionId={acct.institutionId} institutionName={acct.institutionName} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-semibold leading-tight text-content" title={acct.name}>
+                      {acct.name}
+                    </span>
+                    {acct.mask && (
+                      <span className="mt-0.5 block text-[12px] text-content-muted ui-tnum">••{acct.mask}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-[14px] font-semibold text-content-secondary ui-tnum">
+                    <MaskedText text={formatCurrency(parseFloat(acct.balance ?? '0'))} />
+                  </span>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-[1.5px] transition-colors',
+                      active ? 'border-brand bg-brand text-[rgb(var(--ui-brand-fg))]' : 'border-line-strong bg-panel',
+                    )}
+                  >
+                    {active && <Check size={13} strokeWidth={3.25} />}
+                  </span>
+                </button>
+              );
+            })}
+            </div>
+          </div>
+        ))}
+        {groups.length === 0 && (
           <p className="px-3.5 py-5 text-center text-[12.5px] text-content-muted">
             No accounts match your search.
           </p>
         )}
+      </div>
+
+      {/* What the picked accounts hold, read against the target: linking a
+          large account to a small goal starts it as reached, and that should
+          be visible before it is created. */}
+      {/* The live region stays mounted so the first pick is announced too. */}
+      <div aria-live="polite">
+      {selected.length > 0 && (
+        <p className="mt-2.5 text-[13px] text-content-secondary ui-tnum">
+          {selected.length === 1 ? 'This account holds' : `These ${selected.length} accounts hold`}{' '}
+          <span className="font-semibold text-content"><MaskedText text={formatCurrency(total)} /></span>
+          {target && target > 0 ? (
+            <>
+              {' '}of the <MaskedText text={formatCurrency(target)} /> target.
+              {total >= target && ' The goal will start as reached.'}
+            </>
+          ) : '.'}
+        </p>
+      )}
       </div>
     </div>
   );

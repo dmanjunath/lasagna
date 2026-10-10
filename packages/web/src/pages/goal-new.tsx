@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Redirect, useLocation, useSearch } from 'wouter';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { Button, Field, Input, Label, MoneyInput } from '../components/uikit';
@@ -9,7 +9,7 @@ import { HeaderTextAction } from '../components/layout/app-header';
 import { canGoBackInApp } from '../lib/in-app-history';
 import { useIsMobile } from '../lib/hooks/use-mobile';
 import { useMobileHeader } from '../lib/mobile-header';
-import { iconFor, toggleId, AccountPicker, goalAccent, GOAL_PRESETS, fetchFundableAccounts, type Account } from './goal-shared';
+import { iconFor, toggleId, AccountPicker, goalAccent, GOAL_PRESETS, fetchFundableAccounts, preferredAccountType, type Account } from './goal-shared';
 import {
   isTypedGoalCategory, emptyDraft, resolveDraft, useGoalFormContext,
   GoalDetailFields, GoalTargetReadout, NoSpendData, CalculateFromDetails, READOUT_ID, TODAY,
@@ -36,7 +36,6 @@ export function NewGoal() {
   // True once step 2 was reached from step 1 in this visit, so going back is a
   // history pop. A deep link to step 2 has no step 1 entry behind it.
   const pushedDetails = useRef(false);
-  const [accountsOpen, setAccountsOpen] = useState(false);
 
   // A Suggested tile on /goals sends ?kind=<category> to preselect a kind.
   // Read it once, before first render, so the page never paints "General
@@ -379,40 +378,21 @@ export function NewGoal() {
           </div>
         )}
 
-        {/* Accounts, folded away: linking one makes the goal auto-track its
-            balance, but most goals start without it. */}
+        {/* The accounts that fund the goal. Linking them is how a goal normally
+            tracks progress, so they are part of the form, in view, rather than
+            an option folded away. */}
         {accounts.length > 0 && (
-          <div className={cn('rounded-ui-lg border border-line', !isMobile && 'mb-5')}>
-            <button
-              type="button"
-              aria-expanded={accountsOpen}
-              aria-controls="new-goal-accounts"
-              onClick={() => setAccountsOpen((o) => !o)}
-              className="ui-focus flex w-full items-center gap-3 rounded-ui-lg px-3.5 py-3 text-left min-h-touch active:bg-canvas-sunken [@media(hover:hover)]:hover:bg-canvas-sunken/60 transition-colors"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-semibold text-content">Track with linked accounts</span>
-                <span className="mt-0.5 block text-[12px] text-content-muted">Progress follows their balances.</span>
-              </span>
-              {!accountsOpen && newAccountIds.length > 0 && (
-                <span className="shrink-0 text-[12.5px] font-semibold text-content-muted ui-tnum">
-                  {newAccountIds.length} selected
-                </span>
-              )}
-              <ChevronDown
-                size={18}
-                className={cn('shrink-0 text-content-muted transition-transform duration-200 ease-ui', !accountsOpen && '-rotate-90')}
-              />
-            </button>
-            {accountsOpen && (
-              <div id="new-goal-accounts" className="border-t border-line p-3.5">
-                <AccountPicker
-                  accounts={accounts}
-                  selected={newAccountIds}
-                  onToggle={(id) => setNewAccountIds(prev => toggleId(prev, id))}
-                />
-              </div>
-            )}
+          <div className={cn(!isMobile && 'mb-5')} role="group" aria-labelledby="new-goal-accounts-label">
+            <div id="new-goal-accounts-label" className="text-[13px] font-medium text-content-secondary">Accounts for this goal</div>
+            <p className="mt-0.5 mb-2.5 text-[12.5px] text-content-muted">Progress follows their balances.</p>
+            <AccountPicker
+              accounts={accounts}
+              selected={newAccountIds}
+              onToggle={(id) => setNewAccountIds(prev => toggleId(prev, id))}
+              preferType={preferredAccountType(newCategory)}
+              // The same target Create saves, including one worked out from the details.
+              target={resolved?.target ?? (parseFloat(newTarget) || undefined)}
+            />
           </div>
         )}
 

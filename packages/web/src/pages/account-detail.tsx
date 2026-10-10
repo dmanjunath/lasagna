@@ -10,6 +10,7 @@ import { Alert, Button, EmptyState, Field, Input, PageMeta, PageMetaItem, Segmen
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
 import { InstIcon } from '../components/common/InstIcon';
+import { PageTitle } from '../components/ds/PageTitle';
 import { AddressAutocomplete } from '../components/common/AddressAutocomplete';
 import { ValueSourceBadge, type ValueSource } from '../components/common/ValueSourceBadge';
 import { ValueSourceControl } from '../components/common/ValueSourceControl';
@@ -147,13 +148,6 @@ export function AccountDetail() {
   // Editable value for manual accounts (e.g. re-valuing a home). Synced
   // accounts get their balance from the provider, so it's not editable there.
   const [editValue, setEditValue] = useState('');
-  const settingsRef = useRef<HTMLButtonElement>(null);
-  const openSettings = () => {
-    setSettingsOpen(true);
-    requestAnimationFrame(() =>
-      settingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-    );
-  };
 
   // Sync / delete actions. Their outcomes, and Save's, confirm in a toast,
   // which stays in view however far down the settings panel is scrolled.
@@ -304,20 +298,22 @@ export function AccountDetail() {
     }
   };
 
-  // On a phone, Sync lives in the top bar. Editing stays with the settings
-  // row on the page, which already carries its own pencil. Frozen accounts
-  // 403 on /sync.
-  useMobileHeader(data && !data.isManual && !data.acct.frozen ? {
-    actions: (
+  // On a phone the account's name is the top bar's title, as a native detail
+  // screen names its subject (the page title is desktop-only), and Sync is its
+  // one action. Editing stays with the settings row on the page. Frozen
+  // accounts 403 on /sync.
+  useMobileHeader(data ? {
+    title: titleCase(stripAccountMask(data.acct.name, data.acct.mask)),
+    actions: !data.isManual && !data.acct.frozen ? (
       <HeaderAction label={actionPending ? 'Syncing' : 'Sync account'} onClick={handleSync} disabled={actionPending}>
         <RefreshCw size={20} className={actionPending ? 'animate-spin' : ''} />
       </HeaderAction>
-    ),
+    ) : undefined,
   } : null);
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
         <Skeleton className="h-8 w-16 rounded-ui-md" />
         <div className="mt-5 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
           <Skeleton className="h-3 w-24" />
@@ -333,10 +329,8 @@ export function AccountDetail() {
 
   if (notFound || !data) {
     return (
-      <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
-        <h1 className="font-editorial text-[28px] sm:text-[34px] font-bold leading-[1.02] tracking-[-0.028em]">
-          Account not found
-        </h1>
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
+        <PageTitle>Account not found</PageTitle>
         <div className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
           <p className="mb-4 text-[14px] text-content-muted">
             We couldn't find this account. It may have been deleted.
@@ -457,14 +451,14 @@ export function AccountDetail() {
     return formatStoredMonth(d.toISOString());
   })();
   const payoffVal = metaDate(meta.maturityDate) ?? metaDate(meta.expectedPayoffDate) ?? derivedPayoff;
-  const facts: Array<{ label: string; value: string }> = [
-    { label: 'Type', value: typeLabel },
-    {
-      // Past tense while frozen: the last sync is history, not a running state.
-      label: isManual ? 'Source' : acct.frozen ? 'Last synced' : 'Synced',
-      value: isManual ? 'Manual entry' : lastSyncedAt ? relativeTime(lastSyncedAt) : 'Connected',
-    },
-  ];
+  // A manual account says so in the meta line and on the value badge, so it
+  // gets no third "Source: Manual entry" here.
+  const facts: Array<{ label: string; value: string }> = [{ label: 'Type', value: typeLabel }];
+  if (!isManual) facts.push({
+    // Past tense while frozen: the last sync is history, not a running state.
+    label: acct.frozen ? 'Last synced' : 'Synced',
+    value: lastSyncedAt ? relativeTime(lastSyncedAt) : 'Connected',
+  });
   if (isLiabilityAcct && aprVal != null) facts.push({ label: 'APR', value: `${aprVal}%` });
   if (isLiabilityAcct && minPmtVal != null) facts.push({ label: 'Min payment', value: fmtUsd(minPmtVal) });
   if (isLiabilityAcct && payoffVal) facts.push({ label: loanType === 'credit_card' ? 'Due' : 'Payoff', value: payoffVal });
@@ -684,7 +678,7 @@ export function AccountDetail() {
   const syncedPrefix = acct.frozen ? 'Last synced' : 'Synced';
 
   return (
-    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 sm:pt-10 pb-6 sm:pb-28 text-content">
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ── Back — desktop only; mobile gets the top-bar back button ── */}
       <button
         type="button"
@@ -695,45 +689,37 @@ export function AccountDetail() {
       </button>
 
       {/* ── Identity header — avatar · name · institution/mask/type · actions ── */}
-      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+      {/* Same header as every other page: the page title and its meta line, with
+          the page's one action on the right. Edit and Delete are not repeated
+          here: both live in the Settings section below, which is the editor. */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3.5">
-          <InstIcon institution={institution} isManual={isManual} />
+          {!isManual && <InstIcon institution={institution} isManual={isManual} />}
           <div className="min-w-0">
-            <h1 className="font-editorial text-[26px] sm:text-[32px] font-bold leading-[1.1] tracking-[-0.028em]">
-              {displayName}
-            </h1>
+            <PageTitle>{displayName}</PageTitle>
             {/* Type lives in the key-facts strip below — keep it out of here to
                 avoid repeating it three times (title + pill + Type row), and
                 "Frozen" lives in the banner below, which also says why. */}
-            <PageMeta>
+            <PageMeta className="mt-0 md:mt-1.5">
               <PageMetaItem>{institution}</PageMetaItem>
               {acct.mask && <PageMetaItem className="ui-tnum">••{acct.mask}</PageMetaItem>}
             </PageMeta>
           </div>
         </div>
-        <div className="hidden items-center gap-2.5 md:flex">
-          <Button variant="secondary" size="sm" onClick={openSettings} leadingIcon={<Pencil size={14} />}>
-            Edit
-          </Button>
-          {/* Frozen accounts 403 on /sync, so the button would only ever produce
-              an error under a banner that already explains why. */}
-          {!isManual && !acct.frozen && (
+        {/* Frozen accounts 403 on /sync, so the button would only ever produce
+            an error under a banner that already explains why. */}
+        {!isManual && !acct.frozen && (
+          <div className="hidden md:flex">
             <Button
               variant="secondary"
-              size="sm"
               disabled={actionPending}
               onClick={handleSync}
               leadingIcon={<RefreshCw size={14} className={actionPending ? 'animate-spin' : ''} />}
             >
               {actionPending ? 'Syncing…' : 'Sync'}
             </Button>
-          )}
-          {isManual && (
-            <Button variant="destructive" size="sm" disabled={actionPending} onClick={handleDelete} leadingIcon={<Trash2 size={14} />}>
-              {actionPending ? '…' : 'Delete'}
-            </Button>
-          )}
-        </div>
+          </div>
+        )}
       </header>
 
       {acct.frozen && (
@@ -762,7 +748,7 @@ export function AccountDetail() {
       )}
 
       {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
@@ -772,62 +758,65 @@ export function AccountDetail() {
               'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
           }}
         />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{balanceLabel}</div>
+        {/* Laid out like the net worth card on Money: the heading, its badge and
+            the range picker share one wrapping line, and the figure sits under
+            it with the change beside it. */}
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <h2 className="truncate font-editorial text-[19px] font-bold tracking-[-0.018em]">{balanceLabel}</h2>
               {/* A green "Synced" badge on a frozen account contradicts the banner
                   above it — same rule as the account rows on /accounts. */}
               {valueSource && !acct.frozen && (
                 <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />
               )}
             </div>
+            {hasHistory && chartPoints.length >= 2 && (
+              <SegmentedControl
+                aria-label="Time range"
+                value={range}
+                onChange={(r) => setRange(r as Range)}
+                options={[
+                  { value: '1M', label: '1M' },
+                  { value: '6M', label: '6M' },
+                  { value: '1Y', label: '1Y' },
+                  { value: 'All', label: 'All' },
+                ]}
+              />
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
             {/* "Balance owed" already says it's debt, so the amount is unsigned
                 and reads in the negative ink rather than as a double negative. */}
-            <div className={cn('mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-[0.98] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
+            <span className={cn('font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
               <MaskedText text={fmtUsd(isLiabilityAcct ? Math.abs(heroValue) : heroValue)} />
-            </div>
-            <div className="mt-3 flex min-h-7 items-center gap-2.5 flex-wrap">
-              {hoveredPoint ? (
-                <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                  {/* A local day key, converted from the snapshot instant where the points are built. */}
-                  {formatStoredDay(hoveredPoint.date, { year: 'numeric' })}
+            </span>
+            {hoveredPoint ? (
+              <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
+                {/* A local day key, converted from the snapshot instant where the points are built. */}
+                {formatStoredDay(hoveredPoint.date, { year: 'numeric' })}
+              </span>
+            ) : hasHistory && heroChange !== 0 ? (
+              <>
+                <DeltaChip delta={heroChange} goodWhenDown={isLiabilityAcct} />
+                <span className="text-[13px] font-medium text-content-muted">over this period</span>
+              </>
+            ) : !isManual && lastSyncedAt && exactSyncTime(lastSyncedAt) ? (
+              <Tooltip content={exactSyncTime(lastSyncedAt)!}>
+                <span
+                  tabIndex={0}
+                  aria-label={`Last synced ${exactSyncTime(lastSyncedAt)}`}
+                  className="ui-focus rounded-ui-xs text-[13px] font-medium text-content-muted"
+                >
+                  {`${syncedPrefix} ${relativeTime(lastSyncedAt)}`}
                 </span>
-              ) : hasHistory && heroChange !== 0 ? (
-                <>
-                  <DeltaChip delta={heroChange} goodWhenDown={isLiabilityAcct} />
-                  <span className="text-[13px] font-medium text-content-muted">over this period</span>
-                </>
-              ) : !isManual && lastSyncedAt && exactSyncTime(lastSyncedAt) ? (
-                <Tooltip content={exactSyncTime(lastSyncedAt)!}>
-                  <span
-                    tabIndex={0}
-                    aria-label={`Last synced ${exactSyncTime(lastSyncedAt)}`}
-                    className="ui-focus rounded-ui-xs text-[13px] font-medium text-content-muted"
-                  >
-                    {`${syncedPrefix} ${relativeTime(lastSyncedAt)}`}
-                  </span>
-                </Tooltip>
-              ) : (
-                <span className="text-[13px] font-medium text-content-muted">
-                  {isManual ? 'Manually tracked' : lastSyncedAt ? `${syncedPrefix} ${relativeTime(lastSyncedAt)}` : 'Connected'}
-                </span>
-              )}
-            </div>
+              </Tooltip>
+            ) : (
+              <span className="text-[13px] font-medium text-content-muted">
+                {isManual ? 'Manually tracked' : lastSyncedAt ? `${syncedPrefix} ${relativeTime(lastSyncedAt)}` : 'Connected'}
+              </span>
+            )}
           </div>
-          {hasHistory && chartPoints.length >= 2 && (
-            <SegmentedControl
-              aria-label="Time range"
-              value={range}
-              onChange={(r) => setRange(r as Range)}
-              options={[
-                { value: '1M', label: '1M' },
-                { value: '6M', label: '6M' },
-                { value: '1Y', label: '1Y' },
-                { value: 'All', label: 'All' },
-              ]}
-            />
-          )}
         </div>
 
         {hasHistory ? (
@@ -853,7 +842,7 @@ export function AccountDetail() {
         <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
           {facts.map((f) => (
             <div key={f.label} className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-faint">{f.label}</div>
+              <div className="text-[12.5px] font-medium text-content-muted">{f.label}</div>
               <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
             </div>
           ))}
@@ -869,7 +858,6 @@ export function AccountDetail() {
       {/* ── Settings — collapsible, organized into on-skin sub-sections. ── */}
       <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
         <button
-          ref={settingsRef}
           type="button"
           aria-expanded={settingsOpen}
           onClick={() => setSettingsOpen((o) => !o)}
@@ -1128,13 +1116,13 @@ export function AccountDetail() {
               <Button variant="primary" disabled={saving} loading={saving} onClick={save}>
                 {saving ? 'Saving…' : 'Save changes'}
               </Button>
-              {/* Delete also surfaced here for mobile (header actions are desktop-only, and the top bar leaves it out). */}
+              {/* The account's one Delete, with the rest of its editing. */}
               {isManual && (
                 <Button
                   variant="destructive"
                   disabled={actionPending}
                   onClick={handleDelete}
-                  className="ml-auto md:hidden"
+                  className="ml-auto"
                   leadingIcon={<Trash2 size={14} />}
                 >
                   Delete

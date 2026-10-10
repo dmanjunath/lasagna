@@ -7,7 +7,7 @@ import { Badge, Button, EmptyState, MaskedText, MoneyInput, PageMeta, PageMetaIt
 import { HeaderAction } from '../components/layout/app-header';
 import { useMobileHeader } from '../lib/mobile-header';
 import { useConfirm, TrendChart, filterByRange, type Range, type TrendPoint } from '../components/ds';
-import { formatCurrency, goalAccent, iconFor, toggleId, AccountPicker, InstitutionIcon } from './goal-shared';
+import { formatCurrency, goalAccent, iconFor, toggleId, AccountPicker, InstitutionIcon, preferredAccountType } from './goal-shared';
 import {
   isTypedGoalCategory, resolveGoalTarget, emptyDraft, draftFromDetails, resolveDraft, useGoalFormContext,
   GoalDetailFields, GoalTargetReadout, NoSpendData, CalculateFromDetails, READOUT_ID, TODAY,
@@ -846,6 +846,8 @@ export function SavingsGoal() {
                 accounts={fundableAccounts}
                 selected={draftAccountIds}
                 onToggle={(id) => setDraftAccountIds((prev) => toggleId(prev, id))}
+                preferType={preferredAccountType(goal.category ?? 'savings')}
+                target={target}
               />
             ) : (
               <p className="text-[12.5px] text-content-muted">No fundable accounts available.</p>
