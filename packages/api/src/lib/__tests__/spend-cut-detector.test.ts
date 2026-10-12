@@ -5,6 +5,7 @@ import {
   detectFees,
   detectPriceIncreases,
   detectSpendCuts,
+  keepLargestAboveTrend,
   normalizeMerchant,
   REMEDY_TEMPLATES,
   recurringMerchants,
@@ -32,6 +33,7 @@ function txn(
     categoryName: over.categoryName ?? null,
     categorySystemKey: over.categorySystemKey ?? null,
     plaidCategoryDetailed: over.plaidCategoryDetailed ?? null,
+    categorySource: over.categorySource ?? null,
     date: new Date(over.date),
   };
 }
@@ -125,7 +127,7 @@ describe("detectFees", () => {
   });
 
   it("states a single large fee as money back once, not as a monthly saving", () => {
-    const found = detectFees([txn({ name: "ATM FEE", amount: 30, date: "2026-01-12" })], WINDOW);
+    const found = detectFees([txn({ name: "ATM FEE", amount: 30, date: "2026-05-12" })], WINDOW);
     expect(found).toHaveLength(1);
     expect(found[0].kind).toBe("one_time_fee");
     expect(found[0].findingKey).toBe("fee_once:atm");
@@ -133,7 +135,7 @@ describe("detectFees", () => {
     expect(found[0].monthlySaving).toBe(30);
     // And the date reads the way every other date in the app reads, so the
     // receipt can be matched against the transactions it links to.
-    expect(found[0].evidence).toBe("One ATM fee of $30.00 on Jan 12, 2026.");
+    expect(found[0].evidence).toBe("One ATM fee of $30.00 on May 12, 2026.");
   });
 
   it("amortises a single large fee nowhere, however long the window", () => {
@@ -161,6 +163,44 @@ describe("detectFees", () => {
       WINDOW,
     );
     expect(found.map((f) => f.findingKey)).toEqual(["fee:bank"]);
+  });
+
+  it("drops a one-off fee older than 90 days, which a bank will no longer refund", () => {
+    // WINDOW ends Jul 1. Mar 15 is 108 days earlier, Apr 15 is 77.
+    expect(detectFees([txn({ name: "ATM FEE", amount: 30, date: "2026-03-15" })], WINDOW)).toEqual([]);
+    expect(detectFees([txn({ name: "ATM FEE", amount: 30, date: "2026-04-15" })], WINDOW)).toHaveLength(1);
+  });
+
+  it("keeps a repeated fee across the whole window, old or not", () => {
+    const found = detectFees(
+      [
+        txn({ name: "ATM FEE", amount: 3.5, date: "2025-08-02" }),
+        txn({ name: "ATM FEE", amount: 3.5, date: "2025-09-02" }),
+      ],
+      WINDOW,
+    );
+    expect(found.map((f) => f.findingKey)).toEqual(["fee:atm"]);
+  });
+
+  it("respects a category the person or a rule chose over Plaid's fee label", () => {
+    // The real case: a brokerage transfer Plaid filed as BANK_FEES, moved by
+    // hand to an investment category.
+    const transfer = {
+      name: "ACME BRKG XFER",
+      merchantName: "Acme Brokerage",
+      amount: 1850,
+      date: "2026-05-16",
+      plaidCategoryDetailed: "BANK_FEES_OTHER_BANK_FEES",
+      categorySystemKey: "savings_investment",
+    };
+    expect(detectFees([txn({ ...transfer, categorySource: "manual" })], WINDOW)).toEqual([]);
+    expect(detectFees([txn({ ...transfer, categorySource: "rule" })], WINDOW)).toEqual([]);
+    // Left to Plaid, the same charge still reads as a fee.
+    expect(detectFees([txn({ ...transfer, categorySource: "auto" })], WINDOW)).toHaveLength(1);
+    // A person who filed it as a bank fee themselves is believed too.
+    expect(
+      detectFees([txn({ ...transfer, categorySystemKey: "bank_fees", categorySource: "manual" })], WINDOW),
+    ).toHaveLength(1);
   });
 });
 
@@ -341,6 +381,25 @@ describe("detectDuplicateServices", () => {
       ]),
     );
     expect(found.title).toBe("Cancel Dropbox and keep Backblaze");
+  });
+});
+
+describe("keepLargestAboveTrend", () => {
+  const finding = (findingKey: string, kind: SpendCutFinding["kind"], monthlySaving: number) =>
+    ({ findingKey, kind, monthlySaving }) as SpendCutFinding;
+
+  it("keeps only the largest above-usual category and every other kind", () => {
+    const fee = finding("fee:atm", "fee", 7);
+    const dining = finding("above:dining", "category_above_trend", 120);
+    const shopping = finding("above:shopping", "category_above_trend", 340);
+    const travel = finding("above:travel", "category_above_trend", 90);
+    expect(keepLargestAboveTrend([fee, dining, shopping, travel])).toEqual([fee, shopping]);
+  });
+
+  it("leaves a list with one or none alone", () => {
+    const dining = finding("above:dining", "category_above_trend", 120);
+    expect(keepLargestAboveTrend([dining])).toEqual([dining]);
+    expect(keepLargestAboveTrend([])).toEqual([]);
   });
 });
 
@@ -785,7 +844,7 @@ describe("the remedy catalog", () => {
           txn({ name: "SERVICE CHARGE", amount: 18, date: "2026-02-24" }),
           txn({ name: "OVER LIMIT FEE", amount: 25, date: "2026-01-25" }),
           txn({ name: "OVER LIMIT FEE", amount: 25, date: "2026-02-25" }),
-          txn({ name: "Acme Bank charge", amount: 40, categorySystemKey: "bank_fees", date: "2026-03-01" }),
+          txn({ name: "Acme Bank charge", amount: 40, categorySystemKey: "bank_fees", date: "2026-05-01" }),
         ],
         WINDOW,
       ),

@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { useInsights } from '../../hooks/useInsights';
 import { useActionLifecycle } from '../../hooks/useActionLifecycle';
 import { actionArea, areaKey } from '../../lib/action-destination';
-import { rankActions, savingsSentence, toActionRow } from '../../lib/action-rows';
+import { rankActions, savingsSentence, toActionRow, SPEND_CUTS_PRODUCER } from '../../lib/action-rows';
 import { MaskedText, TextLink } from '../uikit';
 import { ActionItem } from './action-item';
 import { UndoToast } from './undo-toast';
@@ -78,6 +78,9 @@ function EmbeddedActions({ types, viewAllHref }: PageActionsProps) {
         {insights.map((insight) => (
           <ActionItem
             key={insight.id}
+            foundAt={insight.createdAt}
+            updatedAt={insight.updatedAt}
+            spendCut={insight.producer === SPEND_CUTS_PRODUCER}
             title={insight.title}
             tag={(insight.type ?? insight.category ?? 'general').toUpperCase()}
             description={insight.description}
@@ -138,6 +141,9 @@ function FullActions({ types }: PageActionsProps) {
   // stays, because it is the row's one colour.
   const oneArea =
     new Set(shown.map((r) => areaKey(actionArea(r.type, r.category)))).size <= 1;
+  // The same for the tag: where every row is a spend cut, it tells nobody
+  // anything.
+  const allCuts = shown.every((r) => r.isSpendCut);
 
   // Nothing at all before the first row exists: the page owns its own loading,
   // its own failure and its own connect-an-account state, and each of those is
@@ -175,6 +181,9 @@ function FullActions({ types }: PageActionsProps) {
                 key={row.id}
                 full
                 rowId={row.id}
+                foundAt={row.createdAt}
+                updatedAt={row.updatedAt}
+                spendCut={row.isSpendCut && !allCuts}
                 title={row.title}
                 tag={(row.type ?? row.category ?? 'general').toUpperCase()}
                 area={oneArea ? { tone: area.tone } : { label: area.label, tone: area.tone }}

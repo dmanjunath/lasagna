@@ -31,6 +31,11 @@ export interface DetectorTxn {
   categoryName: string | null;
   categorySystemKey: string | null;
   plaidCategoryDetailed: string | null;
+  /**
+   * Who chose the category: "manual" (the person), "rule", "transfer" or
+   * "auto". Optional so fixtures written before it existed still read as auto.
+   */
+  categorySource?: string | null;
 }
 
 export interface AnalysisWindow {
@@ -330,8 +335,22 @@ const GENERIC_FEE: FeeType = {
 
 const FEE_MIN_OCCURRENCES = 2;
 const FEE_SINGLE_MIN_AMOUNT = 25;
+/**
+ * How recent a fee seen once must be to be worth asking about. A bank refunds a
+ * recent charge on request, and the analysis window runs 12 months, so without
+ * this an April fee was still "ask your bank to refund it" the next spring.
+ * Repeated fees keep the whole window: they are a habit of the account.
+ */
+const FEE_SINGLE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 
 function classifyFee(t: DetectorTxn): FeeType | null {
+  // A category the person or their rule chose outranks every guess below. A
+  // brokerage transfer Plaid filed under BANK_FEES, recategorized by hand
+  // to Savings & Investment, kept coming back as "ask your bank to refund the
+  // bank fee" because the Plaid label was still read underneath it.
+  if ((t.categorySource === "manual" || t.categorySource === "rule") && t.categorySystemKey !== "bank_fees") {
+    return null;
+  }
   const text = normalizeText(`${t.name} ${t.merchantName ?? ""}`);
   for (const f of FEE_TYPES) if (f.match!.test(text)) return f;
   if (t.categorySystemKey === "bank_fees") return GENERIC_FEE;
@@ -374,8 +393,10 @@ export function detectFees(txns: DetectorTxn[], window: AnalysisWindow): SpendCu
     const amounts = sorted.map((t) => round2(t.amount));
     const total = round2(amounts.reduce((s, a) => s + a, 0));
     const oneTime = sorted.length < FEE_MIN_OCCURRENCES;
-    // Twice is a pattern. Once is only worth saying if it was worth real money.
+    // Twice is a pattern. Once is only worth saying if it was worth real money,
+    // and recently enough that it can still be refunded.
     if (oneTime && total < FEE_SINGLE_MIN_AMOUNT) continue;
+    if (oneTime && window.end.getTime() - sorted[0].date.getTime() > FEE_SINGLE_MAX_AGE_MS) continue;
 
     const n = sorted.length;
     const label = n === 1 ? fee.noun : `${fee.noun}s`;
@@ -1134,12 +1155,25 @@ export function detectSpendCuts(
   window: AnalysisWindow,
 ): SpendCutFinding[] {
   const recurring = recurringMerchants(txns);
-  return netCategoryClaims(
+  return keepLargestAboveTrend(netCategoryClaims(
     dropDoubleClaims([
       ...detectFees(txns, window),
       ...detectPriceIncreases(recurring),
       ...detectDuplicateServices(recurring),
       ...detectCategoryAboveTrend(txns, window),
     ]),
-  ).filter((f) => !printsAsZero(f));
+  ).filter((f) => !printsAsZero(f)));
+}
+
+/**
+ * At most one "category above its usual month" finding: the largest. Several
+ * of them read as a wall of "you overspent" rows and drown the suggestions
+ * that hand money back. Applied after netting, so the one kept is the largest
+ * figure the page will actually print.
+ */
+export function keepLargestAboveTrend(findings: SpendCutFinding[]): SpendCutFinding[] {
+  const above = findings.filter((f) => f.kind === "category_above_trend");
+  if (above.length <= 1) return findings;
+  const keep = above.reduce((a, b) => (b.monthlySaving > a.monthlySaving ? b : a));
+  return findings.filter((f) => f.kind !== "category_above_trend" || f === keep);
 }

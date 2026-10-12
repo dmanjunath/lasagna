@@ -45,6 +45,7 @@ import {
   type SpendCutSize,
 } from "./spend-cut-detector.js";
 import { llmGenerateObject } from "./llm.js";
+import { actionExpiry } from "./action-ttl.js";
 import { buildAliasMap, descrub, type AliasMap } from "./pii-scrubber.js";
 import { normalizePunctuation } from "./insights-engine.js";
 import { getModel } from "../agent/index.js";
@@ -159,6 +160,7 @@ async function readSpending(tenantId: string, window: AnalysisWindow): Promise<D
       categoryName: categories.name,
       categorySystemKey: categories.systemKey,
       plaidCategoryDetailed: transactions.plaidCategoryDetailed,
+      categorySource: transactions.categorySource,
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
@@ -191,6 +193,7 @@ async function readSpending(tenantId: string, window: AnalysisWindow): Promise<D
     categoryName: r.categoryName,
     categorySystemKey: r.categorySystemKey,
     plaidCategoryDetailed: r.plaidCategoryDetailed,
+    categorySource: r.categorySource,
   }));
 }
 
@@ -657,7 +660,7 @@ export interface SpendCutInsightRow {
   generatedBy: "ai" | "system";
   pathStepKey: null;
   sourceData: null;
-  expiresAt: null;
+  expiresAt: Date;
 }
 
 /**
@@ -680,6 +683,8 @@ export function insightRowForFinding(
   f: SpendCutFinding,
   window: AnalysisWindow,
   rewrite?: PolishedCopy,
+  /** The run's clock, which the expiry counts from. A parameter to keep this pure. */
+  now: Date = new Date(),
 ): SpendCutInsightRow {
   // The same two guards the write path applies as a rewrite comes back, applied
   // again HERE, where the row is actually built. A rewrite that reaches this
@@ -743,11 +748,12 @@ export function insightRowForFinding(
     generatedBy: copy.generatedBy,
     pathStepKey: null,
     sourceData: null,
-    // Deliberately null. These rows are recomputed monthly against real
-    // transactions, and a finding that no longer holds is DELETED, which is the
-    // truthful version of expiry. A clock-based one would hide a saving the
-    // household still has.
-    expiresAt: null,
+    // A finding that no longer holds is DELETED on the next run, which is the
+    // truthful version of expiry. This clock is the backstop for a household
+    // whose runs stopped: every run that finds the row again moves it out
+    // another 30 days (see the upsert below), so a saving that still holds is
+    // never hidden while the runs keep happening.
+    expiresAt: actionExpiry(now),
   };
 }
 
@@ -828,17 +834,19 @@ export async function generateSpendCuts(
   if (findings.length > 0) {
     await db
       .insert(insights)
-      .values(findings.map((f) => insightRowForFinding(tenantId, f, window, rewritten.get(f.findingKey))))
+      .values(findings.map((f) => insightRowForFinding(tenantId, f, window, rewritten.get(f.findingKey), now)))
       // An upsert, not an insert, and that is the whole point of the partial
       // unique index on (tenant_id, dedupe_key).
       //
       // I1 — generation writes CONTENT, never STATE. Every field in this set is
       // something the detector or the rewrite just worked out. Not one of
-      // dismissed, actedOn, snoozedUntil, expiresAt, createdAt, tenantId,
-      // dedupeKey or producer appears, and none of them may: a regeneration
-      // that touched any of them would un-dismiss a finding the person called
-      // deliberate, or cancel a snooze they set this morning. The rendered SET
-      // list is pinned in lib/__tests__/spend-cuts-lifecycle.test.ts.
+      // dismissed, actedOn, snoozedUntil, createdAt, tenantId, dedupeKey or
+      // producer appears, and none of them may: a regeneration that touched any
+      // of them would un-dismiss a finding the person called deliberate, or
+      // cancel a snooze they set this morning. expiresAt is the one exception,
+      // and on purpose: finding the row again is what extends its 30 days.
+      // createdAt is kept, so the row still says when it was first found. The
+      // rendered SET list is pinned in lib/__tests__/spend-cuts-lifecycle.test.ts.
       .onConflictDoUpdate({
         target: [insights.tenantId, insights.dedupeKey],
         // Matches the index predicate, so Postgres can infer the partial index.
@@ -857,6 +865,7 @@ export async function generateSpendCuts(
           evidence: sql`excluded.evidence`,
           metadata: sql`excluded.metadata`,
           generatedBy: sql`excluded.generated_by`,
+          expiresAt: sql`excluded.expires_at`,
           updatedAt: now,
         },
       });

@@ -98,7 +98,7 @@ export function harvestStreetSegments(accountName: string): string[] {
 /**
  * Build a deterministic alias map for a tenant's PII fields.
  * - Account names → "Account 1", "Account 2", ...
- * - Debt account names (credit/loan) → subtype label, numbered if duplicates
+ * - Debt account names (credit/loan) → subtype label, always numbered
  * - Goal names → "Goal 1", "Goal 2", ...
  * - User names → "Person A", "Person B", ... (name parts + emails stripped)
  * - Property addresses (real-estate metadata) → stripped, never restored
@@ -134,44 +134,42 @@ export async function buildAliasMap(tenantId: string): Promise<AliasMap> {
   ]);
 
   // Alias accounts
+  //
+  // Debt aliases are ALWAYS numbered ("credit card 1", "credit 1"). A bare
+  // label is an ordinary word, and descrub restores every whole-word match of
+  // an alias: a lone card aliased "credit" turned "your two credit card
+  // balances" into "your two Northwind Rewards Visa card
+  // balances" in an action the person read.
+  //
+  // Accounts with the SAME name share one alias. Replacement is by text, so
+  // two identical names cannot be told apart, and both restore to the same
+  // real name anyway. Numbering per distinct name keeps the aliases dense.
   let accountCounter = 1;
-  const debtSubtypeCounts = new Map<string, number>();
-
-  // First pass: count debt subtypes to know if we need numbering
-  for (const acct of accts) {
-    if (acct.type === "credit" || acct.type === "loan") {
-      const label = acct.subtype || acct.type;
-      debtSubtypeCounts.set(label, (debtSubtypeCounts.get(label) || 0) + 1);
-    }
-  }
-
-  const debtSubtypeUsed = new Map<string, number>();
+  const debtLabelUsed = new Map<string, number>();
 
   for (const acct of accts) {
     if (!acct.name) continue;
 
+    // Track masks for stripping
+    if (acct.mask) {
+      forward.set(acct.mask, "");
+    }
+
+    const existing = forward.get(acct.name);
+    if (existing) continue;
+
     let alias: string;
     if (acct.type === "credit" || acct.type === "loan") {
       const label = acct.subtype || acct.type;
-      const total = debtSubtypeCounts.get(label) || 1;
-      if (total > 1) {
-        const idx = (debtSubtypeUsed.get(label) || 0) + 1;
-        debtSubtypeUsed.set(label, idx);
-        alias = `${label} ${idx}`;
-      } else {
-        alias = label;
-      }
+      const idx = (debtLabelUsed.get(label) || 0) + 1;
+      debtLabelUsed.set(label, idx);
+      alias = `${label} ${idx}`;
     } else {
       alias = `Account ${accountCounter++}`;
     }
 
     forward.set(acct.name, alias);
     reverse.set(alias, acct.name);
-
-    // Track masks for stripping
-    if (acct.mask) {
-      forward.set(acct.mask, "");
-    }
   }
 
   // Alias goals

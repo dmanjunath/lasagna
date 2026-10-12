@@ -44,9 +44,24 @@ describe("the insights engine deletes only its own rows", () => {
 
   it("is what the delete at the generation site actually uses", () => {
     const src = readFileSync(ENGINE, "utf8");
-    expect(src).toContain(".delete(insights).where(insightsEngineRowsToReplace(tenantId))");
+    expect(src).toContain(".delete(insights).where(insightsEngineRowsToReplace(tenantId, runStartedAt))");
     // And the rows it writes name the same producer, rather than leaning on the
     // column default, so the insert and the delete cannot drift apart.
     expect(src).toContain("producer: INSIGHTS_ENGINE_PRODUCER,");
+  });
+});
+
+describe("a run spares the rows it just wrote or carried forward", () => {
+  const before = new Date("2026-10-11T17:30:00Z");
+  const { sql, params } = new PgDialect().sqlToQuery(insightsEngineRowsToReplace(TENANT, before) as never);
+
+  it("clears only rows last written before the run started", () => {
+    expect(sql).toContain('"updated_at" <');
+    expect(params).toContain(before.toISOString());
+  });
+
+  it("keeps the producer scope while it does", () => {
+    expect(sql).toContain('"producer" = $');
+    expect(params).toContain(INSIGHTS_ENGINE_PRODUCER);
   });
 });

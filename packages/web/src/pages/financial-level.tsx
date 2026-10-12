@@ -712,6 +712,8 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
             {actions.map((a) => (
               <ActionItem
                 key={a.id}
+                foundAt={a.createdAt}
+                updatedAt={a.updatedAt}
                 title={a.title}
                 tag={(a.type ?? a.category ?? 'general').toUpperCase()}
                 description={a.description}

@@ -48,6 +48,10 @@ vi.mock("../insights-engine.js", () => ({
   generateInsights: (id: string) => generateInsights(id),
 }));
 vi.mock("../sync.js", () => ({ syncItem: vi.fn() }));
+const generateSpendCuts = vi.fn(async (_id: string) => 0);
+vi.mock("../spend-cuts.js", () => ({
+  generateSpendCuts: (id: string) => generateSpendCuts(id),
+}));
 vi.mock("../billing.js", () => ({ resolveTenantPlan: async () => "free" }));
 
 import { PgDialect, accounts, users } from "@lasagna/core";
@@ -60,6 +64,7 @@ function whereSql() {
 
 beforeEach(() => {
   generateInsights.mockClear();
+  generateSpendCuts.mockClear();
   tenantRows = [{ id: "t1" }, { id: "t2" }];
 });
 
@@ -103,5 +108,33 @@ describe("the daily insights run is scoped, not unfiltered", () => {
 
     expect(generateInsights).not.toHaveBeenCalled();
     expect(res).toMatchObject({ succeeded: 0, failed: 0 });
+  });
+});
+
+describe("the cadence: every 3 days, or daily for someone here in the last day", () => {
+  it("reads the last run off the household profile", async () => {
+    await runDailyInsights();
+    expect(whereSql().sql).toContain("last_actions_generated_at");
+  });
+
+  it("counts a page view as being here, not only a sign-in", async () => {
+    await runDailyInsights();
+    expect(whereSql().sql).toContain("page_views");
+    expect(whereSql().sql).toContain("visited_at");
+  });
+
+  it("binds a 3 day and a 1 day cutoff", async () => {
+    await runDailyInsights();
+    const days = whereSql()
+      .params.filter((p): p is string => typeof p === "string" && !Number.isNaN(Date.parse(p)))
+      .map((p) => Math.round((Date.now() - Date.parse(p)) / (24 * 60 * 60 * 1000)));
+    expect(days).toContain(3);
+    expect(days).toContain(1);
+  });
+
+  it("refreshes the spend cuts for the same households, without the paid rewrite", async () => {
+    await runDailyInsights();
+    expect(generateSpendCuts).toHaveBeenCalledTimes(2);
+    expect(generateSpendCuts).toHaveBeenCalledWith("t1");
   });
 });

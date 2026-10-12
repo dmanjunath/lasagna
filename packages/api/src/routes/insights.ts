@@ -29,6 +29,7 @@ import { readPathSteps } from "../lib/path-generator.js";
 import { readHouseholdProfile } from "../lib/profile-resolver.js";
 import { UUID_RE } from "../lib/taxonomy.js";
 import { env } from "../lib/env.js";
+import { capOverspend } from "../lib/overspend-cap.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
 
@@ -44,7 +45,11 @@ export const insightsRoutes = new Hono<AuthEnv>();
 // paid for a fresh model call. useInsights is mounted on the home screen as
 // well as /insights, so nearly every navigation re-entered it. One household
 // ran 303 calls for $23.78 in 15 hours that way.
-const REGEN_STALE_MS = 48 * 60 * 60 * 1000;
+//
+// A day, because a read IS the person being here: an active household's
+// actions are worked out daily, an idle one's every 3 days by the cron
+// (lib/cron.ts).
+const REGEN_STALE_MS = 24 * 60 * 60 * 1000;
 
 function loadActiveInsights(tenantId: string) {
   return db
@@ -238,21 +243,24 @@ async function claimRegeneration(
 /**
  * Whether the stored spend cuts are old enough to redo.
  *
- * The monthly scheduled run is the happy path. If it is missed, the read is
- * what keeps it correct: anything worked out before this month is redone on the
- * next look. Monthly rather than daily because these findings barely move — a
- * duplicate subscription is the same duplicate tomorrow.
+ * The scheduled runs are the happy path: the actions cron recomputes these on
+ * its cadence, and the monthly run also rewrites the wording. If they are
+ * missed, the read keeps it correct: anything worked out more than a day ago
+ * is redone on the next look.
  *
  * A SECOND marker, never the one the actions backstop reads. That one gates a
- * paid model call at 48 hours; this one gates a free deterministic recompute at
- * a calendar month. Sharing one marker is what made a free regeneration close
+ * paid model call; this one gates a free deterministic recompute. Sharing one marker is what made a free regeneration close
  * the paid refresh throttle, and the same reasoning forbids sharing here.
  */
 function spendCutsStale(last: Date | string | null | undefined, now: Date): boolean {
   if (!last) return true;
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  return new Date(last).getTime() < monthStart.getTime();
+  // Daily, like the actions beside it. The recompute is free, and each run that
+  // finds a cut still holds extends its 30 days, so a monthly cadence would let
+  // a still-true cut expire in a 31-day month.
+  return now.getTime() - new Date(last).getTime() > SPEND_CUTS_STALE_MS;
 }
+
+const SPEND_CUTS_STALE_MS = 24 * 60 * 60 * 1000;
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -503,7 +511,9 @@ insightsRoutes.get("/", async (c) => {
 
   // The same rules the insert loop applies, applied again on the way out.
   const held = await heldForRequest(session.tenantId);
-  const shown = inPathOrder(rows, pathSteps).filter((r) => servable(r, held));
+  // And one overspend action at most, across both producers, so the list is
+  // not a run of "you spent more than usual" rows.
+  const shown = capOverspend(inPathOrder(rows, pathSteps).filter((r) => servable(r, held)));
 
   // The spend-cut subset, AFTER servable() has had its say. The totals are
   // computed over exactly this array and never as a SQL aggregate: servable()
@@ -557,6 +567,9 @@ insightsRoutes.get("/", async (c) => {
         chatPrompt: r.chatPrompt,
         generatedBy: r.generatedBy,
         createdAt: r.createdAt,
+        // When a run last found this action still holds. Equal to createdAt on
+        // an action no run has carried forward yet.
+        updatedAt: r.updatedAt,
         // The step of the path this action serves. Null when it serves none, and
         // null when the key names no step on the path as it stands.
         pathStepKey: r.pathStepKey && onPath.has(r.pathStepKey) ? r.pathStepKey : null,

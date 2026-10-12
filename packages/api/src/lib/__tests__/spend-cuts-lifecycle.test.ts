@@ -248,12 +248,14 @@ describe("I1 — a regeneration may rewrite content and must not touch state", (
     "metadata",
     "generated_by",
     "updated_at",
+    // Finding the row again extends its 30 days. The one non-content column a
+    // regeneration may write, deliberately.
+    "expires_at",
   ];
   const STATE = [
     "dismissed_at",
     "acted_on_at",
     "snoozed_until",
-    "expires_at",
     "created_at",
     "tenant_id",
     "dedupe_key",
@@ -325,13 +327,26 @@ describe("I3 — the delete spares every row the person has touched", () => {
   });
 });
 
-describe("I4 — expiresAt stays null on a spend-cut row", () => {
-  it("writes no expiry, because a finding that stops holding is deleted instead", async () => {
+describe("I4 — a spend-cut row lasts 30 days from the run that last found it", () => {
+  it("writes an expiry 30 days out on every row", async () => {
     findings = ALL_KINDS.map((k) => BY_KIND[k]);
+    const before = Date.now();
     await generateSpendCuts(TENANT);
+    const after = Date.now();
 
     expect(captured.rows).toHaveLength(ALL_KINDS.length);
-    for (const row of captured.rows) expect(row.expiresAt).toBeNull();
+    const day = 24 * 60 * 60 * 1000;
+    for (const row of captured.rows) {
+      const at = (row.expiresAt as Date).getTime();
+      expect(at).toBeGreaterThanOrEqual(before + 30 * day);
+      expect(at).toBeLessThanOrEqual(after + 30 * day);
+    }
+  });
+
+  it("extends it on a re-find from the incoming row, not a fixed date", async () => {
+    findings = [BY_KIND.fee];
+    await generateSpendCuts(TENANT);
+    expect(captured.upsert!.sql).toMatch(/"expires_at" = excluded\.expires_at/);
   });
 });
 

@@ -13,13 +13,14 @@ import {
   PiggyBank,
   CreditCard,
   Target,
+  Scissors,
 } from 'lucide-react';
 import { useChatStore } from '../../lib/chat-store';
 import { TONE_STYLE, type AreaTone } from '../../lib/action-destination';
 import { maskCurrencyInText } from '../../lib/hide-amounts';
 import { amountLabel, type ActionAmount } from '../../lib/spend-cuts';
 import { type ActionTransaction, type Effort } from '../../lib/action-rows';
-import { cn } from '../../lib/utils';
+import { cn, formatInstant, localDayKey } from '../../lib/utils';
 import { MaskedText } from '../uikit/MaskedText';
 import { Button, button } from '../uikit/Button';
 import { TxnRow } from '../transactions/TransactionList';
@@ -97,6 +98,12 @@ interface ActionItemProps {
   onSnooze?: () => void;
   onDismiss?: () => void;
   onContextClick?: () => void;
+  /** When the action was first found (ISO). Shown in the opened row. */
+  foundAt?: string;
+  /** When a run last found it still holds (ISO). Shown when it is a later day. */
+  updatedAt?: string;
+  /** Written by the spend-cuts scan: wears the "Spend cut" tag. */
+  spendCut?: boolean;
 }
 
 // Category (tag) → friendly label, icon, tinted tag colors, left accent bar.
@@ -142,6 +149,22 @@ const EFFORT_LABEL: Record<Effort, string> = {
   moderate: 'Moderate',
   involved: 'Involved',
 };
+
+/** "Found Oct 3. Updated today.", the second only when it is a later day. */
+function datesLine(foundAt: string, updatedAt?: string): string {
+  const thisYear = new Date().getFullYear();
+  const today = localDayKey(new Date());
+  const day = (iso: string) =>
+    localDayKey(iso) === today
+      ? 'today'
+      : formatInstant(iso, {
+          month: 'short',
+          day: 'numeric',
+          ...(new Date(iso).getFullYear() !== thisYear ? { year: 'numeric' } : {}),
+        });
+  const found = `Found ${day(foundAt)}.`;
+  return updatedAt && localDayKey(updatedAt) > localDayKey(foundAt) ? `${found} Updated ${day(updatedAt)}.` : found;
+}
 
 /**
  * What the count line says, once.
@@ -233,6 +256,7 @@ function DenseRowInner({
   handsMoneyBack,
   effort,
   full,
+  spendCut,
   expandable,
   expanded,
 }: ActionItemProps & { expandable?: boolean; expanded?: boolean }) {
@@ -279,8 +303,9 @@ function DenseRowInner({
             <MaskedText text={subtitle} />
           </p>
         )}
-        {(areaLabel || figure || effort) && (
+        {(spendCut || areaLabel || figure || effort) && (
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+
             {areaLabel && (
               <span
                 className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none"
@@ -309,6 +334,16 @@ function DenseRowInner({
             {effort && (
               <span className="inline-flex items-center rounded-ui-sm bg-canvas-sunken px-2 py-0.5 text-[12.5px] font-semibold leading-none text-content-secondary">
                 {EFFORT_LABEL[effort]}
+              </span>
+            )}
+            {/* Says which scan found it: a cut found in the household's own
+                transactions, not advice about the wider plan. Last and neutral,
+                like effort: it says what kind of action this is, and must not
+                compete with the figure for the row's one colour. */}
+            {spendCut && (
+              <span className="inline-flex items-center gap-1 rounded-ui-sm bg-canvas-sunken px-2 py-0.5 text-[12.5px] font-semibold leading-none text-content-secondary">
+                <Scissors className="h-3 w-3" aria-hidden />
+                Spend cut
               </span>
             )}
           </span>
@@ -358,7 +393,7 @@ function AccordionActionItem(props: ActionItemProps) {
   const figure = rowFigure(props);
   const name = maskCurrencyInText(
     full
-      ? [title, figure, props.effort && EFFORT_LABEL[props.effort]].filter(Boolean).join(', ')
+      ? [title, figure, props.effort && EFFORT_LABEL[props.effort], props.spendCut && 'Spend cut'].filter(Boolean).join(', ')
       : title,
   );
   // A lone dismiss is a generic one. Beside "Mark complete" it is the other answer
@@ -422,6 +457,9 @@ function AccordionActionItem(props: ActionItemProps) {
               <p className="max-w-[70ch] text-[13px] leading-[1.5] text-content-secondary">
                 <MaskedText text={description} />
               </p>
+              {props.foundAt && (
+                <p className="mt-1.5 text-[12px] text-content-muted">{datesLine(props.foundAt, props.updatedAt)}</p>
+              )}
 
               {txns.length > 0 && (
                 <>

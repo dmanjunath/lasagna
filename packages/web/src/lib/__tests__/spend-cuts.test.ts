@@ -23,6 +23,8 @@ function row(id: string, over: Partial<ActionRow> = {}): ActionRow {
     category: 'general',
     urgency: 'low',
     createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    isSpendCut: true,
     title: 't',
     description: 'd',
     chatPrompt: 'c',

@@ -53,6 +53,8 @@ export interface ApiActionRow {
   chatPrompt: string | null;
   generatedBy: string;
   createdAt: string;
+  /** When a run last found it still holds. Absent on a fixture written before it existed. */
+  updatedAt?: string;
   /** The step of the path this action serves. Null when it serves none. */
   pathStepKey: string | null;
   /** Which workflow wrote the row. Absent on a fixture that models only one. */
@@ -75,6 +77,10 @@ export interface ActionRow {
   category: string | null;
   urgency: string;
   createdAt: string;
+  /** When a run last found it still holds. createdAt on one nothing has carried forward. */
+  updatedAt: string;
+  /** Written by the spend-cuts scan, so it wears the "Spend cut" tag. */
+  isSpendCut: boolean;
   title: string;
   description: string;
   chatPrompt: string;
@@ -110,6 +116,8 @@ function shared(r: ApiActionRow) {
     category: r.category,
     urgency: r.urgency,
     createdAt: r.createdAt,
+    updatedAt: r.updatedAt ?? r.createdAt,
+    isSpendCut: r.producer === SPEND_CUTS_PRODUCER,
     title: r.title,
     description: r.description,
     chatPrompt: r.chatPrompt ?? r.title,

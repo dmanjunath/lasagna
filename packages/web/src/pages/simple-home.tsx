@@ -1142,6 +1142,9 @@ export function ActionsSection({
                 key={a.id}
                 full
                 rowId={a.id}
+                foundAt={a.createdAt}
+                updatedAt={a.updatedAt}
+                spendCut={a.isSpendCut}
                 title={a.title}
                 tag={(a.type ?? a.category ?? 'general').toUpperCase()}
                 area={area}

@@ -154,7 +154,7 @@ beforeEach(() => {
 });
 
 describe("a category row stored as a saving is served as a magnitude", () => {
-  it("relabels the four rows that were live on the seeded household", async () => {
+  it("relabels the rows that were live on the seeded household, serving only the largest", async () => {
     for (const [category, figure, label] of [
       ["Utilities", "366.76", "Saves $367/mo"],
       ["Software & SaaS", "337.17", "Saves $337/mo"],
@@ -171,11 +171,10 @@ describe("a category row stored as a saving is served as a magnitude", () => {
       });
     }
 
+    // One overspend row at most reaches the list (lib/overspend-cap.ts), and it
+    // is the largest. It still wears the magnitude label, not "Saves".
     expect(await served()).toEqual([
       { title: "Check what drove Utilities up", impact: "$367 above usual", effort: "quick" },
-      { title: "Check what drove Software & SaaS up", impact: "$337 above usual", effort: "quick" },
-      { title: "Check what drove Groceries up", impact: "$229 above usual", effort: "quick" },
-      { title: "Check what drove Gas up", impact: "$213 above usual", effort: "quick" },
     ]);
     expect(generateInsights).not.toHaveBeenCalled();
     expect(generateSpendCuts).not.toHaveBeenCalled();

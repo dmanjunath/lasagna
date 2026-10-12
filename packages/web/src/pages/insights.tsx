@@ -386,6 +386,9 @@ export function Insights() {
                     key={row.id}
                     full
                     rowId={row.id}
+                    foundAt={row.createdAt}
+                    updatedAt={row.updatedAt}
+                    spendCut={row.isSpendCut}
                     title={row.title}
                     tag={(row.type ?? row.category ?? 'general').toUpperCase()}
                     // The label is dropped when a page filter is on and every

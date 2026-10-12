@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { llmGenerateObject } from "./llm.js";
+import { actionExpiry } from "./action-ttl.js";
 import { getModel } from "../agent/index.js";
 import { isTenantDisabled } from "./billing.js";
 import { db } from "./db.js";
@@ -153,6 +154,10 @@ interface GeneratedInsight {
   chatPrompt: string;
   /** The key of the path step this action serves, or "none". */
   pathStepKey?: string;
+  /** The id of an action already on the list that this one carries on. */
+  continuesId?: string;
+  /** True when the action is about a spending category running over its usual month. */
+  overspend?: boolean;
 }
 
 /**
@@ -191,6 +196,8 @@ const insightsPayloadSchema = z.object({
       impactColor: z.string().optional(),
       chatPrompt: z.string().optional(),
       pathStepKey: z.string().optional(),
+      continuesId: z.string().optional(),
+      overspend: z.boolean().optional(),
     }),
   ),
 });
@@ -247,6 +254,11 @@ async function gatherFinancialData(
       accountId: accounts.id,
       excludeFromNetWorth: accounts.excludeFromNetWorth,
       invertBalance: accounts.invertBalance,
+      // The person's own "I pay this in full every month". Without it the
+      // paid-in-full check below could only read the bank's statement fields,
+      // which many cards never report, and a card the person clears monthly
+      // went to the model as debt to pay off.
+      paidInFullMonthly: accounts.paidInFullMonthly,
     })
     .from(accounts)
     .where(eq(accounts.tenantId, tenantId));
@@ -296,6 +308,7 @@ async function gatherFinancialData(
         metadata,
         excludeFromNetWorth: a.excludeFromNetWorth,
         invertBalance: a.invertBalance,
+        paidInFullMonthly: a.paidInFullMonthly,
       };
     })
   );
@@ -921,9 +934,17 @@ Return an object with one key, "insights", holding the list:
     "impact": "Short label, 22 characters or less, figure FIRST and no verb: '$7,000 room left', '$3,000 limit', '$736/yr interest', '$3,400 match'. On a tax action this is the amount to ACT ON, never the tax saved.",
     "impactColor": "green" | "amber" | "red" (green means money gained, so never green on a tax action, whose figure is an amount to act on: use "amber"),
     "chatPrompt": "Natural question the user would ask",
-    "pathStepKey": "the key of the financial path step this action serves, exactly as given, or \\"none\\""
+    "pathStepKey": "the key of the financial path step this action serves, exactly as given, or \\"none\\"",
+    "continuesId": "the id of the CURRENT action this one carries on, exactly as given, or omit it",
+    "overspend": true only when the action is about a spending category running over its usual or prior month, else false
   }
 ] }
+
+## Current actions
+After the data you may be given the actions already on the user's list, each with an "id". For each one that STILL applies to the data as it stands, emit it again with fresh numbers and its "id" in "continuesId", so it keeps its place on the list instead of reappearing as new. Keep the same move: do not use "continuesId" to attach a different action to an old id. Leave out any current action the data no longer supports, and it is removed. Never put the same id on two actions.
+
+## Overspending
+AT MOST ONE action may be about a spending category running over its usual or prior month ("overspend": true). If several categories jumped, pick the single largest dollar jump and say nothing about the rest. A list of "you overspent" rows drowns the actions that matter.
 
 ## Title examples (write the move, not the diagnosis)
 - Instead of "Credit card at 24.99% APR costs $736/yr in interest", write "Pay down your $3,076 card to stop $736/yr in interest".
@@ -1600,11 +1621,14 @@ export const INSIGHTS_ENGINE_PRODUCER = "insights-engine";
  * Dismissed rows are kept, as they always were: a person who has said "not this
  * one" must not be told it again tomorrow.
  */
-export function insightsEngineRowsToReplace(tenantId: string) {
+export function insightsEngineRowsToReplace(tenantId: string, writtenBefore?: Date) {
   return and(
     eq(insights.tenantId, tenantId),
     eq(insights.producer, INSIGHTS_ENGINE_PRODUCER),
     sql`${insights.dismissed} IS NULL`,
+    // A run clears after it writes, so the rows it just wrote or carried
+    // forward (updated_at at or after its start) are spared.
+    ...(writtenBefore ? [sql`${insights.updatedAt} < ${writtenBefore.toISOString()}`] : []),
   );
 }
 
@@ -1653,6 +1677,16 @@ async function runGeneration(tenantId: string): Promise<number> {
     pathSteps.map((s) => ({ ...s, title: scrub(s.title, aliasMap) as string })),
   );
 
+  // The actions on the list now, so the model can carry forward the ones that
+  // still hold (see "Current actions" in the prompt). Only open ones: a row the
+  // person finished or set aside is not offered back. Titles are scrubbed like
+  // everything else, ids are not, because an id is what comes back and gets
+  // matched.
+  const current = await openEngineActions(tenantId);
+  const currentJson = JSON.stringify(
+    current.map((r) => ({ id: r.id, title: scrub(r.title, aliasMap) as string })),
+  );
+
   let model: ReturnType<typeof getModel>;
   try {
     model = getModel("medium");
@@ -1676,6 +1710,9 @@ async function runGeneration(tenantId: string): Promise<number> {
           `Here is the user's complete financial data:\n\n${dataJson}` +
           (pathSteps.length > 0
             ? `\n\nHere are the steps of their financial path, in the order they work through them:\n\n${pathJson}`
+            : "") +
+          (current.length > 0
+            ? `\n\nHere are the current actions on their list:\n\n${currentJson}`
             : ""),
         temperature: 0.3,
         // Ten actions of prose against a ~16k-token prompt does not fit in
@@ -1694,8 +1731,13 @@ async function runGeneration(tenantId: string): Promise<number> {
     throw e instanceof Error ? e : new Error(msg);
   }
 
-  // Replace this producer's non-dismissed rows — ensures numbers stay fresh.
-  await db.delete(insights).where(insightsEngineRowsToReplace(tenantId));
+  // Rows this run did not write or carry forward are cleared AFTER the writes
+  // below, by their updated_at being older than this. Clearing first, as this
+  // used to, reset every action's age on every run, so nothing could ever say
+  // when it was first found.
+  const runStartedAt = new Date();
+  const carryable = new Set(current.map((r) => r.id));
+  const carried = new Set<string>();
 
   const validCategories = [
     "portfolio",
@@ -1706,7 +1748,6 @@ async function runGeneration(tenantId: string): Promise<number> {
   ] as const;
   const validUrgencies = ["low", "medium", "high", "critical"] as const;
   const validEfforts = ["quick", "moderate", "involved"] as const;
-  const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
 
   // Cap "this data is missing" insights at one per generation. The LLM is told
   // this in the prompt (rule #12) but reliably ignores it for users with
@@ -1790,11 +1831,7 @@ async function runGeneration(tenantId: string): Promise<number> {
       ? (ins.effort as (typeof validEfforts)[number])
       : null;
 
-    await db.insert(insights).values({
-      tenantId,
-      // Written explicitly rather than left to the column default, so the row
-      // and the delete predicate above name the same producer in the same file.
-      producer: INSIGHTS_ENGINE_PRODUCER,
+    const row = {
       category,
       urgency,
       effort,
@@ -1816,10 +1853,50 @@ async function runGeneration(tenantId: string): Promise<number> {
       // is shown after every action that has a step.
       pathStepKey: onThePath.has(ins.pathStepKey ?? "") ? ins.pathStepKey! : null,
       sourceData: dataJson,
-      expiresAt: new Date(Date.now() + NINETY_DAYS),
-    });
+      metadata: ins.overspend === true ? { overspend: true } : null,
+      // 30 days from this run. Carrying the action forward on a later run moves
+      // it out again, so it lasts while it still applies.
+      expiresAt: actionExpiry(runStartedAt),
+      updatedAt: new Date(),
+    };
+
+    // Carried forward: the same row, rewritten with fresh numbers. Its id and
+    // created_at stay, so it keeps its place and still says when it was found.
+    const continuesId = ins.continuesId;
+    if (continuesId && carryable.has(continuesId) && !carried.has(continuesId)) {
+      carried.add(continuesId);
+      await db.update(insights).set(row).where(and(eq(insights.id, continuesId), eq(insights.tenantId, tenantId)));
+    } else {
+      await db.insert(insights).values({
+        tenantId,
+        // Written explicitly rather than left to the column default, so the row
+        // and the delete predicate below name the same producer in the same file.
+        producer: INSIGHTS_ENGINE_PRODUCER,
+        ...row,
+      });
+    }
     insertCount++;
   }
 
+  // Everything of this producer's the run did not write or carry forward.
+  await db.delete(insights).where(insightsEngineRowsToReplace(tenantId, runStartedAt));
+
   return insertCount;
+}
+
+/** This producer's actions still on the list: not dismissed, finished, snoozed or expired. */
+function openEngineActions(tenantId: string) {
+  return db
+    .select({ id: insights.id, title: insights.title })
+    .from(insights)
+    .where(
+      and(
+        eq(insights.tenantId, tenantId),
+        eq(insights.producer, INSIGHTS_ENGINE_PRODUCER),
+        sql`${insights.dismissed} IS NULL`,
+        sql`${insights.actedOn} IS NULL`,
+        sql`(${insights.snoozedUntil} IS NULL OR ${insights.snoozedUntil} < NOW())`,
+        sql`(${insights.expiresAt} IS NULL OR ${insights.expiresAt} > NOW())`,
+      ),
+    );
 }

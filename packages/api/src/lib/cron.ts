@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { db } from "./db.js";
-import { eq, gte, accounts, plaidItems, tenants, users, type Plan } from "@lasagna/core";
+import { and, eq, gte, sql, accounts, financialProfiles, pageViews, plaidItems, tenants, users, type Plan } from "@lasagna/core";
 import { syncItem } from "./sync.js";
 import { generateInsights } from "./insights-engine.js";
 import { generateSpendCuts } from "./spend-cuts.js";
@@ -66,14 +66,32 @@ export async function runSyncAll(proOnly = false): Promise<CronRunResult> {
 // bought a full model call every single day.
 const INSIGHTS_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
 
-function tenantsWorthGenerating() {
-  const activeSince = new Date(Date.now() - INSIGHTS_IDLE_MS);
+// How often a household's actions are worked out again: every 3 days, or
+// daily for one that was here in the last day. Active means a sign-in OR a page
+// view: a phone that stays signed in behind Face ID never signs in again, so
+// the sign-in alone would read a daily user as idle.
+const ACTIONS_EVERY_MS = 3 * 24 * 60 * 60 * 1000;
+const ACTIONS_ACTIVE_EVERY_MS = 24 * 60 * 60 * 1000;
+
+function tenantsWorthGenerating(now: Date = new Date()) {
+  const activeSince = new Date(now.getTime() - INSIGHTS_IDLE_MS);
+  const dueBefore = new Date(now.getTime() - ACTIONS_EVERY_MS).toISOString();
+  const activeDueBefore = new Date(now.getTime() - ACTIONS_ACTIVE_EVERY_MS).toISOString();
+  const lastRun = sql`coalesce((select ${financialProfiles.lastActionsGeneratedAt} from ${financialProfiles} where ${financialProfiles.tenantId} = ${tenants.id}), 'epoch'::timestamptz)`;
   return db
     .selectDistinct({ id: tenants.id })
     .from(tenants)
     .innerJoin(accounts, eq(accounts.tenantId, tenants.id))
     .innerJoin(users, eq(users.tenantId, tenants.id))
-    .where(gte(users.lastLoginAt, activeSince));
+    .where(
+      and(
+        gte(users.lastLoginAt, activeSince),
+        sql`(${lastRun} < ${dueBefore} OR (${lastRun} < ${activeDueBefore} AND (
+          ${users.lastLoginAt} >= ${activeDueBefore}
+          OR exists (select 1 from ${pageViews} where ${pageViews.tenantId} = ${tenants.id} and ${pageViews.visitedAt} >= ${activeDueBefore})
+        )))`,
+      ),
+    );
 }
 
 export async function runDailyInsights(): Promise<CronRunResult> {
@@ -89,6 +107,14 @@ export async function runDailyInsights(): Promise<CronRunResult> {
         targetTenants.map(({ id }) => id),
         (id) => generateInsights(id)
       );
+    // The spend cuts on the same cadence, deterministic and free (no rewrite),
+    // so a finding that still holds is found again, and its 30 days extended,
+    // as often as the actions beside it.
+    for (const { id } of targetTenants) {
+      await generateSpendCuts(id).catch((e: unknown) =>
+        console.error(`[Cron] Spend cuts refresh failed for ${id}:`, e instanceof Error ? e.message : e),
+      );
+    }
     const succeeded = succeededFirstPass + recoveredOnRetry;
     console.log(
       `[Cron] Insights generation complete: ${succeeded} succeeded, ${stillFailedIds.length} failed` +

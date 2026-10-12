@@ -1183,6 +1183,8 @@ export function TaxStrategy() {
               {(showAllStrategies ? insights : insights.slice(0, strategyPreview)).map((ins) => (
                 <ActionItem
                   key={ins.id}
+                  foundAt={ins.createdAt}
+                  updatedAt={ins.updatedAt}
                   title={ins.title}
                   tag={(ins.type ?? ins.category ?? 'tax').toUpperCase()}
                   description={ins.description}
