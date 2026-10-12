@@ -10,6 +10,7 @@
     "dev:landing": "pnpm --filter @lasagna/landing dev",
     "build": "pnpm -r build",
     "lint": "eslint .",
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "typecheck": "pnpm -r typecheck",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
