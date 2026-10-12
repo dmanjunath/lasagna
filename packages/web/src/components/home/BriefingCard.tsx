@@ -48,12 +48,15 @@ export function BriefingCard({
   const delta = netWorth ? Math.round(netWorth.delta) : 0;
   return (
     <section className="cq-inline relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm animate-fade-in">
+      {/* One wash over the whole card, the Ask Lasagna card's: tall ellipses,
+          so the colour carries down through the actions and the quick links
+          and the card reads as one surface. */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-[260px]"
+        className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(60% 100% at 0% 0%, var(--ui-accent-softer), transparent 70%),' +
-            'radial-gradient(50% 100% at 100% 0%, var(--ui-brand-softer), transparent 70%)',
+            'radial-gradient(80% 130% at 0% 0%, var(--ui-accent-softer), transparent 58%),' +
+            'radial-gradient(70% 130% at 100% 0%, var(--ui-info-soft), transparent 64%)',
         }}
         aria-hidden
       />
@@ -101,21 +104,20 @@ export function BriefingCard({
 
       {linksLoading ? (
         <div
-          className="briefing-links relative gap-y-1 px-5 sm:px-8 pt-5 pb-6 bg-panel-inset border-t border-line"
+          className="briefing-links relative gap-y-1 px-5 sm:px-8 pt-5 pb-6 border-t border-line"
           aria-hidden
         >
-          {/* bg-line: the default skeleton fill is the band's own colour. */}
           {Array.from({ length: linksPlaceholder }, (_, i) => PLACEHOLDER_WIDTHS[i % PLACEHOLDER_WIDTHS.length]).map((w, i) => (
             <div key={i} className="flex items-center gap-2.5 min-h-[44px]">
-              <Skeleton className="w-7 h-7 shrink-0 rounded-ui-sm bg-line" />
-              <Skeleton className={`h-4 max-w-full bg-line ${w}`} />
+              <Skeleton className="w-7 h-7 shrink-0 rounded-ui-sm" />
+              <Skeleton className={`h-4 max-w-full ${w}`} />
             </div>
           ))}
         </div>
       ) : links.length > 0 && (
         <nav
           aria-label="Quick links"
-          className="briefing-links relative gap-y-1 px-5 sm:px-8 pt-5 pb-6 bg-panel-inset border-t border-line"
+          className="briefing-links relative gap-y-1 px-5 sm:px-8 pt-5 pb-6 border-t border-line"
         >
           {links.map((l) => {
             const Icon = l.kind === 'chat' ? MessageSquare : LINK_ICON[l.id] ?? ArrowUpRight;
