@@ -1,6 +1,6 @@
-import { eq, accounts, balanceSnapshots, parsePropertyMetadata } from "@lasagna/core";
+import { and, eq, accounts, balanceSnapshots, parsePropertyMetadata, type PropertyMetadata } from "@lasagna/core";
 import { db } from "./db.js";
-import { requestRealEstateValue } from "../services/fetchRealEstateValues.js";
+import { requestRealEstateValue, pollRealEstateValue } from "../services/fetchRealEstateValues.js";
 
 // Merge helper: parse the account's existing metadata blob, apply the change,
 // and persist. Keeps unknown keys intact (same merge-only contract as the
@@ -133,4 +133,72 @@ export async function advanceValueEstimate(
     valueEstimate: { ...est, status: "ready" },
   });
   return { status: "ready", value: result.value };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Under a month, so an estimate requested on one monthly run is due again on
+// the next one.
+const REFRESH_AFTER_MS = 25 * DAY_MS;
+
+// Whether the monthly run should request a new estimate for this property. Only
+// properties valued by the market estimate: a user's own value (override) or a
+// value typed on create (advisory) is never replaced, so re-estimating it buys
+// nothing. An address with no job at all means the first trigger failed.
+export function isEstimateDue(meta: PropertyMetadata | null, now: Date): boolean {
+  if (!meta?.address?.trim()) return false;
+  const est = meta.valueEstimate;
+  if (!est) return true;
+  if (est.override || est.advisory) return false;
+  const requestedAt = Date.parse(est.requestedAt);
+  return !Number.isFinite(requestedAt) || now.getTime() - requestedAt >= REFRESH_AFTER_MS;
+}
+
+// Monthly refresh: request a new estimate for every due property, then poll the
+// pending jobs until they land or the deadline passes. A job still pending at
+// the deadline is not lost: the account page polls it, and the next run picks
+// it up first. Re-running is safe: a job requested in this run is not due again.
+export async function refreshValueEstimates(
+  opts: { pollIntervalMs?: number; deadlineMs?: number } = {},
+): Promise<{ requested: number; ready: number; failed: number; pending: number }> {
+  const pollIntervalMs = opts.pollIntervalMs ?? 30_000;
+  const deadline = Date.now() + (opts.deadlineMs ?? 10 * 60_000);
+
+  const properties = await db.query.accounts.findMany({
+    where: and(eq(accounts.type, "real_estate"), eq(accounts.frozen, false)),
+  });
+
+  let requested = 0;
+  let failed = 0;
+  const now = new Date();
+  for (const p of properties) {
+    const meta = parsePropertyMetadata(p.metadata);
+    if (!isEstimateDue(meta, now)) continue;
+    if (await kickOffValueEstimate(p.id, p.metadata, meta!.address!)) requested++;
+    else failed++;
+  }
+
+  // Every pending job, not only this run's: one left pending last month lands here.
+  let pendingIds = properties.map((p) => p.id);
+  let ready = 0;
+  for (;;) {
+    const stillPending: string[] = [];
+    for (const id of pendingIds) {
+      const acct = await db.query.accounts.findFirst({ where: eq(accounts.id, id) });
+      if (!acct) continue;
+      if (parsePropertyMetadata(acct.metadata)?.valueEstimate?.status !== "pending") continue;
+      // A network error on one poll must not end the run. Treat it as still running.
+      const result = await advanceValueEstimate(
+        { id: acct.id, tenantId: acct.tenantId, metadata: acct.metadata },
+        pollRealEstateValue,
+      ).catch(() => ({ status: "pending" as const }));
+      if (result.status === "ready") ready++;
+      else if (result.status === "failed") failed++;
+      else stillPending.push(id);
+    }
+    pendingIds = stillPending;
+    if (pendingIds.length === 0 || Date.now() + pollIntervalMs > deadline) break;
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+
+  return { requested, ready, failed, pending: pendingIds.length };
 }

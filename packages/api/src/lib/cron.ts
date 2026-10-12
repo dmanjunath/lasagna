@@ -6,6 +6,7 @@ import { generateInsights } from "./insights-engine.js";
 import { generateSpendCuts } from "./spend-cuts.js";
 import { resolveTenantPlan } from "./billing.js";
 import { runWithRetry } from "./retry-failed.js";
+import { refreshValueEstimates } from "./value-estimate.js";
 
 export interface CronRunResult {
   succeeded: number;
@@ -184,6 +185,22 @@ export async function runMonthlySpendCuts(): Promise<CronRunResult> {
   }
 }
 
+// Monthly market estimates for properties. One provider request per property,
+// so monthly keeps the cost down. Homes valued by the user are skipped.
+export async function runMonthlyValueEstimates(): Promise<CronRunResult> {
+  console.log("[Cron] Starting monthly property value estimates...");
+  try {
+    const { requested, ready, failed, pending } = await refreshValueEstimates();
+    console.log(
+      `[Cron] Property value estimates complete: ${requested} requested, ${ready} ready, ${failed} failed, ${pending} still pending`
+    );
+    return { succeeded: ready, failed, recovered: 0 };
+  } catch (err) {
+    console.error("[Cron] Property value estimates error:", err);
+    return { succeeded: 0, failed: 0, recovered: 0 };
+  }
+}
+
 export function startCronJobs() {
   // In prod the daily jobs run via Cloud Scheduler hitting /cron/* (see
   // routes/cron.ts); the in-process scheduler is disabled so they don't run
@@ -204,7 +221,11 @@ export function startCronJobs() {
   // the end of the month, and the findings are computed over complete months.
   cron.schedule("0 18 3 * *", () => runMonthlySpendCuts());
 
+  // Monthly property value estimates on the 1st at 19:00 UTC / 3pm ET.
+  cron.schedule("0 19 1 * *", () => runMonthlyValueEstimates());
+
   console.log("[Cron] Plaid sync scheduled for 1:00 PM ET (17:00 UTC) and 7:00 PM ET (23:00 UTC)");
   console.log("[Cron] Daily insights scheduled for 1:30 PM ET (17:30 UTC)");
   console.log("[Cron] Monthly spend cuts scheduled for the 3rd at 2:00 PM ET (18:00 UTC)");
+  console.log("[Cron] Monthly property value estimates scheduled for the 1st at 3:00 PM ET (19:00 UTC)");
 }

@@ -11,11 +11,13 @@ process.env.ENCRYPTION_KEY ??= "test-encryption-key-0123456789ab";
 const runSyncAll = vi.fn(async (_proOnly?: boolean) => ({ succeeded: 0, failed: 0, recovered: 0 }));
 const runDailyInsights = vi.fn(async () => ({ succeeded: 0, failed: 0, recovered: 0 }));
 const runMonthlySpendCuts = vi.fn(async () => ({ succeeded: 0, failed: 0, recovered: 0 }));
+const runMonthlyValueEstimates = vi.fn(async () => ({ succeeded: 0, failed: 0, recovered: 0 }));
 
 vi.mock("../../lib/cron.js", () => ({
   runSyncAll: (proOnly?: boolean) => runSyncAll(proOnly),
   runDailyInsights: () => runDailyInsights(),
   runMonthlySpendCuts: () => runMonthlySpendCuts(),
+  runMonthlyValueEstimates: () => runMonthlyValueEstimates(),
   startCronJobs: vi.fn(),
 }));
 
@@ -139,5 +141,35 @@ describe("POST /cron/spend-cuts", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, succeeded: 0, failed: 0, recovered: 0 });
     expect(runMonthlySpendCuts).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /cron/value-estimates", () => {
+  it("returns 503 when CRON_SECRET is unset (fail closed)", async () => {
+    delete process.env.CRON_SECRET;
+    const res = await app.request("/cron/value-estimates", { method: "POST" });
+    expect(res.status).toBe(503);
+    expect(runMonthlyValueEstimates).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 with a wrong X-Cron-Secret header", async () => {
+    process.env.CRON_SECRET = "s3cret-value";
+    const res = await app.request("/cron/value-estimates", {
+      method: "POST",
+      headers: { "X-Cron-Secret": "nope" },
+    });
+    expect(res.status).toBe(401);
+    expect(runMonthlyValueEstimates).not.toHaveBeenCalled();
+  });
+
+  it("passes the guard with the correct secret and runs the monthly job", async () => {
+    process.env.CRON_SECRET = "s3cret-value";
+    const res = await app.request("/cron/value-estimates", {
+      method: "POST",
+      headers: { "X-Cron-Secret": "s3cret-value" },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, succeeded: 0, failed: 0, recovered: 0 });
+    expect(runMonthlyValueEstimates).toHaveBeenCalledTimes(1);
   });
 });
