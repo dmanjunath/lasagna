@@ -211,6 +211,12 @@
  * and the .dark remap keeps body itself honest. */
 html {
   background-color: rgb(var(--ui-canvas));
+  /* The open mobile drawer pushes the app sideways, past the right edge. Mobile
+   * browsers widen the layout viewport to fit that overflow, which makes it
+   * taller than the screen, and the drawer's pinned foot fell below the visible
+   * area. `clip`, not `hidden`: it makes no scroll container, so sticky keeps
+   * working. */
+  overflow-x: clip;
 }
 /* The rest of the legacy neutral scale, remapped for dark. Every --color-*
  * below is a light-mode value in BOTH modes otherwise, so `text-text`,

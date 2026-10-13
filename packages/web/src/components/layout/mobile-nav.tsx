@@ -1,14 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { useLocation } from 'wouter';
-import { motion, useTransform, animate, type MotionValue, type PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, useTransform, animate, type MotionValue, type PanInfo } from 'framer-motion';
 import {
-  X, LogOut, ChevronDown, Zap, Layers,
+  X, ChevronDown, ChevronUp, Zap, Layers,
   TrendingUp, PieChart, CreditCard, AlertCircle, Receipt, ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { PlanUsage } from './plan-usage';
+import { BrandMark } from '../common/BrandMark';
 import { useScrollFade } from './use-scroll-fade';
 
 interface NavItem {
@@ -91,6 +92,10 @@ export function drawerWidth(): number {
   return Math.min(window.innerWidth * 0.8, 320);
 }
 
+// The sidebar's account-menu row, with a touch-sized height.
+const MENU_ITEM =
+  'w-full text-left px-4 py-3 text-[15px] transition-colors cursor-pointer [@media(hover:hover)]:hover:bg-canvas-sunken active:bg-canvas-sunken focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]';
+
 export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavProps) {
   const [location, navigate] = useLocation();
   const { tenant, logout, user } = useAuth();
@@ -123,6 +128,15 @@ export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavPro
   const closeRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
+  // The account menu in the foot, the same menu as the desktop sidebar's.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  // A tap must not land a focus ring on the first item, as if it were chosen.
+  const menuOpenedByKey = useRef(false);
+  useEffect(() => { if (!isOpen) setMenuOpen(false); }, [isOpen]);
+
   // The drawer is modal — it takes a scrim, a scroll lock and Escape — so it has
   // to behave like one for the keyboard too: focus moves in on open, back to
   // whatever opened it on close, and Tab cycles inside it instead of walking
@@ -140,7 +154,11 @@ export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavPro
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Escape') {
+        if (menuOpen) { setMenuOpen(false); menuTriggerRef.current?.focus(); }
+        else onClose();
+        return;
+      }
       if (e.key !== 'Tab' || !panelRef.current) return;
       const stops = panelRef.current.querySelectorAll<HTMLElement>(
         'button:not([disabled]), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -153,7 +171,47 @@ export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavPro
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, menuOpen]);
+
+  // Same keyboard contract as the sidebar's menu: focus moves in on a keyboard open,
+  // arrows and Home/End move between items, and the menu closes on a tap
+  // outside it or when focus leaves it. Escape is handled above.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const panel = menuPanelRef.current;
+    const items = () => Array.from(panel?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    if (menuOpenedByKey.current) items()[0]?.focus();
+    const onPointerDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const all = items();
+      const i = all.indexOf(document.activeElement as HTMLElement);
+      if (i === -1) return;
+      const to =
+        e.key === 'ArrowDown' ? (i + 1) % all.length
+        : e.key === 'ArrowUp' ? (i - 1 + all.length) % all.length
+        : e.key === 'Home' ? 0
+        : e.key === 'End' ? all.length - 1
+        : -1;
+      if (to === -1) return;
+      e.preventDefault();
+      all[to].focus();
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget as Node | null;
+      if (next && panel?.contains(next)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    panel?.addEventListener('focusout', onFocusOut);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+      panel?.removeEventListener('focusout', onFocusOut);
+    };
+  }, [menuOpen]);
 
 
   // Exact or sub-route match, with the DEEPEST matching entry winning: a plain
@@ -200,25 +258,16 @@ export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavPro
             className="fixed top-0 left-0 bottom-0 z-50 flex flex-col overflow-hidden
                        bg-canvas border-r border-line md:hidden"
           >
-            {/* Who you are + close, pinned above the list. One row, not a brand
-                row over a profile card: the menu has to fit a standard iPhone
-                without scrolling, and the brand mark told the user nothing. */}
+            {/* Brand + close, pinned above the list. Who you are sits in the
+                foot, as in the desktop sidebar. */}
             <div
-              className="shrink-0 flex items-center justify-between gap-2 pl-3 pr-4 pb-1"
+              className="shrink-0 flex items-center justify-between gap-2 pl-[22px] pr-4 pb-1"
               style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}
             >
-              <button
-                onClick={() => handleNavigate('/profile')}
-                className="ui-focus flex min-w-0 flex-1 items-center gap-3 rounded-ui-md p-1.5 text-left transition-colors [@media(hover:hover)]:hover:bg-canvas-sunken active:bg-canvas-sunken"
-              >
-                <div className="w-9 h-9 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
-                  {initial}
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-[15px] font-bold leading-tight tracking-tight text-content">{firstName}</div>
-                  <div className="text-[12px] text-content-muted mt-0.5">Profile and settings</div>
-                </div>
-              </button>
+              <div className="flex items-center gap-2.5">
+                <BrandMark size={30} />
+                <span className="font-editorial text-[18px] font-semibold tracking-[-0.01em] text-content">LasagnaFi</span>
+              </div>
               <button
                 ref={closeRef}
                 onClick={onClose}
@@ -320,15 +369,55 @@ export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavPro
             >
               <PlanUsage className="mb-1.5 px-2.5" onNavigate={onClose} />
 
-              <button
-                onClick={() => { onClose(); logout(); }}
-                className="ui-focus flex items-center gap-3 w-full px-2.5 py-1 rounded-ui-md [@media(hover:hover)]:hover:bg-canvas-sunken active:bg-canvas-sunken text-left min-h-[40px]"
-              >
-                <div className="w-7 h-7 rounded-ui-md bg-canvas-sunken grid place-items-center shrink-0 text-content-muted">
-                  <LogOut size={14} />
-                </div>
-                <span className="text-[15px] font-semibold text-content-secondary">Sign out</span>
-              </button>
+              <div className="relative" ref={menuRef}>
+                <AnimatePresence>
+                  {menuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      transition={{ duration: 0.15 }}
+                      role="menu"
+                      aria-label="Account"
+                      ref={menuPanelRef}
+                      className="absolute bottom-full left-0 right-0 mb-2 bg-panel-raised border border-line-strong rounded-ui-md overflow-hidden shadow-ui-lg z-10"
+                    >
+                      {user?.isAdmin && (
+                        <button role="menuitem" onClick={() => handleNavigate('/admin')} className={`${MENU_ITEM} text-content-secondary`}>
+                          Admin
+                        </button>
+                      )}
+                      <button role="menuitem" onClick={() => handleNavigate('/profile')} className={`${MENU_ITEM} text-content-secondary`}>
+                        Profile &amp; Settings
+                      </button>
+                      <div role="separator" className="h-px mx-3 my-1 bg-line" />
+                      <button role="menuitem" onClick={() => { onClose(); logout(); }} className={`${MENU_ITEM} text-brand`}>
+                        Sign out
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <button
+                  ref={menuTriggerRef}
+                  onClick={(e) => { menuOpenedByKey.current = e.detail === 0; setMenuOpen(!menuOpen); }}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  className="ui-focus flex w-full items-center gap-3 rounded-ui-md px-2.5 py-1.5 text-left transition-colors [@media(hover:hover)]:hover:bg-canvas-sunken active:bg-canvas-sunken"
+                >
+                  <div className="w-9 h-9 rounded-full bg-brand grid place-items-center text-lg font-editorial font-bold text-[rgb(var(--ui-brand-fg))] shrink-0 shadow-ui-sm">
+                    {initial}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-bold leading-tight tracking-tight text-content">{firstName}</div>
+                    {user?.email && <div className="truncate text-[12px] text-content-muted mt-0.5">{user.email}</div>}
+                  </div>
+                  <ChevronUp
+                    size={14}
+                    className={`shrink-0 text-content-muted transition-transform duration-150 ${menuOpen ? '' : 'rotate-180'}`}
+                  />
+                </button>
+              </div>
             </div>
           </motion.div>
         </>
