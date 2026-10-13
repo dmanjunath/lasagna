@@ -19,11 +19,7 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   path: string;
-  /**
-   * Extra routes this entry owns. /accounts is the management surface of Money,
-   * not a destination of its own, so Money stays lit while you are on it —
-   * otherwise nothing in the nav is highlighted there.
-   */
+  /** Extra routes this entry owns, so it stays lit on them. */
   match?: string[];
   adminOnly?: boolean;
 }
@@ -44,7 +40,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Overview',
     items: [
       { id: 'home',  label: 'Home',    icon: LayoutDashboard, path: '/' },
-      { id: 'money', label: 'Money',   icon: Wallet,          path: '/money', match: ['/accounts'] },
+      { id: 'accounts', label: 'Accounts', icon: Wallet,        path: '/accounts' },
       { id: 'goals', label: 'Goals',   icon: Target,          path: '/goals' },
       // Chat's path only marks it active on the full-screen /chat route —
       // clicking opens the chat panel instead of navigating.
@@ -396,14 +392,6 @@ export function Sidebar({ className }: SidebarProps) {
                     Admin
                   </button>
                 )}
-                <button
-                  role="menuitem"
-                  onPointerEnter={(e) => e.currentTarget.focus()}
-                  onClick={() => { setUserMenuOpen(false); navigate('/accounts'); }}
-                  className={cn(MENU_ITEM, 'text-content-secondary')}
-                >
-                  Accounts
-                </button>
                 <button
                   role="menuitem"
                   onPointerEnter={(e) => e.currentTarget.focus()}

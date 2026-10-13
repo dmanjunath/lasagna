@@ -13,7 +13,8 @@ export interface RowMenuItem {
 }
 
 /**
- * ⋯ overflow menu for admin table rows. Rendered through a portal with fixed
+ * ⋯ overflow menu for a row or a card header (admin tables, the Accounts
+ * page's institutions). Rendered through a portal with fixed
  * positioning so the table's overflow container can't clip it; flips upward
  * near the bottom of the viewport. Closes on Escape, outside click, scroll,
  * or selection.
@@ -44,7 +45,18 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
     const trigger = document.activeElement as HTMLElement | null;
     menuRef.current?.querySelector('button')?.focus();
     const close = () => setPos(null);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    // role="menu" promises arrow keys, so they move between the items.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { close(); return; }
+      const stops = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
+      if (stops.length === 0) return;
+      const at = stops.indexOf(document.activeElement as HTMLButtonElement);
+      const go = (i: number) => { e.preventDefault(); stops[(i + stops.length) % stops.length].focus(); };
+      if (e.key === 'ArrowDown') go(at + 1);
+      else if (e.key === 'ArrowUp') go(at - 1);
+      else if (e.key === 'Home') go(0);
+      else if (e.key === 'End') go(stops.length - 1);
+    };
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (!wrapRef.current?.contains(t) && !menuRef.current?.contains(t)) close();
@@ -96,7 +108,8 @@ export function RowMenu({ items, label }: { items: RowMenuItem[]; label: string 
                 aria-disabled={it.disabled || undefined}
                 onClick={() => { if (it.disabled) return; setPos(null); it.onSelect(); }}
                 className={cn(
-                  'w-full text-left px-3.5 py-2 text-[13px] font-medium transition-colors',
+                  // A full 44px row on touch, the compact row with a mouse.
+                  'w-full text-left px-3.5 py-2 text-[13px] font-medium transition-colors [@media(pointer:coarse)]:min-h-touch',
                   // The sidebar's menu idiom. An inset ring, not `ui-focus`:
                   // this sits in a clipped popup, where an outward shadow is cut
                   // off by the padding box. Without it the item took Chrome's

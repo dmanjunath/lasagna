@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRoute, useLocation } from 'wouter';
-import { ChevronDown, ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp } from 'lucide-react';
+import { ChevronLeft, RefreshCw, Pencil, Trash2, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
 import { cn, formatMoney, stripAccountMask, exactSyncTime, formatStoredDay, formatStoredMonth, localDayKey } from '../lib/utils';
@@ -18,7 +18,7 @@ import { AccountLinkPicker, type AccountPickerOption } from '../components/commo
 import { AccountTypeMenu } from '../components/accounts/AccountTypeMenu';
 import { ACCOUNT_TYPE_CATALOG, accountTypeLabel, canonicalSubtype, type AccountCategory } from '../lib/account-types';
 import { TransactionList } from '../components/transactions/TransactionList';
-import { HeaderAction } from '../components/layout/app-header';
+import { HeaderAction, HeaderTextAction } from '../components/layout/app-header';
 import { useMobileHeader } from '../lib/mobile-header';
 
 // ---------------------------------------------------------------------------
@@ -74,9 +74,16 @@ interface LoadedData {
   manualAccountIds: Set<string>;
 }
 
+/** The account whose page opened the edit form, if this visit came that way. */
+let editOpenedFrom: string | null = null;
+
 export function AccountDetail() {
-  const [, params] = useRoute('/accounts/:id');
-  const id = params?.id ?? '';
+  // Two routes, one component: /accounts/:id shows the account, and
+  // /accounts/:id/edit is its settings as a page of their own. The form's
+  // state, seeding and save all live here, so both share them.
+  const [editing, editParams] = useRoute('/accounts/:id/edit');
+  const [, viewParams] = useRoute('/accounts/:id');
+  const id = editParams?.id ?? viewParams?.id ?? '';
   const [, setLocation] = useLocation();
   const confirm = useConfirm();
   const toast = useToast();
@@ -144,7 +151,6 @@ export function AccountDetail() {
   // settings panel (hidden by default so the page leads with the chart).
   const [range, setRange] = useState<Range>('6M');
   const [chartHoverIdx, setChartHoverIdx] = useState<number | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   // Editable value for manual accounts (e.g. re-valuing a home). Synced
   // accounts get their balance from the provider, so it's not editable there.
   const [editValue, setEditValue] = useState('');
@@ -298,18 +304,53 @@ export function AccountDetail() {
     }
   };
 
+  // Save is defined below the early returns, so the top bar reaches it here.
+  const saveRef = useRef<() => void>(() => {});
+  const viewPath = `/accounts/${id}`;
+  // Edit pushes the form on top of the account, so leaving it steps back off
+  // it. A deep link to the form has no account page behind it, so there it is
+  // replaced instead: either way the account is never in history twice.
+  const openEdit = () => {
+    editOpenedFrom = id;
+    setLocation(`${viewPath}/edit`);
+  };
+  // Back on the account page by any route (the browser's own Back included):
+  // there is no open form to step off any more.
+  useEffect(() => {
+    if (!editing) editOpenedFrom = null;
+  }, [editing]);
+  const leaveEdit = () => {
+    if (editOpenedFrom === id) {
+      editOpenedFrom = null;
+      window.history.back();
+    } else {
+      setLocation(viewPath, { replace: true });
+    }
+  };
+
   // On a phone the account's name is the top bar's title, as a native detail
-  // screen names its subject (the page title is desktop-only), and Sync is its
-  // one action. Editing stays with the settings row on the page. Frozen
-  // accounts 403 on /sync.
-  useMobileHeader(data ? {
+  // screen names its subject (the page title is desktop-only), with Edit and
+  // (for a linked, unfrozen account, since frozen ones 403 on /sync) Sync. The
+  // edit page is its own screen: back returns to the account, Save is the verb.
+  useMobileHeader(data ? (editing ? {
+    title: 'Edit account',
+    onBack: leaveEdit,
+    actions: <HeaderTextAction label={saving ? 'Saving' : 'Save'} onClick={() => saveRef.current()} disabled={saving} />,
+  } : {
     title: titleCase(stripAccountMask(data.acct.name, data.acct.mask)),
-    actions: !data.isManual && !data.acct.frozen ? (
-      <HeaderAction label={actionPending ? 'Syncing' : 'Sync account'} onClick={handleSync} disabled={actionPending}>
-        <RefreshCw size={20} className={actionPending ? 'animate-spin' : ''} />
-      </HeaderAction>
-    ) : undefined,
-  } : null);
+    actions: (
+      <>
+        {!data.isManual && !data.acct.frozen && (
+          <HeaderAction label={actionPending ? 'Syncing' : 'Sync account'} onClick={handleSync} disabled={actionPending}>
+            <RefreshCw size={20} className={actionPending ? 'animate-spin' : ''} />
+          </HeaderAction>
+        )}
+        <HeaderAction label="Edit account" onClick={openEdit}>
+          <Pencil size={19} />
+        </HeaderAction>
+      </>
+    ),
+  }) : null);
 
   if (loading) {
     return (
@@ -335,7 +376,7 @@ export function AccountDetail() {
           <p className="mb-4 text-[14px] text-content-muted">
             We couldn't find this account. It may have been deleted.
           </p>
-          <Button variant="primary" onClick={() => setLocation('/money')}>Back to money</Button>
+          <Button variant="primary" onClick={() => setLocation('/accounts')}>Back to accounts</Button>
         </div>
       </div>
     );
@@ -593,6 +634,8 @@ export function AccountDetail() {
 
       await load();
       say({ tone: 'positive', title: 'Changes saved' });
+      // Saved from the edit page: back to the account.
+      if (editing) leaveEdit();
     } catch {
       fail("Couldn't save changes. Try again.");
     } finally {
@@ -649,19 +692,12 @@ export function AccountDetail() {
     setActionPending(true);
     try {
       await api.deleteManualAccount(id);
-      setLocation('/money');
+      setLocation('/accounts');
     } catch {
       fail("Couldn't delete this account. Try again.");
       setActionPending(false);
     }
   };
-
-  const settingsSummary = [
-    typeLabel,
-    excludeFromNetWorth && 'Not counted',
-    excludeTransactions && 'Tx hidden',
-    invertBalance && 'Inverted',
-  ].filter(Boolean).join(', ');
 
   const hoveredPoint = hasHistory && chartHoverIdx !== null ? chartPoints[chartHoverIdx] : null;
   const heroPts = chartPoints.length > 0 ? chartPoints : allPoints;
@@ -677,208 +713,8 @@ export function AccountDetail() {
   // A frozen account stopped syncing, so its last sync is past tense.
   const syncedPrefix = acct.frozen ? 'Last synced' : 'Synced';
 
-  return (
-    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
-      {/* ── Back — desktop only; mobile gets the top-bar back button ── */}
-      <button
-        type="button"
-        onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/money'); }}
-        className="ui-focus -ml-2 mb-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:inline-flex sm:min-h-0 sm:px-0"
-      >
-        <ChevronLeft size={16} /> Back
-      </button>
-
-      {/* ── Identity header — avatar · name · institution/mask/type · actions ── */}
-      {/* Same header as every other page: the page title and its meta line, with
-          the page's one action on the right. Edit and Delete are not repeated
-          here: both live in the Settings section below, which is the editor. */}
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3.5">
-          {!isManual && <InstIcon institution={institution} isManual={isManual} />}
-          <div className="min-w-0">
-            <PageTitle>{displayName}</PageTitle>
-            {/* Type lives in the key-facts strip below — keep it out of here to
-                avoid repeating it three times (title + pill + Type row), and
-                "Frozen" lives in the banner below, which also says why. */}
-            <PageMeta className="mt-0 md:mt-1.5">
-              <PageMetaItem>{institution}</PageMetaItem>
-              {acct.mask && <PageMetaItem className="ui-tnum">••{acct.mask}</PageMetaItem>}
-            </PageMeta>
-          </div>
-        </div>
-        {/* Frozen accounts 403 on /sync, so the button would only ever produce
-            an error under a banner that already explains why. */}
-        {!isManual && !acct.frozen && (
-          <div className="hidden md:flex">
-            <Button
-              variant="secondary"
-              disabled={actionPending}
-              onClick={handleSync}
-              leadingIcon={<RefreshCw size={14} className={actionPending ? 'animate-spin' : ''} />}
-            >
-              {actionPending ? 'Syncing…' : 'Sync'}
-            </Button>
-          </div>
-        )}
-      </header>
-
-      {acct.frozen && (
-        <Alert
-          tone="info"
-          className="mt-4"
-          title="This account isn't syncing"
-          action={<TextLink onClick={handleUpgrade}>Upgrade to resume</TextLink>}
-        >
-          {institution} is past the Free plan's institution limit. You can also{' '}
-          <TextLink href="/accounts" chevron={false}>disconnect an institution</TextLink>{' '}
-          you no longer use to free its slot.
-        </Alert>
-      )}
-
-      {needsAttention && (
-        <Alert
-          tone="caution"
-          className="mt-4"
-          title={`${institution} needs to reconnect`}
-          // Plaid's update mode runs on /accounts, which starts it on arrival.
-          action={<TextLink href={`/accounts?reconnect=${data.itemId}`}>Reconnect</TextLink>}
-        >
-          Balances and transactions stop updating until you reconnect.
-        </Alert>
-      )}
-
-      {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
-              'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
-          }}
-        />
-        {/* Laid out like the net worth card on Money: the heading, its badge and
-            the range picker share one wrapping line, and the figure sits under
-            it with the change beside it. */}
-        <div className="relative">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <h2 className="truncate font-editorial text-[19px] font-bold tracking-[-0.018em]">{balanceLabel}</h2>
-              {/* A green "Synced" badge on a frozen account contradicts the banner
-                  above it — same rule as the account rows on /accounts. */}
-              {valueSource && !acct.frozen && (
-                <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />
-              )}
-            </div>
-            {hasHistory && chartPoints.length >= 2 && (
-              <SegmentedControl
-                aria-label="Time range"
-                value={range}
-                onChange={(r) => setRange(r as Range)}
-                options={[
-                  { value: '1M', label: '1M' },
-                  { value: '6M', label: '6M' },
-                  { value: '1Y', label: '1Y' },
-                  { value: 'All', label: 'All' },
-                ]}
-              />
-            )}
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            {/* "Balance owed" already says it's debt, so the amount is unsigned
-                and reads in the negative ink rather than as a double negative. */}
-            <span className={cn('font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
-              <MaskedText text={fmtUsd(isLiabilityAcct ? Math.abs(heroValue) : heroValue)} />
-            </span>
-            {hoveredPoint ? (
-              <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                {/* A local day key, converted from the snapshot instant where the points are built. */}
-                {formatStoredDay(hoveredPoint.date, { year: 'numeric' })}
-              </span>
-            ) : hasHistory && heroChange !== 0 ? (
-              <>
-                <DeltaChip delta={heroChange} goodWhenDown={isLiabilityAcct} />
-                <span className="text-[13px] font-medium text-content-muted">over this period</span>
-              </>
-            ) : !isManual && lastSyncedAt && exactSyncTime(lastSyncedAt) ? (
-              <Tooltip content={exactSyncTime(lastSyncedAt)!}>
-                <span
-                  tabIndex={0}
-                  aria-label={`Last synced ${exactSyncTime(lastSyncedAt)}`}
-                  className="ui-focus rounded-ui-xs text-[13px] font-medium text-content-muted"
-                >
-                  {`${syncedPrefix} ${relativeTime(lastSyncedAt)}`}
-                </span>
-              </Tooltip>
-            ) : (
-              <span className="text-[13px] font-medium text-content-muted">
-                {isManual ? 'Manually tracked' : lastSyncedAt ? `${syncedPrefix} ${relativeTime(lastSyncedAt)}` : 'Connected'}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {hasHistory ? (
-          chartPoints.length >= 2 ? (
-            <div className="relative mt-5 pr-2 sm:pr-0">
-              <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
-            </div>
-          ) : (
-            <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
-              No data in this range.
-            </p>
-          )
-        ) : (
-          <EmptyState
-            className="relative mt-5 py-8"
-            icon={<TrendingUp size={20} />}
-            title="No history yet"
-            description="A value trend appears once we have a few days of history."
-          />
-        )}
-
-        {/* Key facts — read-only, at-a-glance context for this one account. */}
-        <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
-          {facts.map((f) => (
-            <div key={f.label} className="min-w-0">
-              <div className="text-[12.5px] font-medium text-content-muted">{f.label}</div>
-              <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Value-estimate status — pending/ready/failed, ported from the create
-          modal so an estimate resolving after creation stays honest here too. */}
-      {isPropertyAcct && (
-        <PropertyEstimateStatus accountId={id} meta={meta} onResolved={load} />
-      )}
-
-      {/* ── Settings — collapsible, organized into on-skin sub-sections. ── */}
-      <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-        <button
-          type="button"
-          aria-expanded={settingsOpen}
-          onClick={() => setSettingsOpen((o) => !o)}
-          className={cn(
-            'ui-focus flex w-full items-center gap-3 rounded-t-ui-xl px-4 py-4 text-left transition-colors hover:bg-brand-softer sm:px-5',
-            settingsOpen ? 'border-b border-line' : 'rounded-b-ui-xl',
-          )}
-        >
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-ui-sm bg-canvas-sunken text-content-secondary">
-            <Pencil size={14} />
-          </span>
-          <span className="shrink-0 font-editorial text-[16.5px] font-bold tracking-[-0.01em]">Settings</span>
-          {!settingsOpen && (
-            <span className="ml-auto min-w-0 truncate text-[13px] font-medium text-content-muted">{settingsSummary}</span>
-          )}
-          <span className="grid h-6 w-6 shrink-0 place-items-center text-content-faint sm:ml-3">
-            <ChevronDown size={18} className={cn('transition-transform duration-200 ease-ui', !settingsOpen && '-rotate-90')} />
-          </span>
-        </button>
-
-        {settingsOpen && (
+  // The account's settings, shown as the page at /accounts/:id/edit.
+  const settingsForm = (
           <div className="p-4 sm:p-6">
             {/* Address + value source lead the settings for a property — the
                 address drives valuation, so it's the most important field. */}
@@ -1112,9 +948,14 @@ export function AccountDetail() {
               </SettingsGroup>
             )}
 
-            <div className="mt-7 flex flex-wrap items-center gap-2.5 border-t border-line pt-5">
-              <Button variant="primary" disabled={saving} loading={saving} onClick={save}>
+            <div className={cn('mt-7 flex-wrap items-center gap-2.5 border-t border-line pt-5', isManual ? 'flex' : 'hidden md:flex')}>
+              {/* On a phone Save is the top bar's verb, so the row keeps Delete,
+                  and has nothing to hold for an account that cannot be deleted. */}
+              <Button variant="primary" disabled={saving} loading={saving} onClick={save} className="hidden md:inline-flex">
                 {saving ? 'Saving…' : 'Save changes'}
+              </Button>
+              <Button variant="ghost" onClick={leaveEdit} className="hidden md:inline-flex">
+                Cancel
               </Button>
               {/* The account's one Delete, with the rest of its editing. */}
               {isManual && (
@@ -1130,8 +971,218 @@ export function AccountDetail() {
               )}
             </div>
           </div>
+  );
+
+  saveRef.current = save;
+
+  if (editing) {
+    return (
+      <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
+        <button
+          type="button"
+          onClick={leaveEdit}
+          className="ui-focus -ml-2 mb-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:inline-flex sm:min-h-0 sm:px-0"
+        >
+          <ChevronLeft size={16} /> Back
+        </button>
+        <header>
+          <PageTitle>Edit account</PageTitle>
+          <PageMeta className="mt-0 md:mt-1.5">
+            <PageMetaItem>{displayName}</PageMetaItem>
+            {acct.mask && <PageMetaItem className="ui-tnum">••{acct.mask}</PageMetaItem>}
+          </PageMeta>
+        </header>
+        <section className="mt-6 max-w-[760px] rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+          {settingsForm}
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
+      {/* ── Back — desktop only; mobile gets the top-bar back button ── */}
+      <button
+        type="button"
+        onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/accounts'); }}
+        className="ui-focus -ml-2 mb-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:inline-flex sm:min-h-0 sm:px-0"
+      >
+        <ChevronLeft size={16} /> Back
+      </button>
+
+      {/* ── Identity header — avatar · name · institution/mask/type · actions ── */}
+      {/* Same header as every other page: the page title and its meta line, with
+          the page's actions on the right. Edit opens the account's settings as
+          their own page, which also holds Delete. */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3.5">
+          {!isManual && <InstIcon institution={institution} isManual={isManual} />}
+          <div className="min-w-0">
+            <PageTitle>{displayName}</PageTitle>
+            {/* Type lives in the key-facts strip below — keep it out of here to
+                avoid repeating it three times (title + pill + Type row), and
+                "Frozen" lives in the banner below, which also says why. */}
+            <PageMeta className="mt-0 md:mt-1.5">
+              <PageMetaItem>{institution}</PageMetaItem>
+              {acct.mask && <PageMetaItem className="ui-tnum">••{acct.mask}</PageMetaItem>}
+            </PageMeta>
+          </div>
+        </div>
+        <div className="hidden gap-2.5 md:flex">
+          {/* Frozen accounts 403 on /sync, so the button would only ever produce
+              an error under a banner that already explains why. */}
+          {!isManual && !acct.frozen && (
+            <Button
+              variant="secondary"
+              disabled={actionPending}
+              onClick={handleSync}
+              leadingIcon={<RefreshCw size={14} className={actionPending ? 'animate-spin' : ''} />}
+            >
+              {actionPending ? 'Syncing…' : 'Sync'}
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            onClick={openEdit}
+            leadingIcon={<Pencil size={14} />}
+          >
+            Edit
+          </Button>
+        </div>
+      </header>
+
+      {acct.frozen && (
+        <Alert
+          tone="info"
+          className="mt-4"
+          title="This account isn't syncing"
+          action={<TextLink onClick={handleUpgrade}>Upgrade to resume</TextLink>}
+        >
+          {institution} is past the Free plan's institution limit. You can also{' '}
+          <TextLink href="/accounts" chevron={false}>disconnect an institution</TextLink>{' '}
+          you no longer use to free its slot.
+        </Alert>
+      )}
+
+      {needsAttention && (
+        <Alert
+          tone="caution"
+          className="mt-4"
+          title={`${institution} needs to reconnect`}
+          // Plaid's update mode runs on /accounts, which starts it on arrival.
+          action={<TextLink href={`/accounts?reconnect=${data.itemId}`}>Reconnect</TextLink>}
+        >
+          Balances and transactions stop updating until you reconnect.
+        </Alert>
+      )}
+
+      {/* ── Balance hero — the interactive value-history chart + key facts. ── */}
+      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(120% 90% at 100% 0%, var(--ui-info-soft), transparent 56%),' +
+              'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
+          }}
+        />
+        {/* Laid out like the net worth card on Money: the heading, its badge and
+            the range picker share one wrapping line, and the figure sits under
+            it with the change beside it. */}
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <h2 className="truncate font-editorial text-[19px] font-bold tracking-[-0.018em]">{balanceLabel}</h2>
+              {/* A green "Synced" badge on a frozen account contradicts the banner
+                  above it — same rule as the account rows on /accounts. */}
+              {valueSource && !acct.frozen && (
+                <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />
+              )}
+            </div>
+            {hasHistory && chartPoints.length >= 2 && (
+              <SegmentedControl
+                aria-label="Time range"
+                value={range}
+                onChange={(r) => setRange(r as Range)}
+                options={[
+                  { value: '1M', label: '1M' },
+                  { value: '6M', label: '6M' },
+                  { value: '1Y', label: '1Y' },
+                  { value: 'All', label: 'All' },
+                ]}
+              />
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+            {/* "Balance owed" already says it's debt, so the amount is unsigned
+                and reads in the negative ink rather than as a double negative. */}
+            <span className={cn('font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
+              <MaskedText text={fmtUsd(isLiabilityAcct ? Math.abs(heroValue) : heroValue)} />
+            </span>
+            {hoveredPoint ? (
+              <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
+                {/* A local day key, converted from the snapshot instant where the points are built. */}
+                {formatStoredDay(hoveredPoint.date, { year: 'numeric' })}
+              </span>
+            ) : hasHistory && heroChange !== 0 ? (
+              <>
+                <DeltaChip delta={heroChange} goodWhenDown={isLiabilityAcct} />
+                <span className="text-[13px] font-medium text-content-muted">over this period</span>
+              </>
+            ) : !isManual && lastSyncedAt && exactSyncTime(lastSyncedAt) ? (
+              <Tooltip content={exactSyncTime(lastSyncedAt)!}>
+                <span
+                  tabIndex={0}
+                  aria-label={`Last synced ${exactSyncTime(lastSyncedAt)}`}
+                  className="ui-focus rounded-ui-xs text-[13px] font-medium text-content-muted"
+                >
+                  {`${syncedPrefix} ${relativeTime(lastSyncedAt)}`}
+                </span>
+              </Tooltip>
+            ) : (
+              <span className="text-[13px] font-medium text-content-muted">
+                {isManual ? 'Manually tracked' : lastSyncedAt ? `${syncedPrefix} ${relativeTime(lastSyncedAt)}` : 'Connected'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {hasHistory ? (
+          chartPoints.length >= 2 ? (
+            <div className="relative mt-5 pr-2 sm:pr-0">
+              <ValueChart points={chartPoints} range={range} onHoverChange={setChartHoverIdx} />
+            </div>
+          ) : (
+            <p className="relative mt-5 py-9 text-center text-[13px] text-content-muted">
+              No data in this range.
+            </p>
+          )
+        ) : (
+          <EmptyState
+            className="relative mt-5 py-8"
+            icon={<TrendingUp size={20} />}
+            title="No history yet"
+            description="A value trend appears once we have a few days of history."
+          />
         )}
+
+        {/* Key facts — read-only, at-a-glance context for this one account. */}
+        <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
+          {facts.map((f) => (
+            <div key={f.label} className="min-w-0">
+              <div className="text-[12.5px] font-medium text-content-muted">{f.label}</div>
+              <div className="mt-1 truncate text-[15px] font-bold text-content ui-tnum">{f.value}</div>
+            </div>
+          ))}
+        </div>
       </section>
+
+      {/* Value-estimate status — pending/ready/failed, ported from the create
+          modal so an estimate resolving after creation stays honest here too. */}
+      {isPropertyAcct && (
+        <PropertyEstimateStatus accountId={id} meta={meta} onResolved={load} />
+      )}
 
       {/* ── Transactions — this account's activity, searchable + paginated. ── */}
       <section className="mt-6">

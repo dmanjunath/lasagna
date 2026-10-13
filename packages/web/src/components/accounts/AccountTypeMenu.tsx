@@ -4,7 +4,7 @@ import { OptionMenu } from '../common/OptionMenu';
 
 // ---------------------------------------------------------------------------
 // AccountTypeMenu — the account type dropdown, shared by the create modal
-// (pages/Accounts) and the reclassify field (pages/account-detail). Types sit
+// (components/accounts/useAccountConnections) and the reclassify field (pages/account-detail). Types sit
 // under their category's tinted band once the list spans more than one
 // category, so a checking account never runs on beside a mortgage.
 // ---------------------------------------------------------------------------

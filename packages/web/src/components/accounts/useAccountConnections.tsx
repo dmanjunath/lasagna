@@ -1,63 +1,32 @@
-import { useCallback, useEffect, useState, useRef, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import {
-  RefreshCw,
   Plus,
   Pencil,
-  AlertTriangle,
   Sparkles,
   Home,
-  Building2,
-  ChevronDown,
   ChevronRight,
-  Trash2,
-  Lock,
   X,
-  ShieldCheck,
   Zap,
 } from "lucide-react";
-import { api } from "../lib/api.js";
-import { HIDDEN_AMOUNT, isAmountsHidden } from "../lib/hide-amounts";
-import { HiddenAmount, MoneyInput } from "../components/uikit";
-import { isNativeApp } from "../lib/native";
-import { useBilling, startUpgrade } from "../lib/billing";
-import { cn, stripAccountMask } from "../lib/utils";
-import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountTypeOption } from "../lib/account-types";
-import { Alert, Button, Field, Input, Modal, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink, useToast } from "../components/uikit";
-import { useConfirm } from "../components/ds";
-import { PageTitle } from "../components/ds/PageTitle";
-import { HeaderAction } from "../components/layout/app-header";
-import { useMobileHeader } from "../lib/mobile-header";
-import { faviconUrl, institutionDomainFor } from "../components/ds/institutions";
-import { AccountLinkPicker, type AccountPickerOption } from "../components/common/AccountLinkPicker";
-import { AddressAutocomplete } from "../components/common/AddressAutocomplete";
-import { AccountTypeMenu } from "../components/accounts/AccountTypeMenu";
-import { ValueSourceBadge } from "../components/common/ValueSourceBadge";
-import { ValueSourceControl, type ValueSourceChoice } from "../components/common/ValueSourceControl";
+import { api } from "../../lib/api.js";
+import { MoneyInput } from "../uikit";
+import { isNativeApp } from "../../lib/native";
+import { useBilling, startUpgrade } from "../../lib/billing";
+import { accountTypeKey, accountTypeLabel, accountTypesIn, type AccountTypeOption } from "../../lib/account-types";
+import { Alert, Button, Field, Input, Modal, TextLink, useToast } from "../uikit";
+import { useConfirm } from "../ds";
+import { faviconUrl, institutionDomainFor } from "../ds/institutions";
+import { AccountLinkPicker, type AccountPickerOption } from "../common/AccountLinkPicker";
+import { AddressAutocomplete } from "../common/AddressAutocomplete";
+import { AccountTypeMenu } from "./AccountTypeMenu";
+import { ValueSourceControl, type ValueSourceChoice } from "../common/ValueSourceControl";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatCurrency(value: string, currency: string): string {
-  if (isAmountsHidden()) return HIDDEN_AMOUNT;
-  const num = parseFloat(value);
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency,
-    maximumFractionDigits: 0,
-  }).format(num);
-}
 
-function formatTotal(n: number): string {
-  if (isAmountsHidden()) return HIDDEN_AMOUNT;
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
 
 // What the create route's 400s say, in the words of the field the person filled
 // in. The route names the column and its limit ("apr must be a number between 0
@@ -77,16 +46,6 @@ function friendlyAddError(raw: string | undefined): string {
   return (field && ADD_ERROR_COPY[field]) || GENERIC_ADD_ERROR;
 }
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -176,11 +135,24 @@ const ADD_OPTIONS: AddOption[] = [MANUAL_OPTION, PROPERTY_OPTION];
 // Main component
 // ---------------------------------------------------------------------------
 
-export function Accounts() {
+/**
+ * Everything about adding and updating connections, for the Accounts page.
+ *
+ * The page that used to own this (/accounts, "Connected accounts") was folded
+ * into Money, which is now Accounts. This hook carries its flows unchanged:
+ * Plaid Link for a new institution, Plaid's update mode to add accounts to a
+ * connection you already have (or repair one that needs to reconnect), the
+ * by-hand forms, and the deep links other pages use (?autoLink, ?reconnect,
+ * ?add&link). The page renders `modal` and `banners`, and calls the actions.
+ *
+ * `onChanged` runs whenever the connections may have changed, so the page can
+ * reload its own data.
+ */
+export function useAccountConnections({ onChanged }: { onChanged?: () => void } = {}) {
   const confirm = useConfirm();
   const toast = useToast();
   const [, navigate] = useLocation();
-  const { status: billing, loading: billingLoading } = useBilling();
+  const { status: billing } = useBilling();
   // One source of truth for the plan. tenants.plan is the raw column, and only
   // /billing/status resolves a comped grant on top of it — reading the column
   // here showed a comped tenant the free chrome while the sidebar, which reads
@@ -195,10 +167,6 @@ export function Accounts() {
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [newlyLinkedId, setNewlyLinkedId] = useState<string | null>(null);
-  // Cards render expanded by default (scannable, matches /money). We track the
-  // set of *collapsed* ids so an empty set means "everything open".
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-  const itemRefs = useRef<Record<string, HTMLElement | null>>({});
 
   // Add-account modal state. Connect is the whole of step 1; the two by-hand
   // forms are the only second step, and Back returns to step 1.
@@ -249,12 +217,15 @@ export function Accounts() {
   // of only linking an existing account). Cleared once consumed.
   const [addCounterpartAfter, setAddCounterpartAfter] = useState(false);
 
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
   const loadItems = (showLoader = true) => {
     if (showLoader) setLoading(true);
     api.getItems()
       .then((d) => setItems(d.items))
       .catch(() => setError("Failed to load accounts"))
       .finally(() => setLoading(false));
+    onChangedRef.current?.();
   };
 
   useEffect(() => loadItems(), []);
@@ -309,27 +280,6 @@ export function Accounts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, items]);
 
-  // Newly linked institutions are force-expanded (drop them from collapsed).
-  useEffect(() => {
-    if (newlyLinkedId) {
-      setCollapsedIds((prev) => {
-        if (!prev.has(newlyLinkedId)) return prev;
-        const next = new Set(prev);
-        next.delete(newlyLinkedId);
-        return next;
-      });
-    }
-  }, [newlyLinkedId]);
-
-  const toggleExpand = (id: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const handleLink = async () => {
     // Plaid's web SDK doesn't support embedded WebViews (bank OAuth breaks) —
     // the native shell needs the native Plaid Link SDK before this can work.
@@ -342,7 +292,7 @@ export function Accounts() {
     try {
       const [{ linkToken }] = await Promise.all([
         api.createLinkToken(),
-        (await import("../lib/load-plaid.js")).loadPlaidSdk(),
+        (await import("../../lib/load-plaid.js")).loadPlaidSdk(),
       ]);
 
       const Plaid = (window as unknown as { Plaid: PlaidLinkFactory }).Plaid;
@@ -394,14 +344,12 @@ export function Accounts() {
                 if ((newInst && newInst.accounts.length > 0) || attempts >= 10) {
                   clearInterval(poll);
                   setItems(data.items);
+                  onChangedRef.current?.();
                   setSyncing(false);
                   setLinking(false);
 
                   if (newInst) {
                     setNewlyLinkedId(newInst.id);
-                    setTimeout(() => {
-                      itemRefs.current[newInst.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-                    }, 100);
                     setTimeout(() => setNewlyLinkedId(null), 3000);
                   }
                 }
@@ -442,7 +390,7 @@ export function Accounts() {
     try {
       const [{ linkToken }] = await Promise.all([
         api.createUpdateLinkToken(item.id),
-        (await import("../lib/load-plaid.js")).loadPlaidSdk(),
+        (await import("../../lib/load-plaid.js")).loadPlaidSdk(),
       ]);
 
       const Plaid = (window as unknown as { Plaid: PlaidLinkFactory }).Plaid;
@@ -468,12 +416,10 @@ export function Accounts() {
                 if ((updated && updated.accounts.length > prevCount) || attempts >= 10) {
                   clearInterval(poll);
                   setItems(data.items);
+                  onChangedRef.current?.();
                   setSyncing(false);
                   setLinking(false);
                   setNewlyLinkedId(item.id);
-                  setTimeout(() => {
-                    itemRefs.current[item.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  }, 100);
                   setTimeout(() => setNewlyLinkedId(null), 3000);
                 }
               } catch {
@@ -858,26 +804,6 @@ export function Accounts() {
     }
   };
 
-  const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
-
-  // On a phone, the header's actions live in the top bar.
-  useMobileHeader(!isDemoMode && items.length > 0 ? {
-    actions: (
-      <>
-        {!isFree && (
-          <HeaderAction label={syncing ? "Syncing" : "Sync all"} onClick={handleSyncAll} disabled={syncing || linking}>
-            <RefreshCw size={20} className={syncing ? "animate-spin" : ""} />
-          </HeaderAction>
-        )}
-        <HeaderAction label="Add account" onClick={() => setShowManualModal(true)} disabled={linking || syncing}>
-          <Plus size={20} />
-        </HeaderAction>
-      </>
-    ),
-  } : null);
-
-  const allAccounts = items.flatMap((i) => i.accounts);
-  const totalAccounts = allAccounts.length;
 
   // Link-counterpart candidates for the add form. A property is secured by a
   // mortgage/loan (never a credit card), so the property form offers unlinked
@@ -908,112 +834,24 @@ export function Accounts() {
   const offersLink =
     !!formShape && (formShape.type === "real_estate" || formShape.subtype === "mortgage");
 
-  // Total tracked = sum of absolute balances across all accounts (a soft "scope" figure)
-  const totalTracked = allAccounts.reduce((sum, a) => {
-    const v = a.balance !== null ? parseFloat(a.balance) : 0;
-    return sum + (Number.isNaN(v) ? 0 : Math.abs(v));
-  }, 0);
+  // Connections a new account can be added to through Plaid's update mode.
+  // A frozen institution is left out: an account added to it would freeze too.
+  const native = isNativeApp();
+  const addableItems = items.filter(
+    (i) => i.institutionId !== "manual" && !(i.accounts.length > 0 && i.accounts.every((a) => a.frozen === true)),
+  );
 
-  const linkedItems = items.filter((i) => i.institutionId !== "manual");
-  const manualItems = items.filter((i) => i.institutionId === "manual");
-  const manualAccounts = manualItems.flatMap((i) => i.accounts);
-  const attentionItems = linkedItems.filter(isItemError);
+  // Close the dialog and run Plaid's update mode on an existing connection.
+  const startAddTo = (item: PlaidItem) => {
+    leaveAddRun();
+    setShowManualModal(false);
+    resetManualForm();
+    handleAddAccounts(item);
+  };
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
-  const lastSync = items
-    .map((i) => i.lastSyncedAt)
-    .filter((v): v is string => !!v)
-    .sort()
-    .pop();
-  const headerTags: ReactNode[] = [];
-  if (totalAccounts > 0)
-    headerTags.push(
-      <PageMetaItem key="accounts" className="ui-tnum">{`${totalAccounts} account${totalAccounts !== 1 ? "s" : ""}`}</PageMetaItem>,
-    );
-  // Straight from /billing/status, which counts it off the same rows the freeze
-  // recompute reads: institutions holding at least one account, manual excluded,
-  // two items at one bank counted once. Counting `items` here instead is how the
-  // header came to read "2 institutions" over a meter reading "1 of 2" — and is
-  // why the sections below state no counts of their own.
-  // Free carries the cap with it. Deferring to the sidebar meter was desktop-only
-  // reasoning: on a phone that meter is behind the hamburger, so this page said
-  // nothing about the plan at all while institutions sat frozen.
-  const institutionCount = billing?.usage.institutions ?? null;
-  if (institutionCount !== null && institutionCount > 0)
-    headerTags.push(
-      <PageMetaItem key="institutions" className="ui-tnum">
-        {/* Word for word what the sidebar meter says, including its refusal to
-            print "4 of 2" past the cap — two readings of one number must not
-            disagree with each other. */}
-        {!isFree || !billing
-          ? `${institutionCount} institution${institutionCount !== 1 ? "s" : ""}`
-          : institutionCount > billing.usage.maxInstitutions
-            ? `${institutionCount} institutions, ${billing.usage.maxInstitutions} syncing`
-            : `${institutionCount} of ${billing.usage.maxInstitutions} institutions`}
-      </PageMetaItem>,
-    );
-  if (totalTracked > 0)
-    headerTags.push(
-      <PageMetaItem key="tracked" className="ui-tnum">{`${formatTotal(totalTracked)} tracked`}</PageMetaItem>,
-    );
-  if (lastSync)
-    headerTags.push(
-      <PageMetaItem key="synced" className="ui-tnum">{`Synced ${formatRelativeTime(lastSync)}`}</PageMetaItem>,
-    );
-
-  return (
-    <div className="mx-auto max-w-[1040px] px-3 sm:px-12 pt-4 md:pt-10 pb-6 sm:pb-28 text-content">
-      {/* ── Page header — mirrors /money: title, live caption, action cluster ── */}
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0">
-          <PageTitle>Accounts</PageTitle>
-          <PageMeta className="mt-0 md:mt-1.5">
-            {loading || billingLoading ? (
-              // Widths of the runs below, so the placeholder wraps where they
-              // wrap and the header holds still on load. The plan decides
-              // whether there is an institutions run at all, and the plan is not
-              // known until billing lands, so this waits for it.
-              <PageMetaSkeleton widths={['w-20', 'w-32', 'w-[105px]']} />
-            ) : (
-              headerTags
-            )}
-          </PageMeta>
-        </div>
-        {!isDemoMode && items.length > 0 && (
-          <div className="hidden flex-wrap items-center gap-2.5 md:flex">
-            {!isFree && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleSyncAll}
-                disabled={syncing || linking}
-                leadingIcon={<RefreshCw size={15} className={syncing ? "animate-spin" : ""} />}
-              >
-                {syncing ? "Syncing…" : "Sync all"}
-              </Button>
-            )}
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setShowManualModal(true)}
-              disabled={linking || syncing}
-              leadingIcon={<Plus size={15} />}
-            >
-              Add account
-            </Button>
-          </div>
-        )}
-      </header>
-
-      {/* Error banner */}
-      {error && (
-        <Alert tone="negative" className="mt-5">{error}</Alert>
-      )}
-
-      {/* Linked-suggestion banner */}
+  const banners = (
+    <>
+      {error && <Alert tone="negative" className="mt-5">{error}</Alert>}
       {linkedBanner && (
         <Alert
           tone="info"
@@ -1034,126 +872,10 @@ export function Accounts() {
           }
         />
       )}
+    </>
+  );
 
-      {/* Needs-attention — connections that stopped syncing, surfaced up top.
-          Reconnect opens Plaid's update mode on the item, which is what
-          repairs an expired login. */}
-      {!loading && attentionItems.length > 0 && (
-        <div className="mt-5 space-y-2.5">
-          {attentionItems.map((item) => (
-            <Alert
-              key={item.id}
-              tone="caution"
-              title={`${item.institutionName || "This institution"} needs to reconnect`}
-              action={<TextLink onClick={() => handleAddAccounts(item)} className="text-[13px]">Reconnect</TextLink>}
-            >
-              Balances and transactions stop updating until you reconnect.
-            </Alert>
-          ))}
-        </div>
-      )}
-
-      {/* Loading skeleton — mirror the institution card outline. */}
-      {loading && (
-        <div className="mt-6 space-y-[18px]" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-              <div className="flex items-center gap-3 px-4 py-4 sm:px-5">
-                <Skeleton className="h-10 w-10 rounded-ui-md" />
-                <div className="flex-1">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="mt-2 h-3 w-24" />
-                </div>
-                <Skeleton className="h-4 w-24" />
-              </div>
-              <div className="border-t border-line px-4 py-3.5 sm:px-5">
-                <Skeleton className="h-3.5 w-40" />
-                <Skeleton className="mt-2 h-3 w-28" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Empty state — the "connect your first account" moment. */}
-      {!loading && items.length === 0 && (
-        <FirstConnectEmptyState
-          isDemoMode={isDemoMode}
-          onAddAccount={() => setShowManualModal(true)}
-        />
-      )}
-
-      {/* Linked institutions */}
-      {!loading && linkedItems.length > 0 && (
-        <section className="mt-9">
-          <SectionHeader title="Connected institutions" />
-          <div className="mt-4 space-y-[18px]">
-            {linkedItems.map((item) => (
-              <InstitutionArticle
-                key={item.id}
-                refCallback={(el) => { itemRefs.current[item.id] = el; }}
-                item={item}
-                isManual={false}
-                isHighlighted={newlyLinkedId === item.id}
-                syncing={syncingItemId === item.id}
-                isDemoMode={isDemoMode}
-                showSyncSpinner={item.accounts.length === 0 && syncing}
-                expanded={!collapsedIds.has(item.id)}
-                onToggle={() => toggleExpand(item.id)}
-                onSync={() => handleSyncItem(item.id)}
-                onAddAccounts={() => handleAddAccounts(item)}
-                onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Unknown Bank")}
-                allAccounts={allAccounts}
-                isFree={isFree}
-                onEstimateResolved={() => loadItems(false)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Manual accounts */}
-      {!loading && manualAccounts.length > 0 && (
-        <section className="mt-9">
-          <SectionHeader title="Manual accounts" />
-          <div className="mt-4 space-y-[18px]">
-            {manualItems.map((item) => (
-              <InstitutionArticle
-                key={item.id}
-                refCallback={(el) => { itemRefs.current[item.id] = el; }}
-                item={item}
-                isManual
-                isHighlighted={false}
-                syncing={false}
-                isDemoMode={isDemoMode}
-                showSyncSpinner={false}
-                expanded={!collapsedIds.has(item.id)}
-                onToggle={() => toggleExpand(item.id)}
-                onSync={() => {}}
-                onAddAccounts={() => {}}
-                onDisconnect={() => handleDelete(item.id, item.institutionName ?? "Manual")}
-                allAccounts={allAccounts}
-                isFree={isFree}
-                onEstimateResolved={() => loadItems(false)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Add an account — always available below the lists. */}
-      {!loading && items.length > 0 && !isDemoMode && (
-        <button
-          type="button"
-          onClick={() => setShowManualModal(true)}
-          className="ui-focus group mt-[18px] flex h-12 w-full items-center justify-center gap-2 rounded-ui-xl border border-dashed border-line-strong bg-canvas-sunken/40 px-4 text-[13.5px] font-bold text-content-secondary transition-colors hover:border-brand hover:bg-brand-softer hover:text-brand min-h-touch"
-        >
-          <Plus size={15} />
-          Add an account
-        </button>
-      )}
-
-      {/* ── Add Account Modal ── */}
+  const modal = (
       <Modal
         open={showManualModal}
         onClose={closeAddModal}
@@ -1436,6 +1158,14 @@ export function Accounts() {
               </Alert>
             )}
 
+            {/* Plaid's web SDK does not run inside the iOS app's WebView, so
+                there the bank options are replaced by one note rather than
+                offered and then refused after a tap. */}
+            {native ? (
+              <Alert tone="info">
+                Connecting a bank isn't available in the app yet. Connect from the web and your accounts sync here.
+              </Alert>
+            ) : (
             <Button
               variant="primary"
               size="lg"
@@ -1444,10 +1174,52 @@ export function Accounts() {
               disabled={linking}
               leadingIcon={<Zap size={17} />}
             >
-              Connect your bank or card
+              Connect a new bank or card
             </Button>
+            )}
+
+            {/* A newly opened account at a bank you already connected is added
+                through that connection (Plaid's update mode). Connecting the
+                bank again would duplicate every account it holds. */}
+            {!native && addableItems.length > 0 && (
+              <div>
+                <p className="mb-1.5 px-2 text-[12.5px] font-semibold text-content-muted">
+                  Add an account at a bank you already connected
+                </p>
+                <div className="flex flex-col">
+                  {addableItems.map((item) => {
+                    const name = item.institutionName ?? "Your bank";
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => startAddTo(item)}
+                        disabled={linking}
+                        className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md px-2 py-1.5 text-left transition-colors active:bg-canvas-sunken [@media(hover:hover)]:hover:bg-canvas-sunken disabled:opacity-50"
+                      >
+                        <InstIcon institution={name} isManual={false} size={28} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13.5px] font-semibold text-content">{name}</span>
+                          <span className="block text-[12px] text-content-muted">
+                            {isItemError(item) ? "Reconnect and add accounts" : `${item.accounts.length} account${item.accounts.length === 1 ? "" : "s"} connected`}
+                          </span>
+                        </span>
+                        <ChevronRight
+                          size={15}
+                          className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col">
+              {!native && addableItems.length > 0 && (
+                <p className="mb-1.5 px-2 text-[12.5px] font-semibold text-content-muted">Or add one yourself</p>
+              )}
               {secondaryAdds.map(({ label, icon: Icon, run }) => (
                 <button
                   key={label}
@@ -1468,87 +1240,33 @@ export function Accounts() {
           </div>
         )}
       </Modal>
-    </div>
   );
+
+  return {
+    modal,
+    banners,
+    /** Open the add dialog on its first step. */
+    openAdd: () => setShowManualModal(true),
+    /** Plaid update mode on one connection: add accounts to it, or repair it. */
+    addAccountsTo: (item: { id: string }) => {
+      const found = items.find((i) => i.id === item.id);
+      if (found) handleAddAccounts(found);
+    },
+    syncItem: handleSyncItem,
+    syncAll: handleSyncAll,
+    disconnect: (item: { id: string; institutionName: string | null }) =>
+      handleDelete(item.id, item.institutionName ?? "this institution"),
+    items,
+    /** The connection Plaid just added to, for a moment after it lands. */
+    newlyLinkedId,
+    linking,
+    syncing,
+    syncingItemId,
+  };
 }
 
 // ---------------------------------------------------------------------------
-// First-connect empty state — the marquee moment for a brand-new user.
-// ---------------------------------------------------------------------------
-
-function FirstConnectEmptyState({
-  isDemoMode, onAddAccount,
-}: {
-  isDemoMode: boolean;
-  onAddAccount: () => void;
-}) {
-  const reassurances = [
-    { icon: <ShieldCheck size={15} />, text: "Bank-level encryption" },
-    { icon: <Lock size={15} />, text: "Read-only. We can't move money." },
-    { icon: <Zap size={15} />, text: "Balances update automatically" },
-  ];
-  return (
-    <section className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-6 py-10 sm:px-10 sm:py-12">
-      {/* atmospheric wash — periwinkle + brand, matching the Money hero */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(110% 80% at 100% 0%, var(--ui-info-soft), transparent 58%)," +
-            "radial-gradient(90% 70% at 0% 4%, var(--ui-accent-softer), transparent 60%)",
-        }}
-      />
-      <div className="relative mx-auto flex max-w-md flex-col items-center text-center">
-        <div className="grid h-14 w-14 place-items-center rounded-ui-lg bg-brand-soft text-brand shadow-ui-sm">
-          <Building2 size={26} />
-        </div>
-        <h2 className="mt-5 font-editorial text-[22px] sm:text-[25px] font-bold tracking-[-0.022em]">
-          Connect your first account
-        </h2>
-        <p className="mt-2 max-w-sm text-[14px] leading-relaxed text-content-muted">
-          Link a bank, card, or brokerage to see balances, transactions, and your
-          net-worth trend update on their own.
-        </p>
-
-        {!isDemoMode && (
-          <div className="mt-6 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:justify-center">
-            <Button
-              variant="primary"
-              className="w-full sm:w-auto"
-              onClick={onAddAccount}
-              leadingIcon={<Plus size={15} />}
-            >
-              Add account
-            </Button>
-          </div>
-        )}
-
-        <div className="mt-8 flex flex-col items-start gap-2.5 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-5">
-          {reassurances.map((r) => (
-            <div key={r.text} className="flex items-center gap-2 text-[12.5px] font-semibold text-content-muted">
-              <span className="text-brand">{r.icon}</span>
-              {r.text}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section header - heading + right-aligned count
-// ---------------------------------------------------------------------------
-
-// No count: each section's own cards state theirs, and the page header already
-// carries the totals.
-function SectionHeader({ title }: { title: string }) {
-  return <h2 className="text-[18px] font-semibold text-content">{title}</h2>;
-}
-
-// ---------------------------------------------------------------------------
-// Institution icon — favicon with monogram fallback
+// Institution icon — favicon, pencil for manual, or a monogram.
 // ---------------------------------------------------------------------------
 
 function InstIcon({ institution, isManual, size = 40 }: { institution: string; isManual: boolean; size?: number }) {
@@ -1567,310 +1285,6 @@ function InstIcon({ institution, isManual, size = 40 }: { institution: string; i
       ) : (
         mono
       )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Institution card — collapsible header over nested account rows
-// ---------------------------------------------------------------------------
-
-function InstitutionArticle({
-  refCallback,
-  item,
-  isManual,
-  isHighlighted,
-  syncing,
-  isDemoMode,
-  showSyncSpinner,
-  expanded,
-  onToggle,
-  onSync,
-  onAddAccounts,
-  onDisconnect,
-  allAccounts,
-  isFree,
-  onEstimateResolved,
-}: {
-  refCallback: (el: HTMLElement | null) => void;
-  item: PlaidItem;
-  isManual: boolean;
-  isHighlighted: boolean;
-  syncing: boolean;
-  isDemoMode: boolean;
-  showSyncSpinner: boolean;
-  expanded: boolean;
-  onToggle: () => void;
-  onSync: () => void;
-  onAddAccounts: () => void;
-  onDisconnect: () => void;
-  allAccounts: Account[];
-  isFree: boolean;
-  onEstimateResolved: () => void;
-}) {
-  const isError = isItemError(item);
-  // The limit is per institution, so a frozen institution is frozen whole. Say so
-  // on the header — "Synced 1d ago" on an institution that stopped syncing is a
-  // lie — and then the rows beneath don't have to repeat it.
-  const allFrozen = item.accounts.length > 0 && item.accounts.every((a) => a.frozen === true);
-  const statusLabel = isManual
-    ? "Manual entry"
-    : allFrozen
-    ? "Frozen, not syncing"
-    : isError
-    ? "Needs attention"
-    : item.lastSyncedAt
-    ? `Synced ${formatRelativeTime(item.lastSyncedAt)}`
-    : "Synced";
-
-  const institutionName = item.institutionName ?? (isManual ? "Manual" : "Unknown Bank");
-  // Net total across the institution (debts reduce; depository/investment increase)
-  const total = item.accounts.reduce((sum, a) => {
-    if (a.balance === null) return sum;
-    const v = parseFloat(a.balance);
-    if (Number.isNaN(v)) return sum;
-    // A debt's balance may be stored with either sign, so subtract what's owed.
-    if (a.type === "credit" || a.type === "loan") return sum - Math.abs(v);
-    return sum + v;
-  }, 0);
-  const totalNeg = total < 0;
-
-  return (
-    <motion.article
-      ref={(el) => refCallback(el as HTMLElement | null)}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className={cn(
-        "overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm transition-colors",
-        isHighlighted ? "border-brand" : isError ? "border-caution/40" : "border-line",
-      )}
-      style={isHighlighted ? { background: "var(--ui-brand-softer)" } : undefined}
-    >
-      {/* Header row — clickable to expand. div role=button so the sync
-          icon-button inside stays a proper <button> without nesting. */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); }
-        }}
-        aria-expanded={expanded}
-        className={cn(
-          "ui-focus flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-brand-softer sm:px-5",
-          expanded && "border-b border-line",
-        )}
-      >
-        <InstIcon institution={institutionName} isManual={isManual} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-editorial text-[17px] font-bold leading-tight tracking-[-0.01em]" title={institutionName}>
-            {institutionName}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-content-muted">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 font-semibold",
-                allFrozen ? "text-info" : isError && "text-caution",
-              )}
-            >
-              {allFrozen ? (
-                <Lock size={11} strokeWidth={2.4} aria-hidden="true" />
-              ) : isError ? (
-                <AlertTriangle size={11} strokeWidth={2.4} aria-hidden="true" />
-              ) : null}
-              {statusLabel}
-            </span>
-            <span>{item.accounts.length} account{item.accounts.length === 1 ? "" : "s"}</span>
-          </div>
-        </div>
-        <span className={cn("shrink-0 font-editorial text-[16px] font-extrabold tracking-[-0.015em] ui-tnum", totalNeg && "text-negative")}>
-          {isAmountsHidden() ? <HiddenAmount /> : `${totalNeg ? "−" : ""}${formatTotal(Math.abs(total))}`}
-        </span>
-        {!isDemoMode && !isManual && !isFree && (
-          <button
-            type="button"
-            aria-label={`Sync ${institutionName}`}
-            onClick={(e) => { e.stopPropagation(); onSync(); }}
-            disabled={syncing}
-            className="ui-focus grid h-9 w-9 shrink-0 place-items-center rounded-ui-sm text-content-muted transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-50"
-          >
-            <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
-          </button>
-        )}
-        <span className="grid h-6 w-6 shrink-0 place-items-center text-content-faint">
-          <ChevronDown size={18} className={cn("transition-transform duration-200 ease-ui", !expanded && "-rotate-90")} />
-        </span>
-      </div>
-
-      {/* Expanded body */}
-      {expanded && (
-        <div>
-          {item.accounts.length === 0 && showSyncSpinner && (
-            <div className="flex items-center gap-2 px-4 py-4 text-[13.5px] text-content-muted sm:px-5">
-              <RefreshCw size={14} className="animate-spin" /> Syncing accounts…
-            </div>
-          )}
-          {item.accounts.length === 0 && !showSyncSpinner && !isManual && (
-            <div className="px-4 py-4 text-[13.5px] text-content-muted sm:px-5">No accounts found for this institution.</div>
-          )}
-          {item.accounts.length > 0 && (
-            <div>
-              {item.accounts.map((account) => (
-                <AccountRow
-                  key={account.id}
-                  account={account}
-                  institutionFrozen={allFrozen}
-                  lastSyncedAt={item.lastSyncedAt}
-                  onEstimateResolved={onEstimateResolved}
-                  linkedAccountName={account.propertyAccountId
-                    ? allAccounts.find((a) => a.id === account.propertyAccountId)?.name ?? null
-                    : allAccounts.find((a) => a.propertyAccountId === account.id)?.name ?? null}
-                />
-              ))}
-            </div>
-          )}
-
-          {!isDemoMode && !isManual && (
-            <div className="flex flex-wrap items-center gap-1 border-t border-line px-4 py-2.5 sm:px-5">
-              {/* Adding accounts to a frozen institution does nothing for the
-                  user: they would freeze too. Disconnecting is the useful action. */}
-              {!allFrozen && (
-                <button
-                  type="button"
-                  onClick={onAddAccounts}
-                  className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-softer"
-                >
-                  <Plus size={14} />
-                  Add accounts
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onDisconnect}
-                className="ui-focus inline-flex min-h-touch items-center gap-1.5 rounded-ui-sm px-2.5 text-[13px] font-semibold text-negative transition-colors hover:bg-negative-soft"
-              >
-                <X size={14} />
-                Disconnect this institution
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </motion.article>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Account row — name/mask · type · balance with status pill · chevron.
-// The whole row navigates to the account detail page (edit/sync/delete live
-// there); no per-row overflow menu.
-// ---------------------------------------------------------------------------
-
-function AccountRow({ account, institutionFrozen, linkedAccountName, lastSyncedAt, onEstimateResolved }: {
-  account: Account;
-  /** The whole institution is frozen and its header says so — don't repeat it. */
-  institutionFrozen: boolean;
-  linkedAccountName: string | null;
-  /** Institution-level last-sync ISO — feeds the "Synced" badge hover tooltip. */
-  lastSyncedAt: string | null;
-  onEstimateResolved: () => void;
-}) {
-  const balance = account.balance !== null ? parseFloat(account.balance) : null;
-  const isNegative = balance !== null && balance < 0;
-  const isFrozen = account.frozen === true;
-  const showFrozen = isFrozen && !institutionFrozen;
-  const [, setLocation] = useLocation();
-  const openSettings = () => setLocation("/accounts/" + account.id);
-
-  // A property whose value estimate is still pending — surface an "Estimating…"
-  // pill and poll the estimate in the background so a value that lands after the
-  // create modal closed still shows here. Ends on ready/failed (parent reloads
-  // on ready). status pending → keep the pill; anything else clears it.
-  const veStatus = (account.metadata?.valueEstimate as { status?: string } | undefined)?.status;
-  const [estimating, setEstimating] = useState(veStatus === "pending");
-  useEffect(() => {
-    setEstimating(veStatus === "pending");
-    if (veStatus !== "pending") return;
-    let cancelled = false;
-    const deadline = Date.now() + 5 * 60 * 1000;
-    const tick = async () => {
-      if (cancelled || Date.now() > deadline) { if (!cancelled) setEstimating(false); return; }
-      try {
-        const res = await api.getValueEstimate(account.id);
-        if (cancelled) return;
-        if (res.status === "ready") { setEstimating(false); onEstimateResolved(); return; }
-        if (res.status === "failed" || res.status === "none") { setEstimating(false); return; }
-      } catch {
-        // transient — keep polling until the cap
-      }
-      if (!cancelled) setTimeout(tick, 10_000);
-    };
-    const t = setTimeout(tick, 10_000);
-    return () => { cancelled = true; clearTimeout(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [veStatus, account.id]);
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={`Edit ${account.name}`}
-      onClick={openSettings}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSettings(); } }}
-      className={cn(
-        "ui-focus group flex cursor-pointer items-center gap-3.5 border-t border-line px-4 py-3 transition-colors first:border-t-0 hover:bg-brand-softer sm:px-5",
-        isFrozen && "opacity-70",
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          {showFrozen && <Lock size={12} className="shrink-0 text-content-muted" />}
-          <span className="truncate text-[14.5px] font-bold leading-tight" title={stripAccountMask(account.name, account.mask)}>
-            {stripAccountMask(account.name, account.mask)}
-          </span>
-          {account.mask && (
-            <span className="shrink-0 text-[12px] text-content-muted ui-tnum" aria-label={`account ending ${account.mask}`}>
-              ••{account.mask}
-            </span>
-          )}
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-content-muted">
-          <span>{accountTypeLabel(account.type, account.subtype)}</span>
-          {linkedAccountName && <span>linked to {linkedAccountName}</span>}
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-3 sm:gap-3.5">
-        <div className="text-right">
-          <div className={cn("font-editorial text-[15px] font-extrabold tracking-[-0.015em] ui-tnum", isNegative && "text-negative")}>
-            {balance === null ? "—" : isAmountsHidden() ? (
-              <HiddenAmount />
-            ) : (
-              (isNegative ? "−" : "") + formatCurrency(String(Math.abs(balance)), account.currency)
-            )}
-          </div>
-          {showFrozen ? (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info">
-              <Lock size={10} strokeWidth={2.2} aria-hidden="true" /> Frozen
-            </span>
-          ) : isFrozen ? null : estimating ? (
-            <span
-              role="status"
-              aria-live="polite"
-              className="mt-1 inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info"
-            >
-              <RefreshCw size={10} strokeWidth={2.2} className="animate-spin" aria-hidden="true" /> Estimating…
-            </span>
-          ) : account.valueSource ? (
-            <span className="mt-1 inline-flex">
-              <ValueSourceBadge source={account.valueSource} syncedAt={lastSyncedAt ?? undefined} onActivate={openSettings} />
-            </span>
-          ) : null}
-        </div>
-
-        <ChevronRight size={16} className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
-      </div>
     </div>
   );
 }

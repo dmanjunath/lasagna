@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation } from 'wouter';
+import { useLocation } from 'wouter';
 import {
   Wallet, RefreshCw, Plus,
   Lock, ChevronDown, ChevronRight, Pencil,
@@ -11,7 +11,7 @@ import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
 import { safeStorage } from '../lib/safe-storage';
 import { HiddenAmount } from '../components/uikit';
-import { Alert, Badge, Button, button, SegmentedControl, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink, useToast, Tooltip } from '../components/uikit';
+import { Alert, Badge, Button, SegmentedControl, EmptyState, PageMeta, PageMetaItem, PageMetaSkeleton, Skeleton, TextLink, useToast, Tooltip } from '../components/uikit';
 import { ValueSourceBadge } from '../components/common/ValueSourceBadge';
 import { CategoryPicker } from '../components/common/CategoryPicker';
 import { TxnRow } from '../components/transactions/TransactionList';
@@ -21,6 +21,9 @@ import { type TrendPoint } from '../components/ds';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 import { PageTitle } from '../components/ds/PageTitle';
 import { HeaderAction } from '../components/layout/app-header';
+import { useAccountConnections } from '../components/accounts/useAccountConnections';
+import { isNativeApp } from '../lib/native';
+import { RowMenu } from '../components/common/row-menu';
 import { useMobileHeader } from '../lib/mobile-header';
 
 interface Item {
@@ -121,10 +124,34 @@ export function SimpleMoney() {
   }
 
   // Refetch items — used when a background value estimate resolves so the new
-  // property value replaces the "Estimating…" pill.
+  // property value replaces the "Estimating…" pill, and after any connection
+  // changes (a bank added, accounts added to one, one disconnected).
   const reloadItems = () => {
     api.getItems().then((d) => setItems(d.items)).catch(() => {});
   };
+
+  // Adding and updating connections: the add dialog, Plaid's flows, and the
+  // deep links other pages send here (?autoLink, ?reconnect, ?add&link).
+  const connections = useAccountConnections({ onChanged: reloadItems });
+
+  // Syncing in any form: Sync all, or the wait for a just-linked bank's
+  // accounts to arrive, which otherwise ran up to 20 seconds with no sign.
+  const busy = syncingAll || connections.syncing;
+
+  // One institution's sync, from its menu.
+  const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
+  async function handleSyncOne(item: Item) {
+    setSyncingItemId(item.id);
+    setSyncError(null);
+    try {
+      await api.syncItem(item.id);
+      reloadItems();
+    } catch {
+      setSyncError(`Couldn't sync ${item.institutionName ?? 'this institution'}. Try again.`);
+    } finally {
+      setSyncingItemId(null);
+    }
+  }
 
   // Page-local optimistic category edit (same shape as the transactions and
   // spending surfaces): capture prev → optimistic patch → PATCH → success toast
@@ -195,16 +222,15 @@ export function SimpleMoney() {
   }, [items]);
 
   const hasMoney = !loading && totalAccountCount > 0;
-  const [, setLocation] = useLocation();
 
   // On a phone, the header's two actions live in the top bar.
   useMobileHeader(hasMoney ? {
     actions: (
       <>
-        <HeaderAction label={syncingAll ? 'Syncing' : 'Sync all'} onClick={handleSyncAll} disabled={syncingAll}>
-          <RefreshCw size={20} className={syncingAll ? 'animate-spin' : ''} />
+        <HeaderAction label={busy ? 'Syncing' : 'Sync all'} onClick={handleSyncAll} disabled={busy}>
+          <RefreshCw size={20} className={busy ? 'animate-spin' : ''} />
         </HeaderAction>
-        <HeaderAction label="Add account" onClick={() => setLocation('/accounts')}>
+        <HeaderAction label="Add account" onClick={connections.openAdd} disabled={connections.linking}>
           <Plus size={20} />
         </HeaderAction>
       </>
@@ -216,7 +242,7 @@ export function SimpleMoney() {
       {/* ── Page header ── */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <PageTitle>Money</PageTitle>
+          <PageTitle>Accounts</PageTitle>
           <PageMeta className="mt-0 md:mt-1.5">
             {loading ? (
               <PageMetaSkeleton widths={['w-20', 'w-[109px]']} />
@@ -259,18 +285,27 @@ export function SimpleMoney() {
               size="sm"
               className="flex-1 sm:flex-none"
               onClick={handleSyncAll}
-              disabled={syncingAll}
-              leadingIcon={<RefreshCw size={15} className={syncingAll ? 'animate-spin' : ''} />}
+              disabled={busy}
+              leadingIcon={<RefreshCw size={15} className={busy ? 'animate-spin' : ''} />}
             >
-              {syncingAll ? 'Syncing…' : 'Sync all'}
+              {busy ? 'Syncing…' : 'Sync all'}
             </Button>
-            <Link href="/accounts" className={cn(button({ variant: 'primary', size: 'sm' }), 'flex-1 sm:flex-none')}>
-              <Plus size={15} />
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1 sm:flex-none"
+              onClick={connections.openAdd}
+              disabled={connections.linking}
+              leadingIcon={<Plus size={15} />}
+            >
               Add account
-            </Link>
+            </Button>
           </div>
         )}
       </header>
+
+      {connections.banners}
+      {connections.modal}
 
       {/* ── Sync error banner (dismissible) ── */}
       {syncError && (
@@ -337,9 +372,9 @@ export function SimpleMoney() {
           <EmptyState
             icon={<Wallet size={24} />}
             title="No accounts connected"
-            description="Link a bank or brokerage to see your money here."
+            description="Link a bank or brokerage to see your accounts here."
             action={
-              <Link href="/accounts" className={button({ variant: 'primary' })}>Connect an account</Link>
+              <Button variant="primary" onClick={connections.openAdd} disabled={connections.linking}>Connect an account</Button>
             }
           />
         </div>
@@ -348,8 +383,9 @@ export function SimpleMoney() {
       {/* ── Grouping toggle — group the account lists by asset category or by
              the institution they're connected through. ── */}
       {hasMoney && (
-        <div className="mt-7 flex items-center justify-between gap-3 px-1">
-          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em]">Accounts</h2>
+        // No heading: it said "Accounts" again under the page title of the same
+        // name. The toggle is what this row is for.
+        <div className="mt-7 flex items-center justify-end gap-3 px-1">
           <SegmentedControl
             aria-label="Group accounts by"
             value={groupBy}
@@ -369,21 +405,21 @@ export function SimpleMoney() {
             <GroupSection
               title="Cash" viz={1} count={cashAccounts.length}
               caption={grossAssets > 0 ? `${Math.round((cashTotal / grossAssets) * 100)}% of assets, ready to deploy` : 'ready to deploy'}
-              total={cashTotal} items={items} filterType="depository"
+              total={cashTotal} items={items} onReconnect={connections.addAccountsTo} filterType="depository"
             />
           )}
           {investAccounts.length > 0 && (
             <GroupSection
               title="Investments" viz={2} count={investAccounts.length}
               caption={grossAssets > 0 ? `${Math.round((investTotal / grossAssets) * 100)}% of assets, long-term growth` : 'long-term growth'}
-              total={investTotal} items={items} filterType="investment"
+              total={investTotal} items={items} onReconnect={connections.addAccountsTo} filterType="investment"
             />
           )}
           {realEstateAccounts.length > 0 && (
             <GroupSection
               title="Property" viz={5} count={realEstateAccounts.length}
               caption={grossAssets > 0 ? `${Math.round((realEstateTotal / grossAssets) * 100)}% of assets, real estate` : 'real estate'}
-              total={realEstateTotal} items={items} filterType="real_estate"
+              total={realEstateTotal} items={items} onReconnect={connections.addAccountsTo} filterType="real_estate"
               onEstimateResolved={reloadItems}
             />
           )}
@@ -391,14 +427,14 @@ export function SimpleMoney() {
             <GroupSection
               title="Other assets" viz={5} count={altAccounts.length} unit="item"
               caption={grossAssets > 0 ? `${Math.round((altTotal / grossAssets) * 100)}% of assets, alternative holdings` : 'alternative holdings'}
-              total={altTotal} items={items} filterType="alternative"
+              total={altTotal} items={items} onReconnect={connections.addAccountsTo} filterType="alternative"
             />
           )}
           {debtAccounts.length > 0 && (
             <GroupSection
               title="Debt" viz={4} count={debtAccounts.length}
               caption={grossAssets > 0 ? `${Math.round((debtTotal / grossAssets) * 100)}% debt-to-assets` : 'reduces net worth'}
-              total={debtTotal} totalNeg items={items} filterType={['credit', 'loan']}
+              total={debtTotal} totalNeg items={items} onReconnect={connections.addAccountsTo} filterType={['credit', 'loan']}
             />
           )}
         </>
@@ -408,7 +444,16 @@ export function SimpleMoney() {
       {groupBy === 'institution' && (
         <div className="mt-5 space-y-[18px]">
           {items.map((item) => (
-            <InstitutionSection key={item.id} item={item} items={items} onEstimateResolved={reloadItems} />
+            <InstitutionSection
+              key={item.id}
+              item={item}
+              items={items}
+              onEstimateResolved={reloadItems}
+              syncing={syncingItemId === item.id}
+              onSync={() => handleSyncOne(item)}
+              onAddAccounts={() => connections.addAccountsTo(item)}
+              onDisconnect={() => connections.disconnect(item)}
+            />
           ))}
         </div>
       )}
@@ -485,7 +530,7 @@ export function SimpleMoney() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function GroupSection({
-  title, viz, count, caption, unit = 'account', total, totalNeg, items, filterType, onEstimateResolved,
+  title, viz, count, caption, unit = 'account', total, totalNeg, items, filterType, onEstimateResolved, onReconnect,
 }: {
   title: string;
   viz: number;
@@ -497,6 +542,8 @@ function GroupSection({
   items: Item[];
   filterType: string | string[];
   onEstimateResolved?: () => void;
+  /** Plaid's update mode on a connection that needs to reconnect. */
+  onReconnect: (item: Item) => void;
 }) {
   const [, setLocation] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -528,9 +575,10 @@ function GroupSection({
           tone="caution"
           className="mb-2.5"
           title={`${item.institutionName || 'This institution'} needs to reconnect`}
-          action={<TextLink href={`/accounts?reconnect=${item.id}`}>Reconnect</TextLink>}
+          // Plaid cannot run inside the iOS app yet, so the alert only informs there.
+          action={isNativeApp() ? undefined : <TextLink onClick={() => onReconnect(item)}>Reconnect</TextLink>}
         >
-          Balances and transactions stop updating until you reconnect.
+          Balances and transactions stop updating until you reconnect.{isNativeApp() && ' Reconnect from the web and they\'ll sync here.'}
         </Alert>
       ))}
 
@@ -614,16 +662,20 @@ function GroupSection({
 
 // ─────────────────────────────────────────────────────────────────────────
 // Institution section — collapsible header (icon + name + status + net total)
-// over the accounts connected through it. Managing the connection (disconnect,
-// add accounts to it) lives on the Connected-Accounts page; "Manage" links out.
+// over the accounts connected through it. Its menu manages the connection:
+// sync it, add accounts to it (Plaid update mode), or disconnect it.
 // ─────────────────────────────────────────────────────────────────────────
 
 function InstitutionSection({
-  item, items, onEstimateResolved,
+  item, items, onEstimateResolved, syncing, onSync, onAddAccounts, onDisconnect,
 }: {
   item: Item;
   items: Item[];
   onEstimateResolved?: () => void;
+  syncing: boolean;
+  onSync: () => void;
+  onAddAccounts: () => void;
+  onDisconnect: () => void;
 }) {
   const [, setLocation] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -664,13 +716,14 @@ function InstitutionSection({
       'overflow-hidden rounded-ui-xl border bg-panel shadow-ui-sm',
       isError ? 'border-caution/40' : 'border-line',
     )}>
+      <div className={cn('flex items-center', !collapsed && 'border-b border-line')}>
       <button
         type="button"
         onClick={() => setCollapsed((c) => !c)}
         aria-expanded={!collapsed}
         className={cn(
-          'ui-focus flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-brand-softer sm:px-5',
-          !collapsed && 'border-b border-line',
+          'ui-focus flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 text-left transition-colors hover:bg-brand-softer sm:pl-5',
+          isManual ? 'pr-4 sm:pr-5' : 'pr-2',
         )}
       >
         <InstIcon institution={institution} isManual={isManual} />
@@ -678,9 +731,9 @@ function InstitutionSection({
           <div className="truncate font-editorial text-[16.5px] font-bold leading-tight tracking-[-0.01em]" title={institution}>
             {institution}
           </div>
-          <div className="mt-0.5 flex items-center gap-3 text-[12.5px] text-content-muted">
-            <span className={cn('font-medium', isError && 'text-caution')}>{statusLabel}</span>
-            <span>{item.accounts.length} account{item.accounts.length === 1 ? '' : 's'}</span>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12.5px] text-content-muted">
+            <span className={cn('whitespace-nowrap font-medium', isError && 'text-caution')}>{statusLabel}</span>
+            <span className="whitespace-nowrap">{item.accounts.length} account{item.accounts.length === 1 ? '' : 's'}</span>
           </div>
         </div>
         <span className={cn('ml-3 shrink-0 font-editorial text-[16px] font-extrabold tracking-[-0.015em] ui-tnum', totalNeg && 'text-negative')}>
@@ -690,6 +743,36 @@ function InstitutionSection({
           <ChevronDown size={18} className={cn('transition-transform duration-200 ease-ui', collapsed && '-rotate-90')} />
         </span>
       </button>
+      {/* Manual accounts have no connection to manage: each one is edited or
+          deleted from its own page. */}
+      {!isManual && (
+        <div className="shrink-0 pr-2.5 sm:pr-3.5">
+          <RowMenu
+            label={`Manage ${institution}`}
+            items={[
+              { label: syncing ? 'Syncing…' : 'Sync now', onSelect: onSync, disabled: syncing },
+              // Plaid cannot run inside the iOS app yet, so neither can update mode.
+              ...(isNativeApp() ? [] : [{ label: isError ? 'Reconnect' : 'Add accounts', onSelect: onAddAccounts }]),
+              { label: 'Disconnect', onSelect: onDisconnect, tone: 'danger' as const },
+            ]}
+          />
+        </div>
+      )}
+      </div>
+
+      {/* The same notice the Type grouping shows above its rows, here in the
+          card it concerns, so a broken connection says so in both views. */}
+      {isError && (
+        <Alert
+          tone="caution"
+          className="m-3 sm:m-4"
+          title={`${institution} needs to reconnect`}
+          // Plaid cannot run inside the iOS app yet, so there the alert says where to go.
+          action={isNativeApp() ? undefined : <TextLink onClick={onAddAccounts}>Reconnect</TextLink>}
+        >
+          Balances and transactions stop updating until you reconnect.{isNativeApp() && ' Reconnect from the web and they\'ll sync here.'}
+        </Alert>
+      )}
 
       {!collapsed && (
         <div>
@@ -731,11 +814,6 @@ function InstitutionSection({
               />
             );
           })}
-          {/* Managing a connection (add accounts to it, disconnect it) lives on
-              the Connected-Accounts page — link out so those flows stay intact. */}
-          <div className="flex items-center border-t border-line px-4 py-2.5 sm:px-5">
-            <TextLink href="/accounts">Manage connection</TextLink>
-          </div>
         </div>
       )}
     </section>

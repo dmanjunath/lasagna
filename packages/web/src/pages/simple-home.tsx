@@ -909,11 +909,12 @@ function NetWorthBreakdown({
         }}
       />
       <div className="relative">
-        <div>
-          <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Where your wealth stands</h2>
-          <p className="mt-1 text-[13.5px] font-medium text-content-muted max-w-[52ch]">
-            Your Net Worth across {assetAccounts + breakdown.debtsCount} connected account{assetAccounts + breakdown.debtsCount === 1 ? '' : 's'}.
-          </p>
+        {/* The figures below come from Accounts, which lists every account
+            behind them. The link sits on the heading's baseline and never
+            wraps. */}
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="font-editorial text-[21px] sm:text-[22px] font-bold tracking-[-0.02em]">Net Worth</h2>
+          <TextLink href="/accounts" className="shrink-0 whitespace-nowrap">View</TextLink>
         </div>
       </div>
 

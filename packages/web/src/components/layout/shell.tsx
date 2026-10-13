@@ -88,7 +88,7 @@ export function Shell({ children }: ShellProps) {
   // detail, plan detail/new, quick import, admin) swaps it for a back button —
   // pages don't render their own Back on mobile.
   const MAIN_PAGES = new Set([
-    '/', '/money', '/insights', '/goals', '/chat', '/retirement', '/portfolio',
+    '/', '/insights', '/goals', '/chat', '/retirement', '/portfolio',
     '/spending', '/debt', '/tax', '/financial-level', '/accounts', '/profile', '/plans',
   ]);
   // A page can supply its own back step (a chat thread, step 2 of a form).

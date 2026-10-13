@@ -8,7 +8,7 @@ import { AdminShell } from '../components/admin/admin-shell';
 import { PlanChip } from '../components/admin/plan-chip';
 import { useAuth } from '../lib/auth';
 import { formatInstant } from '../lib/utils';
-import { RowMenu } from '../components/admin/row-menu';
+import { RowMenu } from '../components/common/row-menu';
 import { DeleteTenantModal } from '../components/admin/delete-tenant-modal';
 import { DisplayFontPicker } from '../components/settings/display-font-picker';
 

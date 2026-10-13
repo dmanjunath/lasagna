@@ -23,7 +23,6 @@ import { ReportWatcher } from './lib/report-watcher';
 const Shell = lazy(() => import('./components/layout/shell').then(m => ({ default: m.Shell })));
 
 // Lazy-load all authenticated pages
-const Accounts = lazy(() => import('./pages/Accounts').then(m => ({ default: m.Accounts })));
 const TaxStrategy = lazy(() => import('./pages/tax-strategy').then(m => ({ default: m.TaxStrategy })));
 const RetirementV2 = lazy(() => import('./pages/retirement-v2').then(m => ({ default: m.RetirementV2 })));
 const SavingsGoal = lazy(() => import('./pages/savings-goal').then(m => ({ default: m.SavingsGoal })));
@@ -196,7 +195,8 @@ function AppRoutes() {
                 <Suspense fallback={null}>
                   <Switch>
                     <Route path="/" component={SimpleHome} />
-                    <Route path="/money" component={SimpleMoney} />
+                    {/* Money became Accounts. Old links keep working. */}
+                    <Route path="/money"><Redirect to="/accounts" /></Route>
                     <Route path="/chat" component={ChatFullPage} />
 
                     {/* Standard pages */}
@@ -223,8 +223,11 @@ function AppRoutes() {
                     <Route path="/retirement-v2"><Redirect to="/retirement" /></Route>
                     <Route path="/probability" component={ProbabilityOfSuccess} />
                     <Route path="/profile" component={Settings} />
-                    <Route path="/accounts/:id" component={AccountDetail} />
-                    <Route path="/accounts" component={Accounts} />
+                    {/* One component, keyed per route: entering or leaving the
+                        edit page mounts a fresh copy, so Cancel discards edits. */}
+                    <Route path="/accounts/:id/edit"><AccountDetail key="edit" /></Route>
+                    <Route path="/accounts/:id"><AccountDetail key="view" /></Route>
+                    <Route path="/accounts" component={SimpleMoney} />
                     <Route path="/quick-import" component={QuickImport} />
                     {/* Operator-only; the pages themselves redirect non-admins */}
                     <Route path="/admin" component={Admin} />
@@ -234,7 +237,7 @@ function AppRoutes() {
 
                     {/* Legacy /s/* redirects */}
                     <Route path="/s"><Redirect to="/" /></Route>
-                    <Route path="/s/money"><Redirect to="/money" /></Route>
+                    <Route path="/s/money"><Redirect to="/accounts" /></Route>
                     <Route path="/s/goals"><Redirect to="/goals" /></Route>
                     <Route path="/s/chat"><Redirect to="/chat" /></Route>
                     <Route path="/s/action"><Redirect to="/insights" /></Route>

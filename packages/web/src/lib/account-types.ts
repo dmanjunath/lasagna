@@ -9,7 +9,7 @@
 // the retirement kind split, the debt kind classification, and the rental
 // fields on a property.
 //
-// Shared by the create modal (pages/Accounts), the reclassify select
+// Shared by the create modal (components/accounts/useAccountConnections), the reclassify select
 // (pages/account-detail) and the debt labels (pages/debt) so the three lists
 // can't drift apart.
 // ---------------------------------------------------------------------------

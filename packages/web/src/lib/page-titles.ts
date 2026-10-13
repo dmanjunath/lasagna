@@ -15,7 +15,6 @@
  * `null` means the bar keeps the brand mark.
  */
 const EXACT: Record<string, string> = {
-  '/money': 'Money',
   '/chat': 'Chat',
   '/spending': 'Spending',
   '/transactions': 'Transactions',
