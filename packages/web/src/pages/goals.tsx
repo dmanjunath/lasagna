@@ -148,7 +148,10 @@ export function Goals() {
       <header className="flex flex-wrap items-start md:items-end justify-between gap-4 animate-fade-in">
         <div className="min-w-0">
           <PageTitle className="sm:text-[36px]">Goals</PageTitle>
-          <PageMeta className="mt-0 md:mt-1.5">
+          {/* Desktop only. On a phone the title is in the top bar, which left
+              this line as the first thing on the page, and the summary card
+              under it already counts the goals. */}
+          <PageMeta className="hidden md:flex md:mt-1.5">
             {loading ? <PageMetaSkeleton widths={['w-[51px]', 'w-[74px]']} /> : summaryLine}
           </PageMeta>
         </div>
@@ -355,7 +358,7 @@ function SummaryHero({
   const pct = Math.min(100, Math.round((totalSaved / totalTarget) * 100));
   const remaining = Math.max(0, totalTarget - totalSaved);
   return (
-    <section className="g-rise relative mt-6 flex flex-wrap items-center gap-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+    <section className="g-rise relative mt-2 md:mt-6 flex flex-wrap items-center gap-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -365,8 +368,9 @@ function SummaryHero({
         }}
       />
       <div className="relative min-w-[280px] flex-1">
-        <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
-          Total saved toward goals
+        {/* A label over the figure, as on the Accounts page's net worth card. */}
+        <span className="text-[14px] font-semibold text-content-muted">
+          Saved toward goals
         </span>
         <div className="mt-2 font-editorial text-[30px] sm:text-[40px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
           <MaskedText text={formatCurrency(totalSaved)} />{' '}
@@ -385,12 +389,12 @@ function SummaryHero({
       </div>
       <div className="relative flex w-full gap-3.5 sm:w-auto">
         <div className="min-w-[112px] flex-1 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
-          <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Funded</div>
+          <div className="text-[12.5px] font-semibold text-content-muted">Funded</div>
           <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-brand-ink))] ui-tnum">{fundedCount}</div>
           <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">of {activeCount} goal{activeCount === 1 ? '' : 's'}</div>
         </div>
         <div className="min-w-[112px] flex-1 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
-          <div className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">Avg. progress</div>
+          <div className="text-[12.5px] font-semibold text-content-muted">Avg. progress</div>
           <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum">{avgPct}%</div>
           <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">across active goals</div>
         </div>

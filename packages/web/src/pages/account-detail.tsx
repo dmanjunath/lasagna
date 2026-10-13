@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { startUpgrade } from '../lib/billing';
 import { cn, formatMoney, stripAccountMask, exactSyncTime, formatStoredDay, formatStoredMonth, localDayKey } from '../lib/utils';
 import { isAmountsHidden } from '../lib/hide-amounts';
-import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
+import { MaskedText, MoneyInput } from '../components/uikit';
 import { Alert, Button, EmptyState, Field, Input, PageMeta, PageMetaItem, SegmentedControl, Skeleton, TextLink, Tooltip, useToast } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
 import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
@@ -705,6 +705,11 @@ export function AccountDetail() {
   const heroFirst = heroPts.length > 0 ? heroPts[0] : null;
   const heroValue = hoveredPoint ? hoveredPoint.value : heroLatest ? heroLatest.value : balance;
   const heroChange = heroLatest && heroFirst ? heroLatest.value - heroFirst.value : 0;
+  // The change the line under the figure states: to the scrubbed day while
+  // scrubbing, else to the latest. Only when the chart draws, so it never
+  // describes a wider period than the one on screen.
+  const chartDraws = hasHistory && chartPoints.length >= 2;
+  const shownChange = hoveredPoint && heroFirst ? hoveredPoint.value - heroFirst.value : heroChange;
   const balanceLabel = isLiabilityAcct ? 'Balance owed' : 'Account value';
   // Source-of-truth badge — prefer the server-computed value, fall back to the
   // manual/synced split for older item payloads.
@@ -975,6 +980,26 @@ export function AccountDetail() {
 
   saveRef.current = save;
 
+  // The range picker, shown on the label line from `sm` up and under the chart
+  // on a phone.
+  // Whenever there is history at all, so a range with too little to draw can
+  // be switched away from (it used to hide the picker with the chart).
+  const rangePicker = (size: 'sm' | 'md') =>
+    hasHistory ? (
+      <SegmentedControl
+        aria-label="Time range"
+        size={size}
+        value={range}
+        onChange={(r) => setRange(r as Range)}
+        options={[
+          { value: '1M', label: '1M' },
+          { value: '6M', label: '6M' },
+          { value: '1Y', label: '1Y' },
+          { value: 'All', label: 'All' },
+        ]}
+      />
+    ) : null;
+
   if (editing) {
     return (
       <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
@@ -1087,65 +1112,57 @@ export function AccountDetail() {
               'radial-gradient(90% 70% at 0% 4%, var(--ui-brand-softer), transparent 60%)',
           }}
         />
-        {/* Laid out like the net worth card on Money: the heading, its badge and
-            the range picker share one wrapping line, and the figure sits under
-            it with the change beside it. */}
+        {/* Laid out like the net worth card on Accounts: a quiet label with its
+            badge (and from `sm` up the range picker), the figure, then one
+            line saying how it moved. On a phone the picker sits under the
+            chart. */}
         <div className="relative">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <h2 className="truncate font-editorial text-[19px] font-bold tracking-[-0.018em]">{balanceLabel}</h2>
+              <h2 className="truncate text-[14px] font-semibold text-content-muted">{balanceLabel}</h2>
               {/* A green "Synced" badge on a frozen account contradicts the banner
                   above it — same rule as the account rows on /accounts. */}
               {valueSource && !acct.frozen && (
                 <ValueSourceBadge source={valueSource} size="md" syncedAt={lastSyncedAt ?? undefined} />
               )}
             </div>
-            {hasHistory && chartPoints.length >= 2 && (
-              <SegmentedControl
-                aria-label="Time range"
-                value={range}
-                onChange={(r) => setRange(r as Range)}
-                options={[
-                  { value: '1M', label: '1M' },
-                  { value: '6M', label: '6M' },
-                  { value: '1Y', label: '1Y' },
-                  { value: 'All', label: 'All' },
-                ]}
-              />
-            )}
+            <div className="hidden sm:block">{rangePicker('md')}</div>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            {/* "Balance owed" already says it's debt, so the amount is unsigned
-                and reads in the negative ink rather than as a double negative. */}
-            <span className={cn('font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
-              <MaskedText text={fmtUsd(isLiabilityAcct ? Math.abs(heroValue) : heroValue)} />
-            </span>
-            {hoveredPoint ? (
-              <span className="text-[13.5px] font-medium text-content-muted ui-tnum">
-                {/* A local day key, converted from the snapshot instant where the points are built. */}
-                {formatStoredDay(hoveredPoint.date, { year: 'numeric' })}
-              </span>
-            ) : hasHistory && heroChange !== 0 ? (
+          {/* "Balance owed" already says it's debt, so the amount is unsigned
+              and reads in the negative ink rather than as a double negative. */}
+          <span className={cn('mt-1.5 block font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
+            <MaskedText text={fmtUsd(isLiabilityAcct ? Math.abs(heroValue) : heroValue)} />
+          </span>
+          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] ui-tnum">
+            {chartDraws && (hoveredPoint || heroChange !== 0) ? (
               <>
-                <DeltaChip delta={heroChange} goodWhenDown={isLiabilityAcct} />
-                <span className="text-[13px] font-medium text-content-muted">over this period</span>
+                <DeltaText delta={shownChange} base={heroFirst?.value ?? null} goodWhenDown={isLiabilityAcct} />
+                <span className="font-medium text-content-muted">
+                  {/* Scrubbing: the day the figure is now dated to, in full
+                      contrast, as on the net worth card. A local day key,
+                      converted from the snapshot instant where the points are built. */}
+                  {hoveredPoint && (
+                    <span className="whitespace-nowrap font-semibold text-content">on {formatStoredDay(hoveredPoint.date)},{' '}</span>
+                  )}
+                  over this period
+                </span>
               </>
             ) : !isManual && lastSyncedAt && exactSyncTime(lastSyncedAt) ? (
               <Tooltip content={exactSyncTime(lastSyncedAt)!}>
                 <span
                   tabIndex={0}
                   aria-label={`Last synced ${exactSyncTime(lastSyncedAt)}`}
-                  className="ui-focus rounded-ui-xs text-[13px] font-medium text-content-muted"
+                  className="ui-focus rounded-ui-xs font-medium text-content-muted"
                 >
                   {`${syncedPrefix} ${relativeTime(lastSyncedAt)}`}
                 </span>
               </Tooltip>
             ) : (
-              <span className="text-[13px] font-medium text-content-muted">
+              <span className="font-medium text-content-muted">
                 {isManual ? 'Manually tracked' : lastSyncedAt ? `${syncedPrefix} ${relativeTime(lastSyncedAt)}` : 'Connected'}
               </span>
             )}
-          </div>
+          </p>
         </div>
 
         {hasHistory ? (
@@ -1166,6 +1183,9 @@ export function AccountDetail() {
             description="A value trend appears once we have a few days of history."
           />
         )}
+
+        {/* Phone: the range picker under the chart it changes. */}
+        <div className="relative mt-3 sm:hidden">{rangePicker('sm')}</div>
 
         {/* Key facts — read-only, at-a-glance context for this one account. */}
         <div className="relative mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-line pt-5 sm:flex sm:flex-wrap sm:gap-x-10">
@@ -1290,39 +1310,38 @@ function relativeTime(iso: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Delta chip — sign + arrow + tinted color (never color-only). Mirrors Money.
+// Delta text — sign + arrow + color (never color-only). Mirrors Accounts.
 // ---------------------------------------------------------------------------
 
-// goodWhenDown: a debt shrinking is the good direction, so its tint flips
-// while the arrow and sign still follow the number.
-function DeltaChip({ delta, goodWhenDown = false }: { delta: number; goodWhenDown?: boolean }) {
+// How the balance moved: arrow, amount and percent in the direction's colour,
+// the same line the net worth card uses. goodWhenDown: a debt shrinking is the
+// good direction, so its colour flips while the arrow and sign still follow
+// the number. With amounts hidden the dollar change goes and the percent,
+// which reveals no amount, stays.
+/** "+1.2%", "−0.4%", and an unsigned "0.0%" for a change that rounds to nothing. */
+function signedPct(pct: number): string {
+  if (Math.abs(pct) < 0.05) return '0.0%';
+  return `${pct < 0 ? '−' : '+'}${Math.abs(pct).toFixed(1)}%`;
+}
+
+function DeltaText({ delta, base, goodWhenDown = false }: { delta: number; base: number | null; goodWhenDown?: boolean }) {
   const up = delta >= 0;
-  const positive = goodWhenDown ? !up : up;
-  // The chip is sign, arrow and tint around one number. Masked, all three go:
-  // the arrow and the sign are siblings of the value, so the mask span's own
-  // color cannot neutralise them.
+  const good = goodWhenDown ? !up : up;
   const hidden = isAmountsHidden();
+  const pct = base ? (delta / Math.abs(base)) * 100 : null;
   return (
     <span
-      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
-      style={
-        hidden
-          ? { background: 'rgb(var(--ui-canvas-sunken))', color: 'rgb(var(--ui-content-secondary))' }
-          : {
-              background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
-              color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
-            }
-      }
+      className="inline-flex items-center gap-1 font-bold"
+      style={{ color: good ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))' }}
     >
-      {hidden ? (
-        <HiddenAmount />
-      ) : (
-        <>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            {up ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
-          </svg>
-          {up ? '+' : '−'}{fmtUsd(Math.abs(delta))}
-        </>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        {up ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
+      </svg>
+      {!hidden && <>{up ? '+' : '−'}{fmtUsd(Math.abs(delta))}</>}
+      {pct !== null && Number.isFinite(pct) && (
+        <span className={hidden ? undefined : 'font-semibold'}>
+          {hidden ? '' : ' '}({signedPct(pct)})
+        </span>
       )}
     </span>
   );

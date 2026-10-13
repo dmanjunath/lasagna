@@ -594,6 +594,15 @@ export function SimpleHome() {
     />
   );
 
+  // Shown in one of two places by width (see the money block below).
+  const recentActivity = txnsLoading ? (
+    <Skeleton className="h-[210px] w-full rounded-ui-xl" />
+  ) : txnsFailed ? (
+    <CardLoadError title="Couldn't load recent activity" />
+  ) : (
+    <RecentActivity txns={recentTxns} onPatch={(id, row) => setRecentTxns((prev) => prev.map((r) => (r.id === id ? row : r)))} />
+  );
+
   return (
     <div className="cq-inline mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
       {/* Nothing connected, or nothing loaded. The page-scale EmptyState:
@@ -651,7 +660,7 @@ export function SimpleHome() {
         <div className="home-hero-grid gap-7 items-start">
 
           {/* ░░░░ LEFT COLUMN (2/3) — the briefing + the financial journey ░░░░ */}
-          <div className="min-w-0 flex flex-col gap-7">
+          <div className="home-main min-w-0 flex flex-col gap-7">
             <BriefingCard
               greeting={`${greeting}, ${firstName}`}
               actionSentence={briefingActions}
@@ -689,7 +698,7 @@ export function SimpleHome() {
 
           {/* ░░░░ RIGHT COLUMN (1/3) ░░░░ */}
           {!breakdown ? (
-          <div className="flex flex-col gap-[18px]">
+          <div className="home-side flex flex-col gap-[18px]">
             <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
               <Skeleton className="h-4 w-52" />
               <Skeleton className="mt-5 h-8 w-full rounded-[11px]" />
@@ -700,7 +709,8 @@ export function SimpleHome() {
             <Skeleton className="h-[160px] w-full rounded-ui-xl" />
           </div>
           ) : (
-          <aside className="min-w-0 flex flex-col gap-[18px]">
+          <>
+          <aside className="home-side min-w-0 flex flex-col gap-[18px]">
             {hasComposition && (
               <NetWorthBreakdown breakdown={breakdown} />
             )}
@@ -714,27 +724,38 @@ export function SimpleHome() {
             ) : (
               <GoalsRail goals={goals} loading={goalsLoading} />
             )}
+            {/* Wide only: recent activity closes the right column, a short
+                name-and-amount list that suits a third of the page. */}
+            <div className="home-wide-only">{recentActivity}</div>
+          </aside>
+
+          {/* This month's money: spending and cash flow, then (narrow only)
+              recent activity. Its own block so that on a wide page the pair
+              fills the left column under the journey instead of running the
+              right column far past the left. Narrower, everything follows the
+              side cards in the same order as before. Recent activity renders
+              in both places and CSS shows exactly one, which keeps each
+              width's reading order equal to its visual order. */}
+          <section aria-label="This month" className="home-money min-w-0">
             {sideLoading ? (
               <>
-                <Skeleton className="h-[180px] w-full rounded-ui-xl" />
-                <Skeleton className="h-[150px] w-full rounded-ui-xl" />
+                {/* One height for both: the real pair stretches to equal height. */}
+                <Skeleton className="h-[200px] w-full rounded-ui-xl" />
+                <Skeleton className="h-[200px] w-full rounded-ui-xl" />
               </>
             ) : flowFailed ? (
-              <CardLoadError title="Couldn't load this month's spending" />
+              <div className="home-money-full">
+                <CardLoadError title="Couldn't load this month's spending" />
+              </div>
             ) : (
               <>
                 {monthFlow && <SpendingPulse flow={monthFlow} />}
                 {monthFlow && <CashFlowPulse flow={monthFlow} />}
               </>
             )}
-            {txnsLoading ? (
-              <Skeleton className="h-[210px] w-full rounded-ui-xl" />
-            ) : txnsFailed ? (
-              <CardLoadError title="Couldn't load recent activity" />
-            ) : (
-              <RecentActivity txns={recentTxns} onPatch={(id, row) => setRecentTxns((prev) => prev.map((r) => (r.id === id ? row : r)))} />
-            )}
-          </aside>
+            <div className="home-money-full home-narrow-only">{recentActivity}</div>
+          </section>
+          </>
           )}
         </div>
       ) : null}

@@ -118,7 +118,25 @@ export function CategoryMultiSelect({
   describedBy,
   className,
   toolbar,
+  open: openProp,
+  onOpenChange,
+  hideTriggerOnPhone = false,
+  iconOnlyBelowLg = false,
+  sheetBelow = 'sm',
 }: {
+  /** Controlled open state, for a page that opens the menu from elsewhere (a top-bar action). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** No trigger below `sm`, where the menu is a sheet and the page owns the trigger. */
+  hideTriggerOnPhone?: boolean;
+  /**
+   * Below which breakpoint the menu is a bottom sheet (and the trigger hides,
+   * with hideTriggerOnPhone). A page whose top bar owns Filters up to `md`
+   * passes 'md', so there is no width where the menu has no trigger.
+   */
+  sheetBelow?: 'sm' | 'md';
+  /** Hide the trigger's word below `lg`, where it shares a narrow row. */
+  iconOnlyBelowLg?: boolean;
   /** On the wide transactions toolbar: name the field, tint and count while set. */
   toolbar?: ToolbarField;
   /** Category ids. */
@@ -135,13 +153,19 @@ export function CategoryMultiSelect({
   describedBy?: string;
   className?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean | ((v: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(open) : next;
+    if (onOpenChange) onOpenChange(value);
+    else setOpenState(value);
+  };
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dragControls = useDragControls();
 
-  const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
+  const isPhone = typeof window !== 'undefined' && window.matchMedia(sheetBelow === 'md' ? '(max-width: 767px)' : '(max-width: 639px)').matches;
   // The sheet floats over a document that still scrolls, so a drag on a short
   // list would slide the page underneath instead.
   useBodyScrollLock(open && isPhone);
@@ -265,11 +289,12 @@ export function CategoryMultiSelect({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
+        title={iconOnlyBelowLg ? 'Filters' : undefined}
         // The toolbar button look shared with /transactions' filter buttons.
-        className={cn(button({ variant: count > 0 ? 'primary' : 'secondary', size: 'sm' }), 'shrink-0 px-3')}
+        className={cn(button({ variant: count > 0 ? 'primary' : 'secondary', size: 'sm' }), 'shrink-0 px-3', hideTriggerOnPhone && (sheetBelow === 'md' ? 'max-md:hidden' : 'max-sm:hidden'))}
       >
         <SlidersHorizontal size={14} className="opacity-70" aria-hidden />
-        Filters
+        <span className={cn(iconOnlyBelowLg && 'max-lg:sr-only')}>Filters</span>
         {count > 0 && <Badge tone="brand" size="sm">{count}</Badge>}
       </button>
     );

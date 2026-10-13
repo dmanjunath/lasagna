@@ -748,9 +748,9 @@ export function TransactionFilters({
           onChange={(direction) => onChange({ ...filters, direction })}
         />
       ) : (
+        // Default size in the stacked panel, to match the fields around it.
         <SegmentedControl
           aria-label="Type"
-          size="sm"
           value={filters.direction}
           onChange={(direction) => onChange({ ...filters, direction })}
           options={[

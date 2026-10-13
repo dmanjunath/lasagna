@@ -11,7 +11,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { TimelineScrubber } from './timeline-scrubber.js';
-import { cn } from '../../../lib/utils.js';
+import { SegmentedControl } from '../../uikit';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface AssetCategory {
@@ -146,25 +146,17 @@ export function WealthProjection({
   return (
     <div className="bg-panel border border-line rounded-ui-xl shadow-ui-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-line">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-b border-line">
         <h3 className="text-base font-semibold text-content">{title}</h3>
         {scenarios && scenarios.length > 1 && (
-          <div className="flex gap-1">
-            {scenarios.map((scenario) => (
-              <button
-                key={scenario.id}
-                onClick={() => setActiveScenario(scenario.id)}
-                className={cn(
-                  'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
-                  activeScenario === scenario.id
-                    ? 'bg-brand text-brand-fg'
-                    : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
-                )}
-              >
-                {scenario.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            aria-label="Scenario"
+            stretch={false}
+            className="max-w-full flex-wrap"
+            value={activeScenario}
+            onChange={setActiveScenario}
+            options={scenarios.map((s) => ({ value: s.id, label: s.label }))}
+          />
         )}
       </div>
 

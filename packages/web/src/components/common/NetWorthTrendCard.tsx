@@ -30,20 +30,29 @@ function drawableRange(history: TrendPoint[], preferred: Range): Range {
   return preferred;
 }
 
-function DeltaChip({ delta }: { delta: number }) {
-  const positive = delta >= 0;
+/**
+ * How the figure moved: an arrow, the amount and the percent, in the
+ * direction's colour (never colour alone: the arrow and sign carry it too).
+ * With amounts hidden the dollar change goes, and the percent, which reveals
+ * no amount, stays.
+ */
+function DeltaText({ delta, pct }: { delta: number; pct: number | null }) {
+  const up = delta >= 0;
+  const hidden = isAmountsHidden();
   return (
     <span
-      className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
-      style={{
-        background: positive ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
-        color: positive ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
-      }}
+      className="inline-flex items-center gap-1 font-bold"
+      style={{ color: up ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))' }}
     >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        {positive ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        {up ? <path d="M12 7l7 8H5z" /> : <path d="M12 17 5 9h14z" />}
       </svg>
-      {positive ? '+' : '−'}{fmtUsd(Math.abs(delta))}
+      {!hidden && <>{up ? '+' : '−'}{fmtUsd(Math.abs(delta))}</>}
+      {pct !== null && (
+        <span className={hidden ? undefined : 'font-semibold'}>
+          {hidden ? '' : ' '}({Math.abs(pct) < 0.05 ? '0.0%' : `${pct < 0 ? '−' : '+'}${Math.abs(pct).toFixed(1)}%`})
+        </span>
+      )}
     </span>
   );
 }
@@ -378,6 +387,27 @@ export function NetWorthTrendCard({
     ? fmtDate(hoveredPoint.date)
     : null;
 
+  // The range picker, or its placeholder while history is in flight (without
+  // it the control arrives later and moves what is around it). Rendered in one
+  // of two places by width, see below.
+  const rangeSlot = (size: 'sm' | 'md') =>
+    (historyLoading || valueLoading) && !hasRanges ? (
+      <Skeleton className={cn('w-full rounded-ui-md sm:w-[187px]', size === 'sm' ? 'h-[34px]' : 'h-[38px]')} />
+    ) : hasRanges ? (
+      <SegmentedControl
+        aria-label="Time range"
+        size={size}
+        value={range}
+        onChange={(r) => { rangeIsTheirs.current = true; setRange(r as Range); }}
+        options={[
+          { value: '1M', label: '1M' },
+          { value: '6M', label: '6M' },
+          { value: '1Y', label: '1Y' },
+          { value: 'All', label: 'All' },
+        ]}
+      />
+    ) : null;
+
   return (
     <section
       className={cn(
@@ -400,13 +430,8 @@ export function NetWorthTrendCard({
           they wrapped to a line of their own and cost the card ~53px of height
           for a row that was mostly empty. The label line has the room. */}
       <div className="relative">
-        {/* Label, link and picker on one wrapping line, in this order in the DOM
-            so focus follows what the eye follows. The picker carries its own
-            `w-full sm:w-auto` (its stretch behaviour), which is what breaks the
-            line on a phone: label and link share the first row, the picker
-            takes the second and fills it. Wrapping the picker in a positioning
-            div instead resolved that width against the div and shrank the rail
-            on phones, so it stays a direct child here. */}
+        {/* Label, link and (from `sm` up) the picker on one line, in this order
+            in the DOM so focus follows what the eye follows. */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           {/* The card is a section of the page that hosts it, so its title is
               that page's section heading, at that page's scale.
@@ -422,86 +447,46 @@ export function NetWorthTrendCard({
               is not rendered at all. */}
           <h2 className={cn('min-w-0 flex-1 truncate', titleClassName)}>Net worth</h2>
           {action}
-          {(historyLoading || valueLoading) && !hasRanges && (
-            // Holds the picker's place while history is in flight. Without it
-            // the control arrives as a new row and pushes the chart down.
-            <Skeleton className="h-[38px] w-full sm:w-[187px] rounded-ui-md" />
-          )}
-          {hasRanges && (
-            <SegmentedControl
-              aria-label="Time range"
-              value={range}
-              onChange={(r) => { rangeIsTheirs.current = true; setRange(r as Range); }}
-              options={[
-                { value: '1M', label: '1M' },
-                { value: '6M', label: '6M' },
-                { value: '1Y', label: '1Y' },
-                { value: 'All', label: 'All' },
-              ]}
-            />
-          )}
+          {/* From `sm` up the picker rides this line. On a phone it moved under
+              the chart: here it took a full-width row between the label and
+              the figure, a tall control splitting the two things that read
+              together. */}
+          <div className="hidden sm:block">{rangeSlot('md')}</div>
         </div>
-        {/* Figure and change share a line: stacking them cost ~40px of card
-            height for a chip that fits comfortably beside the number. They
-            wrap onto separate lines only when the card is too narrow. */}
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-          {/* The mask is the COMPONENT here, not the string `fmtUsd` would
-              return: a bare "$•••••" inherits the editorial face, whose bullets
-              squash into ellipses at this size and read as broken text. */}
-          {valueLoading ? (
-            // Sized off the same type scale as the figure it stands in for, so
-            // the line it sits on does not change height when the value lands.
-            <span className="font-editorial text-[32px] sm:text-[40px] leading-[1.05] block">
-              <Skeleton className="h-[1em] w-[260px] max-w-full rounded-[11px]" />
+        {/* The figure, then one line saying how it moved: arrow, amount and
+            percent in the direction's colour, then the period, muted. The
+            phone finance-app pattern. It replaced a pill beside the figure
+            and a second "since" line under it, which split one fact across
+            two lines in two styles. */}
+        {valueLoading ? (
+          // Sized off the same type scale as the figure it stands in for, so
+          // the line it sits on does not change height when the value lands.
+          <span className="mt-1.5 font-editorial text-[32px] sm:text-[40px] leading-[1.05] block">
+            <Skeleton className="h-[1em] w-[260px] max-w-full rounded-[11px]" />
+          </span>
+        ) : (
+          // The mask is the COMPONENT here, not the string `fmtUsd` would
+          // return: a bare "$•••••" inherits the editorial face, whose bullets
+          // squash into ellipses at this size and read as broken text.
+          <span className="mt-1.5 block font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum">
+            {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(displayValue)}
+          </span>
+        )}
+        {(historyLoading || valueLoading) && periodDelta === null ? (
+          // Holds the change line's place, so the card does not grow by a line
+          // the moment history arrives.
+          <Skeleton className="mt-2 h-4 w-[218px] rounded-full" />
+        ) : periodDelta !== null && sinceLabel ? (
+          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] ui-tnum">
+            <DeltaText delta={periodDelta} pct={periodPct} />
+            {/* Scrubbing the chart shows a past day, so this line says which
+                one, in full contrast: it is what re-dates the figure above. */}
+            <span className="font-medium text-content-muted">
+              {hoveredLabel && <span className="font-semibold text-content">on {hoveredLabel},{' '}</span>}
+              since {sinceLabel}
             </span>
-          ) : (
-            <span className="font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum">
-              {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(displayValue)}
-            </span>
-          )}
-          {/* Chip and caption are direct children of the row, not a nested
-              flex box of their own. Nested, the pair wrapped as a unit onto a
-              line of its own and then wrapped AGAIN inside it, so the longer
-              scrubbing caption cost the card a third line (+29.5px at 390px)
-              and pushed the chart down under the finger doing the scrubbing.
-              Flat, the caption is the only thing that moves, onto a full-width
-              line that holds it at every width. */}
-          {(historyLoading || valueLoading) && periodDelta === null && (
-            // Holds the row the delta chip and its "since" line will occupy.
-            // They depend on history, so without this the header grows by a
-            // whole line at the moment history arrives.
-            <Skeleton className="h-7 w-[218px] rounded-full" />
-          )}
-          {periodDelta !== null && sinceLabel && (
-            <>
-              {/* Masked, the chip is a tinted arrow around a second copy of the
-                  mask already leading the card, so it is dropped rather than
-                  filled with bullets. The percentage beside it is
-                  scale-invariant, so it stays and carries the change. */}
-              {!isAmountsHidden() && <DeltaChip delta={periodDelta} />}
-              {/* Scrubbing the chart shows a past day, so this line says which
-                  one. Without it the figure silently contradicts every other
-                  net-worth number on the page. It rides here rather than in the
-                  title because this line already dates the figure, and because
-                  the title is a display-size heading that cannot absorb a
-                  changing label without moving the controls beside it.
-
-                  The scrubbed day is the only token on the line that changes,
-                  and it is what re-dates the figure above, so it carries the
-                  full-contrast weight while the period it is measured against
-                  stays muted. Set in the same muted grey it read as a third
-                  run of dates rather than as the answer to "which day is
-                  this?". */}
-              <span className="text-[13px] font-medium text-content-muted ui-tnum">
-                {hoveredLabel && (
-                  <span className="font-semibold text-content">on {hoveredLabel},{' '}</span>
-                )}
-                since {sinceLabel}
-                {periodPct !== null ? ` (${periodPct < 0 ? '−' : '+'}${Math.abs(periodPct).toFixed(1)}%)` : ''}
-              </span>
-            </>
-          )}
-        </div>
+          </p>
+        ) : null}
       </div>
 
       {hasChart ? (
@@ -547,6 +532,9 @@ export function NetWorthTrendCard({
           </p>
         </div>
       )}
+      {/* Phone: the range picker under the chart it changes, compact, the
+          way a phone's stocks app places it. */}
+      <div className="relative mt-3 sm:hidden">{rangeSlot('sm')}</div>
     </section>
   );
 }

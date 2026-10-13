@@ -1,4 +1,4 @@
-import { cn } from '../../../lib/utils.js';
+import { SegmentedControl } from '../../uikit';
 
 interface SliderConfig {
   id: string;
@@ -45,22 +45,14 @@ export function ChartControls({
     <div className="space-y-4 p-4 bg-canvas-sunken rounded-ui-lg border border-line">
       {/* Scenario toggles */}
       {scenarios && scenarios.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {scenarios.map((scenario) => (
-            <button
-              key={scenario.id}
-              onClick={() => onScenarioChange?.(scenario.id)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all',
-                activeScenario === scenario.id
-                  ? 'bg-brand text-brand-fg'
-                  : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
-              )}
-            >
-              {scenario.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Scenario"
+          stretch={false}
+          className="max-w-full flex-wrap"
+          value={activeScenario ?? ''}
+          onChange={(id) => onScenarioChange?.(id)}
+          options={scenarios.map((s) => ({ value: s.id, label: s.label }))}
+        />
       )}
 
       {/* Sliders */}

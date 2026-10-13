@@ -13,7 +13,7 @@ import { cn, formatMoney } from "../lib/utils";
 import { HIDDEN_AMOUNT, isAmountsHidden } from "../lib/hide-amounts";
 import { api, API_BASE, authHeaders } from "../lib/api";
 import { usePageContext } from "../lib/page-context";
-import { Alert, Badge, Button, EmptyState, MaskedText, MoneyInput, Skeleton } from "../components/uikit";
+import { Alert, Badge, Button, EmptyState, MaskedText, MoneyInput, SegmentedControl, Skeleton } from "../components/uikit";
 import { PageTitle } from "../components/ds/PageTitle";
 
 // ── Chart palette (resolves via CSS vars, so light/dark swap automatically) ──
@@ -170,7 +170,7 @@ function Card({ children, className, style }: { children: React.ReactNode; class
 function Section({ title, action, children, className }: { title: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={cn("mt-8", className)}>
-      <div className="mb-4 flex items-end justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
         <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">{title}</h2>
         {action}
       </div>
@@ -518,25 +518,14 @@ function StrategyConfig({ strategy, params, monthlySpend, onMonthlySpendChange, 
   // directly above the masked "/yr" it derives. It shows the mask until focused.
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
-        {STRATEGY_TABS.map((tab) => {
-          const active = strategy === tab.value;
-          return (
-            <button
-              key={tab.value}
-              onClick={() => onStrategyChange(tab.value)}
-              className={cn(
-                "inline-flex min-h-[44px] items-center justify-center rounded-ui-md border px-3.5 text-[13px] font-bold transition-colors sm:min-h-0 sm:py-2",
-                active
-                  ? "border-transparent bg-brand-soft text-[rgb(var(--ui-brand-ink))]"
-                  : "border-line text-content-secondary hover:text-content hover:border-line-strong",
-              )}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* The same control the Retirement page uses for this choice. */}
+      <SegmentedControl
+        aria-label="Withdrawal strategy"
+        tone="brand"
+        value={strategy}
+        onChange={onStrategyChange}
+        options={STRATEGY_TABS}
+      />
 
       {strategy === "constant_dollar" && (
         <div className="space-y-4">
@@ -1254,23 +1243,16 @@ export function ProbabilityOfSuccess() {
       {(backtestPeriods.length > 0 || percentiles.length > 0) && !simulating && (
         <div className="mt-6 flex items-center gap-2.5">
           <span className="text-[13px] text-content-secondary">Values in:</span>
-          <div className="inline-flex items-center gap-0.5 rounded-ui-md border border-line bg-canvas-sunken p-0.5">
-            {([["real", "Real $"], ["nominal", "Nominal $"]] as const).map(([v, label]) => {
-              const active = (v === "real") === useRealDollars;
-              return (
-                <button
-                  key={v}
-                  onClick={() => setUseRealDollars(v === "real")}
-                  className={cn(
-                    "inline-flex min-h-[44px] items-center justify-center rounded-[calc(var(--ui-r-md)-3px)] px-3 text-[12.5px] font-semibold transition-all sm:min-h-0 sm:py-1",
-                    active ? "bg-panel text-[rgb(var(--ui-brand-ink))] shadow-ui-sm" : "text-content-muted hover:text-content",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          <SegmentedControl
+            aria-label="Values in"
+            stretch={false}
+            value={useRealDollars ? "real" : "nominal"}
+            onChange={(v) => setUseRealDollars(v === "real")}
+            options={[
+              { value: "real", label: "Real $" },
+              { value: "nominal", label: "Nominal $" },
+            ]}
+          />
           <span className="text-[12px] text-content-muted">(backtest only)</span>
         </div>
       )}
@@ -1280,20 +1262,16 @@ export function ProbabilityOfSuccess() {
         <Section
           title="Monte Carlo projection"
           action={
-            <div className="inline-flex items-center gap-0.5 rounded-ui-md border border-line bg-canvas-sunken p-0.5">
-              {([["fan", "Fan chart"], ["spaghetti", "Paths"]] as const).map(([v, label]) => (
-                <button
-                  key={v}
-                  onClick={() => setMcView(v)}
-                  className={cn(
-                    "inline-flex min-h-[44px] items-center justify-center rounded-[calc(var(--ui-r-md)-3px)] px-3 text-[12.5px] font-semibold transition-all sm:min-h-0 sm:py-1",
-                    mcView === v ? "bg-panel text-[rgb(var(--ui-brand-ink))] shadow-ui-sm" : "text-content-muted hover:text-content",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              aria-label="Chart view"
+              stretch={false}
+              value={mcView}
+              onChange={setMcView}
+              options={[
+                { value: "fan", label: "Fan chart" },
+                { value: "spaghetti", label: "Paths" },
+              ]}
+            />
           }
         >
           <Card>

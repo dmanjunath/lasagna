@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  SlidersHorizontal,
   TrendingDown,
   TrendingUp,
   Receipt,
@@ -131,7 +132,7 @@ function StatCell({ label, value, sub, tone }: { label: string; value: string; s
   const masked = isMasked(value);
   return (
     <div>
-      <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</div>
+      <div className="text-[12.5px] font-semibold text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[20px] sm:text-[25px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
         !masked && tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
@@ -546,6 +547,22 @@ export function Spending() {
     return () => { active = false; };
   }, [granularity, refreshKey, filter, scopeKey]);
 
+  // The first year with any spending or income, unfiltered. It is the floor
+  // for the period stepper: before it there is nothing to show.
+  // undefined while loading, null when there are no transactions at all.
+  const [earliestYear, setEarliestYear] = useState<number | null | undefined>(undefined);
+  useEffect(() => {
+    let active = true;
+    api.getTrend({ granularity: 'year' })
+      .then((data) => {
+        if (!active) return;
+        const years = (data?.periods ?? []).filter((p) => p.income || p.expenses).map((p) => Number(p.period));
+        setEarliestYear(years.length > 0 ? Math.min(...years) : null);
+      })
+      .catch(() => { if (active) setEarliestYear(undefined); });
+    return () => { active = false; };
+  }, [refreshKey]);
+
   // Page context for chat
   useEffect(() => {
     setPageContext({
@@ -649,6 +666,20 @@ export function Spending() {
       return next > new Date() ? d : next;
     });
   }, []);
+  // Year mode steps years the same way, with the same ceiling.
+  const atCurrentYear = currentYear >= new Date().getFullYear();
+  const prevPeriod = granularity === 'month' ? prevMonth : () => setCurrentYear((y) => y - 1);
+  const nextPeriod = granularity === 'month'
+    ? nextMonth
+    : () => setCurrentYear((y) => Math.min(y + 1, new Date().getFullYear()));
+  const atLatestPeriod = granularity === 'month' ? atCurrentMonth : atCurrentYear;
+  const atEarliestPeriod = earliestYear === null || (earliestYear !== undefined && (
+    granularity === 'month'
+      ? currentMonth.getFullYear() * 12 + currentMonth.getMonth() <= earliestYear * 12
+      : currentYear <= earliestYear
+  ));
+  // Only one period has data, so there is nothing to step to.
+  const onlyPeriod = atEarliestPeriod && atLatestPeriod;
 
   // Clicking a bar selects that period.
   // When the clicked bar is the one already hovered, its value is ALREADY on
@@ -737,17 +768,6 @@ export function Spending() {
     return Math.round(pct);
   }, [trendFresh, periods, baseSpending, heroPeriod]);
 
-  // Whether the comparison row can be decided at all yet. Until the trend data
-  // covers the period the hero describes there is nothing to compare against,
-  // and rendering "across July 2026" in the meantime is a placeholder that
-  // replaces itself with the delta pill a beat later — the third contradiction
-  // in a row the rest of this block works to keep whole. The row reserves its
-  // height either way, so holding it empty costs no layout.
-  const deltaResolved = useMemo(
-    () => trendFresh && periods.some((p) => p.period === heroPeriod),
-    [trendFresh, periods, heroPeriod],
-  );
-
   // The chart renders whatever `periods` currently holds, and that lags a
   // granularity switch by one fetch. Describe it by the data it has rather than
   // by the toggle: told it is in year mode while still holding months, its year
@@ -802,12 +822,41 @@ export function Spending() {
     setTimeout(() => { loadData(); setSyncing(false); }, 3000);
   };
 
-  // On a phone, the admin Sync lives in the top bar.
-  useMobileHeader(canSync ? {
+  // On a phone, the page's actions live in the top bar: Filters (a dot while
+  // one applies), and the admin Sync. Filters opens the same category sheet
+  // the in-page trigger opens on wider screens.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Below `md`, where the top bar shows: the menu is a sheet there and its
+  // in-page trigger hides, so Filters is offered once at every width.
+  const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 767px)');
+    const on = () => setIsPhone(mql.matches);
+    mql.addEventListener('change', on);
+    return () => mql.removeEventListener('change', on);
+  }, []);
+  // Closing the sheet hands focus back to the top-bar button that opened it.
+  const onFiltersOpenChange = (open: boolean) => {
+    setFiltersOpen(open);
+    if (!open && isPhone) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('header button[aria-label="Filters"]')?.focus());
+    }
+  };
+  const phoneFilters = showScopeRow && isPhone;
+  useMobileHeader(phoneFilters || canSync ? {
     actions: (
-      <HeaderAction label={syncing ? 'Syncing' : 'Sync'} onClick={handleSync} disabled={syncing}>
-        <RefreshCw size={20} className={syncing ? 'animate-spin' : ''} />
-      </HeaderAction>
+      <>
+        {phoneFilters && (
+          <HeaderAction label="Filters" active={filterActive} expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+            <SlidersHorizontal size={19} />
+          </HeaderAction>
+        )}
+        {canSync && (
+          <HeaderAction label={syncing ? 'Syncing' : 'Sync'} onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={20} className={syncing ? 'animate-spin' : ''} />
+          </HeaderAction>
+        )}
+      </>
     ),
   } : null);
 
@@ -815,42 +864,70 @@ export function Spending() {
     <div className="mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 md:pt-9 pb-6 sm:pb-28 text-content">
       {/* ════════ Header — title/lede row, then a single non-wrapping controls
            row (desktop-only Sync keeps it to one line at 390px). */}
-      <header className="flex flex-col gap-0 md:gap-4 md:flex-row md:items-end md:justify-between">
+      <header className="flex flex-col gap-0 md:gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
           <PageTitle>Spending</PageTitle>
         </div>
 
         {/* Granularity toggle + month stepper (+ sync when admin, desktop only). */}
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-2.5">
+        {/* On a phone (title in the top bar) the period picker is two rows:
+            Month | Year across the width, then the period centred between its
+            arrows. From `sm` up the controls are one row under the title, and
+            from `xl` they move beside it. The row never wraps: beside a title
+            that has to share the width, it broke into floating fragments. */}
+        <div className="flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2 lg:gap-2.5">
+          {/* Filters first in the cluster on desktop. Below md its trigger is
+              the top bar's, the menu is a sheet, and this wrapper takes no
+              space (`contents`). */}
+          {showScopeRow && (
+            <CategoryMultiSelect
+              variant="filters"
+              className="max-md:contents"
+              selected={selectedIds}
+              onChange={setSelectedIds}
+              mode={{ value: filterMode, onChange: handleModeChange }}
+              open={filtersOpen}
+              onOpenChange={onFiltersOpenChange}
+              hideTriggerOnPhone
+              sheetBelow="md"
+              iconOnlyBelowLg
+            />
+          )}
           <SegmentedControl
             aria-label="Granularity"
+            className="xl:order-2"
             value={granularity}
             onChange={handleGranularityChange}
-            stretch={false}
             options={[
               { value: 'month', label: 'Month' },
               { value: 'year', label: 'Year' },
             ]}
           />
-          {granularity === 'month' && (
-            <div className="inline-flex items-center gap-0.5 rounded-ui-md border border-line bg-panel p-0.5 shadow-ui-sm">
+          {/* The period stepper, for a month or a year. With only one
+              period of data there is nowhere to step, and the card already names it.
+              Beside the title (xl) the row is right-aligned, so there it sits
+              before Month/Year: the toggle must not move from under the pointer
+              when the stepper goes. */}
+          {!onlyPeriod && (
+            <div className="flex items-center justify-center gap-1 sm:inline-flex sm:gap-0.5 sm:rounded-ui-md sm:border sm:border-line sm:bg-canvas-sunken sm:p-0.5 xl:order-1">
               <button
                 type="button"
-                onClick={prevMonth}
-                aria-label="Previous month"
-                className="ui-focus touch-target grid h-10 w-9 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content sm:w-10"
+                onClick={prevPeriod}
+                disabled={atEarliestPeriod}
+                aria-label={granularity === 'month' ? 'Previous month' : 'Previous year'}
+                className="ui-focus touch-target grid h-10 w-9 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-35 disabled:hover:bg-transparent sm:h-[30px] sm:w-8 sm:hover:bg-panel"
               >
                 <ChevronLeft size={18} />
               </button>
-              <span className="ui-tnum min-w-[76px] px-1 text-center text-[13.5px] font-bold tracking-[-0.01em] text-content sm:min-w-[92px]">
-                {formatStoredMonth(periodStart)}
+              <span className="ui-tnum min-w-[120px] px-1 text-center text-[15px] font-bold tracking-[-0.01em] text-content sm:min-w-[92px] sm:text-[13.5px]">
+                {granularity === 'month' ? formatStoredMonth(periodStart) : currentYear}
               </span>
               <button
                 type="button"
-                onClick={nextMonth}
-                disabled={atCurrentMonth}
-                aria-label="Next month"
-                className="ui-focus touch-target grid h-10 w-9 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-35 disabled:hover:bg-transparent sm:w-10"
+                onClick={nextPeriod}
+                disabled={atLatestPeriod}
+                aria-label={granularity === 'month' ? 'Next month' : 'Next year'}
+                className="ui-focus touch-target grid h-10 w-9 place-items-center rounded-ui-sm text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-35 disabled:hover:bg-transparent sm:h-[30px] sm:w-8 sm:hover:bg-panel"
               >
                 <ChevronRight size={18} />
               </button>
@@ -860,7 +937,9 @@ export function Spending() {
             <Button
               variant="secondary"
               size="sm"
-              className="max-md:hidden"
+              // Admin only. Between md and lg the column is too narrow for it
+              // beside the period controls.
+              className="max-lg:hidden xl:order-3"
               disabled={syncing}
               onClick={handleSync}
               leadingIcon={<RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />}
@@ -880,16 +959,13 @@ export function Spending() {
            with a bare chip carrying no sign of which mode it was under. The
            vertical gap clears the 44px tap zone each × carries there, so a tap
            between two lines cannot remove the chip on the other one. ════════ */}
-      {showScopeRow && (
+      {/* On a phone the trigger is the top bar's Filters, so this row only
+          appears there when it has chips to show. */}
+      {/* The applied filters, only when there are any. The trigger lives with
+          the period controls (or in the top bar below md), so this row never
+          stands empty or holds a lone button. */}
+      {showScopeRow && filterChips.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-4 sm:gap-y-2">
-          <CategoryMultiSelect
-            variant="filters"
-            selected={selectedIds}
-            onChange={setSelectedIds}
-            mode={{ value: filterMode, onChange: handleModeChange }}
-          />
-          {filterChips.length > 0 && (
-            <>
               {filterChips.map((chip) => (
                 <ChipBadge
                   key={chip.key}
@@ -906,8 +982,6 @@ export function Spending() {
                   Clear all
                 </button>
               )}
-            </>
-          )}
         </div>
       )}
 
@@ -955,7 +1029,7 @@ export function Spending() {
                data during a refetch, so its numbers are correct immediately. */}
           <div className="relative flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
             <div className="flex flex-col gap-1">
-              <div className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+              <div className="text-[14px] font-semibold text-content-muted">
                 Spent in {heroCaption}
               </div>
               {/* Keyed by period so switching months slides the new figure in;
@@ -1003,8 +1077,6 @@ export function Spending() {
                       {spentMore ? 'more than' : 'less than'} last {heroGranularity === 'month' ? 'month' : 'year'}
                     </span>
                   </>
-                ) : deltaResolved ? (
-                  <span className="text-[13px] font-medium text-content-muted">across {heroPeriodLabel}</span>
                 ) : null}
               </div>
             </div>
@@ -1060,7 +1132,17 @@ export function Spending() {
       )}
 
       {/* ════════ Estimated (linked but no transactions) ════════ */}
-      {!loadingSummary && noData && !summaryError && hasLinkedAccounts && (
+      {/* ════════ An empty period for someone who has transactions ════════ */}
+      {!loadingSummary && noData && !summaryError && earliestYear != null && (
+        <div className="mt-7">
+          <EmptyState
+            icon={<Receipt size={24} />}
+            title={`No spending in ${periodDisplayLabel}`}
+          />
+        </div>
+      )}
+
+      {!loadingSummary && noData && !summaryError && hasLinkedAccounts && earliestYear == null && (
         <section className="mt-6 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6">
           <Badge tone="caution">Estimated</Badge>
           <h3 className="mt-1.5 font-editorial text-[19px] font-bold tracking-[-0.018em]">Transaction sync coming soon</h3>
@@ -1069,7 +1151,7 @@ export function Spending() {
           </p>
           {creditCardTotal > 0 && (
             <div className="mt-4 flex items-baseline gap-2.5">
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Est. monthly spend</span>
+              <span className="text-[13px] font-semibold text-content-muted">Est. monthly spend</span>
               <span className="font-editorial text-[22px] font-extrabold tracking-[-0.02em] ui-tnum text-negative">
                 {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(creditCardTotal)}
               </span>
@@ -1079,7 +1161,7 @@ export function Spending() {
       )}
 
       {/* ════════ Empty — no transactions and nothing linked ════════ */}
-      {!loadingSummary && noData && !summaryError && !hasLinkedAccounts && (
+      {!loadingSummary && noData && !summaryError && !hasLinkedAccounts && earliestYear == null && (
         <div className="mt-7">
           <EmptyState
             icon={<Receipt size={24} />}

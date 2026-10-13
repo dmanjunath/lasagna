@@ -2866,9 +2866,29 @@
    column only when the page is wide enough for both; below that the aside
    wraps underneath, which also hands the breakdown card the full width it
    needs for the one-line "Assets − Debt = Net worth" equation. */
-.home-hero-grid { display: grid; grid-template-columns: 1fr; }
+.home-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
+/* This month's money: stacked, the way the side cards stack. minmax(0, …) so
+   a long merchant name truncates instead of widening the column (a bare 1fr
+   grows to fit its longest unbreakable text, and the page scrolled sideways). */
+.home-money { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.home-wide-only { display: none; }
 @container (min-width: 1024px) {
-  .home-hero-grid { grid-template-columns: 2fr 1fr; }
+  /* The side cards span both rows on the right and end with recent activity.
+     Spending and cash flow sit side by side under the main column on the
+     left, so neither column runs far past the other. The last row takes any
+     leftover height, so a right column taller than the left never opens a gap
+     between the journey and the pair. */
+  .home-hero-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "main side" "money side";
+  }
+  .home-main { grid-area: main; }
+  .home-side { grid-area: side; }
+  .home-money { grid-area: money; align-self: start; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .home-money-full { grid-column: 1 / -1; }
+  .home-wide-only { display: block; }
+  .home-narrow-only { display: none; }
 }
 
 /* Briefing card quick links: two columns of whole, one-line labels once the

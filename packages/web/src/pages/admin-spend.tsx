@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { api } from '../lib/api';
-import { Alert, Button, Skeleton } from '../components/uikit';
+import { Alert, Button, SegmentedControl, Skeleton } from '../components/uikit';
 import { AdminShell } from '../components/admin/admin-shell';
 import { cn, formatStoredDay } from '../lib/utils';
 
@@ -129,22 +129,13 @@ export function AdminSpend() {
     <AdminShell subtitle="Estimated LLM and Plaid spend, metered per activity event.">
       {/* Range toggle */}
       <div className="mt-7 flex items-center justify-between gap-3 flex-wrap">
-        <div className="inline-flex rounded-full border border-line bg-panel p-1" role="tablist" aria-label="Time range">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              role="tab"
-              aria-selected={days === r}
-              onClick={() => setDays(r)}
-              className={cn(
-                'ui-focus touch-target h-9 px-3.5 rounded-full text-[12.5px] font-semibold transition-colors',
-                days === r ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))]' : 'text-content-muted hover:text-content',
-              )}
-            >
-              {r}d
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Time range"
+          stretch={false}
+          value={String(days)}
+          onChange={(v) => setDays(Number(v))}
+          options={RANGES.map((r) => ({ value: String(r), label: `${r}d` }))}
+        />
         <p className="text-[12px] text-content-muted">Costs are estimates based on current model and Plaid pricing.</p>
       </div>
 

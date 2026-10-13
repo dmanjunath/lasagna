@@ -23,6 +23,7 @@ import { PageTitle } from '../components/ds/PageTitle';
 import { HeaderAction } from '../components/layout/app-header';
 import { useAccountConnections } from '../components/accounts/useAccountConnections';
 import { isNativeApp } from '../lib/native';
+import { useIsMobile } from '../lib/hooks/use-mobile';
 import { RowMenu } from '../components/common/row-menu';
 import { useMobileHeader } from '../lib/mobile-header';
 
@@ -133,6 +134,7 @@ export function SimpleMoney() {
   // Adding and updating connections: the add dialog, Plaid's flows, and the
   // deep links other pages send here (?autoLink, ?reconnect, ?add&link).
   const connections = useAccountConnections({ onChanged: reloadItems });
+  const isMobile = useIsMobile();
 
   // Syncing in any form: Sync all, or the wait for a just-linked bank's
   // accounts to arrive, which otherwise ran up to 20 seconds with no sign.
@@ -243,7 +245,10 @@ export function SimpleMoney() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <PageTitle>Accounts</PageTitle>
-          <PageMeta className="mt-0 md:mt-1.5">
+          {/* Desktop only. On a phone the title is in the top bar, which left
+              this line as the first thing on the page; there the same facts
+              sit with the account list they describe (see the toggle row). */}
+          <PageMeta className="hidden md:flex md:mt-1.5">
             {loading ? (
               <PageMetaSkeleton widths={['w-20', 'w-[109px]']} />
             ) : (
@@ -361,8 +366,9 @@ export function SimpleMoney() {
           history={history}
           historyError={historyFailed}
           netWorth={netWorth}
-          className="mt-6"
-          titleClassName="font-editorial text-[19px] font-bold tracking-[-0.018em]"
+          className="mt-2 md:mt-6"
+          // A label over the figure, not a heading competing with it.
+          titleClassName="text-[14px] font-semibold text-content-muted"
         />
       )}
 
@@ -384,9 +390,18 @@ export function SimpleMoney() {
              the institution they're connected through. ── */}
       {hasMoney && (
         // No heading: it said "Accounts" again under the page title of the same
-        // name. The toggle is what this row is for.
-        <div className="mt-7 flex items-center justify-end gap-3 px-1">
+        // name. On a phone the row also carries the page's count and sync
+        // time, which sit under the title on desktop.
+        <div className="mt-7 flex items-center justify-between gap-3 px-1 md:justify-end">
+          <span className="min-w-0 truncate text-[13px] font-medium text-content-muted ui-tnum md:hidden">
+            {totalAccountCount} account{totalAccountCount === 1 ? '' : 's'}
+            {lastSynced && `, synced ${relativeTime(lastSynced)}`}
+          </span>
           <SegmentedControl
+            // Its own width on a phone too, so the count beside it has room,
+            // and compact there. Desktop matches the range picker's size.
+            stretch={false}
+            size={isMobile ? 'sm' : 'md'}
             aria-label="Group accounts by"
             value={groupBy}
             onChange={(g) => setGroupByPersisted(g as GroupBy)}

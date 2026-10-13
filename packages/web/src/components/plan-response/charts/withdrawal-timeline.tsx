@@ -12,6 +12,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { cn } from '../../../lib/utils.js';
+import { SegmentedControl } from '../../uikit';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../../lib/hide-amounts.js';
 
 interface WithdrawalData {
@@ -194,37 +195,23 @@ export function WithdrawalTimeline({
   return (
     <div className="bg-panel border border-line rounded-ui-xl shadow-ui-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-5 border-b border-line">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-b border-line">
         <div>
           <h3 className="text-base font-semibold text-content">{title}</h3>
           <p className="text-sm text-content-secondary mt-1">
             {stats.years}-year withdrawal plan
           </p>
         </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setView('withdrawal')}
-            className={cn(
-              'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
-              view === 'withdrawal'
-                ? 'bg-brand text-brand-fg'
-                : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
-            )}
-          >
-            Withdrawals
-          </button>
-          <button
-            onClick={() => setView('portfolio')}
-            className={cn(
-              'px-3 py-1 rounded-lg text-[12px] font-medium transition-all',
-              view === 'portfolio'
-                ? 'bg-brand text-brand-fg'
-                : 'bg-panel text-content-secondary hover:bg-canvas-sunken'
-            )}
-          >
-            Portfolio
-          </button>
-        </div>
+        <SegmentedControl
+          aria-label="Chart view"
+          stretch={false}
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'withdrawal', label: 'Withdrawals' },
+            { value: 'portfolio', label: 'Portfolio' },
+          ]}
+        />
       </div>
 
       {/* Stats */}
