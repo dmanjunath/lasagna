@@ -26,7 +26,13 @@ import {
   UserPlus,
   Clock,
   AlertCircle,
+  ChevronLeft,
+  X,
+  Tag,
+  ListFilter,
+  type LucideIcon,
 } from "lucide-react";
+import { useMobileHeader } from "../lib/mobile-header";
 import { useConfirm } from "../components/ds";
 import { isNativeApp, setNativeToken } from "../lib/native";
 import { hapticLight, hapticWarning } from "../lib/haptics";
@@ -73,6 +79,7 @@ type EditSection = "personal" | "income" | null;
 interface SettingsSection {
   id: string;
   title: string;
+  icon: LucideIcon;
   hint?: string;
   body: React.ReactNode;
 }
@@ -196,6 +203,24 @@ export function Settings() {
   const select = (id: string | null) => {
     setActive(id);
     window.history.replaceState(null, "", id ? `${window.location.pathname}#${id}` : window.location.pathname);
+  };
+
+  // On a phone each section is its own screen. Opening one pushes a history
+  // entry, so the browser's back returns to the list, and so does the top bar's.
+  // A keyboard open moves focus into the screen, and back returns it to the
+  // row it came from. A tap leaves focus alone, so no ring appears.
+  const keyboardOpened = useRef<string | null>(null);
+  const sectionScreenRef = useRef<HTMLDivElement>(null);
+  const openOnPhone = (id: string, byKeyboard: boolean) => {
+    keyboardOpened.current = byKeyboard ? id : null;
+    window.history.pushState({ settingsSection: id }, "", `${window.location.pathname}#${id}`);
+    setActive(id);
+    window.scrollTo(0, 0);
+  };
+  const backToList = () => {
+    setShowProWelcome(false);
+    if ((window.history.state as { settingsSection?: string } | null)?.settingsSection) window.history.back();
+    else select(null);
   };
 
   // Edit form state
@@ -343,6 +368,7 @@ export function Settings() {
   const sections: SettingsSection[] = [
     {
       id: "financial",
+      icon: User,
       title: "Financial profile",
       hint: "Powers your tax, retirement, and cash-flow insights",
       body: (
@@ -393,6 +419,7 @@ export function Settings() {
     },
     {
       id: "accounts",
+      icon: Building2,
       title: "Accounts",
       hint: "Add, reconnect, or remove the accounts you track",
       body: (
@@ -409,6 +436,7 @@ export function Settings() {
       : [
           {
             id: "household",
+            icon: Users,
             title: "Household",
             hint: "Share your accounts and financial picture with a partner. Each gets their own login and private chat.",
             body: <HouseholdSection />,
@@ -416,12 +444,14 @@ export function Settings() {
         ]),
     {
       id: "billing",
+      icon: Sparkles,
       title: "Plan & billing",
       hint: "Your subscription and what's included",
       body: <PlanCard />,
     },
     {
       id: "security",
+      icon: KeyRound,
       title: "Security",
       hint: "Your password, sign-in history, and device passkeys",
       body: (
@@ -434,6 +464,7 @@ export function Settings() {
     },
     {
       id: "display",
+      icon: Moon,
       title: "Display",
       hint: "How the app looks on this device",
       body: (
@@ -445,6 +476,7 @@ export function Settings() {
     },
     {
       id: "categories",
+      icon: Tag,
       title: "Categories",
       hint: "Rename, disable, and organize how transactions are categorized",
       body: (
@@ -453,6 +485,7 @@ export function Settings() {
     },
     {
       id: "rules",
+      icon: ListFilter,
       title: "Transaction rules",
       hint: "File matching transactions into a category automatically",
       body: <RulesManager />,
@@ -461,6 +494,7 @@ export function Settings() {
       ? [
           {
             id: "delete",
+            icon: Trash2,
             title: "Delete account",
             hint: "Permanently remove your account and everything in it",
             body: <DeleteAccountCard />,
@@ -472,6 +506,52 @@ export function Settings() {
   // A hash that names no section (or none at all) falls back to the first one on
   // desktop and to nothing expanded on mobile.
   const activeSection = sections.find((s) => s.id === active) ?? sections[0];
+  // The phone's open section, if any.
+  const phoneSection = wideEnoughForRail ? null : sections.find((s) => s.id === active) ?? null;
+
+  useMobileHeader(phoneSection ? { title: phoneSection.title, onBack: backToList } : null);
+
+  const phoneSectionId = phoneSection?.id ?? null;
+  useEffect(() => {
+    const id = keyboardOpened.current;
+    if (!id) return;
+    if (phoneSectionId === id) sectionScreenRef.current?.focus();
+    else if (phoneSectionId === null) {
+      document.getElementById(id)?.focus();
+      keyboardOpened.current = null;
+    }
+  }, [phoneSectionId]);
+
+  if (phoneSection) {
+    return (
+      <div
+        ref={sectionScreenRef}
+        tabIndex={-1}
+        className="mx-auto max-w-[1000px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content focus:outline-none"
+      >
+        {/* Below md the top bar carries the title and the back step. Between
+            md and the rail's 1024 there is no top bar, so the page carries them. */}
+        <button
+          type="button"
+          onClick={backToList}
+          className="ui-focus -ml-1 mb-3 hidden items-center gap-1 rounded-ui-sm px-1 py-1 text-[14px] font-semibold text-content-secondary hover:text-content md:inline-flex"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Profile
+        </button>
+        <h2 className="hidden px-1 text-[18px] font-semibold leading-snug text-content md:block">{phoneSection.title}</h2>
+        {phoneSection.hint && (
+          <p className="px-1 text-[13px] font-medium text-content-muted md:mt-1">{phoneSection.hint}</p>
+        )}
+        {showProWelcome && (
+          <Alert tone="positive" className="mt-4">
+            Welcome to Pro! Your account is being upgraded.
+          </Alert>
+        )}
+        <div className="mt-4">{phoneSection.body}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1000px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
@@ -500,43 +580,31 @@ export function Settings() {
       )}
 
       {!wideEnoughForRail ? (
-        /* One section open at a time, so the whole list of them is readable on
-           one screen instead of being a single 10-section scroll. */
-        <div className="mt-6">
-          {sections.map((section) => {
-            const open = active === section.id;
+        /* Each row opens its section as its own screen, the way a phone's
+           settings do. A section can run past a whole screen, so expanding it
+           in place pushed the rest of the list out of reach. */
+        <nav aria-label="Settings sections" className="mt-4">
+          {/* No Accounts row: the tab bar and the sidebar already go there. */}
+          {sections.filter((s) => s.id !== "accounts").map((section) => {
+            const Icon = section.icon;
             return (
-              <div
-                key={section.id}
+              <div key={section.id} className="border-b border-line py-0.5">
+              <button
                 id={section.id}
-                className="border-b border-line scroll-mt-[calc(env(safe-area-inset-top)+65px)]"
+                type="button"
+                onClick={(e) => openOnPhone(section.id, e.detail === 0)}
+                className="ui-focus flex min-h-[52px] w-full items-center gap-3 rounded-ui-md px-1 py-2 text-left transition-colors [@media(hover:hover)]:hover:bg-canvas-sunken active:bg-canvas-sunken"
               >
-                <button
-                  type="button"
-                  onClick={() => select(open ? null : section.id)}
-                  aria-expanded={open}
-                  className="ui-focus flex min-h-touch w-full items-center justify-between gap-3 rounded-ui-sm py-3.5 text-left"
-                >
-                  <span className="text-[15.5px] font-semibold text-content">{section.title}</span>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 shrink-0 text-content-muted transition-transform duration-200",
-                      open && "rotate-180",
-                    )}
-                  />
-                </button>
-                {open && (
-                  <div className="pb-5">
-                    {section.hint && (
-                      <p className="mb-3 text-[13px] font-medium text-content-muted">{section.hint}</p>
-                    )}
-                    {section.body}
-                  </div>
-                )}
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[15.5px] font-semibold text-content">{section.title}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-content-faint" />
+              </button>
               </div>
             );
           })}
-        </div>
+        </nav>
       ) : (
         <div className="mt-8 grid grid-cols-[196px_minmax(0,1fr)] gap-10">
           <nav aria-label="Settings sections" className="sticky top-4 flex flex-col gap-0.5 self-start">
@@ -693,7 +761,7 @@ function HouseholdSection() {
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
             <Users className="h-5 w-5" />
           </span>
-          <h3 className="min-w-0 flex-1 font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+          <h3 className="min-w-0 flex-1 font-editorial text-[17px] sm:text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
             Members
           </h3>
           <Badge tone="neutral" size="sm">{profiles.length}</Badge>
@@ -817,7 +885,7 @@ function InvitePanel({ invites, onChanged }: { invites: PendingInvite[]; onChang
           <UserPlus className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+          <h3 className="font-editorial text-[17px] sm:text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
             Invite a partner
           </h3>
           <p className="mt-0.5 text-[12.5px] font-medium text-content-muted">
@@ -910,7 +978,7 @@ function PasswordSecurityCard() {
 
   return (
     <Surface className="p-5">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
             <KeyRound className="h-5 w-5" />
@@ -931,6 +999,7 @@ function PasswordSecurityCard() {
           <Button
             variant="secondary"
             size="sm"
+            className="ml-[52px] shrink-0 self-start lg:ml-0"
             onClick={() => {
               setOpen(true);
               setDone(false);
@@ -1044,7 +1113,7 @@ function PasskeysCard() {
 
   return (
     <Surface className="p-5">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
             <Fingerprint className="h-5 w-5" />
@@ -1057,7 +1126,7 @@ function PasskeysCard() {
           </div>
         </div>
         {supported && (
-          <Button variant="secondary" size="sm" onClick={addPasskey} loading={busy} disabled={busy}>
+          <Button variant="secondary" size="sm" className="ml-[52px] shrink-0 self-start lg:ml-0" onClick={addPasskey} loading={busy} disabled={busy}>
             Add passkey
           </Button>
         )}
@@ -1299,7 +1368,7 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-[var(--ui-accent-soft)] text-[rgb(var(--ui-accent-ink))]">
           {icon}
         </span>
-        <h3 className="min-w-0 flex-1 font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+        <h3 className="min-w-0 flex-1 font-editorial text-[17px] sm:text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
           {title}
         </h3>
         {editable && (
@@ -1309,10 +1378,11 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
             onClick={onEdit}
             aria-expanded={expanded}
             trailingIcon={
-              expanded ? <ChevronDown className="h-4 w-4" /> : <Pencil className="h-3.5 w-3.5" />
+              expanded ? <X className="h-4 w-4" /> : <Pencil className="h-3.5 w-3.5" />
             }
           >
-            {expanded ? "Close" : "Edit"}
+            {/* Icon only on a phone, so the title keeps one line. */}
+            <span className="sr-only sm:not-sr-only">{expanded ? "Close" : "Edit"}</span>
           </Button>
         )}
       </div>
@@ -1321,7 +1391,7 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
         {loading ? (
           <div className="grid grid-cols-1 gap-x-8 gap-y-5 xl:grid-cols-2">
             {rows.map((_, i) => (
-              <div key={i} className="space-y-2">
+              <div key={i} className="flex items-center justify-between sm:block sm:space-y-2">
                 <Skeleton className="h-2.5 w-20 rounded-full" />
                 <Skeleton className={cn("h-3.5 rounded-full", ["w-28", "w-24", "w-32", "w-20"][i % 4])} />
               </div>
@@ -1343,16 +1413,18 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
                 key="rows"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="grid grid-cols-1 gap-x-8 gap-y-5 xl:grid-cols-2"
+                className="grid grid-cols-1 gap-x-8 gap-y-3.5 sm:gap-y-5 xl:grid-cols-2"
               >
+                {/* A phone gets one line per field, label left and value right,
+                    so the card is half as tall. */}
                 {rows.map((r) => (
-                  <div key={r.label} className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">
+                  <div key={r.label} className="flex min-w-0 items-baseline justify-between gap-4 sm:block">
+                    <div className="shrink-0 text-[14px] font-medium text-content-muted sm:text-[11px] sm:font-semibold sm:uppercase sm:tracking-[0.1em]">
                       {r.label}
                     </div>
                     <div
                       className={cn(
-                        "mt-1 break-words text-[15.5px] font-semibold text-content",
+                        "min-w-0 break-words text-right text-[15px] font-semibold text-content sm:mt-1 sm:text-left sm:text-[15.5px]",
                         r.money && "ui-tnum",
                         r.muted && "font-medium text-content-faint",
                       )}
@@ -1710,7 +1782,7 @@ function PlanCard() {
           <Sparkles className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <span className="block font-editorial text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
+          <span className="block font-editorial text-[17px] sm:text-[19px] font-bold leading-[1.15] tracking-[-0.018em] text-content">
             {isPro ? "Pro" : "Free plan"}
           </span>
           <span className="mt-0.5 block truncate text-[12.5px] font-medium text-content-muted">{summary}</span>
