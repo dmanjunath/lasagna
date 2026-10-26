@@ -615,7 +615,7 @@ function HasDebtView({
           }}
         />
         <div className="relative">
-          <div className="text-[13px] font-semibold text-content-muted">Total debt</div>
+          <div className="text-[14px] font-semibold text-content-muted">Total debt</div>
           <div className="mt-2 font-editorial text-[40px] sm:text-[56px] font-extrabold leading-[0.9] tracking-[-0.035em] text-negative ui-tnum">
             {/* Owed by definition under this label, so red and unsigned. */}
             {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(totalDebt)}

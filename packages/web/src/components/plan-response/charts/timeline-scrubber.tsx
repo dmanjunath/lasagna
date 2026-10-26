@@ -53,7 +53,7 @@ export function TimelineScrubber({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-between font-mono text-[11px] text-content-secondary uppercase tracking-[0.14em]">
+      <div className="flex justify-between font-mono text-[11px] text-content-secondary">
         <span>{startYear}</span>
         <span className="text-[rgb(var(--ui-brand-ink))] font-medium">{currentYear}</span>
         <span>{endYear}</span>

@@ -132,7 +132,7 @@ function StatCell({ label, value, sub, tone }: { label: string; value: string; s
   const masked = isMasked(value);
   return (
     <div>
-      <div className="text-[12.5px] font-semibold text-content-muted">{label}</div>
+      <div className="text-[12px] font-semibold text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[20px] sm:text-[25px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
         !masked && tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
@@ -625,7 +625,6 @@ export function Spending() {
   // together when the summary lands.
   const stale = loadedPeriod !== null && loadedPeriod.period !== selectedPeriod && !instant;
   const heroPeriod = stale ? loadedPeriod.period : selectedPeriod;
-  const heroPeriodLabel = stale ? loadedPeriod.label : periodDisplayLabel;
   const heroGranularity = stale ? loadedPeriod.granularity : granularity;
   // While hovering a trend bar, the WHOLE hero (spent + income/net/savings)
   // reflects the hovered period, so the KPIs can never contradict the big
@@ -785,13 +784,15 @@ export function Spending() {
   const hasChart = periods.length > 0;
 
   const heroValue = displaySpending;
-  // Long-form on hover too: "Apr 2026" on hover and "April 2026" on release is
-  // the caption correcting itself a beat later, the thing the hero must not do.
-  const heroCaption = hoveredPeriod
+  // The month picker already names the selected period, so the label names a
+  // period only when the figure is for a different one: a hovered bar, or the
+  // last loaded period while a switch is in flight. Long-form on hover so the
+  // two read the same.
+  const heroCaption = hoveredPeriod && hoveredPeriod.period !== selectedPeriod
     ? (granularity === 'month'
         ? monthLabel(`${hoveredPeriod.period}-01`)
         : hoveredPeriod.period)
-    : heroPeriodLabel;
+    : stale ? loadedPeriod.label : null;
 
   // A month with nothing in it. Gated on the filter: "Connect an account" is a
   // catastrophically wrong answer to "you excluded everything that had spending".
@@ -1030,7 +1031,7 @@ export function Spending() {
           <div className="relative flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
             <div className="flex flex-col gap-1">
               <div className="text-[14px] font-semibold text-content-muted">
-                Spent in {heroCaption}
+                {heroCaption ? `Spent in ${heroCaption}` : 'Spent'}
               </div>
               {/* Keyed by period so switching months slides the new figure in;
                    hover swaps stay instant (same key, no re-animation). */}

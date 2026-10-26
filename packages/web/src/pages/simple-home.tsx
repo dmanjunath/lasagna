@@ -945,15 +945,15 @@ function NetWorthBreakdown({
             single-line equation below. */}
         <div className="nw-statement">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</span>
+            <span className="text-[14px] font-semibold text-content-muted">Assets</span>
             <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum">{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(assetTotal)}</span>
           </div>
           <div className="mt-3 flex items-baseline justify-between gap-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em]" style={{ color: 'rgb(var(--ui-negative))' }}>Debt</span>
+            <span className="text-[14px] font-semibold" style={{ color: 'rgb(var(--ui-negative))' }}>Debt</span>
             <span className="font-editorial text-[26px] font-extrabold tracking-[-0.02em] leading-none ui-tnum" style={{ color: 'rgb(var(--ui-negative))' }}>{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(breakdown.debts)}</span>
           </div>
           <div className="mt-3 pt-3 border-t border-line flex items-baseline justify-between gap-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</span>
+            <span className="text-[14px] font-semibold text-brand">Net worth</span>
             <span className="font-editorial text-[31px] font-extrabold tracking-[-0.03em] leading-none text-brand ui-tnum">{isAmountsHidden() ? <HiddenAmount /> : fmtUsd(breakdown.netWorth)}</span>
           </div>
         </div>
@@ -971,7 +971,7 @@ function NetWorthBreakdown({
           {/* ASSETS — no min-w-0 anywhere in the row: items must hold their
               natural width so the measuring effect reads a true scrollWidth. */}
           <div>
-            <div className="nw-label font-extrabold uppercase tracking-[0.1em] text-content-muted">Assets</div>
+            <div className="nw-label font-semibold text-content-muted">Assets</div>
             <div className="nw-num mt-1 font-editorial font-extrabold tracking-[-0.02em] leading-none ui-tnum">
               {isAmountsHidden() ? <HiddenAmount /> : fmtUsd(assetTotal)}
             </div>
@@ -981,7 +981,7 @@ function NetWorthBreakdown({
           <div className="nw-opgroup flex items-end">
             <div aria-hidden className="nw-op pb-[4px] font-editorial font-semibold leading-none text-content-faint">−</div>
             <div>
-              <div className="nw-label font-extrabold uppercase tracking-[0.1em]" style={{ color: 'rgb(var(--ui-negative))' }}>Debt</div>
+              <div className="nw-label font-semibold" style={{ color: 'rgb(var(--ui-negative))' }}>Debt</div>
               <div
                 className="nw-num mt-1 font-editorial font-extrabold tracking-[-0.02em] leading-none ui-tnum"
                 style={{ color: 'rgb(var(--ui-negative))' }}
@@ -996,7 +996,7 @@ function NetWorthBreakdown({
           <div className="nw-opgroup flex items-end">
             <div aria-hidden className="nw-op pb-[4px] font-editorial font-semibold leading-none text-content-faint">=</div>
             <div>
-              <div className="nw-label font-extrabold uppercase tracking-[0.1em] text-brand">Net worth</div>
+              <div className="nw-label font-semibold text-brand">Net worth</div>
               {/* No change chip here: the briefing card states the move since
                   the last visit. This card answers what the total is made of. */}
               <div className="mt-1">

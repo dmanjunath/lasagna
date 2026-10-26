@@ -1551,10 +1551,22 @@ function DocRow({
   );
 }
 
-function formatFieldKey(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+// Tax acronyms keep their capitals inside an otherwise sentence-case label.
+const FIELD_ACRONYMS: Record<string, string> = {
+  agi: "AGI", magi: "MAGI", ein: "EIN", ssn: "SSN", itin: "ITIN", tin: "TIN",
+  w2: "W-2", w4: "W-4", fica: "FICA", futa: "FUTA", hsa: "HSA", fsa: "FSA",
+  ira: "IRA", irs: "IRS", amt: "AMT", sdi: "SDI", id: "ID",
+};
+
+export function formatFieldKey(key: string): string {
+  const words = key
+    .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.toLowerCase());
+  return words
+    .map((w, i) => FIELD_ACRONYMS[w] ?? (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
 }
 
 /**
@@ -1649,7 +1661,7 @@ function FieldGrid({ entries }: { entries: [string, unknown][] }) {
             entries.length % 2 === 1 && i === entries.length - 1 && "col-span-2",
           )}
         >
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-content-muted">
+          <div className="text-[12px] font-semibold text-content-muted">
             {formatFieldKey(key)}
           </div>
           <div

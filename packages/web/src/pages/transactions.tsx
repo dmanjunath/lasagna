@@ -121,7 +121,7 @@ function KpiCell({ label, value, sub, tone }: {
   const masked = isMasked(value);
   return (
     <div className="px-4 py-3 sm:px-5 sm:py-3.5">
-      <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-content-muted">{label}</div>
+      <div className="text-[12px] font-semibold text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
         !masked && tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',

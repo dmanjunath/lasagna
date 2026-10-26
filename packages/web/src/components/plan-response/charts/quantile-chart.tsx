@@ -152,29 +152,29 @@ export function QuantileChart({
       {/* Final year stats */}
       <div className="grid grid-cols-5 gap-4 p-5 border-b border-line bg-panel-inset">
         <div className="text-center">
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Worst 5%</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">Worst 5%</div>
           <div className={cn(
-            "text-sm font-semibold tabular-nums",
+            "text-[16px] font-bold tabular-nums",
             finalStats.p5 <= 0 && !hideAmounts ? "text-negative" : "text-content"
           )}>
             {formatCurrency(finalStats.p5)}
           </div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">25th %ile</div>
-          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(finalStats.p25)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">25th %ile</div>
+          <div className="text-[16px] font-bold text-content tabular-nums">{formatCurrency(finalStats.p25)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-[rgb(var(--ui-brand-ink))] uppercase tracking-wide mb-1">Median</div>
+          <div className="text-[12px] font-semibold text-[rgb(var(--ui-brand-ink))] mb-1">Median</div>
           <div className="text-lg font-bold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(finalStats.p50)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">75th %ile</div>
-          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(finalStats.p75)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">75th %ile</div>
+          <div className="text-[16px] font-bold text-content tabular-nums">{formatCurrency(finalStats.p75)}</div>
         </div>
         <div className="text-center">
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Best 5%</div>
-          <div className="text-sm font-semibold text-positive tabular-nums">{formatCurrency(finalStats.p95)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">Best 5%</div>
+          <div className="text-[16px] font-bold text-positive tabular-nums">{formatCurrency(finalStats.p95)}</div>
         </div>
       </div>
 

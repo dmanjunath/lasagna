@@ -31,6 +31,7 @@ import type {
   NarrativeThemeKey,
   StrategySection,
   ScheduleSection,
+  ScheduleBucketKey,
   ScheduleRow,
   ChatThread,
   Message,
@@ -126,7 +127,7 @@ function fmtPct(p: number): string {
 // ── Editorial primitives (single-use, inline per CLAUDE.md) ───────────────────
 
 // A numbered section head: a thin top rule across the full frame, then the
-// numeral in Sans + the section name as a tracked muted label.
+// muted numeral + the section name as a heading.
 // Replaces the old accent-dot eyebrows. Prose/body is constrained by callers to
 // ~65ch; wide figures fill a wider measure.
 function ReportSection({
@@ -142,13 +143,13 @@ function ReportSection({
     <section className="plan-section mt-12 sm:mt-14 border-t border-line pt-10">
       <div className="plan-section-head flex items-baseline gap-3">
         {n && (
-          <span className="text-[12px] font-semibold leading-none text-content-faint ui-tnum">
+          <span className="text-[14px] font-semibold leading-none text-content-muted ui-tnum">
             {n}
           </span>
         )}
-        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">
+        <h2 className="text-[18px] font-bold leading-tight tracking-[-0.01em] text-content">
           {label}
-        </span>
+        </h2>
       </div>
       {children}
     </section>
@@ -179,7 +180,7 @@ function Figure({
         <span className="text-[11px] font-semibold leading-none text-content-faint ui-tnum">
           Exhibit {n}
         </span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-content-muted">
+        <span className="text-[12px] font-semibold text-content-muted">
           {title}
         </span>
       </figcaption>
@@ -643,7 +644,7 @@ function goalsEmpty(goals: GoalsSection | null): boolean {
 function GoalStat({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="px-1 py-1">
-      <div className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-content-muted">
+      <div className="text-[12px] font-semibold text-content-muted">
         {label}
       </div>
       {value ? (
@@ -814,8 +815,8 @@ function SuggestionsSectionView({
               </p>
               {s.impact && (
                 <p className="mt-2.5 text-[12.5px] font-semibold text-content-muted">
-                  <span className="font-bold uppercase tracking-[0.06em] text-content-faint">
-                    Impact
+                  <span className="font-bold text-content-secondary">
+                    Impact:
                   </span>{" "}
                   {maskCurrencyInText(s.impact)}
                 </p>
@@ -883,8 +884,8 @@ function StrategySectionView({
                 </p>
                 {s.quantifiedImpact && (
                   <p className="mt-2.5 text-[12.5px] font-semibold text-content-muted">
-                    <span className="font-bold uppercase tracking-[0.06em] text-content-faint">
-                      Impact
+                    <span className="font-bold text-content-secondary">
+                      Impact:
                     </span>{" "}
                     {maskCurrencyInText(s.quantifiedImpact)}
                   </p>
@@ -1156,6 +1157,14 @@ function rowGuaranteedIncome(row: ScheduleRow): number {
   return row.guaranteedIncome.socialSecurity + row.guaranteedIncome.rental + row.guaranteedIncome.other;
 }
 
+// Tag beside each fund in an expanded schedule row.
+const FUND_BUCKET_LABELS: Record<ScheduleBucketKey, string> = {
+  taxable: "Taxable",
+  deferred: "Tax-deferred",
+  roth: "Roth",
+  hsa: "HSA",
+};
+
 // Renders when `sections.schedule?.computed` is true. Placed after Retirement
 // Readiness so the year-by-year detail follows the odds summary.
 function ScheduleTableView({
@@ -1268,7 +1277,7 @@ function ScheduleTableView({
               key={i}
               className="rounded-ui-md bg-canvas-sunken px-3 py-2.5"
             >
-              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-content-muted">
+              <div className="text-[12px] font-semibold text-content-muted">
                 {chip.label}
               </div>
               <div
@@ -1406,12 +1415,8 @@ function ScheduleTableView({
                                 <span className="min-w-0 truncate text-content-secondary" title={f.name}>
                                   {f.name}
                                 </span>
-                                <span className="shrink-0 text-[10.5px] uppercase tracking-[0.05em] text-content-faint">
-                                  {f.earmarked
-                                    ? "earmarked, not drawn"
-                                    : f.bucket === "deferred"
-                                      ? "Tax-deferred"
-                                      : f.bucket}
+                                <span className="shrink-0 text-[11.5px] text-content-faint">
+                                  {f.earmarked ? "Earmarked, not drawn" : FUND_BUCKET_LABELS[f.bucket]}
                                 </span>
                               </span>
                               <span className="shrink-0 ui-tnum whitespace-nowrap">
@@ -1820,10 +1825,7 @@ function PrintCover({
 
       {/* Title block, vertically centered on the page */}
       <div className="plan-cover-body">
-        <div className="text-[12px] font-bold uppercase tracking-[0.22em] text-content-muted">
-          Financial Plan
-        </div>
-        <h1 className="mt-5 font-editorial text-[52px] font-bold leading-[1.02] tracking-[-0.03em] text-content">
+        <h1 className="font-editorial text-[52px] font-bold leading-[1.02] tracking-[-0.03em] text-content">
           {title}
         </h1>
         {/* Thin brand accent rule */}
@@ -1833,14 +1835,14 @@ function PrintCover({
             Prepared for {preparedFor}
           </p>
         )}
-        <p className="mt-1.5 text-[13px] font-semibold uppercase tracking-[0.14em] text-content-muted ui-tnum">
+        <p className="mt-1.5 text-[13px] font-semibold text-content-muted ui-tnum">
           {dateLabel}
         </p>
         {/* Assumptions applied — discloses the basis of the printed figures so a
             saved PDF states its scenario. Only renders when assumptions are set. */}
         {assumptionNote.length > 0 && (
           <div className="mt-8">
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-content-faint">
+            <div className="text-[12.5px] font-semibold text-content-muted">
               Assumptions
             </div>
             <ul className="mt-2 space-y-1">
@@ -1855,7 +1857,7 @@ function PrintCover({
       </div>
 
       {/* Foot: quiet confidentiality line */}
-      <div className="plan-cover-foot text-[10.5px] font-semibold uppercase tracking-[0.18em] text-content-faint">
+      <div className="plan-cover-foot text-[12px] font-medium text-content-faint">
         Prepared privately for the named recipient
       </div>
     </div>
@@ -2366,7 +2368,7 @@ export function FinancialPlanDetailPage() {
                 ) => (
                   <div>
                     <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-[12px] font-bold uppercase tracking-[0.06em] text-content-muted">
+                      <span className="text-[12.5px] font-semibold text-content-muted">
                         {label}
                       </span>
                       <span className="ui-tnum text-[13px] font-bold text-content">

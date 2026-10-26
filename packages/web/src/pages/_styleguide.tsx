@@ -194,7 +194,7 @@ function Typography() {
           </div>
           <div className="space-y-3">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">Hero number, tabular</div>
+              <div className="text-[14px] font-semibold text-content-muted">Hero number, tabular</div>
               <div className="ui-tnum text-[52px] font-semibold leading-none tracking-tight text-content">
                 {formatMoney(1284530.5, true)}
               </div>
@@ -545,7 +545,7 @@ function StyleguideBody() {
             </span>
             <div className="leading-tight">
               <div className="font-editorial text-[18px] font-semibold text-content">LasagnaFi</div>
-              <div className="text-[11px] uppercase tracking-[0.12em] text-content-muted">Design System</div>
+              <div className="text-[12.5px] font-semibold text-content-muted">Design system</div>
             </div>
           </div>
           <ThemeToggle />

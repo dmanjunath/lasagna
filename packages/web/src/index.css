@@ -2925,7 +2925,7 @@
   column-gap: max(calc(14px * var(--nws, 1)), 10px);
 }
 .nw-equation .nw-opgroup { column-gap: max(calc(14px * var(--nws, 1)), 10px); }
-.nw-equation .nw-label { font-size: calc(11px * max(var(--nws, 1), 0.86)); }
+.nw-equation .nw-label { font-size: calc(14px * max(var(--nws, 1), 0.86)); }
 .nw-equation .nw-num { font-size: calc(30px * var(--nws, 1)); }
 .nw-equation .nw-num--total { font-size: calc(34px * var(--nws, 1)); }
 .nw-equation .nw-op { font-size: calc(26px * var(--nws, 1)); }

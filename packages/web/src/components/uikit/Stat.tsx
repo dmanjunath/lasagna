@@ -43,7 +43,7 @@ export function Delta({
 }
 
 /**
- * Stat / KPI — an eyebrow label, a big tabular value, and an optional delta and
+ * Stat / KPI — a label, a big tabular value, and an optional delta and
  * sub-caption. The value uses lining tabular numerals so money columns align.
  */
 export function Stat({
@@ -67,7 +67,7 @@ export function Stat({
     <div className={cn('flex flex-col', className)}>
       <div className="flex items-center gap-2">
         {icon && <span className="text-content-muted">{icon}</span>}
-        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-muted">
+        <span className="text-[12px] font-semibold text-content-muted">
           {label}
         </span>
       </div>

@@ -144,7 +144,7 @@ export function NewPlanPage() {
                   {pt.description}
                 </p>
                 <p
-                  className="mt-4 text-[11.5px] font-bold uppercase tracking-[0.06em]"
+                  className="mt-4 text-[12.5px] font-semibold"
                   style={{ color: pt.ink }}
                 >
                   {busy ? "Creating…" : pt.bullet}

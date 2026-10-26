@@ -20,7 +20,7 @@ export function MetricsBar({ metrics }: MetricsBarProps) {
             className="absolute inset-y-0 left-0 w-1 bg-[rgb(var(--ui-accent))]"
             aria-hidden
           />
-          <p className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-content-muted">
+          <p className="text-[12px] font-semibold text-content-muted">
             {metric.label}
           </p>
           <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-content ui-tnum">

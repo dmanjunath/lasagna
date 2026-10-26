@@ -275,8 +275,8 @@ export function WealthProjection({
 
         {/* Legend sidebar */}
         <div className="w-48 border-l border-line p-5 bg-panel-inset">
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-4">
-            Asset Allocation
+          <div className="text-[12px] font-semibold text-content-muted mb-4">
+            Asset allocation
           </div>
           <div className="space-y-3">
             {categories.map((category) => {
@@ -306,8 +306,8 @@ export function WealthProjection({
 
           {/* Total */}
           <div className="mt-6 pt-4 border-t border-line">
-            <div className="text-xs text-content-secondary uppercase tracking-wide mb-2">
-              Net Worth
+            <div className="text-[12px] font-semibold text-content-muted mb-2">
+              Net worth
             </div>
             <div className="text-lg font-semibold text-[rgb(var(--ui-brand-ink))] tabular-nums">
               {formatFullCurrency(selectedData?.total || 0)}

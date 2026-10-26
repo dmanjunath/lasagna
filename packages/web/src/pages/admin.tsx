@@ -155,7 +155,7 @@ export function Admin() {
           : stats.map((s) => (
               // flex-col justify-between keeps values on one baseline when a label wraps to two lines.
               <div key={s.label} className="border-l-2 border-line pl-3.5 flex flex-col justify-between">
-                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">{s.label}</div>
+                <div className="text-[12px] font-semibold text-content-muted">{s.label}</div>
                 <div className={`mt-1 font-editorial text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum${s.caution && s.value > 0 ? ' text-caution' : ''}`}>{s.value}</div>
               </div>
             ))}

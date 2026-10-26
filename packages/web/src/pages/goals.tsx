@@ -389,12 +389,12 @@ function SummaryHero({
       </div>
       <div className="relative flex w-full gap-3.5 sm:w-auto">
         <div className="min-w-[112px] flex-1 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
-          <div className="text-[12.5px] font-semibold text-content-muted">Funded</div>
+          <div className="text-[12px] font-semibold text-content-muted">Funded</div>
           <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-brand-ink))] ui-tnum">{fundedCount}</div>
           <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">of {activeCount} goal{activeCount === 1 ? '' : 's'}</div>
         </div>
         <div className="min-w-[112px] flex-1 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-4">
-          <div className="text-[12.5px] font-semibold text-content-muted">Avg. progress</div>
+          <div className="text-[12px] font-semibold text-content-muted">Avg. progress</div>
           <div className="mt-1.5 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] ui-tnum">{avgPct}%</div>
           <div className="mt-1.5 text-[11.5px] font-semibold text-content-muted">across active goals</div>
         </div>

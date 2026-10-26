@@ -135,8 +135,8 @@ export function PortfolioHistogram({
           )}>
             {stats.successRate.toFixed(1)}%
           </div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide">
-            Success Rate
+          <div className="text-[12px] font-semibold text-content-muted">
+            Success rate
           </div>
         </div>
       </div>
@@ -144,20 +144,20 @@ export function PortfolioHistogram({
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-4 p-5 border-b border-line bg-panel-inset">
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">10th Percentile</div>
-          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.p10)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">10th percentile</div>
+          <div className="text-[16px] font-bold text-content tabular-nums">{formatCurrency(stats.p10)}</div>
         </div>
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Median</div>
-          <div className="text-sm font-semibold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(stats.median)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">Median</div>
+          <div className="text-[16px] font-bold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(stats.median)}</div>
         </div>
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">90th Percentile</div>
-          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.p90)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">90th percentile</div>
+          <div className="text-[16px] font-bold text-content tabular-nums">{formatCurrency(stats.p90)}</div>
         </div>
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Best Case</div>
-          <div className="text-sm font-semibold text-positive tabular-nums">{formatCurrency(stats.max)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">Best case</div>
+          <div className="text-[16px] font-bold text-positive tabular-nums">{formatCurrency(stats.max)}</div>
         </div>
       </div>
 

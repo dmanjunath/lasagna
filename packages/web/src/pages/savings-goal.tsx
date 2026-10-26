@@ -676,10 +676,10 @@ export function SavingsGoal() {
                 'radial-gradient(90% 80% at 0% 10%, var(--ui-brand-softer), transparent 60%)',
           }}
         />
-        <div className="relative flex flex-col gap-7 lg:flex-row lg:items-stretch lg:justify-between">
-          {/* left — headline + bar */}
+        <div className="relative flex flex-col gap-7">
+          {/* headline + bar */}
           <div className="min-w-0 flex-1">
-            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">
+            <span className="text-[14px] font-semibold text-content-muted">
               Saved toward goal
             </span>
             <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
@@ -753,9 +753,9 @@ export function SavingsGoal() {
             )}
           </div>
 
-          {/* right — satellite stat tiles; content-sized, centered against the
-              headline block instead of stretched to its full height */}
-          <div className="grid grid-cols-2 gap-3 sm:auto-cols-[minmax(128px,1fr)] sm:grid-flow-col lg:flex lg:shrink-0 lg:items-center">
+          {/* stat tiles; equal-width 1fr columns sized to the
+              widest tile, so every value stays on one line, and equal height */}
+          <div className="grid grid-cols-2 gap-3 sm:auto-cols-[minmax(128px,1fr)] sm:grid-flow-col">
             <StatTile
               label={complete ? 'Over target' : isArchived ? 'Saved' : 'To go'}
               value={
@@ -1089,13 +1089,13 @@ function StatTile({
   accent?: boolean;
 }) {
   return (
-    <div className="min-w-[112px] rounded-ui-lg border border-line bg-panel/70 shadow-ui-sm p-3.5 backdrop-blur-sm lg:flex-1">
-      <div className="flex items-center gap-1.5 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
+    <div className="min-w-[112px] rounded-ui-lg border border-line bg-panel/70 shadow-ui-sm p-3.5 backdrop-blur-sm">
+      <div className="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-semibold text-content-muted">
         {icon && <span className="text-content-faint">{icon}</span>}
         {label}
       </div>
       <div
-        className="mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum"
+        className="mt-1.5 whitespace-nowrap font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum"
         style={accent ? { color: 'rgb(var(--ui-brand-ink))' } : undefined}
       >
         {value}
@@ -1116,9 +1116,9 @@ function AddTargetTile({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="ui-focus min-w-[112px] rounded-ui-lg border border-dashed border-line-strong bg-panel/40 p-3.5 text-left backdrop-blur-sm transition-colors hover:border-brand/50 hover:bg-brand-softer lg:flex-1"
+      className="ui-focus min-w-[112px] rounded-ui-lg border border-dashed border-line-strong bg-panel/40 p-3.5 text-left backdrop-blur-sm transition-colors hover:border-brand/50 hover:bg-brand-softer"
     >
-      <div className="flex items-center gap-1.5 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
+      <div className="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-semibold text-content-muted">
         <Clock className="h-3.5 w-3.5 text-content-faint" />
         Target date
       </div>

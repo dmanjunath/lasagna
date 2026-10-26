@@ -217,21 +217,21 @@ export function WithdrawalTimeline({
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 p-5 border-b border-line bg-panel-inset">
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Avg Annual</div>
-          <div className="text-sm font-semibold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(stats.avgWithdrawal)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">Avg annual</div>
+          <div className="text-[16px] font-bold text-[rgb(var(--ui-brand-ink))] tabular-nums">{formatCurrency(stats.avgWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Minimum</div>
-          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.minWithdrawal)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">Minimum</div>
+          <div className="text-[16px] font-bold text-content tabular-nums">{formatCurrency(stats.minWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">Maximum</div>
-          <div className="text-sm font-semibold text-content tabular-nums">{formatCurrency(stats.maxWithdrawal)}</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">Maximum</div>
+          <div className="text-[16px] font-bold text-content tabular-nums">{formatCurrency(stats.maxWithdrawal)}</div>
         </div>
         <div>
-          <div className="text-xs text-content-secondary uppercase tracking-wide mb-1">End Portfolio</div>
+          <div className="text-[12px] font-semibold text-content-muted mb-1">End portfolio</div>
           <div className={cn(
-            "text-sm font-semibold tabular-nums",
+            "text-[16px] font-bold tabular-nums",
             stats.finalPortfolio > 0 || hideAmounts ? "text-positive" : "text-negative"
           )}>
             {formatCurrency(stats.finalPortfolio)}

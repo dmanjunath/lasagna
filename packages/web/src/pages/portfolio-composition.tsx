@@ -1036,7 +1036,7 @@ export default function PortfolioComposition() {
               style={{ background: 'radial-gradient(90% 80% at 0% 0%, var(--ui-accent-softer), transparent 60%)' }}
             />
             <div className="relative">
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-content-muted">Allocation by account</div>
+              <div className="text-[14px] font-semibold text-content-muted">Allocation by account</div>
               <div className="mt-2 font-editorial text-[34px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
                 <MaskedText text={formatMoney(accountTotal, true)} />
               </div>
@@ -1130,7 +1130,7 @@ export default function PortfolioComposition() {
             {/* Header — value + return + stats · group-by control */}
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-content-muted">Portfolio value</div>
+                <div className="text-[14px] font-semibold text-content-muted">Portfolio value</div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
                   <span className="font-editorial text-[34px] sm:text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum">
                     <MaskedText text={formatMoney(filteredTotal, true)} />
@@ -1158,7 +1158,7 @@ export default function PortfolioComposition() {
               </div>
 
               <div className="flex flex-col items-start gap-2 lg:items-end">
-                <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted">Group by</span>
+                <span className="text-[12px] font-semibold text-content-muted">Group by</span>
                 <SegmentedControl
                   aria-label="Group allocation by"
                   value={groupBy}
@@ -1180,7 +1180,7 @@ export default function PortfolioComposition() {
               <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2.5">
                 {allAccounts.length > 1 && (
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">Account</span>
+                    <span className="text-[12px] font-semibold text-content-muted">Account</span>
                     <AccountFilterDropdown
                       accounts={allAccounts}
                       activeAccounts={activeAccounts}
@@ -1248,7 +1248,7 @@ export default function PortfolioComposition() {
       <section className="mt-10">
         <div className="flex items-end justify-between gap-4 pb-1">
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Holdings</h2>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-muted">
+          <span className="text-[12px] font-semibold text-content-muted">
             {holdingsByTicker.length} position{holdingsByTicker.length === 1 ? '' : 's'}
           </span>
         </div>

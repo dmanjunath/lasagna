@@ -55,7 +55,7 @@ export function ComparisonCard({ options, onSelect, selectedIndex }: ComparisonC
 
             {option.metric && (
               <div className="pt-3 border-t border-line">
-                <span className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-content-muted">{option.metric.label}</span>
+                <span className="text-[12px] font-semibold text-content-muted">{option.metric.label}</span>
                 <p className="mt-1 font-editorial text-[18px] font-extrabold tracking-[-0.01em] text-content ui-tnum">{option.metric.value}</p>
               </div>
             )}

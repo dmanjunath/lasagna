@@ -26,7 +26,7 @@ export function StatBlockRenderer({ block }: { block: StatBlockType }) {
   return (
     <div className="relative overflow-hidden rounded-ui-lg border border-line bg-panel shadow-ui-sm p-5">
       <span className="absolute inset-y-0 left-0 w-1 bg-[rgb(var(--ui-accent))]" aria-hidden />
-      <p className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-content-muted">
+      <p className="text-[12px] font-semibold text-content-muted">
         {maskCurrencyInText(block.label)}
       </p>
       <div

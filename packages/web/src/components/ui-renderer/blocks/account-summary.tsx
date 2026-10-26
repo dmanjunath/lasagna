@@ -19,14 +19,14 @@ export function AccountSummaryRenderer({ block }: { block: AccountSummaryBlock }
   return (
     <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6">
       <div className="text-center mb-6">
-        <div className="text-[11px] font-bold uppercase tracking-[0.09em] text-content-muted">Total Portfolio</div>
+        <div className="text-[14px] font-semibold text-content-muted">Total portfolio</div>
         <div className="font-editorial text-[30px] font-extrabold tabular-nums tracking-[-0.02em] text-content">
           <MaskedText text={formatCurrency(block.totalBalance)} />
         </div>
       </div>
 
       <div className="mb-4">
-        <div className="text-[11px] font-bold uppercase tracking-[0.09em] text-content-muted mb-2">Asset Allocation</div>
+        <div className="text-[12.5px] font-semibold text-content-muted mb-2">Asset allocation</div>
         <div className="flex h-3 rounded-full overflow-hidden">
           {allocationData.map((d, idx) => (
             <div

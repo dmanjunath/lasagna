@@ -188,7 +188,7 @@ function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label
     <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-4 sm:p-5">
       <div className="flex items-center gap-2 text-content-muted">
         <Icon className="h-4 w-4" />
-        <span className="text-[11px] font-bold uppercase tracking-[0.1em]">{label}</span>
+        <span className="text-[12px] font-semibold">{label}</span>
       </div>
       <div className="mt-2 font-editorial text-[24px] font-extrabold leading-none tracking-[-0.02em] text-content ui-tnum">
         <MaskedText text={value} />
@@ -208,7 +208,7 @@ function EditableStatCard({
     <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm p-4 sm:p-5">
       <div className="flex items-center gap-2 text-content-muted">
         <Icon className="h-4 w-4" />
-        <span className="text-[11px] font-bold uppercase tracking-[0.1em]">{label}</span>
+        <span className="text-[12px] font-semibold">{label}</span>
       </div>
       <input
         type="number"
@@ -687,7 +687,7 @@ function BacktestTable({ periods, useRealDollars }: { periods: BacktestPeriod[];
               filter === s.key ? "border-line-strong bg-canvas-sunken" : "border-line hover:border-line-strong",
             )}
           >
-            <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-muted">{s.label}</div>
+            <div className="text-[12px] font-semibold text-content-muted">{s.label}</div>
             <div className={cn("mt-1 font-editorial text-[24px] font-extrabold ui-tnum", s.cls)}>{s.count}</div>
           </button>
         ))}
@@ -1090,7 +1090,7 @@ export function ProbabilityOfSuccess() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-content-muted">Probability of success</span>
+                    <span className="text-[14px] font-semibold text-content-muted">Probability of success</span>
                     <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", statusSoft, statusInk)}>{statusLabel}</span>
                   </div>
                   <div className={cn("mt-1.5 font-editorial text-[44px] font-extrabold leading-none tracking-[-0.03em] ui-tnum sm:text-[56px]", statusInk)}>

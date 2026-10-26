@@ -832,7 +832,7 @@ function MemberProfileGrid({ profile }: { profile: MemberProfile["profile"] | un
     <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-1 rounded-ui-md bg-canvas-sunken px-3.5 py-2.5">
       {rows.map((r) => (
         <div key={r.label} className="min-w-0">
-          <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-content-muted">{r.label}</div>
+          <div className="text-[12px] font-semibold text-content-muted">{r.label}</div>
           <div className={cn("mt-0.5 truncate text-[13.5px] font-semibold ui-tnum", r.muted ? "text-content-faint" : "text-content")}>
             {r.value}
           </div>
@@ -1419,7 +1419,7 @@ function DetailCard({ icon, title, rows, loading, editable, expanded, onEdit, ch
                     so the card is half as tall. */}
                 {rows.map((r) => (
                   <div key={r.label} className="flex min-w-0 items-baseline justify-between gap-4 sm:block">
-                    <div className="shrink-0 text-[14px] font-medium text-content-muted sm:text-[11px] sm:font-semibold sm:uppercase sm:tracking-[0.1em]">
+                    <div className="shrink-0 text-[14px] font-medium text-content-muted sm:text-[12.5px] sm:font-semibold">
                       {r.label}
                     </div>
                     <div
