@@ -142,32 +142,6 @@ function mapAxisConfig(config: AxisConfig) {
   };
 }
 
-// Custom label renderer for pie charts
-const renderPieLabel = (props: any) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
-  // Only show label if segment is large enough (> 5%)
-  if (percent < 0.05) return null;
-
-  const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  return (
-    <text
-      x={x}
-      y={y}
-      fill="#fff"
-      textAnchor="middle"
-      dominantBaseline="central"
-      className="text-xs font-semibold"
-      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
-    >
-      {`${(percent * 100).toFixed(0)}%`}
-    </text>
-  );
-};
-
 // Render a single chart component with theme colors
 function renderComponent(comp: RechartsComponent, index: number, data?: any[]) {
   const componentMap: Record<string, React.ComponentType<any>> = {
@@ -189,7 +163,8 @@ function renderComponent(comp: RechartsComponent, index: number, data?: any[]) {
 
   const { type, ...props } = comp;
 
-  // Special handling for Pie charts - add labels and cells
+  // Special handling for Pie charts - add cells. No per-slice labels: the
+  // shares live in the legend, where they cannot clip or collide.
   if (type === "Pie" && data) {
     const pieColors = ["var(--ui-viz-1)", "var(--ui-viz-2)", "var(--ui-viz-3)", "var(--ui-viz-4)", "var(--ui-viz-5)"];
     return (
@@ -202,8 +177,6 @@ function renderComponent(comp: RechartsComponent, index: number, data?: any[]) {
         cy="50%"
         innerRadius={props.innerRadius || 0}
         outerRadius={props.outerRadius || 80}
-        label={renderPieLabel}
-        labelLine={false}
         stroke="rgb(var(--ui-panel))"
         strokeWidth={2}
       >
@@ -221,6 +194,21 @@ function renderComponent(comp: RechartsComponent, index: number, data?: any[]) {
   };
 
   return <Component key={`${type}-${index}`} {...themedProps} />;
+}
+
+// Each pie slice's share of the total, keyed by slice name, e.g. "45%".
+function getPieShares(config: RechartsConfig): Map<string, string> {
+  const pie = config.components.find((c) => c.type === "Pie");
+  const dataKey = pie?.dataKey || "value";
+  const nameKey = pie?.nameKey || "name";
+  const total = config.data.reduce((sum, d) => sum + (Number(d[dataKey]) || 0), 0);
+  const shares = new Map<string, string>();
+  if (total <= 0) return shares;
+  for (const d of config.data) {
+    const pct = ((Number(d[dataKey]) || 0) / total) * 100;
+    shares.set(String(d[nameKey]), pct > 0 && pct < 1 ? "<1%" : `${pct.toFixed(0)}%`);
+  }
+  return shares;
 }
 
 interface RechartsFromConfigProps {
@@ -242,6 +230,7 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
   const height = config.height || 300;
 
   const isPieChart = config.chartType === 'pie';
+  const pieShares = isPieChart ? getPieShares(config) : null;
   const showGrid = !isPieChart && config.chartType !== 'radar' && config.chartType !== 'radial';
 
   // Custom tooltip formatter for better number display
@@ -302,14 +291,21 @@ export function RechartsFromConfig({ config, title }: RechartsFromConfigProps) {
             />
           )}
 
-          {/* Legend with better styling */}
-          {config.legend && (
+          {/* Legend with better styling. A pie always has one, since it is
+              where each slice's share is written. */}
+          {(config.legend || isPieChart) && (
             <Legend
               wrapperStyle={{ paddingTop: 16 }}
               iconType="circle"
               iconSize={8}
+              itemSorter={isPieChart ? null : undefined}
               formatter={(value) => (
-                <span className="text-content-secondary" style={{ fontSize: 12, marginLeft: 4 }}>{value}</span>
+                <span className="text-content-secondary" style={{ fontSize: 12, marginLeft: 4 }}>
+                  {value}
+                  {pieShares?.has(String(value)) && (
+                    <span className="font-semibold text-content ui-tnum">{` ${pieShares.get(String(value))}`}</span>
+                  )}
+                </span>
               )}
             />
           )}

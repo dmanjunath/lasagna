@@ -559,7 +559,7 @@ export function Settings() {
       <header className="animate-fade-in flex min-w-0 items-center gap-4 border-b border-line pb-7">
         <span
           aria-hidden
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-ui-lg bg-[var(--ui-accent-soft)] font-editorial text-[22px] font-bold tracking-tight text-[rgb(var(--ui-accent-ink))] ring-1 ring-inset ring-[var(--ui-accent-soft)]"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-ui-lg bg-brand-soft font-editorial text-[22px] font-bold tracking-tight text-[rgb(var(--ui-brand-ink))] ring-1 ring-inset ring-[var(--ui-brand-soft)]"
         >
           {initials}
         </span>

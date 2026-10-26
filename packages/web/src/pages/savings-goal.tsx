@@ -1116,13 +1116,13 @@ function AddTargetTile({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="ui-focus min-w-[112px] rounded-ui-lg border border-dashed border-line-strong bg-panel/40 p-3.5 text-left backdrop-blur-sm transition-colors hover:border-[rgb(var(--ui-accent))]/50 hover:bg-[var(--ui-accent-softer)] lg:flex-1"
+      className="ui-focus min-w-[112px] rounded-ui-lg border border-dashed border-line-strong bg-panel/40 p-3.5 text-left backdrop-blur-sm transition-colors hover:border-brand/50 hover:bg-brand-softer lg:flex-1"
     >
       <div className="flex items-center gap-1.5 whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.1em] text-content-muted">
         <Clock className="h-3.5 w-3.5 text-content-faint" />
         Target date
       </div>
-      <div className="mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-accent-ink))]">
+      <div className="mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] text-[rgb(var(--ui-brand-ink))]">
         Set a date
       </div>
       <div className="mt-1.5 truncate text-[11.5px] font-semibold text-content-muted">add a deadline</div>

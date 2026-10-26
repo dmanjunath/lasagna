@@ -17,7 +17,7 @@ export function CollapsibleDetailsRenderer({ block }: { block: CollapsibleDetail
         className={cn(
           "w-full px-4 py-3 flex items-center gap-2 text-left min-h-touch",
           "hover:bg-canvas-sunken transition-colors",
-          "focus:outline-none focus:ring-2 focus:ring-[var(--ui-accent-soft)] focus:ring-inset"
+          "focus:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--ui-brand-ring)]"
         )}
       >
         <motion.div

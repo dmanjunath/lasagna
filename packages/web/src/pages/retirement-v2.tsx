@@ -2535,17 +2535,11 @@ export function RetirementV2() {
                     />
                   ))}
                 </div>
-                <div className="mt-4 flex overflow-hidden rounded-ui-md" style={{ height: 30, gap: 1 }} data-testid="rv2-comp-bar">
+                <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-canvas-sunken" style={{ gap: 1 }} data-testid="rv2-comp-bar">
                   {ALLOC_META.map(m => {
                     const pct = customTotal > 0 ? ((customAlloc[m.key] ?? 0) / customTotal) * 100 : 0;
                     return pct > 0 ? (
-                      <div key={m.key} style={{ width: `${pct}%`, background: m.color, transition: 'width 0.3s ease', minWidth: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        {pct >= 14 && (
-                          <span style={{ fontSize: 10.5, fontWeight: 600, color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.35)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                            {m.label} {customAlloc[m.key] ?? 0}%
-                          </span>
-                        )}
-                      </div>
+                      <div key={m.key} style={{ width: `${pct}%`, background: m.color, transition: 'width 0.3s ease', minWidth: 2 }} title={`${m.label}, ${customAlloc[m.key] ?? 0}%`} />
                     ) : null;
                   })}
                 </div>

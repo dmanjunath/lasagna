@@ -387,7 +387,7 @@ function PlanTypeCard({
       transition={{ delay: index * 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       onClick={onClick}
       disabled={disabled}
-      className="group relative flex items-start gap-4 rounded-ui-lg border border-line bg-panel p-5 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-accent-soft)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+      className="group relative flex items-start gap-4 rounded-ui-lg border border-line bg-panel p-5 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong ui-focus disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
     >
       {/* No overflow-hidden on the card — the ⓘ tooltip must escape it — so the
           accent strip rounds its own left edge to hug the card corners. */}

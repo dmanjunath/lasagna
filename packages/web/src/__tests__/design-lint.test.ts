@@ -165,7 +165,7 @@ const PICKER_GROUPS_ALLOWED: Record<string, number> = {
 
 const LEGACY_COLOR_ALLOWED: Record<string, number> = {
   'components/chat/floating-chat-pill.tsx': 4,
-  'components/chat/starter-prompts.tsx': 14,
+  'components/chat/starter-prompts.tsx': 10,
   'components/chat/tool-status.tsx': 1,
   'components/common/DemoBanner.tsx': 1,
   'components/ui/button.tsx': 16,

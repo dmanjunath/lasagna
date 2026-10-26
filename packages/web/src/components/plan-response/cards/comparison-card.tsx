@@ -26,9 +26,9 @@ export function ComparisonCard({ options, onSelect, selectedIndex }: ComparisonC
           key={i}
           onClick={() => onSelect?.(i)}
           className={cn(
-            'text-left rounded-ui-lg border p-5 transition-all duration-200',
+            'ui-focus text-left rounded-ui-lg border p-5 transition-all duration-200',
             selectedIndex === i
-              ? 'border-[rgb(var(--ui-accent))] bg-[var(--ui-accent-soft)]'
+              ? 'border-brand bg-brand-softer'
               : 'border-line hover:border-line-strong bg-canvas-sunken'
           )}
         >

@@ -48,9 +48,9 @@ export function ChartBlockRenderer({ block }: { block: ChartBlockType }) {
     }));
 
     return (
-      <div className="h-64 flex items-center justify-center">
+      <div>
         {block.title && (
-          <h4 className="text-[14px] font-semibold text-content mb-2 absolute top-0 left-0">
+          <h4 className="text-[14px] font-semibold text-content mb-2">
             {maskCurrencyInText(block.title)}
           </h4>
         )}

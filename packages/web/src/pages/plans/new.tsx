@@ -117,7 +117,7 @@ export function NewPlanPage() {
                 transition={{ delay: i * 0.08, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                 onClick={() => handleSelectType(pt.type)}
                 disabled={creatingType !== null}
-                className="group relative flex flex-col overflow-hidden rounded-ui-xl border border-line bg-panel p-6 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                className="group relative flex flex-col overflow-hidden rounded-ui-xl border border-line bg-panel p-6 text-left shadow-ui-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-ui-md hover:border-line-strong ui-focus disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 <span
                   className="absolute inset-y-0 left-0 w-1"

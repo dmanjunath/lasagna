@@ -10,7 +10,7 @@ interface ActionCardProps {
 }
 
 const priorityStyles = {
-  high: 'border-[rgb(var(--ui-accent))]/30 bg-[var(--ui-accent-soft)]',
+  high: 'border-brand/30 bg-brand-softer',
   medium: 'border-line bg-canvas-sunken',
   low: 'border-line bg-transparent',
 };
@@ -30,8 +30,8 @@ export function ActionCard({ action, context, priority = 'medium', onClick }: Ac
     <button
       onClick={handleClick}
       className={cn(
-        'w-full text-left rounded-ui-lg border p-4 transition-all duration-200 min-h-touch',
-        'hover:border-[rgb(var(--ui-accent))]/50 hover:shadow-ui-sm',
+        'ui-focus w-full text-left rounded-ui-lg border p-4 transition-all duration-200 min-h-touch',
+        'hover:border-brand/50 hover:shadow-ui-sm',
         priorityStyles[priority],
         completed && 'opacity-50'
       )}
@@ -39,12 +39,12 @@ export function ActionCard({ action, context, priority = 'medium', onClick }: Ac
       <div className="flex items-start gap-3">
         <div className={cn(
           'w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 mt-0.5',
-          completed ? 'bg-[rgb(var(--ui-accent))] border-[rgb(var(--ui-accent))]' : 'border-line-strong'
+          completed ? 'bg-brand border-brand' : 'border-line-strong'
         )}>
           {completed ? (
-            <Check className="w-3 h-3 text-white" />
+            <Check className="w-3 h-3 text-brand-fg" />
           ) : (
-            <ArrowRight className="w-3 h-3 text-[rgb(var(--ui-accent-ink))]" />
+            <ArrowRight className="w-3 h-3 text-[rgb(var(--ui-brand-ink))]" />
           )}
         </div>
         <div className="flex-1 min-w-0">

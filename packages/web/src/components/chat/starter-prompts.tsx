@@ -58,7 +58,7 @@ export function StarterPrompts({ planType, onSelectPrompt }: StarterPromptsProps
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
             onClick={() => onSelectPrompt(prompt)}
-            className="w-full p-4 text-left rounded-xl border border-border bg-surface hover:border-accent/50 hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 transition-all text-sm text-text"
+            className="w-full p-4 text-left rounded-xl border border-border bg-surface hover:border-brand/50 hover:bg-surface-hover ui-focus transition-all text-sm text-text"
           >
             {prompt}
           </motion.button>
@@ -70,7 +70,7 @@ export function StarterPrompts({ planType, onSelectPrompt }: StarterPromptsProps
           value={customPrompt}
           onChange={(e) => setCustomPrompt(e.target.value)}
           placeholder="Or type your own question..."
-          className="flex-1 px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+          className="flex-1 px-4 py-3 bg-surface rounded-xl border border-border text-text placeholder:text-text-muted focus:outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)]"
         />
         <Button type="submit" disabled={!customPrompt.trim()}>
           <Send className="w-4 h-4" />
