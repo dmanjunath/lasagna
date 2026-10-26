@@ -10,11 +10,12 @@ import {
   Link2,
   Sparkles,
   LogOut,
-  Mail,
-  UserPlus,
+  Lock,
+  Eye,
+  RefreshCw,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
-import { Button, Surface, Field, Input, Label, MoneyInput, useToast } from '../components/uikit';
+import { Button, Surface, Field, Input, Label, MoneyInput } from '../components/uikit';
 import { OptionMenu } from '../components/common/OptionMenu';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -427,14 +428,13 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
 
 const STAGE_TO_STEP: Record<string, number> = {
   // 'accounts' is a legacy stage (the dedicated connect step was removed) —
-  // map it to the final "You're all set" screen (step 3).
+  // map it to the final connect-an-account screen (step 3).
   profile: 0, income: 1, lifestyle: 2, accounts: 3, complete: 3,
 };
 
 export function Onboarding() {
   const [, navigate] = useLocation();
-  const { user, setOnboardingStage, logout } = useAuth();
-  const isOwner = user?.role === "owner";
+  const { setOnboardingStage, logout } = useAuth();
   const [initializing, setInitializing] = useState(true);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -766,60 +766,90 @@ export function Onboarding() {
           </div>
         );
 
-      case 3:
+      case 3: {
+        const summary = (
+          <Surface tone="sunken" className="w-full max-w-[360px] flex flex-col gap-2.5">
+            {name && <SummaryRow label="Name" value={name} />}
+            {annualIncome && <SummaryRow label="Income" value={formatMoney(parseFloat(annualIncome), true)} mono />}
+            {employmentType && <SummaryRow label="Work" value={EMPLOYMENT_SUMMARY[employmentType] ?? employmentType} />}
+            <SummaryRow label="Risk" value={RISK_LEVELS.find((r) => r.value === riskTolerance)?.summary ?? 'Medium'} />
+            {retirementAge && <SummaryRow label="Retire at" value={retirementAge} mono />}
+            {linkedViaPlaid && (
+              <div className="flex items-baseline justify-between text-sm text-content-muted">
+                <span>Bank</span>
+                <span className="font-semibold text-brand">Linked via Plaid</span>
+              </div>
+            )}
+          </Surface>
+        );
         return (
           <div className="flex flex-col items-center gap-6">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft text-brand"
-            >
-              <Check className="h-8 w-8" />
-            </motion.div>
+            {/* Until an account is linked the app has nothing to show, so this
+                screen asks for that one step instead of claiming completion. */}
+            {linkedViaPlaid ? (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft text-brand"
+              >
+                <Check className="h-8 w-8" />
+              </motion.div>
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft text-brand">
+                <Link2 className="h-7 w-7" aria-hidden />
+              </div>
+            )}
 
             <div className="flex flex-col gap-2 text-center">
-              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
-                You&apos;re all set!
+              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content text-balance">
+                {linkedViaPlaid ? <>You&apos;re all set</> : 'One more thing: connect an account'}
               </h2>
               <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-content-secondary">
-                Your dashboard is ready. We&apos;ll use this information to personalize your projections and recommendations.
+                {linkedViaPlaid
+                  ? 'Your dashboard is ready.'
+                  : 'Your dashboard, plan and insights are built from your balances and transactions.'}
               </p>
             </div>
 
-            <Surface tone="sunken" className="w-full max-w-[360px] flex flex-col gap-2.5">
-              {name && <SummaryRow label="Name" value={name} />}
-              {annualIncome && <SummaryRow label="Income" value={formatMoney(parseFloat(annualIncome), true)} mono />}
-              {employmentType && <SummaryRow label="Work" value={EMPLOYMENT_SUMMARY[employmentType] ?? employmentType} />}
-              <SummaryRow label="Risk" value={RISK_LEVELS.find((r) => r.value === riskTolerance)?.summary ?? 'Medium'} />
-              {retirementAge && <SummaryRow label="Retire at" value={retirementAge} mono />}
-              {linkedViaPlaid && (
-                <div className="flex items-baseline justify-between text-sm text-content-muted">
-                  <span>Bank</span>
-                  <span className="font-semibold text-brand">Linked via Plaid</span>
-                </div>
-              )}
-            </Surface>
+            {linkedViaPlaid && summary}
 
-            {/* Owner-only, optional: invite a partner into this household. Fully
-                skippable — the owner can just continue to the dashboard. */}
-            {isOwner && <InvitePartnerCard />}
+            {linkedViaPlaid ? (
+              <div className="w-full max-w-[360px] pt-1">
+                <Button className="w-full" onClick={finishOnboarding}>
+                  Go to dashboard
+                </Button>
+              </div>
+            ) : (
+              <div className="w-full max-w-[360px] flex flex-col items-center gap-3">
+                <Button className="w-full" onClick={handleConnectAccounts}
+                  leadingIcon={<Link2 className="h-4 w-4" />}>
+                  Connect accounts
+                </Button>
+                <ul className="flex w-full flex-col gap-1.5 pt-1">
+                  {TRUST_POINTS.map(({ icon: Icon, label }) => (
+                    <li key={label} className="flex items-center gap-2 text-[13px] text-content-muted">
+                      <Icon className="h-3 w-3 shrink-0" aria-hidden />
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={finishOnboarding}
+                  className="ui-focus min-h-11 rounded-ui-md px-3 text-[13px] font-medium text-content-muted transition-colors hover:text-content hover:underline"
+                >
+                  Skip for now (your dashboard will be empty)
+                </button>
+              </div>
+            )}
 
-            <div className="w-full max-w-[360px] flex flex-col items-center gap-2.5 pt-1">
-              <Button className="w-full" onClick={handleConnectAccounts}
-                leadingIcon={<Link2 className="h-4 w-4" />}>
-                Connect accounts
-              </Button>
-              <button
-                type="button"
-                onClick={finishOnboarding}
-                className="ui-focus rounded-ui-md px-2 py-1 text-[13px] font-medium text-content-muted transition-colors hover:text-content"
-              >
-                Go to dashboard
-              </button>
-            </div>
+            {/* Unlinked, the recap follows the ask: it confirms the answers
+                landed without standing between the user and the one step left. */}
+            {!linkedViaPlaid && summary}
           </div>
         );
+      }
 
       default:
         return null;
@@ -928,63 +958,12 @@ const EMPLOYMENT_SUMMARY: Record<string, string> = {
   business_owner: 'Business owner',
 };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// Optional invite-a-partner step, rendered on the owner's "all set" screen.
-// Skippable: doing nothing and continuing to the dashboard is fine.
-function InvitePartnerCard() {
-  const [email, setEmail] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const toast = useToast();
-
-  const invite = async () => {
-    const trimmed = email.trim().toLowerCase();
-    if (!EMAIL_RE.test(trimmed)) {
-      setError('Enter a valid email address.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      await api.household.createInvite(trimmed);
-      setEmail('');
-      toast({ tone: 'positive', title: 'Invite sent', description: `${trimmed} will get a link by email.` });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't send that invite.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Surface tone="sunken" className="w-full max-w-[360px] flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <UserPlus className="h-4 w-4 text-brand" aria-hidden />
-        <h3 className="text-[15px] font-semibold text-content">Invite a partner (optional)</h3>
-      </div>
-      <p className="text-[13px] leading-relaxed text-content-secondary">
-        Share these accounts with a spouse or partner. They'll get their own login and private chat.
-      </p>
-      <div className="flex flex-col gap-2">
-        <Input
-          type="email"
-          enterKeyHint="send"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void invite(); }}
-          placeholder="partner@example.com"
-          leadingIcon={<Mail className="h-4 w-4" />}
-          autoComplete="off"
-        />
-        <Button variant="secondary" onClick={() => void invite()} loading={busy} disabled={busy}>
-          Send invite
-        </Button>
-      </div>
-      {error && <p role="alert" className="text-[12.5px] font-medium text-negative">{error}</p>}
-    </Surface>
-  );
-}
+// Shown under the connect button, the moment the user decides whether to link.
+const TRUST_POINTS = [
+  { icon: Lock, label: 'Bank-level encryption' },
+  { icon: Eye, label: "Read-only. We can't move money." },
+  { icon: RefreshCw, label: 'Balances update automatically' },
+];
 
 function SummaryRow({ label, value, mono }: {
   label: string; value: string; mono?: boolean;

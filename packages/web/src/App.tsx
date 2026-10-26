@@ -149,7 +149,7 @@ function AppRoutes() {
   }
 
   // Redirect to onboarding if not complete (unless demo mode).
-  // /quick-import and /accounts stay reachable: the "You're all set" screen's
+  // /quick-import and /accounts stay reachable: the final onboarding screen's
   // "Connect accounts" hands off to /accounts (auto-opens Plaid), and /accounts
   // is allowed so that handoff never races the onboarding-complete state update.
   if (
