@@ -22,6 +22,7 @@ import { Button, Surface, Field, Input, Label, MoneyInput } from '../components/
 import {
   EASE, Stagger, Rise, LasagnaLayers, SegmentProgress, StepList, ChoiceField,
   PillChips, IconCards, LineCards, RoundPicker, NumberStepper, FinishBurst,
+  VALUE_INPUT, VALUE_TEXT, CHOICE_TEXT,
 } from '../components/onboarding/story';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -163,8 +164,8 @@ function MoneyField({ value, onChange, placeholder }: {
       value={value ? Number(value).toLocaleString('en-US') : ''}
       onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
       placeholder={placeholder}
-      className="h-[62px] pl-[38px] text-[26px] font-bold tracking-[-0.01em] ui-tnum"
-      leadingIcon={<span className="text-[26px] font-bold text-content-faint">$</span>}
+      className={cn(VALUE_INPUT, 'pl-[34px] ui-tnum')}
+      leadingIcon={<span className={cn(VALUE_TEXT, 'text-content-faint')}>$</span>}
     />
   );
 }
@@ -253,7 +254,7 @@ function DateOfBirthField({ value, onChange, onBlur }: {
       hint="So we can work out how long your money needs to last."
       error={touched ? error : undefined}>
       <Input ref={inputRef} type="text" inputMode="numeric" autoComplete="bday" placeholder="MM/DD/YYYY"
-        value={text} maxLength={10} className="ui-tnum"
+        value={text} maxLength={10} className={cn(VALUE_INPUT, 'ui-tnum')}
         invalid={touched && !!error}
         onChange={(e) => handleChange(e.target)}
         onBlur={() => { setTouched(true); onBlur(); }} />
@@ -361,15 +362,15 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
         aria-describedby={describedBy}
         autoComplete="off"
         spellCheck={false}
-        className="pr-10"
-        placeholder="Start typing a state"
+        className={cn(VALUE_INPUT, 'pr-10')}
+        placeholder="Type a state"
         value={open ? query : selected?.name ?? ''}
         onChange={(e) => { setOpen(true); setQuery(e.target.value); }}
         onClick={openList}
         onKeyDown={onKeyDown}
       />
       <ChevronDown
-        className="pointer-events-none absolute right-3.5 top-[22px] h-4 w-4 -translate-y-1/2 text-content-muted"
+        className="pointer-events-none absolute right-3.5 top-[26px] h-4 w-4 -translate-y-1/2 text-content-muted"
         aria-hidden
       />
       {open && (
@@ -383,7 +384,7 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
           )}
         >
           {matches.length === 0 ? (
-            <p className="px-3 py-2 text-[13px] font-medium text-content-muted">No state matches that.</p>
+            <p className={cn('px-3 py-2 text-content-muted', CHOICE_TEXT)}>No state matches that.</p>
           ) : (
             matches.map((s, i) => (
               <div
@@ -396,7 +397,8 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
                 onMouseDown={(e) => { e.preventDefault(); pick(s.code); }}
                 onMouseEnter={() => setActive(i)}
                 className={cn(
-                  'flex min-h-touch cursor-pointer items-center justify-between gap-2 px-3 text-[13px] font-medium text-content sm:min-h-0 sm:py-2',
+                  'flex min-h-touch cursor-pointer items-center justify-between gap-2 px-3 text-content sm:min-h-0 sm:py-2',
+                  CHOICE_TEXT,
                   i === active && 'bg-canvas-sunken',
                 )}
               >
@@ -625,7 +627,7 @@ export function Onboarding() {
             <Rise>
               <Field label="Your name" required>
                 <Input type="text" value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="Alex" autoFocus className="h-[46px] text-[15px]" />
+                  placeholder="Alex" autoFocus className={VALUE_INPUT} />
               </Field>
             </Rise>
 
@@ -636,7 +638,9 @@ export function Onboarding() {
               </Field>
             </Rise>
 
-            <Rise className="grid gap-[22px] sm:grid-cols-2 sm:gap-3.5">
+            {/* Stacked at every width: at 20px a long state ("District of Columbia")
+                did not fit half of a 500px column. */}
+            <Rise className="grid gap-[22px]">
               <DateOfBirthField value={dob}
                 onChange={(iso, valid) => { setDob(iso); setDobValid(valid); }}
                 onBlur={() => setDobTouched(true)} />
@@ -672,8 +676,8 @@ export function Onboarding() {
                       aria-describedby={`${matchPercentId}-desc`}
                       value={matchPercent}
                       onChange={(e) => setMatchPercent(e.target.value.replace(/[^0-9.]/g, ''))}
-                      placeholder="3" className="h-[50px] pr-9 text-[20px] font-bold ui-tnum" />
-                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[18px] font-bold text-content-faint">%</span>
+                      placeholder="3" className={cn(VALUE_INPUT, 'pr-9 ui-tnum')} />
+                    <span className={cn('pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-content-faint', VALUE_TEXT)}>%</span>
                   </div>
                   <p id={`${matchPercentId}-desc`} className="text-[12px] text-content-muted">
                     Leave this blank if you do not know it.
@@ -728,7 +732,7 @@ export function Onboarding() {
             </Rise>
 
             <Rise>
-              <ChoiceField label="Does your health plan have a high deductible?"
+              <ChoiceField label="Do you have a high deductible health plan? (HDHP)"
                 hint="A high deductible means you pay more yourself before the plan starts paying. If yours does, you can use a savings account that is never taxed.">
                 <PillChips options={TRI_OPTIONS} value={hdhp} onChange={setHdhp} />
               </ChoiceField>
@@ -792,7 +796,7 @@ export function Onboarding() {
                 </Rise>
                 <Rise className="w-full max-w-[360px]">
                   <Button variant="ghost" className="w-full text-content-muted hover:text-content md:justify-start" onClick={finishOnboarding}>
-                    Skip for now (your dashboard will be empty)
+                    Skip for now (you can add accounts later)
                   </Button>
                 </Rise>
                 <Rise className="w-full max-w-[360px]">
@@ -914,7 +918,7 @@ export function Onboarding() {
                   transition={{ duration: 0.45, ease: EASE }}
                   // Labels are what the user reads first on every step, so they
                   // are set larger here than the app's 13px form default.
-                  className="max-w-[500px] [&_label]:text-[15px] [&_label]:font-semibold [&_label]:text-content">
+                  className="max-w-[500px] [&_label]:text-[15px] [&_label]:font-semibold [&_label]:text-content [&_label]:text-pretty">
                   {renderStep()}
                 </motion.div>
               </AnimatePresence>

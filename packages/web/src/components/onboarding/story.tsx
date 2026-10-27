@@ -145,6 +145,15 @@ export function ChoiceField({ label, hint, required, children }: {
   );
 }
 
+// One size for every typed answer and one for every choice, across all of
+// onboarding. Typed answers are large so they read at a glance. Choices sit a
+// step smaller so a row of them still fits on a phone.
+export const VALUE_TEXT = 'text-[20px] font-bold';
+// Placeholders keep the size but not the weight, or "Alex" reads as a name
+// already typed in grey.
+export const VALUE_INPUT = `h-[52px] ${VALUE_TEXT} placeholder:font-normal`;
+export const CHOICE_TEXT = 'text-[15px] font-semibold';
+
 const pressable = 'ui-focus transition-[border-color,background-color,color,box-shadow,transform] duration-150 ease-ui';
 
 /** Pill chips. The chosen one gains a check that pops in. */
@@ -161,7 +170,8 @@ export function PillChips<T extends string>({ options, value, onChange }: {
           <button key={o.value} type="button" aria-pressed={active} onClick={() => onChange(o.value)}
             className={cn(
               pressable,
-              'inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-[13.5px] font-semibold active:scale-[0.97]',
+              'inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 active:scale-[0.97]',
+              CHOICE_TEXT,
               active
                 ? 'border-brand bg-brand-soft text-[rgb(var(--ui-brand-ink))]'
                 : 'border-line-heavy bg-panel text-content-secondary hover:border-brand/60',
@@ -182,7 +192,8 @@ export function PillChips<T extends string>({ options, value, onChange }: {
 
 const cardBase = cn(
   pressable,
-  'rounded-ui-lg border text-left font-semibold hover:-translate-y-0.5 hover:shadow-ui-md',
+  'rounded-ui-lg border text-left hover:-translate-y-0.5 hover:shadow-ui-md',
+  CHOICE_TEXT,
 );
 const cardOn = 'border-brand bg-brand-softer text-content shadow-[0_0_0_3px_var(--ui-brand-soft)] hover:shadow-[0_0_0_3px_var(--ui-brand-soft)]';
 const cardOff = 'border-line-heavy bg-panel text-content-secondary';
@@ -199,7 +210,7 @@ export function IconCards<T extends string>({ options, value, onChange }: {
         const active = value === o.value;
         return (
           <button key={o.value} type="button" aria-pressed={active} onClick={() => onChange(o.value)}
-            className={cn(cardBase, 'flex flex-col gap-2.5 p-3.5 text-sm', active ? cardOn : cardOff)}>
+            className={cn(cardBase, 'flex flex-col gap-2.5 p-3.5', active ? cardOn : cardOff)}>
             <span className={cn(
               'grid h-[34px] w-[34px] place-items-center rounded-[10px] transition-colors duration-150',
               active ? 'bg-brand-soft text-[rgb(var(--ui-brand-ink))]' : 'bg-canvas-sunken text-content-muted',
@@ -226,7 +237,7 @@ export function LineCards<T extends string>({ options, value, onChange }: {
         const active = value === o.value;
         return (
           <button key={o.value} type="button" aria-pressed={active} onClick={() => onChange(o.value)}
-            className={cn(cardBase, 'flex items-center justify-between gap-3 px-3.5 py-3 text-[13.5px]', active ? cardOn : cardOff)}>
+            className={cn(cardBase, 'flex items-center justify-between gap-3 px-3.5 py-3', active ? cardOn : cardOff)}>
             <span>{o.label}</span>
             <svg viewBox="0 0 74 22" aria-hidden="true" className="h-[22px] w-[74px] flex-none">
               <path d={o.path} fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -254,7 +265,8 @@ export function RoundPicker({ options, value, onChange }: {
             onClick={() => onChange(o.value)}
             className={cn(
               pressable,
-              'h-12 w-12 rounded-full border text-base font-bold ui-tnum',
+              'h-12 w-12 rounded-full border ui-tnum',
+              CHOICE_TEXT,
               active
                 ? 'scale-[1.06] border-brand bg-brand text-brand-fg shadow-[0_4px_14px_rgb(var(--ui-brand)/0.3)]'
                 : 'border-line-heavy bg-panel text-content-secondary hover:border-brand/60',
@@ -314,7 +326,7 @@ export function NumberStepper({ id, value, onChange, min, max, decLabel, incLabe
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
         onBlur={() => (value ? set(n) : onChange(lastValid.current))}
-        className="w-[76px] bg-transparent text-center text-[26px] font-bold ui-tnum text-content outline-none"
+        className={cn('w-[76px] bg-transparent text-center ui-tnum text-content outline-none', VALUE_TEXT)}
       />
       <button type="button" aria-label={incLabel} className={stepBtn} disabled={n >= max} onClick={() => stepBy(1)}>
         <Plus className="h-4 w-4" aria-hidden />
