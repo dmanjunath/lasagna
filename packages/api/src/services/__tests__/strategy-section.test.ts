@@ -4,20 +4,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // usage logging. Mock the model + telemetry, and stub the agent/activity
 // modules so importing doesn't pull a real provider or DB connection.
 const generateObject = vi.fn();
-// Verification runs on the frontier tier, which does structured output through a
-// forced tool call (generateText), not a JSON response format. Mocking only
-// generateObject would let every verification fail into the medium-tier fallback
-// and still pass — exactly the hole that hid a broken frontier route before.
-const generateText = vi.fn();
 vi.mock("ai", () => ({
   generateObject: (...args: unknown[]) => generateObject(...args),
-  generateText: (...args: unknown[]) => generateText(...args),
+  // lib/llm.ts imports it for text calls. The strategy section never makes one.
+  generateText: vi.fn(),
 }));
 vi.mock("../../lib/activity.js", () => ({ logLlmUsage: vi.fn(), actualLlmCostUsd: () => undefined }));
 vi.mock("../../agent/index.js", () => ({
   // Echo the tier back as the model id so a test can assert WHICH tier ran.
   getModel: (level: string) => ({ modelId: level }) as never,
-  getModelSlug: () => "anthropic/claude-sonnet-4.5",
+  getModelSlug: () => "~anthropic/claude-sonnet-latest",
 }));
 // The llm boundary (lib/llm.ts) builds the tenant alias map before every call —
 // a DB read. Stub the scrubber with identity fns so no DB is touched and the
@@ -41,18 +37,18 @@ const okUsage = { inputTokens: 300, outputTokens: 1200 };
 // Without it the exhausted queue resolves `undefined`, which throws inside the
 // llm boundary and trips generateObjectWithFallback's frontier→medium fallback,
 // double-counting the verifier call.
-/** A frontier tool-mode result carrying `object` as the forced tool call's input. */
-const asToolCall = (object: unknown) => ({
-  toolCalls: [{ toolName: "emit_result", input: object }],
-  finishReason: "tool-calls",
-  usage: okUsage,
-});
+/**
+ * The model calls made on one tier. The draft runs on "medium" and verification
+ * on "frontier", all through generateObject, so the tier is what tells a draft
+ * call from a verifier call. Counting by tier also catches a verifier that
+ * quietly fell back to medium, which a total count would miss.
+ */
+const tierCalls = (tier: "medium" | "frontier") =>
+  generateObject.mock.calls.filter((c) => (c[0] as { model: { modelId: string } }).model.modelId === tier);
 
 const resetModel = () => {
   generateObject.mockReset();
   generateObject.mockResolvedValue({ object: { verdicts: [], upheld: [] }, usage: okUsage });
-  generateText.mockReset();
-  generateText.mockResolvedValue(asToolCall({ verdicts: [], upheld: [] }));
 };
 
 // Minimal grounding fixture.
@@ -235,9 +231,9 @@ describe("buildStrategySection", () => {
     expect(result).not.toBeNull();
     expect(result!.section).toBe("strategy");
     expect(result!.situationHeadline).toContain("55");
-    // parse-retry (2) on the draft; the verifier is a frontier tool call (1).
-    expect(generateObject).toHaveBeenCalledTimes(2);
-    expect(generateText).toHaveBeenCalledTimes(1);
+    // parse-retry (2) on the draft, then the frontier verifier (1).
+    expect(tierCalls("medium")).toHaveLength(2);
+    expect(tierCalls("frontier")).toHaveLength(1);
   });
 });
 
@@ -396,8 +392,8 @@ describe("grounded-figure gate", () => {
     const res = await buildStrategySection("t1", "u1", grounding);
     expect(res).not.toBeNull();
     // draft (1); the adversarial verifier is a frontier tool call (1).
-    expect(generateObject).toHaveBeenCalledTimes(1);
-    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(tierCalls("medium")).toHaveLength(1);
+    expect(tierCalls("frontier")).toHaveLength(1);
     expect(res!.strategies).toHaveLength(1);
   });
 
@@ -414,8 +410,8 @@ describe("grounded-figure gate", () => {
     generateObject.mockResolvedValueOnce({ object: bad, usage: okUsage });
     const res = await buildStrategySection("t1", "u1", grounding);
     // draft + corrective (2); verifier is a frontier tool call (1).
-    expect(generateObject).toHaveBeenCalledTimes(2);
-    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(tierCalls("medium")).toHaveLength(2);
+    expect(tierCalls("frontier")).toHaveLength(1);
     // Corrective prompt names the violation.
     const secondPrompt = (generateObject.mock.calls[1][0] as { prompt: string }).prompt;
     expect(secondPrompt).toContain("$99,999,999");
@@ -455,8 +451,8 @@ describe("figure-allowance classes", () => {
     };
     generateObject.mockResolvedValueOnce({ object: ok, usage: okUsage });
     const res = await buildStrategySection("t1", "u1", grounding);
-    expect(generateObject).toHaveBeenCalledTimes(1); // no corrective pass; draft only
-    expect(generateText).toHaveBeenCalledTimes(1); // verifier
+    expect(tierCalls("medium")).toHaveLength(1); // no corrective pass; draft only
+    expect(tierCalls("frontier")).toHaveLength(1); // verifier
     expect(res!.strategies).toHaveLength(3);
   });
 });
@@ -474,34 +470,25 @@ describe("adversarial verifier", () => {
     explore: [{ title: "Bond ladder", detail: "Cover early years without selling stocks." }],
   };
 
-  it("verifies on the frontier tier as a forced tool call, without falling back", async () => {
+  it("verifies on the frontier tier in JSON mode, without falling back", async () => {
     generateObject.mockResolvedValueOnce({ object: draft, usage: okUsage }); // draft
     await buildStrategySection("t1", "u1", grounding);
 
-    // The frontier Opus routes reject a JSON response format, so the schema has
-    // to ride as one forced tool call. Assert the shape, the tier, and — most
-    // importantly — that the medium-tier fallback never ran: a fallback here
-    // means the reader is looking at the medium tier's verdict, not Opus's.
-    expect(generateText).toHaveBeenCalledTimes(1);
-    const call = generateText.mock.calls[0][0] as {
-      model: { modelId: string };
-      tools: Record<string, { inputSchema: unknown }>;
-      toolChoice: unknown;
-    };
-    expect(call.model.modelId).toBe("frontier");
-    expect(Object.keys(call.tools)).toEqual(["emit_result"]);
-    expect(call.toolChoice).toEqual({ type: "tool", toolName: "emit_result" });
-    expect(generateObject).toHaveBeenCalledTimes(1); // the draft, and nothing else
+    // One frontier call and no medium-tier fallback: a fallback here means the
+    // reader is looking at the medium tier's verdict, not Opus's. No forced
+    // tool either, because Opus 5.5 rejects one.
+    const frontier = tierCalls("frontier");
+    expect(frontier).toHaveLength(1);
+    const call = frontier[0][0] as { tools?: unknown; toolChoice?: unknown };
+    expect(call.tools).toBeUndefined();
+    expect(call.toolChoice).toBeUndefined();
+    expect(tierCalls("medium")).toHaveLength(1); // the draft, and nothing else
   });
 
   it("drops items the verifier rejects, keeps the rest", async () => {
     generateObject.mockResolvedValueOnce({ object: draft, usage: okUsage }); // draft (grounded)
-    generateText.mockResolvedValueOnce(
-      asToolCall({ verdicts: [{ key: "s1", ok: false, errorClass: "duration_mismatch", reason: "duration inconsistent" }] }),
-    ); // verifier
-    generateText.mockResolvedValueOnce(
-      asToolCall({ upheld: [{ key: "s1", uphold: true }] }),
-    ); // adjudicator upholds
+    generateObject.mockResolvedValueOnce({ object: { verdicts: [{ key: "s1", ok: false, errorClass: "duration_mismatch", reason: "duration inconsistent" }] }, usage: okUsage }); // verifier
+    generateObject.mockResolvedValueOnce({ object: { upheld: [{ key: "s1", uphold: true }] }, usage: okUsage }); // adjudicator upholds
     const res = await buildStrategySection("t1", "u1", grounding);
     expect(res!.strategies.map((s) => s.title)).toEqual(["Good"]);
     expect(res!.watchouts).toHaveLength(1);
@@ -510,7 +497,6 @@ describe("adversarial verifier", () => {
   it("fails open when the verifier call errors on BOTH tiers", async () => {
     generateObject.mockResolvedValueOnce({ object: draft, usage: okUsage });
     // Frontier attempt and the medium-tier fallback behind it both fail.
-    generateText.mockRejectedValue(new Error("verifier down"));
     generateObject.mockRejectedValue(new Error("verifier down"));
     const res = await buildStrategySection("t1", "u1", grounding);
     expect(res!.strategies).toHaveLength(2); // nothing dropped
@@ -528,28 +514,20 @@ describe("adjudication of verifier rejections", () => {
 
   it("keeps content when the adjudicator overturns a rejection", async () => {
     generateObject.mockResolvedValueOnce({ object: draft, usage: okUsage }); // draft
-    generateText.mockResolvedValueOnce(
-      asToolCall({ verdicts: [{ key: "s0", ok: false, errorClass: "wrong_figure", reason: "bogus complaint" }] }),
-    ); // verifier over-fires
-    generateText.mockResolvedValueOnce(
-      asToolCall({ upheld: [{ key: "s0", uphold: false }] }),
-    ); // adjudicator overturns
+    generateObject.mockResolvedValueOnce({ object: { verdicts: [{ key: "s0", ok: false, errorClass: "wrong_figure", reason: "bogus complaint" }] }, usage: okUsage }); // verifier over-fires
+    generateObject.mockResolvedValueOnce({ object: { upheld: [{ key: "s0", uphold: false }] }, usage: okUsage }); // adjudicator overturns
     const res = await buildStrategySection("t1", "u1", grounding);
     expect(res!.strategies).toHaveLength(1);
   });
 
   it("sends self-negating rejections to the adjudicator instead of discarding them", async () => {
     generateObject.mockResolvedValueOnce({ object: draft, usage: okUsage }); // draft
-    generateText.mockResolvedValueOnce(
-      asToolCall({ verdicts: [{ key: "s0", ok: false, errorClass: "wrong_figure", reason: "off by 0.5% which is correct rounding, so the item is actually fine" }] }),
-    ); // verifier (self-negating reason — still a real rejection to vet)
-    generateText.mockResolvedValueOnce(
-      asToolCall({ upheld: [{ key: "s0", uphold: false }] }),
-    ); // adjudicator overturns it
+    generateObject.mockResolvedValueOnce({ object: { verdicts: [{ key: "s0", ok: false, errorClass: "wrong_figure", reason: "off by 0.5% which is correct rounding, so the item is actually fine" }] }, usage: okUsage }); // verifier (self-negating reason — still a real rejection to vet)
+    generateObject.mockResolvedValueOnce({ object: { upheld: [{ key: "s0", uphold: false }] }, usage: okUsage }); // adjudicator overturns it
     const res = await buildStrategySection("t1", "u1", grounding);
     expect(res!.strategies).toHaveLength(1);
-    expect(generateObject).toHaveBeenCalledTimes(1); // draft
-    expect(generateText).toHaveBeenCalledTimes(2); // verifier + adjudicator
+    expect(tierCalls("medium")).toHaveLength(1); // draft
+    expect(tierCalls("frontier")).toHaveLength(2); // verifier + adjudicator
   });
 });
 
@@ -612,9 +590,6 @@ describe("frontier escalation ceiling", () => {
       generateObject.mockResolvedValueOnce({ object: draft, usage: okUsage });
       await buildStrategySection("t1", "u1", grounding);
     }
-    const tiers = generateText.mock.calls.map(
-      (c) => (c[0] as { model: { modelId: string } }).model.modelId,
-    );
-    expect(tiers).toEqual(["frontier", "frontier"]);
+    expect(tierCalls("frontier")).toHaveLength(2);
   });
 });

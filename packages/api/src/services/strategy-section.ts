@@ -22,20 +22,12 @@ const STRATEGY_LEVEL = "medium" as const;
 // The frontier tier, because a better judge catches semantic errors (inverted
 // tax logic, claims contradicted by the rows) the medium tier misses.
 //
-// It only works in TOOL mode. Verification is a structured-output call, and the
-// AI SDK's generateObject asks for one with a JSON response format, which the
-// provider sends as `response_format: {type: "json_schema"}`. OpenRouter then
-// translates that into Anthropic's `output_config.format`, and the Opus routes
-// that actually serve this account (Bedrock, Vertex, Azure) reject the field
-// ("output_config.format: Extra inputs are not permitted"). OpenRouter now
-// filters those routes out of a json_schema request instead, which leaves only
-// the Anthropic-direct endpoints — all of them excluded by the account's
-// zero-data-retention guardrail, so the request 404s before a model sees it.
-// Every Opus route DOES support tool calls, which is how Anthropic models do
-// structured output natively, so the verifier carries its schema as one forced
-// tool call (llmGenerateObject's `viaToolCall`). Do not switch it back to a
-// response format: with provider routing relaxed the parameter is silently
-// dropped and the model answers in fenced prose instead.
+// A JSON response format, like every other structured call. It used to ride as
+// one forced tool call because the Opus 4.x routes serving this account
+// rejected the JSON format. Opus 5.5 rejects FORCED tool calls instead (the
+// alias quietly served those from Opus 5), and its routes take the JSON format,
+// checked live on 2026-10-27. If verification starts failing to parse, the
+// medium-tier fallback below still returns a verdict.
 const VERIFY_LEVEL = "frontier" as const;
 
 /**
@@ -365,7 +357,7 @@ async function generateObjectWithFallback<T extends z.ZodTypeAny>(anon: LlmAnonC
     return (await llmGenerateObject(anon, { model: getModel(STRATEGY_LEVEL), temperature: 0, ...opts })) as { object: z.infer<T> };
   }
   try {
-    return (await llmGenerateObject(anon, { model: getModel(VERIFY_LEVEL), temperature: 0, viaToolCall: true, ...opts })) as { object: z.infer<T> };
+    return (await llmGenerateObject(anon, { model: getModel(VERIFY_LEVEL), temperature: 0, ...opts })) as { object: z.infer<T> };
   } catch (e) {
     console.warn(
       `[strategy] ${VERIFY_LEVEL} verification route failed, falling back to ${STRATEGY_LEVEL}:`,

@@ -281,7 +281,7 @@ financialPlansRouter.post("/", async (c) => {
       startedAt: new Date().toISOString(),
       html: "",
       generatedAt: new Date().toISOString(),
-      model: "anthropic/claude-sonnet-5",
+      model: "~anthropic/claude-sonnet-latest",
       history: [],
     };
     const [plan] = await db

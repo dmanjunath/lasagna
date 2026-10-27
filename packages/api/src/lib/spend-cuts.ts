@@ -440,15 +440,6 @@ export async function polishSpendCutCopy(
         prompt: `Suggestions to rewrite:\n\n${JSON.stringify(payload)}`,
         temperature: 0.3,
         maxOutputTokens: 2000,
-        // Tool mode, for the reason strategy-section.ts documents at length:
-        // generateObject asks for a JSON response format, OpenRouter turns
-        // that into a field the Anthropic routes serving this account reject,
-        // and what comes back is prose that fails the schema. Asked for the
-        // same rewrite as one forced tool call, which is how these models do
-        // structured output natively, it parses first time. Observed here as
-        // "No object generated: response did not match schema" on the very
-        // first live call, so this is not a precaution.
-        viaToolCall: true,
       },
     );
 

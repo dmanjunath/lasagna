@@ -8,7 +8,7 @@ vi.mock("ai", () => ({ generateObject: (...args: unknown[]) => generateObject(..
 vi.mock("../../lib/activity.js", () => ({ logLlmUsage: vi.fn(), actualLlmCostUsd: () => undefined }));
 vi.mock("../../agent/index.js", () => ({
   getModel: () => ({}) as never,
-  getModelSlug: () => "anthropic/claude-sonnet-4.5",
+  getModelSlug: () => "~anthropic/claude-sonnet-latest",
 }));
 // The llm boundary (lib/llm.ts) builds the tenant alias map before every call —
 // a DB read. Stub the scrubber with identity fns so no DB is touched and the

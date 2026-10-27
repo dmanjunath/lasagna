@@ -12,13 +12,11 @@ import { db } from "./db.js";
 const LLM_PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
   "google/gemini-3.1-flash-lite-preview": { in: 0.1, out: 0.4 },
   "google/gemini-3.1-flash-lite": { in: 0.1, out: 0.4 },
-  "anthropic/claude-haiku-4.5": { in: 1.0, out: 5.0 },
+  "~anthropic/claude-haiku-latest": { in: 0.1, out: 0.5 },
   "google/gemini-3.5-flash": { in: 0.3, out: 2.5 },
   "~anthropic/claude-sonnet-latest": { in: 2.0, out: 10.0 },
-  "anthropic/claude-sonnet-4.5": { in: 3.0, out: 15.0 },
   "moonshotai/kimi-k2.6": { in: 0.55, out: 2.2 },
-  "~anthropic/claude-opus-latest": { in: 5.0, out: 25.0 },
-  "anthropic/claude-opus-4.7": { in: 5.0, out: 25.0 },
+  "~anthropic/claude-opus-latest": { in: 4.0, out: 20.0 },
   "google/gemma-4-26b-a4b-it": { in: 0.1, out: 0.3 },
   "google/gemma-4-31B-it": { in: 0.1, out: 0.3 },
 };

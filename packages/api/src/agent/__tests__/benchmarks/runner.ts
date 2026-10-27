@@ -158,7 +158,7 @@ export async function runBenchmark(
     passed: !errorMsg,
     error: errorMsg,
     timestamp: new Date().toISOString(),
-    model: 'claude-sonnet-4',
+    model: '~anthropic/claude-sonnet-latest',
   };
 
   // Run assertions

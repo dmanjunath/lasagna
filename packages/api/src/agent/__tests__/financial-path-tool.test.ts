@@ -37,7 +37,7 @@ vi.mock('ai', () => ({
 vi.mock('../../lib/activity.js', () => ({ logLlmUsage: vi.fn(), actualLlmCostUsd: () => undefined }));
 vi.mock('../../agent/index.js', () => ({
   getModel: () => ({}) as never,
-  getModelSlug: () => 'anthropic/claude-sonnet-4.5',
+  getModelSlug: () => '~anthropic/claude-sonnet-latest',
 }));
 vi.mock('../../lib/pii-scrubber.js', () => ({
   buildAliasMap: async () => ({ forward: new Map(), reverse: new Map() }),

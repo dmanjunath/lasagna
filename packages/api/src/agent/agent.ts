@@ -24,15 +24,17 @@ export const MODEL_LEVELS = [
 ] as const;
 export type ModelLevel = (typeof MODEL_LEVELS)[number];
 
-// The two Anthropic tiers track whatever Anthropic ships rather than pinning a
-// version, so a new Sonnet or Opus reaches this app without a deploy. OpenRouter
-// spells an alias with a LEADING TILDE and has no ":latest" suffix at all, so
-// "~anthropic/claude-sonnet-latest" is the real slug and not a typo. They
-// currently resolve to Sonnet 5 and Opus 5.
+// The Anthropic tiers track whatever Anthropic ships rather than pinning a
+// version, so a new Haiku, Sonnet or Opus reaches this app without a deploy.
+// OpenRouter spells an alias with a LEADING TILDE and has no ":latest" suffix at
+// all, so "~anthropic/claude-sonnet-latest" is the real slug and not a typo. They
+// resolved to Haiku 5.5, Sonnet 5.5 and Opus 5.5 on 2026-10-27. A request that
+// forces a tool call is served by the previous model instead, because the 5.5
+// models reject forced tool choice, so no caller forces one.
 const modelMappings: Record<ModelLevel, string> = {
   "free": "google/gemini-3.5-flash",
   "fast": "google/gemini-3.1-flash-lite",
-  "fast-claude": "anthropic/claude-haiku-4.5",
+  "fast-claude": "~anthropic/claude-haiku-latest",
   "medium-google": "google/gemini-3.5-flash",
   "medium": "~anthropic/claude-sonnet-latest",
   "quality": "moonshotai/kimi-k2.6",
@@ -65,7 +67,7 @@ export const CHAT_MODEL_CATALOG: Record<Provider, { id: string; label: string }[
   openrouter: [
     { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash" },
     { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
-    { id: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5" },
+    { id: "~anthropic/claude-haiku-latest", label: "Claude Haiku (latest)" },
     { id: "~anthropic/claude-sonnet-latest", label: "Claude Sonnet (latest)" },
     { id: "moonshotai/kimi-k2.6", label: "Kimi K2.6" },
     { id: "~anthropic/claude-opus-latest", label: "Claude Opus (latest)" },

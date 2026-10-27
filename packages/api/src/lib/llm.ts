@@ -144,9 +144,6 @@ export async function llmGenerateText(
   }
 }
 
-/** The single tool the schema rides under in `viaToolCall` mode. */
-const OBJECT_TOOL_NAME = "emit_result";
-
 /** Anonymized generateObject: scrubbed outbound, object strings descrubbed inbound. */
 export async function llmGenerateObject<T>(
   anon: LlmAnonContext,
@@ -158,14 +155,6 @@ export async function llmGenerateObject<T>(
     messages?: GenerateTextOpts["messages"];
     temperature?: number;
     maxOutputTokens?: number;
-    /**
-     * Carry the schema as ONE forced tool call instead of a JSON response
-     * format. Needed for models whose serving route does structured output
-     * only through tool use — see the Opus note in strategy-section.ts. The
-     * returned object is still parsed against `schema`, so callers cannot tell
-     * the two modes apart.
-     */
-    viaToolCall?: boolean;
   },
 ): Promise<{ object: T; usage?: { inputTokens?: number; outputTokens?: number }; costUsd?: number }> {
   assertLlmSpendUnderCap();
@@ -173,36 +162,11 @@ export async function llmGenerateObject<T>(
   let usage: { inputTokens?: number; outputTokens?: number } | undefined;
   let costUsd: number | undefined;
   try {
-    const { viaToolCall, ...call } = scrubOpts(opts, map);
-    let object: unknown;
-    let providerMetadata: Awaited<ReturnType<typeof generateText>>["providerMetadata"];
-    if (viaToolCall) {
-      const result = await generateText({
-        ...call,
-        tools: {
-          [OBJECT_TOOL_NAME]: {
-            description: "Return the result. Call this exactly once.",
-            inputSchema: opts.schema,
-          },
-        },
-        toolChoice: { type: "tool", toolName: OBJECT_TOOL_NAME },
-      } as never);
-      const input = result.toolCalls[0]?.input;
-      if (input === undefined) {
-        throw new Error(
-          `llmGenerateObject: model returned no ${OBJECT_TOOL_NAME} call (finish: ${result.finishReason})`,
-        );
-      }
-      object = opts.schema.parse(input);
-      usage = result.usage as { inputTokens?: number; outputTokens?: number } | undefined;
-      providerMetadata = result.providerMetadata;
-    } else {
-      const result = await generateObject(call as never);
-      object = result.object;
-      usage = result.usage as { inputTokens?: number; outputTokens?: number } | undefined;
-      providerMetadata = result.providerMetadata;
-    }
-    costUsd = actualLlmCostUsd(providerMetadata);
+    const call = scrubOpts(opts, map);
+    const result = await generateObject(call as never);
+    const object: unknown = result.object;
+    usage = result.usage as { inputTokens?: number; outputTokens?: number } | undefined;
+    costUsd = actualLlmCostUsd(result.providerMetadata);
     return {
       object: (anon.descrubOutput === false ? object : descrubObject(object, map)) as T,
       usage,

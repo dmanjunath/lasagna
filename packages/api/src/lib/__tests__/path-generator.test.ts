@@ -8,7 +8,7 @@ vi.mock('ai', () => ({ generateObject: (...args: unknown[]) => generateObject(..
 vi.mock('../activity.js', () => ({ logLlmUsage: vi.fn(), actualLlmCostUsd: () => undefined }));
 vi.mock('../../agent/index.js', () => ({
   getModel: () => ({}) as never,
-  getModelSlug: () => 'anthropic/claude-sonnet-4.5',
+  getModelSlug: () => '~anthropic/claude-sonnet-latest',
 }));
 // lib/llm.ts builds the tenant alias map before every call, which is a DB read.
 // Identity stubs keep the payload readable and the database out of it, and the
@@ -895,7 +895,7 @@ describe('generatePath', () => {
     expect(recorded.paths).toHaveLength(1);
     expect(recorded.paths[0]).toMatchObject({
       orderSource: 'model',
-      model: 'anthropic/claude-sonnet-4.5',
+      model: '~anthropic/claude-sonnet-latest',
       reason: 'no_active_path',
     });
     const storedKeys = recorded.steps.map((s) => s.candidateKey);

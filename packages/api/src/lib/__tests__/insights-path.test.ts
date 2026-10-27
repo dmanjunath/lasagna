@@ -24,7 +24,7 @@ vi.mock("../llm.js", () => ({
 }));
 vi.mock("../../agent/index.js", () => ({
   getModel: () => ({}) as never,
-  getModelSlug: () => "anthropic/claude-sonnet-4.5",
+  getModelSlug: () => "~anthropic/claude-sonnet-latest",
 }));
 vi.mock("../activity.js", () => ({ logLlmUsage: vi.fn(), actualLlmCostUsd: () => undefined }));
 vi.mock("../billing.js", () => ({ isTenantDisabled: async () => false }));

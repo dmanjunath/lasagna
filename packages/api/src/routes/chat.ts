@@ -182,9 +182,11 @@ chatRouter.post("/", async (c) => {
       // up stored mid-sentence. getModel bounds the reasoning side; this is the
       // ceiling for reasoning plus the visible answer together.
       maxOutputTokens: 8192,
-      // Force at least one tool call on step 1 so the model fetches real data
-      // before answering. Subsequent steps use "auto" so it can respond freely.
-      toolChoice: step === 0 ? "required" : "auto",
+      // "auto" on every step. Forcing a tool call on step 1 ("required") is
+      // rejected by Sonnet 5.5 and Opus 5.5, and the aliases quietly served
+      // that step from the previous model. The system prompt's "You MUST call
+      // tools ... before responding" is what gets the data fetched now.
+      toolChoice: "auto",
     });
 
     const toolCallCount = stepResult.toolCalls?.length || 0;

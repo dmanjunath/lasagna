@@ -9,7 +9,7 @@
  * report". The web app renders the HTML verbatim in a sandboxed iframe (no
  * scripts), and the plan's input box sends FEEDBACK that revises the report.
  *
- * Model: pinned to anthropic/claude-sonnet-5 via the getModel override.
+ * Model: the latest Sonnet (~anthropic/claude-sonnet-latest) via the getModel override.
  */
 
 import type { ModelMessage } from "ai";
@@ -34,7 +34,7 @@ export interface FreeformReport {
   history: { feedback: string; at: string }[];
 }
 
-const FREEFORM_MODEL = "anthropic/claude-sonnet-5";
+const FREEFORM_MODEL = "~anthropic/claude-sonnet-latest";
 const MAX_TOOL_ROUNDS = 8;
 
 const SYSTEM_PROMPT = `You are the senior analyst behind LasagnaFi Financial Insights: a complete, expert written analysis of ONE person's finances, generated from their live data. Your report should read like the output of many hours of expert work: comprehensive, specific, and opinionated about what this person should DO. The BRAND and VOCABULARY rules below constrain naming only, never depth or candor.
@@ -164,7 +164,10 @@ export async function generateFreeformReport(
       // The final turn emits a full HTML document with inline SVG — needs far
       // more headroom than a chat turn.
       maxOutputTokens: 60000,
-      toolChoice: step === 0 && !opts?.previousHtml ? "required" : "auto",
+      // Never forced: Sonnet 5.5 rejects a "required" tool choice, and the alias
+      // would serve a forced step from the previous model. Step 1 of
+      // the system prompt is what makes the first turn gather data.
+      toolChoice: "auto",
     });
     finalText = stepResult.text;
     console.log(
