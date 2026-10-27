@@ -78,3 +78,11 @@ describe("a well-formed email still gets through", () => {
     expect(workos.sendPasswordReset).toHaveBeenCalledWith({ email: "bob@example.com" });
   });
 });
+
+describe("GET /signup/options", () => {
+  it("says a password is optional in WorkOS mode", async () => {
+    const res = await app.request("/api/auth/signup/options");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ passwordRequired: false });
+  });
+});

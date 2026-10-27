@@ -168,6 +168,8 @@ export const api = {
     request("/auth/login", { method: "POST", body: JSON.stringify(data) }),
 
   // Two-step (email-first) login
+  signupOptions: () =>
+    request<{ passwordRequired: boolean }>("/auth/signup/options"),
   loginStart: (email: string) =>
     request<{ step: "password" | "code" }>("/auth/login/start", { method: "POST", body: JSON.stringify({ email }) }),
   loginSendCode: (email: string) =>
@@ -217,6 +219,7 @@ export const api = {
         name: string | null;
         role: string;
         onboardingStage: string | null;
+        onboardingDeferred: boolean;
         isAdmin: boolean;
         isDemo: boolean;
         hasAcceptedTerms: boolean;
@@ -237,6 +240,7 @@ export const api = {
         name: string | null;
         role: string;
         onboardingStage: string | null;
+        onboardingDeferred: boolean;
         isAdmin: boolean;
         isDemo: boolean;
         hasAcceptedTerms: boolean;
@@ -249,6 +253,12 @@ export const api = {
     }>("/auth/me", {
       method: "PATCH",
       body: JSON.stringify(updates),
+    }),
+
+  updateOnboardingDeferred: (deferred: boolean) =>
+    request<{ onboardingDeferred: boolean }>("/auth/onboarding-deferred", {
+      method: "PATCH",
+      body: JSON.stringify({ deferred }),
     }),
 
   updateOnboardingStage: (stage: string | null) =>

@@ -125,6 +125,9 @@ export const users = pgTable("users", {
   // "Sign out everywhere": requireAuth rejects tokens issued before this.
   sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
   onboardingStage: onboardingStageEnum("onboarding_stage"),
+  // "Finish later": the user left onboarding unfinished and is using the app.
+  // onboardingStage still says where they stopped. Cleared on resume or finish.
+  onboardingDeferred: boolean("onboarding_deferred").notNull().default(false),
   notifyDaily: boolean("notify_daily").notNull().default(true),
   notifyBills: boolean("notify_bills").notNull().default(true),
   notifyWeeklyEmail: boolean("notify_weekly_email").notNull().default(false),

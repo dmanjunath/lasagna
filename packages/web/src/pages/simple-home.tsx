@@ -18,6 +18,7 @@ import { BriefingCard, GREETING_CLS } from '../components/home/BriefingCard';
 import { actionSentence, netWorthChange, quickLinks } from '../lib/home-briefing';
 import { formatStoredDay } from '../lib/utils';
 import { formatCurrency, goalAccent, iconFor } from './goal-shared';
+import { OnboardingResumeCard } from '../components/layout/onboarding-progress';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,8 @@ function writeBriefingShape(shape: BriefingShape) {
 
 export function SimpleHome() {
   const { user, tenant } = useAuth();
+  // Mirrors OnboardingResumeCard's own condition.
+  const resumeShown = !!user?.onboardingDeferred && user.onboardingStage !== null;
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
   const toast = useToast();
@@ -614,7 +617,10 @@ export function SimpleHome() {
         <h1 className={`animate-fade-in ${GREETING_CLS}`}>
           {greeting}, {firstName}
         </h1>
-        <div className="mt-7 flex min-h-[58vh] items-center justify-center">
+        {/* Under the greeting, never above the page's own heading. */}
+        <OnboardingResumeCard className="mt-7" />
+        {/* Centred alone, but under the resume card that left a hole above it. */}
+        <div className={`mt-7 flex justify-center ${resumeShown ? '' : 'min-h-[58vh] items-center'}`}>
           {homeState === 'empty' ? (
             <EmptyState
               variant="page"
@@ -673,6 +679,8 @@ export function SimpleHome() {
               onAsk={(prompt) => openChat(prompt)}
               actions={renderActions(insights, insightsLoading)}
             />
+
+            <OnboardingResumeCard />
 
             {breakdown && (
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ScanFace } from "lucide-react";
 import { useAuth } from "../lib/auth.js";
@@ -19,19 +19,32 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
   // account has one. Passwordless accounts go straight to the emailed-code screen.
   const [step, setStep] = useState<"email" | "password">("email");
   const [email, setEmail] = useState("");
+  // The address /login/start last answered "password" for. The email stays
+  // editable on the password step, so a change sends it back through that check.
+  const [checkedEmail, setCheckedEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false); // signup: reveal optional password
-  // Set when the server rejects a signup for a missing password. Local auth
-  // mode requires one while WorkOS mode does not, and the logged-out client
-  // has no way to read which mode the server is in, so it learns from the
-  // rejection rather than leaving "optional" on screen next to "required".
-  const [passwordRequired, setPasswordRequired] = useState(false);
+  // Local auth mode requires a signup password while WorkOS mode does not.
+  // The server says which on mount (null until it answers).
+  const [serverPasswordRequired, setServerPasswordRequired] = useState<boolean | null>(null);
+  // Set when the server rejects a signup for a missing password, in case the
+  // /signup/options request failed, rather than leaving "optional" on screen
+  // next to "required".
+  const [learnedPasswordRequired, setPasswordRequired] = useState(false);
+  const passwordRequired = serverPasswordRequired === true || learnedPasswordRequired;
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [acceptedTos, setAcceptedTos] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [acceptedNotRia, setAcceptedNotRia] = useState(false);
+
+  useEffect(() => {
+    if (isDemo) return;
+    api.signupOptions()
+      .then((o) => setServerPasswordRequired(o.passwordRequired))
+      .catch(() => setServerPasswordRequired(false));
+  }, [isDemo]);
 
   const consentOk = acceptedTos && acceptedPrivacy && acceptedNotRia;
 
@@ -78,8 +91,12 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
     setLoading(true);
     try {
       const { step: next } = await api.loginStart(email);
-      if (next === "password") setStep("password");
-      else goToCodeScreen("login");
+      if (next === "code") return goToCodeScreen("login");
+      setCheckedEmail(email);
+      setStep("password");
+      // The email was edited on the password step, so carry on signing in
+      // rather than asking for another click (an empty password errors there).
+      if (step === "password") await handlePasswordLogin();
     } catch (err) {
       showError(err);
     } finally {
@@ -166,14 +183,8 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
       return;
     }
     if (isSignup) return handleSignup();
-    if (isDemo || step === "password") return handlePasswordLogin();
+    if (isDemo || (step === "password" && email === checkedEmail)) return handlePasswordLogin();
     return handleEmailContinue();
-  };
-
-  const resetToLoginEmail = () => {
-    setStep("email");
-    setPassword("");
-    setError("");
   };
 
   const toggleSignup = () => {
@@ -194,7 +205,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
   };
 
   // Password field is visible in: demo, login password step, and signup (when revealed).
-  const passwordVisible = isDemo || (!isSignup && step === "password") || (isSignup && showPassword);
+  const passwordVisible = isDemo || (!isSignup && step === "password") || (isSignup && (showPassword || passwordRequired));
   // Google + passkey belong on the "entry" screen: signup, or login before a password is asked for.
   // Google is web-only (its redirect needs a system browser) and the passkey
   // button needs a passkey already on this device, so in a fresh install both
@@ -298,22 +309,19 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
                 onChange={(e) => { setEmail(e.target.value); if (error) setError(""); }}
                 invalid={!!emailFieldError}
                 autoComplete="email"
-                // On the login password step the email is locked in; edit via the link below.
-                readOnly={!isSignup && !isDemo && step === "password"}
               />
             </Field>
 
-            {/* "Use a different email" — login password step only */}
-            {!isSignup && !isDemo && step === "password" && (
-              <TextLink onClick={resetToLoginEmail} chevron={false}>Use a different email</TextLink>
-            )}
-
             {/* Signup: optional password is hidden behind a toggle */}
-            {isSignup && !showPassword && (
+            {/* Held invisible while the server has not said whether a password
+                is required, so the optional case (prod) never shifts. */}
+            {isSignup && !showPassword && !passwordRequired && (
               <button
                 type="button"
                 onClick={() => setShowPassword(true)}
-                className="ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-sm text-brand hover:text-brand-hover underline underline-offset-2"
+                disabled={serverPasswordRequired === null}
+                aria-hidden={serverPasswordRequired === null || undefined}
+                className={`${serverPasswordRequired === null ? "invisible " : ""}ui-focus inline-flex min-h-touch items-center rounded-ui-sm py-2 text-sm text-brand hover:text-brand-hover underline underline-offset-2`}
               >
                 Set a password (optional)
               </button>

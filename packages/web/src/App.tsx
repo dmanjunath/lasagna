@@ -148,12 +148,14 @@ function AppRoutes() {
     return <Suspense fallback={<BootCover />}><WelcomeConsent /></Suspense>;
   }
 
-  // Redirect to onboarding if not complete (unless demo mode).
+  // Redirect to onboarding if not complete (unless demo mode, or the user chose
+  // "Finish later", in which case the app shows a progress card to resume).
   // /quick-import and /accounts stay reachable: the final onboarding screen's
   // "Connect accounts" hands off to /accounts (auto-opens Plaid), and /accounts
   // is allowed so that handoff never races the onboarding-complete state update.
   if (
     user.onboardingStage !== null &&
+    !user.onboardingDeferred &&
     import.meta.env.VITE_DEMO_MODE !== "true" &&
     !location.startsWith('/quick-import') &&
     !location.startsWith('/accounts')

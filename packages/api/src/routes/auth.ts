@@ -69,10 +69,15 @@ export function nativeTokenField(c: Context, token: string): { token?: string } 
   return c.req.header("x-lasagna-client") === "native" ? { token } : {};
 }
 function userPayload(u: any) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, isAdmin: u.isAdmin, isDemo: u.isDemo ?? false, hasAcceptedTerms: u.acceptedTermsAt != null, hasPassword: u.hasPassword, lastLoginAt: u.lastLoginAt };
+  return { id: u.id, email: u.email, name: u.name, role: u.role, onboardingStage: u.onboardingStage, onboardingDeferred: u.onboardingDeferred, isAdmin: u.isAdmin, isDemo: u.isDemo ?? false, hasAcceptedTerms: u.acceptedTermsAt != null, hasPassword: u.hasPassword, lastLoginAt: u.lastLoginAt };
 }
 
 // Sign up — creates a new tenant + user (owner)
+// Lets the logged-out signup form show the password field up front when this
+// deployment needs one (local mode) instead of learning it from a rejection.
+authRoutes.get("/signup/options", (c) =>
+  c.json({ passwordRequired: authMode() !== "workos" }));
+
 authRoutes.post("/signup", async (c) => {
   const { email: rawEmail, password, name, acceptedTos, acceptedPrivacy, acceptedNotRia } = await c.req.json();
   const email = normalizeEmail(rawEmail);
@@ -212,6 +217,7 @@ authRoutes.get("/me", requireAuth, async (c) => {
       name: user.name,
       role: user.role,
       onboardingStage: user.onboardingStage,
+      onboardingDeferred: user.onboardingDeferred,
       isAdmin: user.isAdmin,
       isDemo: user.isDemo,
       hasAcceptedTerms: user.acceptedTermsAt != null,
@@ -253,6 +259,7 @@ authRoutes.patch("/me", requireAuth, async (c) => {
         name: existing.name,
         role: existing.role,
         onboardingStage: existing.onboardingStage,
+        onboardingDeferred: existing.onboardingDeferred,
         isAdmin: existing.isAdmin,
         isDemo: existing.isDemo,
         hasAcceptedTerms: existing.acceptedTermsAt != null,
@@ -278,6 +285,7 @@ authRoutes.patch("/me", requireAuth, async (c) => {
       name: updated.name,
       role: updated.role,
       onboardingStage: updated.onboardingStage,
+      onboardingDeferred: updated.onboardingDeferred,
       isAdmin: updated.isAdmin,
       isDemo: updated.isDemo,
       hasAcceptedTerms: updated.acceptedTermsAt != null,
@@ -310,7 +318,11 @@ authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
 
   const [updated] = await db
     .update(users)
-    .set({ onboardingStage: stage as typeof onboardingStageEnum.enumValues[number] | null })
+    // Finishing also ends any "finish later" state.
+    .set({
+      onboardingStage: stage as typeof onboardingStageEnum.enumValues[number] | null,
+      ...(stage === null ? { onboardingDeferred: false } : {}),
+    })
     .where(eq(users.id, session.userId))
     .returning();
 
@@ -328,6 +340,20 @@ authRoutes.patch("/onboarding-stage", requireAuth, async (c) => {
   }
 
   return c.json({ onboardingStage: updated.onboardingStage });
+});
+
+// "Finish later" (deferred: true) lets an unfinished user into the app.
+// Resuming (deferred: false) sends them back to the step they stopped on.
+authRoutes.patch("/onboarding-deferred", requireAuth, async (c) => {
+  const session = c.get("session");
+  const { deferred } = await c.req.json<{ deferred: boolean }>();
+  if (typeof deferred !== "boolean") return c.json({ error: "deferred must be a boolean" }, 400);
+  const [updated] = await db
+    .update(users)
+    .set({ onboardingDeferred: deferred })
+    .where(eq(users.id, session.userId))
+    .returning();
+  return c.json({ onboardingDeferred: updated.onboardingDeferred });
 });
 
 // Signup email verification — Magic Auth (email-keyed), writes consent + hasPassword.

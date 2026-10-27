@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { useLocation } from 'wouter';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import {
   ChevronRight,
   ChevronLeft,
@@ -8,15 +8,21 @@ import {
   Check,
   Loader2,
   Link2,
-  Sparkles,
-  LogOut,
+  ArrowRight,
+  Briefcase,
+  User,
+  FileText,
+  Store,
   Lock,
   Eye,
   RefreshCw,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
 import { Button, Surface, Field, Input, Label, MoneyInput } from '../components/uikit';
-import { OptionMenu } from '../components/common/OptionMenu';
+import {
+  EASE, Stagger, Rise, LasagnaLayers, SegmentProgress, StepList, ChoiceField,
+  PillChips, IconCards, LineCards, RoundPicker, NumberStepper, FinishBurst,
+} from '../components/onboarding/story';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { cn, formatMoney } from '../lib/utils';
@@ -79,20 +85,15 @@ const US_STATES: Array<{ code: string; name: string }> = [
   { code: 'WY', name: 'Wyoming' },
 ];
 
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
 // The stored values are unchanged. Only the wording is: each option now names
 // what a bad year does to the money and what the user gets for putting up with
 // it, instead of naming an investor posture.
 const RISK_LEVELS = [
-  { value: 'conservative', label: 'Almost no drop, and the slowest growth', summary: 'Very low' },
-  { value: 'moderate_conservative', label: 'A small drop, and slow growth', summary: 'Low' },
-  { value: 'moderate', label: 'A real drop, and moderate growth', summary: 'Medium' },
-  { value: 'moderate_aggressive', label: 'A big drop, and fast growth', summary: 'High' },
-  { value: 'aggressive', label: 'A very big drop, and the fastest growth', summary: 'Very high' },
+  { value: 'conservative', label: 'Almost no drop, and the slowest growth', summary: 'Very low' , path: 'M2 8 L18 7 L34 6 L50 5 L72 3' },
+  { value: 'moderate_conservative', label: 'A small drop, and slow growth', summary: 'Low' , path: 'M2 9 L18 7 L30 11 L48 6 L72 3' },
+  { value: 'moderate', label: 'A real drop, and moderate growth', summary: 'Medium' , path: 'M2 10 L16 6 L30 14 L48 7 L72 2' },
+  { value: 'moderate_aggressive', label: 'A big drop, and fast growth', summary: 'High' , path: 'M2 12 L14 5 L28 18 L46 8 L72 1' },
+  { value: 'aggressive', label: 'A very big drop, and the fastest growth', summary: 'Very high' , path: 'M2 14 L12 4 L26 21 L44 9 L72 1' },
 ];
 
 const FILING_STATUSES = [
@@ -112,167 +113,151 @@ const TRI_OPTIONS: Array<{ value: Tri; label: string }> = [
   { value: 'unsure', label: "I'm not sure" },
 ];
 
-// Yes and No are short; "I'm not sure" is not, and an even third wraps it.
-const TRI_GRID = 'grid-cols-[1fr_1fr_1.4fr]';
+// Keyed by user, so a second account in the same browser never inherits the
+// first one's answers. Cleared on finish here and on sign-out in auth.tsx.
+const TRI_DRAFT_PREFIX = 'lf_onboarding_tri:';
+type TriDraft = { matchAnswer?: Tri; hdhp?: Tri; pslf?: Tri };
+function readTriDraft(userId: string): TriDraft {
+  try { return JSON.parse(localStorage.getItem(TRI_DRAFT_PREFIX + userId) ?? '{}') as TriDraft; } catch { return {}; }
+}
+function writeTriDraft(userId: string, d: TriDraft) {
+  try { localStorage.setItem(TRI_DRAFT_PREFIX + userId, JSON.stringify(d)); } catch { /* storage blocked */ }
+}
+function clearTriDraft(userId: string) {
+  try { localStorage.removeItem(TRI_DRAFT_PREFIX + userId); } catch { /* storage blocked */ }
+}
 
 const triToBool = (v: Tri): boolean | null => (v === 'yes' ? true : v === 'no' ? false : null);
 const boolToTri = (v: boolean | null | undefined): Tri => (v === true ? 'yes' : v === false ? 'no' : '');
 
 const slideVariants = {
-  enter: (direction: number) => ({ x: direction > 0 ? 300 : -300, opacity: 0 }),
+  enter: (direction: number) => ({ x: direction > 0 ? 40 : -40, opacity: 0 }),
   center: { x: 0, opacity: 1 },
-  exit: (direction: number) => ({ x: direction > 0 ? -300 : 300, opacity: 0 }),
+  // A quick exit: the rail title changes on click, and a slow fade left the
+  // old form under the new title for half a second.
+  exit: (direction: number) => ({ x: direction > 0 ? -40 : 40, opacity: 0, transition: { duration: 0.15 } }),
 };
 
-// ─── Shared Bright class recipes ─────────────────────────
-const chipBase =
-  'flex items-center justify-between gap-2 w-full min-h-[48px] px-4 py-3 rounded-ui-md border text-sm text-left transition-[background-color,border-color,color] duration-150 ease-ui';
-const chipInactive =
-  'border-line-strong bg-panel text-content-secondary hover:bg-canvas-sunken hover:border-line-heavy';
-const chipActive =
-  'border-brand bg-brand-soft text-[rgb(var(--ui-brand-ink))]';
+// What the rail says on each question step, and its name in the step list.
+const STEPS = [
+  { nav: 'About you', title: "Let's get to know you", sub: 'A few basics about you. Everything else is worked out from these.' },
+  { nav: 'Retirement match', title: 'Retirement match', sub: 'What your employer adds, how much risk you can take, and when you want to stop working.' },
+  { nav: 'Situation', title: 'Your situation', sub: 'A few things that change which accounts and benefits you can use.' },
+];
 
-function CurrencyInput({ value, onChange, placeholder = '0', autoFocus }: {
-  value: string; onChange: (val: string) => void; placeholder?: string; autoFocus?: boolean;
+const WORK_TYPES = [
+  { value: 'w2', label: 'Employee', icon: <Briefcase className="h-[18px] w-[18px]" aria-hidden /> },
+  { value: 'self_employed', label: 'Self-employed', icon: <User className="h-[18px] w-[18px]" aria-hidden /> },
+  { value: '1099', label: 'Contractor', icon: <FileText className="h-[18px] w-[18px]" aria-hidden /> },
+  { value: 'business_owner', label: 'Business owner', icon: <Store className="h-[18px] w-[18px]" aria-hidden /> },
+];
+
+/** Income as one big number, with thousands separators as it is typed. */
+function MoneyField({ value, onChange, placeholder }: {
+  value: string; onChange: (digits: string) => void; placeholder?: string;
 }) {
   return (
     <MoneyInput
       type="text"
-      inputMode="decimal"
-      value={value}
-      onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
+      inputMode="numeric"
+      value={value ? Number(value).toLocaleString('en-US') : ''}
+      onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
       placeholder={placeholder}
-      autoFocus={autoFocus}
-      className="ui-tnum"
-      leadingIcon={<span className="text-[13px]">$</span>}
+      className="h-[62px] pl-[38px] text-[26px] font-bold tracking-[-0.01em] ui-tnum"
+      leadingIcon={<span className="text-[26px] font-bold text-content-faint">$</span>}
     />
   );
 }
 
-/** A labelled group of chip choices — Field's shape, for controls that aren't one input. */
-function ChoiceField({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
-  const id = useId();
-  return (
-    <div>
-      <Label id={`${id}-label`}>{label}</Label>
-      <div role="group" aria-labelledby={`${id}-label`} className="mt-2">{children}</div>
-      {hint && <p className="mt-1.5 text-[12px] text-content-muted">{hint}</p>}
-    </div>
-  );
-}
-
-function Chips<T extends string>({ options, value, onChange, className, align = 'start' }: {
-  options: Array<{ value: T; label: string }>;
-  value: T;
-  onChange: (v: T) => void;
-  className?: string;
-  align?: 'start' | 'center';
-}) {
-  return (
-    <div className={cn('grid gap-2', className)}>
-      {options.map((o) => {
-        const active = value === o.value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              'ui-focus',
-              chipBase,
-              align === 'center' ? 'justify-center' : 'justify-start',
-              active ? chipActive : chipInactive,
-            )}
-          >
-            <span className="font-semibold">{o.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// Typed as MM/DD/YYYY, slashes added as the user types. Answers in
+// 1960 used to take three lists and sixty years of scrolling.
+const toDisplay = (iso: string) => {
+  const [y, m, d] = iso.split('-');
+  return iso ? `${m}/${d}/${y}` : '';
+};
+const formatDobDigits = (digits: string) =>
+  [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join('/');
 
 /**
- * Date of birth as month / day / year. A native date input makes someone born
- * in 1965 scrub a calendar back sixty years; three lists land in two taps. The
- * `id` and `aria-describedby` Field hands down go to the month list, so the
- * "Date of birth" label and its hint still name the control.
+ * Date of birth as one typed field. The parent only ever sees '' or a whole
+ * ISO date, plus whether what is typed is usable, so a half-typed or
+ * impossible date blocks Next instead of being dropped without a word.
  */
-// The step scrolls under a pinned footer, so a menu low on the screen opened
-// behind it. Bring the field up first, the way StatePicker does.
-function centerBeforeOpen(e: React.MouseEvent<HTMLElement>) {
-  const el = e.currentTarget;
-  // A click in the portaled panel still bubbles here through React.
-  if (!el.contains(e.target as Node)) return;
-  if (window.innerHeight - el.getBoundingClientRect().bottom < 340) el.scrollIntoView({ block: 'center' });
-}
-
-function DateOfBirthFields({ value, onChange }: {
+function DateOfBirthField({ value, onChange, onBlur }: {
   value: string;
-  onChange: (iso: string) => void;
+  onChange: (iso: string, valid: boolean) => void;
+  onBlur: () => void;
 }) {
-  // The three lists hold their own answers. A half-filled date is not a date,
-  // so the parent only ever sees '' or a whole one, and picking a month first
-  // must not be thrown away while the year is still empty.
-  const split = (iso: string) => {
-    const [y = '', m = '', d = ''] = iso ? iso.split('-') : [];
-    return { y, m, d };
-  };
-  const [parts, setParts] = useState(() => split(value));
-  const { y: year, m: month, d: day } = parts;
+  const [text, setText] = useState(() => toDisplay(value));
+  const [touched, setTouched] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (value) setParts(split(value));
+    if (value) setText(toDisplay(value));
   }, [value]);
 
   const thisYear = new Date().getFullYear();
-  const years = useMemo(
-    () => Array.from({ length: 88 }, (_, i) => String(thisYear - 13 - i)),
-    [thisYear],
-  );
-  // 2000 is a leap year, so an unset year never hides February 29th.
-  const daysInMonth = month ? new Date(Number(year || 2000), Number(month), 0).getDate() : 31;
+  const minYear = thisYear - 100;
+  const maxYear = thisYear - 13;
 
-  const emit = (m: string, d: string, y: string) => {
-    // A short month drops a day that no longer exists rather than storing Feb 31.
-    const max = m ? new Date(Number(y || 2000), Number(m), 0).getDate() : 31;
-    const safeDay = d && Number(d) > max ? '' : d;
-    setParts({ y, m, d: safeDay });
-    onChange(m && safeDay && y ? `${y}-${m}-${safeDay}` : '');
+  const check = (digits: string): { iso: string; error?: string } => {
+    if (!digits) return { iso: '' };
+    if (digits.length < 8) return { iso: '', error: 'Enter the full date, like 04/17/1990.' };
+    const m = Number(digits.slice(0, 2)), d = Number(digits.slice(2, 4)), y = Number(digits.slice(4));
+    if (m < 1 || m > 12 || d < 1 || d > new Date(y, m, 0).getDate()) {
+      return { iso: '', error: 'That date does not exist. Enter it as MM/DD/YYYY.' };
+    }
+    if (y < minYear || y > maxYear) return { iso: '', error: `Enter a year from ${minYear} to ${maxYear}.` };
+    return { iso: `${digits.slice(4)}-${digits.slice(0, 2)}-${digits.slice(2, 4)}` };
   };
 
-  // An unanswered list reads as a placeholder, not a value.
-  const faint = '[&>button]:text-content-faint';
+  const digits = text.replace(/\D/g, '');
+  const { error } = check(digits);
+
+  const handleChange = (el: HTMLInputElement) => {
+    let raw = el.value;
+    let caret = el.selectionStart ?? raw.length;
+    const iso = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) {
+      raw = `${iso[2]}/${iso[3]}/${iso[1]}`;
+      caret = raw.length;
+    } else if (raw.length > text.length) {
+      // A typed or pasted slash closes its part, so "4/7/1990" means 04/07.
+      const parts = raw.split('/');
+      raw = parts.map((seg, i) => (i < parts.length - 1 && seg.replace(/\D/g, '').length === 1 ? `0${seg}` : seg)).join('/');
+      caret += raw.length - el.value.length;
+    }
+    let next = raw.replace(/\D/g, '').slice(0, 8);
+    let digitsBefore = raw.slice(0, caret).replace(/\D/g, '').length;
+    // Backspacing over a slash removes no digit, so the slash would come
+    // straight back. Take the digit before it instead.
+    if (raw.length < text.length && next === digits && digitsBefore > 0) {
+      next = next.slice(0, digitsBefore - 1) + next.slice(digitsBefore);
+      digitsBefore -= 1;
+    }
+    const formatted = formatDobDigits(next);
+    setText(formatted);
+    // Reformatting moves the caret to the end. Put it back after the same
+    // number of digits, so an edit in the middle stays in the middle.
+    let pos = 0;
+    for (let seen = 0; pos < formatted.length && seen < digitsBefore; pos++) {
+      if (/\d/.test(formatted[pos])) seen++;
+    }
+    requestAnimationFrame(() => inputRef.current?.setSelectionRange(pos, pos));
+    const r = check(next);
+    onChange(r.iso, !r.error);
+  };
+
   return (
-    <div className="grid grid-cols-[1.35fr_0.8fr_0.85fr] gap-2" onClickCapture={centerBeforeOpen}>
-      <OptionMenu
-        ariaLabel="Month"
-        value={month}
-        triggerLabel={month ? undefined : 'Month'}
-        options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, '0'), label: name }))}
-        onChange={(m) => emit(m, day, year)}
-        className={cn(!month && faint)}
-      />
-      <OptionMenu
-        ariaLabel="Day"
-        value={day}
-        triggerLabel={day ? undefined : 'Day'}
-        options={Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => ({ value: d, label: String(Number(d)) }))}
-        onChange={(d) => emit(month, d, year)}
-        className={cn(!day && faint)}
-      />
-      <OptionMenu
-        ariaLabel="Year"
-        value={year}
-        triggerLabel={year ? undefined : 'Year'}
-        options={years.map((y) => ({ value: y, label: y }))}
-        onChange={(y) => emit(month, day, y)}
-        className={cn('ui-tnum', !year && faint)}
-        // The rightmost list opens leftward, or it runs off a phone screen.
-        panelClassName="left-auto right-0"
-      />
-    </div>
+    <Field label="Date of birth" required
+      hint="So we can work out how long your money needs to last."
+      error={touched ? error : undefined}>
+      <Input ref={inputRef} type="text" inputMode="numeric" autoComplete="bday" placeholder="MM/DD/YYYY"
+        value={text} maxLength={10} className="ui-tnum"
+        invalid={touched && !!error}
+        onChange={(e) => handleChange(e.target)}
+        onBlur={() => { setTouched(true); onBlur(); }} />
+    </Field>
   );
 }
 
@@ -434,15 +419,19 @@ const STAGE_TO_STEP: Record<string, number> = {
 
 export function Onboarding() {
   const [, navigate] = useLocation();
-  const { setOnboardingStage, logout } = useAuth();
+  const { user, setOnboardingStage, setOnboardingDeferred } = useAuth();
+  const userId = user?.id ?? '';
   const [initializing, setInitializing] = useState(true);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   // Step 1
   const [name, setName] = useState('');
   const [dob, setDob] = useState('');
+  const [dobValid, setDobValid] = useState(true);
+  const [dobTouched, setDobTouched] = useState(false);
   const [filingStatus, setFilingStatus] = useState('');
   const [stateOfResidence, setStateOfResidence] = useState('');
 
@@ -496,6 +485,12 @@ export function Onboarding() {
         setHdhp(boolToTri(fp.hasHDHP));
         setPslf(boolToTri(fp.isPSLFEligible));
       }
+      // The profile stores "Yes, but I don't know the %" and "I'm not sure" as
+      // unknown, which reads back as unanswered. This browser remembers them.
+      const draft = readTriDraft(userId);
+      if (fp?.employerMatchPercent == null && draft.matchAnswer) setMatchAnswer(draft.matchAnswer);
+      if (fp?.hasHDHP == null && draft.hdhp) setHdhp(draft.hdhp);
+      if (fp?.isPSLFEligible == null && draft.pslf) setPslf(draft.pslf);
 
       const hasPlaid = itemData.items.some((i: { institutionId: string | null }) => i.institutionId && i.institutionId !== 'manual');
       if (hasPlaid) setLinkedViaPlaid(true);
@@ -514,11 +509,19 @@ export function Onboarding() {
   // silently refused, and neither explained itself.
   const blockedReason =
     step === 0 && !name.trim() ? 'Add your name to continue.'
-    : step === 1 && !annualIncome.trim() ? 'Add your income to continue.'
+    : step === 0 && !annualIncome.trim() ? 'Add your income to continue.'
+    // Said only once the field itself shows its error, never mid-typing.
+    : step === 0 && !dobValid && dobTouched ? 'Fix your date of birth to continue.'
+    : step === 0 && !dob && dobValid ? 'Add your date of birth to continue.'
+    : step === 0 && !stateOfResidence ? 'Add your state to continue.'
+    : step === 0 && !filingStatus ? 'Pick a filing status to continue.'
+    : step === 1 && !retirementAge ? 'Add a retirement age to continue.'
     : null;
 
-  const goNext = useCallback(async () => {
-    setSaving(true);
+  // Saves the answers on the current screen. Next and Finish later both use it,
+  // so leaving early never drops what was typed.
+  const saveStep = useCallback(async () => {
+    writeTriDraft(userId, { matchAnswer, hdhp, pslf });
     try {
       if (step === 0) {
         await api.updateProfile({ name: name.trim() });
@@ -528,10 +531,10 @@ export function Onboarding() {
           // is what the rest of the app already reads null as.
           filingStatus: filingStatus && filingStatus !== 'unsure' ? filingStatus : null,
           stateOfResidence: stateOfResidence || null,
+          annualIncome: annualIncome ? parseFloat(annualIncome) : null,
         });
       } else if (step === 1) {
         await api.updateFinancialProfile({
-          annualIncome: annualIncome ? parseFloat(annualIncome) : null,
           // 0 only when the user SAID there is no match. Silence stays null.
           employerMatchPercent:
             matchAnswer === 'no' ? 0
@@ -550,15 +553,33 @@ export function Onboarding() {
       }
     } catch (err) {
       console.error('Failed to save onboarding step:', err);
-    } finally {
-      setSaving(false);
     }
+  }, [userId, step, name, dob, filingStatus, stateOfResidence, annualIncome, matchAnswer, matchPercent, riskTolerance, retirementAge, employmentType, dependentCount, hdhp, pslf]);
+
+  const goNext = useCallback(async () => {
+    setSaving(true);
+    await saveStep();
+    setSaving(false);
     const nextStep = Math.min(step + 1, totalSteps - 1);
     const nextStage = STEP_TO_STAGE[nextStep] ?? null;
     await api.updateOnboardingStage(nextStage).catch(() => {});
     setDirection(1);
     setStep(nextStep);
-  }, [step, name, dob, filingStatus, stateOfResidence, annualIncome, matchAnswer, matchPercent, riskTolerance, retirementAge, employmentType, dependentCount, hdhp, pslf]);
+  }, [step, saveStep]);
+
+  // Into the app with onboarding unfinished. The stage already points at this
+  // screen, and the home card and sidebar bring the user back to it.
+  const finishLater = async () => {
+    setLeaving(true);
+    await saveStep();
+    await api.updateOnboardingDeferred(true).catch(() => {});
+    setLeaving(false);
+    // Next only told the server which step this is, and the progress card
+    // reads it from here.
+    setOnboardingStage(STEP_TO_STAGE[step]);
+    setOnboardingDeferred(true);
+    navigate('/');
+  };
 
   const goBack = useCallback(() => {
     setDirection(-1);
@@ -567,6 +588,7 @@ export function Onboarding() {
 
   // Mark onboarding complete (server + local state) so the guarded app opens.
   const finishOnboarding = async () => {
+    clearTriDraft(userId);
     await api.updateOnboardingStage(null).catch(() => {});
     setOnboardingStage(null);
   };
@@ -578,192 +600,147 @@ export function Onboarding() {
     navigate('/accounts?autoLink=true');
   };
 
+  // Years from now to the target age, once both answers are in. Shown under
+  // the stepper so the number means something as it changes.
+  const yearsToRetire = (() => {
+    if (!dob || !retirementAge) return null;
+    const born = new Date(`${dob}T00:00:00`);
+    const now = new Date();
+    let age = now.getFullYear() - born.getFullYear();
+    if (now < new Date(now.getFullYear(), born.getMonth(), born.getDate())) age -= 1;
+    return Number(retirementAge) - age;
+  })();
+  const retireHintId = useId();
+
+  // The form column keeps its scroll offset across steps, so a long step 3
+  // opened the finish screen halfway down. Every step starts at its top.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => { mainRef.current?.scrollTo(0, 0); }, [step]);
+
   const renderStep = () => {
     switch (step) {
       case 0:
         return (
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
-                Let&apos;s get to know you
-              </h2>
-              <p className="text-[15px] leading-relaxed text-content-secondary">
-                A few basics about you. Everything else is worked out from these.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => navigate('/quick-import?from=onboarding')}
-              className="ui-focus block w-full text-left rounded-ui-lg border border-brand-soft bg-brand-softer p-4 transition-[border-color,box-shadow] duration-150 ease-ui hover:border-brand hover:shadow-ui-sm"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="h-4 w-4 text-brand" aria-hidden />
-                <span className="text-sm font-semibold text-brand">
-                  Quick Import: describe yourself instead
-                </span>
-              </div>
-              <div className="text-[13px] text-content-muted">
-                Type a sentence or two and we&apos;ll fill out your profile and accounts.
-              </div>
-            </button>
-
-            <div className="flex flex-col gap-5">
+          <Stagger className="flex flex-col gap-[22px]">
+            <Rise>
               <Field label="Your name" required>
                 <Input type="text" value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="Alex" autoFocus />
+                  placeholder="Alex" autoFocus className="h-[46px] text-[15px]" />
               </Field>
+            </Rise>
 
-              <Field label="Date of birth"
-                hint="So we can work out how long your money needs to last.">
-                <DateOfBirthFields value={dob} onChange={setDob} />
+            <Rise>
+              <Field label="Annual income before tax" required
+                hint="So we can tell you how much of what you earn is actually being saved.">
+                <MoneyField value={annualIncome} onChange={setAnnualIncome} placeholder="75,000" />
               </Field>
+            </Rise>
 
-              <Field label="Filing status"
-                hint="Tax rules differ by filing status, and it changes what you can save tax-free.">
-                <div onClickCapture={centerBeforeOpen}>
-                  <OptionMenu
-                    ariaLabel="Filing status"
-                    value={filingStatus}
-                    triggerLabel={filingStatus ? undefined : 'Select one'}
-                    options={[...FILING_STATUSES, { value: 'unsure', label: "I'm not sure" }]}
-                    onChange={setFilingStatus}
-                    className={cn(!filingStatus && '[&>button]:text-content-faint')}
-                  />
-                </div>
-              </Field>
-
-              <Field label="State of residence"
-                hint="Some states tax what you earn and some do not, which changes what you take home.">
+            <Rise className="grid gap-[22px] sm:grid-cols-2 sm:gap-3.5">
+              <DateOfBirthField value={dob}
+                onChange={(iso, valid) => { setDob(iso); setDobValid(valid); }}
+                onBlur={() => setDobTouched(true)} />
+              <Field label="State of residence" required
+                hint="Some states tax what you earn and some do not.">
                 <StatePicker value={stateOfResidence} onChange={setStateOfResidence} />
               </Field>
-            </div>
-          </div>
+            </Rise>
+
+            <Rise>
+              <ChoiceField label="Filing status" required
+                hint="Tax rules differ by filing status, and it changes what you can save tax-free.">
+                <PillChips options={[...FILING_STATUSES, { value: 'unsure', label: "I'm not sure" }]}
+                  value={filingStatus} onChange={setFilingStatus} />
+              </ChoiceField>
+            </Rise>
+          </Stagger>
         );
 
       case 1:
         return (
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
-                Your income &amp; goals
-              </h2>
-              <p className="text-[15px] leading-relaxed text-content-secondary">
-                What you earn, how much of it you keep, and when you want to stop working.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-5">
-              <Field label="Annual income before tax" required
-                hint="So we can tell you how much of what you earn is actually being saved.">
-                <CurrencyInput value={annualIncome} onChange={setAnnualIncome} placeholder="75000" />
-              </Field>
-
+          <Stagger className="flex flex-col gap-[22px]">
+            <Rise>
               <ChoiceField label="Does your employer add money when you save for retirement?">
-                <Chips options={TRI_OPTIONS} value={matchAnswer} onChange={setMatchAnswer}
-                  className={TRI_GRID} align="center" />
+                <PillChips options={TRI_OPTIONS} value={matchAnswer} onChange={setMatchAnswer} />
               </ChoiceField>
-
               {matchAnswer === 'yes' && (
-                <div className="space-y-1.5">
+                <motion.div className="mt-3 space-y-1.5"
+                  initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EASE }}>
                   <Label htmlFor={matchPercentId}>How much of your pay do they add?</Label>
-                  <div className="relative">
+                  <div className="relative max-w-[180px]">
                     <Input id={matchPercentId} type="text" inputMode="decimal"
                       aria-describedby={`${matchPercentId}-desc`}
                       value={matchPercent}
                       onChange={(e) => setMatchPercent(e.target.value.replace(/[^0-9.]/g, ''))}
-                      placeholder="3" className="ui-tnum pr-9" />
-                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-content-muted text-sm">%</span>
+                      placeholder="3" className="h-[50px] pr-9 text-[20px] font-bold ui-tnum" />
+                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[18px] font-bold text-content-faint">%</span>
                   </div>
                   <p id={`${matchPercentId}-desc`} className="text-[12px] text-content-muted">
                     Leave this blank if you do not know it.
                   </p>
-                </div>
+                </motion.div>
               )}
+            </Rise>
 
+            <Rise>
               <ChoiceField label="In a bad year, how much of a drop could you live with?">
-                <Chips options={RISK_LEVELS} value={riskTolerance} onChange={setRiskTolerance} />
+                <LineCards options={RISK_LEVELS} value={riskTolerance} onChange={setRiskTolerance} />
               </ChoiceField>
+            </Rise>
 
-              <Field label="Target retirement age"
-                hint="We will check whether what you save now gets you there.">
-                <Input type="text" inputMode="numeric" maxLength={2} value={retirementAge}
-                  onChange={(e) => setRetirementAge(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="ui-tnum" />
-              </Field>
-            </div>
-          </div>
+            <Rise>
+              <div className="space-y-1.5">
+                <Label id={`${retireHintId}-label`}>Target retirement age</Label>
+                <div role="group" aria-labelledby={`${retireHintId}-label`}>
+                  <NumberStepper value={retirementAge} onChange={setRetirementAge} min={30} max={90}
+                    decLabel="One year earlier" incLabel="One year later" describedBy={retireHintId} />
+                </div>
+                <p id={retireHintId} className="text-[12px] text-content-muted">
+                  {yearsToRetire !== null && yearsToRetire <= 0
+                    ? 'You are already past that age.'
+                    : yearsToRetire
+                    ? `That is ${yearsToRetire} ${yearsToRetire === 1 ? 'year' : 'years'} from now.`
+                    : 'We will check whether what you save now gets you there.'}
+                </p>
+              </div>
+            </Rise>
+          </Stagger>
         );
 
       case 2:
         return (
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content">
-                Your situation
-              </h2>
-              <p className="text-[15px] leading-relaxed text-content-secondary">
-                A few things that change which accounts and benefits you can use.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-5">
-              <ChoiceField
-                label="What kind of work do you do?"
-                hint="Working for yourself opens retirement accounts an employee cannot use."
-              >
-                <Chips
-                  className="grid-cols-2"
-                  value={employmentType}
-                  onChange={setEmploymentType}
-                  options={[
-                    { value: 'w2', label: 'Employee' },
-                    { value: 'self_employed', label: 'Self-employed' },
-                    { value: '1099', label: 'Contractor' },
-                    { value: 'business_owner', label: 'Business owner' },
-                  ]}
-                />
+          <Stagger className="flex flex-col gap-[22px]">
+            <Rise>
+              <ChoiceField label="What kind of work do you do?"
+                hint="Working for yourself opens retirement accounts an employee cannot use.">
+                <IconCards value={employmentType} onChange={setEmploymentType} options={WORK_TYPES} />
               </ChoiceField>
+            </Rise>
 
-              <ChoiceField
-                label="How many people depend on your income?"
-                hint="People who depend on you change what is worth insuring and saving for."
-              >
-                <div className="flex items-center gap-2">
-                  {[0, 1, 2, 3, 4].map(n => {
-                    const active = dependentCount === n;
-                    return (
-                      <button key={n} type="button" aria-pressed={active}
-                        aria-label={n === 4 ? '4 or more' : String(n)}
-                        onClick={() => setDependentCount(n)}
-                        className={cn(
-                          'ui-focus h-12 w-12 rounded-ui-md border font-semibold text-[15px] ui-tnum transition-[background-color,border-color,color] duration-150 ease-ui',
-                          active ? chipActive : chipInactive,
-                        )}>
-                        {n === 4 ? '4+' : n}
-                      </button>
-                    );
-                  })}
-                </div>
+            <Rise>
+              <ChoiceField label="How many dependents do you have, not counting a spouse?"
+                hint="People who depend on you change what is worth insuring and saving for.">
+                <RoundPicker value={dependentCount} onChange={setDependentCount}
+                  options={[0, 1, 2, 3, 4].map((n) => ({
+                    value: n, label: n === 4 ? '4+' : String(n), ariaLabel: n === 4 ? '4 or more' : undefined,
+                  }))} />
               </ChoiceField>
+            </Rise>
 
-              <ChoiceField
-                label="Does your health plan have a high deductible?"
-                hint="A high deductible means you pay more yourself before the plan starts paying. If yours does, you can use a savings account that is never taxed."
-              >
-                <Chips options={TRI_OPTIONS} value={hdhp} onChange={setHdhp}
-                  className={TRI_GRID} align="center" />
+            <Rise>
+              <ChoiceField label="Does your health plan have a high deductible?"
+                hint="A high deductible means you pay more yourself before the plan starts paying. If yours does, you can use a savings account that is never taxed.">
+                <PillChips options={TRI_OPTIONS} value={hdhp} onChange={setHdhp} />
               </ChoiceField>
+            </Rise>
 
-              <ChoiceField
-                label="Do you work for the government or a non-profit?"
-                hint="Government and non-profit workers can have student loans forgiven after 10 years of payments."
-              >
-                <Chips options={TRI_OPTIONS} value={pslf} onChange={setPslf}
-                  className={TRI_GRID} align="center" />
+            <Rise>
+              <ChoiceField label="Do you work for the government or a non-profit?"
+                hint="Government and non-profit workers can have student loans forgiven after 10 years of payments.">
+                <PillChips options={TRI_OPTIONS} value={pslf} onChange={setPslf} />
               </ChoiceField>
-            </div>
-          </div>
+            </Rise>
+          </Stagger>
         );
 
       case 3: {
@@ -783,71 +760,57 @@ export function Onboarding() {
           </Surface>
         );
         return (
-          <div className="flex flex-col items-center gap-6">
-            {/* Until an account is linked the app has nothing to show, so this
-                screen asks for that one step instead of claiming completion. */}
-            {linkedViaPlaid ? (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
-                className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft text-brand"
-              >
-                <Check className="h-8 w-8" />
-              </motion.div>
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft text-brand">
-                <Link2 className="h-7 w-7" aria-hidden />
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2 text-center">
-              <h2 className="font-editorial text-[26px] sm:text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-content text-balance">
-                {linkedViaPlaid ? <>You&apos;re all set</> : 'One more thing: connect an account'}
-              </h2>
-              <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-content-secondary">
+          <Stagger className="flex flex-col items-center gap-[22px] text-center md:items-start md:text-left">
+            <Rise><FinishBurst icon={<Check className="h-[34px] w-[34px]" strokeWidth={2.5} />} /></Rise>
+            <Rise>
+              <p className="max-w-[46ch] text-[15.5px] leading-relaxed text-content-secondary">
                 {linkedViaPlaid
                   ? 'Your dashboard is ready.'
-                  : 'Your dashboard, plan and insights are built from your balances and transactions.'}
+                  : 'Connect an account next. Your dashboard, plan and insights are built from your balances and transactions.'}
               </p>
-            </div>
-
-            {linkedViaPlaid && summary}
-
+            </Rise>
             {linkedViaPlaid ? (
-              <div className="w-full max-w-[360px] pt-1">
-                <Button className="w-full" onClick={finishOnboarding}>
-                  Go to dashboard
-                </Button>
-              </div>
+              <>
+                <Rise className="w-full max-w-[360px]">{summary}</Rise>
+                <Rise className="w-full max-w-[360px]">
+                  <Button size="lg" className="w-full" onClick={finishOnboarding}>Go to dashboard</Button>
+                </Rise>
+              </>
             ) : (
-              <div className="w-full max-w-[360px] flex flex-col items-center gap-3">
-                <Button className="w-full" onClick={handleConnectAccounts}
-                  leadingIcon={<Link2 className="h-4 w-4" />}>
-                  Connect accounts
-                </Button>
-                <ul className="flex w-full flex-col gap-1.5 pt-1">
-                  {TRUST_POINTS.map(({ icon: Icon, label }) => (
-                    <li key={label} className="flex items-center gap-2 text-[13px] text-content-muted">
-                      <Icon className="h-3 w-3 shrink-0" aria-hidden />
-                      {label}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  onClick={finishOnboarding}
-                  className="ui-focus min-h-11 rounded-ui-md px-3 text-[13px] font-medium text-content-muted transition-colors hover:text-content hover:underline"
-                >
-                  Skip for now (your dashboard will be empty)
-                </button>
-              </div>
+              <>
+                <Rise className="w-full max-w-[360px]">
+                  <Button size="lg" className="w-full" onClick={handleConnectAccounts}
+                    leadingIcon={<Link2 className="h-4 w-4" />}>
+                    Connect accounts
+                  </Button>
+                </Rise>
+                {/* The two ways out, as a pair: the same "or" rule the login screen uses. */}
+                <Rise className="flex w-full max-w-[360px] items-center gap-3">
+                  <div className="h-px flex-1 bg-line" />
+                  <span className="text-xs text-content-muted">or</span>
+                  <div className="h-px flex-1 bg-line" />
+                </Rise>
+                <Rise className="w-full max-w-[360px]">
+                  <Button variant="ghost" className="w-full text-content-muted hover:text-content md:justify-start" onClick={finishOnboarding}>
+                    Skip for now (your dashboard will be empty)
+                  </Button>
+                </Rise>
+                <Rise className="w-full max-w-[360px]">
+                  <ul className="flex w-full flex-col items-center gap-1.5 md:items-start">
+                    {TRUST_POINTS.map(({ icon: Icon, label }) => (
+                      <li key={label} className="flex items-center gap-2 text-[13px] text-content-muted">
+                        <Icon className="h-3 w-3 shrink-0" aria-hidden />
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                </Rise>
+                {/* Unlinked, the recap follows the ask: it confirms the answers
+                    landed without standing between the user and the one step left. */}
+                <Rise className="w-full max-w-[360px]">{summary}</Rise>
+              </>
             )}
-
-            {/* Unlinked, the recap follows the ask: it confirms the answers
-                landed without standing between the user and the one step left. */}
-            {!linkedViaPlaid && summary}
-          </div>
+          </Stagger>
         );
       }
 
@@ -856,7 +819,13 @@ export function Onboarding() {
     }
   };
 
-  const canProceed = step < 3 && !blockedReason;
+  const canProceed = step < 3 && !blockedReason && !(step === 0 && !dobValid);
+
+  // The rail tells the story: what this step is, and a lasagna that gains a
+  // layer for each finished step and its top layer at the finish.
+  const railTitle = step === 3 ? (linkedViaPlaid ? "You're all set" : 'Your profile is done') : STEPS[step].title;
+  const railSub = step === 3 ? 'You can change any answer later in your profile.' : STEPS[step].sub;
+  const layers = step + 1;
 
   if (initializing) {
     return (
@@ -867,19 +836,14 @@ export function Onboarding() {
   }
 
   return (
-    // h-dvh (not min-h-dvh) so <main> is the thing that scrolls and the
-    // Back/Next bar stays on screen. A tall step used to push Next to y≈991 on
-    // a 844px phone, below everything the user had to scroll past.
-    <div className="ui-root h-dvh bg-canvas flex flex-col text-content">
-      {/* Ambient warm glow — faint, single brand accent for atmosphere. */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
-        <div
-          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[720px] h-[720px] rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(circle, var(--ui-brand-soft), transparent 68%)' }}
-        />
-      </div>
+    <MotionConfig reducedMotion="user">
+    {/* h-dvh (not min-h-dvh) so the form column is the thing that scrolls and
+        the Back/Next bar stays on screen. */}
+    <div className="ui-root relative h-dvh bg-canvas flex flex-col text-content">
+      <div className="pointer-events-none fixed inset-0" aria-hidden
+        style={{ background: 'radial-gradient(520px 380px at 0% 0%, var(--ui-caution-soft), transparent 70%)' }} />
 
-      <header className="relative flex items-center justify-between px-6 py-[18px]">
+      <header className="relative flex items-center justify-between gap-3 px-5 py-4 md:px-6">
         <div className="flex items-center gap-2">
           <BrandMark size={28} />
           <span className="font-editorial text-lg font-medium tracking-[-0.015em] text-content">
@@ -888,66 +852,101 @@ export function Onboarding() {
         </div>
         <div className="flex items-center gap-4">
           {step < totalSteps - 1 && (
-            <span className="text-[13px] font-medium text-content-muted">Step {step + 1} of {totalSteps - 1}</span>
+            // On md+ the rail's step list already says this.
+            <span className="text-[13px] font-medium text-content-muted md:hidden">Step {step + 1} of {totalSteps - 1}</span>
           )}
-          <button
-            type="button"
-            onClick={() => { void logout(); }}
-            className="ui-focus inline-flex items-center gap-1.5 rounded-ui-md text-[13px] font-medium text-content-muted transition-colors hover:text-content"
-          >
-            <LogOut className="h-3.5 w-3.5" aria-hidden />
-            Exit
-          </button>
+          {/* Not on step 1: name and income are what the app needs to work.
+              Not on the connect screen: its own "Skip for now" already leaves. */}
+          {step > 0 && step < totalSteps - 1 && (
+            <button
+              type="button"
+              onClick={() => { void finishLater(); }}
+              disabled={saving || leaving}
+              className="group ui-focus -mx-2 -my-2 inline-flex min-h-11 items-center gap-1 rounded-ui-md px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer disabled:opacity-50"
+            >
+              Finish later
+              {leaving
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                : <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 ease-ui group-hover:translate-x-0.5" aria-hidden />}
+            </button>
+          )}
         </div>
       </header>
 
-      {step < 3 && (
-        <div className="relative px-6 pb-3">
-          <div className="mx-auto h-1.5 w-full max-w-[640px] overflow-hidden rounded-full bg-canvas-sunken">
-            <motion.div className="h-full rounded-full bg-brand" initial={false}
-              animate={{ width: `${((step + 1) / totalSteps) * 100}%` }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }} />
+      {/* Phones have no rail, so the step list's job falls to this bar. */}
+      {step < 3 && <SegmentProgress step={step} className="relative mx-auto w-full max-w-[640px] px-5 pb-1.5 md:hidden" />}
+
+      <div className="relative flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[minmax(300px,40%)_1fr]">
+        <aside
+          className="hidden md:flex flex-col gap-[22px] overflow-hidden border-r border-line px-[34px] py-7"
+          style={{ background: 'linear-gradient(165deg, var(--ui-brand-softer), var(--ui-caution-soft))' }}
+        >
+          <LasagnaLayers layers={layers} className="w-full max-w-[260px]" />
+          <Stagger key={step} className="grid gap-2.5">
+            <Rise>
+              <h1 className="font-display text-[46px] font-semibold leading-[1.02] tracking-[-0.025em] text-content text-balance">
+                {railTitle}
+              </h1>
+            </Rise>
+            <Rise>
+              <p className="max-w-[46ch] text-[15.5px] leading-relaxed text-content-secondary">{railSub}</p>
+            </Rise>
+          </Stagger>
+          <div className="mt-auto">
+            <StepList steps={STEPS.map((s) => s.nav)} step={step} />
           </div>
-        </div>
-      )}
+        </aside>
 
-      <main className="relative flex-1 min-h-0 flex items-start justify-center overflow-y-auto px-4 py-8">
-        <div className="w-full max-w-[540px]">
-          <AnimatePresence mode="wait" custom={direction}>
-            <motion.div key={step} custom={direction} variants={slideVariants}
-              initial="enter" animate="center" exit="exit"
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
-              <Surface tone="panel" className="shadow-ui-lg p-6 sm:p-7">{renderStep()}</Surface>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </main>
-
-      {step < 3 && (
-        <footer className="relative border-t border-line px-6 py-4">
-          <div className="mx-auto flex w-full max-w-[540px] flex-col gap-2">
-            {blockedReason && (
-              <p className="text-[13px] text-content-secondary">{blockedReason}</p>
-            )}
-            <div className="flex items-center justify-between">
-              <div>
-                {step > 0 && (
-                  <Button variant="ghost" onClick={goBack} leadingIcon={<ChevronLeft className="h-4 w-4" />}>
-                    Back
-                  </Button>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <Button onClick={goNext} disabled={!canProceed || saving} loading={saving}
-                  trailingIcon={!saving ? <ChevronRight className="h-4 w-4" /> : undefined}>
-                  {step === 2 ? 'Finish' : 'Next'}
-                </Button>
-              </div>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <main ref={mainRef} className="relative min-h-0 flex-1 overflow-y-auto">
+            {/* The rail, folded into a strip above the form. */}
+            <div className="flex items-center gap-4 border-b border-line px-5 py-4 md:hidden"
+              style={{ background: 'linear-gradient(165deg, var(--ui-brand-softer), var(--ui-caution-soft))' }}>
+              <LasagnaLayers layers={layers} className="w-[86px] flex-none" />
+              <h1 className="font-display text-[28px] font-semibold leading-[1.05] tracking-[-0.025em] text-content text-balance">
+                {railTitle}
+              </h1>
             </div>
-          </div>
-        </footer>
-      )}
+            <div className="px-5 pb-8 pt-6 md:px-11 md:pb-12 md:pt-9">
+              <AnimatePresence mode="wait" custom={direction}>
+                <motion.div key={step} custom={direction} variants={slideVariants}
+                  initial="enter" animate="center" exit="exit"
+                  transition={{ duration: 0.45, ease: EASE }}
+                  // Labels are what the user reads first on every step, so they
+                  // are set larger here than the app's 13px form default.
+                  className="max-w-[500px] [&_label]:text-[15px] [&_label]:font-semibold [&_label]:text-content">
+                  {renderStep()}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </main>
+
+          {step < 3 && (
+            <footer className="relative border-t border-line bg-canvas/85 px-5 py-3.5 backdrop-blur md:px-11">
+              <div className="flex w-full max-w-[500px] flex-col gap-2">
+                {blockedReason && (
+                  <p className="text-[13px] text-content-secondary">{blockedReason}</p>
+                )}
+                <div className="flex items-center justify-between">
+                  <div>
+                    {step > 0 && (
+                      <Button variant="ghost" onClick={goBack} disabled={leaving} leadingIcon={<ChevronLeft className="h-4 w-4" />}>
+                        Back
+                      </Button>
+                    )}
+                  </div>
+                  <Button onClick={goNext} disabled={!canProceed || saving || leaving} loading={saving}
+                    trailingIcon={!saving ? <ChevronRight className="h-4 w-4" /> : undefined}>
+                    {step === 2 ? 'Finish' : 'Next'}
+                  </Button>
+                </div>
+              </div>
+            </footer>
+          )}
+        </div>
+      </div>
     </div>
+    </MotionConfig>
   );
 }
 
@@ -969,9 +968,9 @@ function SummaryRow({ label, value, mono }: {
   label: string; value: string; mono?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between text-sm text-content-muted">
-      <span>{label}</span>
-      <span className={cn('font-semibold text-content', mono && 'ui-tnum')}>{value}</span>
+    <div className="flex items-baseline justify-between gap-4 text-sm text-content-muted">
+      <span className="shrink-0">{label}</span>
+      <span className={cn('min-w-0 break-words text-right font-semibold text-content', mono && 'ui-tnum')}>{value}</span>
     </div>
   );
 }

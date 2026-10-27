@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { PlanUsage } from './plan-usage';
+import { OnboardingProgress } from './onboarding-progress';
 import { BrandMark } from '../common/BrandMark';
 import { useScrollFade } from './use-scroll-fade';
 
@@ -367,6 +368,7 @@ export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavPro
               className={`shrink-0 border-t px-3 pt-2.5 ${navClipped.end ? 'border-transparent' : 'border-line'}`}
               style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
             >
+              <OnboardingProgress className="mb-1.5 mx-0.5 w-[calc(100%-0.25rem)]" onNavigate={onClose} />
               <PlanUsage className="mb-1.5 px-2.5" onNavigate={onClose} />
 
               <div className="relative" ref={menuRef}>

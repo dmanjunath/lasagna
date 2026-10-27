@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "onboarding_deferred" boolean DEFAULT false NOT NULL;

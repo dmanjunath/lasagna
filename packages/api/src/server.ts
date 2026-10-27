@@ -143,6 +143,7 @@ app.use("/api/*", async (ctx, next) => {
     "/api/auth/webauthn/login/verify",
     "/api/auth/logout",
     "/api/auth/signup",
+    "/api/auth/signup/options",
     "/api/auth/me",
     "/api/auth/verify-email",
     "/api/auth/forgot-password",

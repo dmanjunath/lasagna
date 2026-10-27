@@ -17,6 +17,7 @@ interface User {
   name: string | null;
   role: string;
   onboardingStage: string | null;
+  onboardingDeferred?: boolean;
   isAdmin: boolean;
   isDemo: boolean;
   hasAcceptedTerms: boolean;
@@ -85,6 +86,7 @@ interface AuthState {
   logout: () => Promise<void>;
   updateTenant: (updates: Partial<Tenant>) => void;
   setOnboardingStage: (stage: string | null) => void;
+  setOnboardingDeferred: (deferred: boolean) => void;
   updateMe: (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => Promise<void>;
 }
 
@@ -173,6 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // would gate the login screen with nothing behind it. Re-arms the one-time
     // setup offer so the next account is asked instead of digging into Settings.
     clearFaceIdOnSignOut();
+    // Unfinished onboarding answers stay on this device only until sign-out.
+    try {
+      Object.keys(localStorage).filter((k) => k.startsWith('lf_onboarding_tri:')).forEach((k) => localStorage.removeItem(k));
+    } catch { /* storage blocked */ }
     commitAuth({ user: null, tenant: null });
   }, [commitAuth]);
 
@@ -192,6 +198,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setOnboardingDeferred = useCallback((deferred: boolean) => {
+    setAuth((prev) => {
+      const nextUser = prev.user ? { ...prev.user, onboardingDeferred: deferred } : prev.user;
+      saveAuthHint(nextUser, prev.tenant);
+      return { user: nextUser, tenant: prev.tenant };
+    });
+  }, []);
+
   const updateMe = useCallback(
     async (updates: { name?: string | null; notifyDaily?: boolean; notifyBills?: boolean; notifyWeeklyEmail?: boolean }) => {
       const { user: updated } = await api.updateMe(updates);
@@ -204,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, loginWithPasskey, signup, logout, updateTenant, setOnboardingStage, updateMe }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, loginWithPasskey, signup, logout, updateTenant, setOnboardingStage, setOnboardingDeferred, updateMe }}>
       {children}
     </AuthContext.Provider>
   );

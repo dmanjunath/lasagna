@@ -12,6 +12,7 @@ import { useChatStore } from '../../lib/chat-store';
 import { PrivacyToggle } from '../uikit/PrivacyToggle';
 import { BrandMark } from '../common/BrandMark';
 import { PlanUsage } from './plan-usage';
+import { OnboardingProgress } from './onboarding-progress';
 import { useScrollFade } from './use-scroll-fade';
 
 interface NavItem {
@@ -366,6 +367,7 @@ export function Sidebar({ className }: SidebarProps) {
           height that ping-ponged every frame forever. Keeping the box constant
           and swapping only the colour removes the feedback path entirely. */}
       <div className={cn('mt-2.5 pt-3 border-t', navClipped.end ? 'border-transparent' : 'border-line')}>
+        <OnboardingProgress className="mb-2 -mx-1 w-[calc(100%+0.5rem)]" />
         <PlanUsage className="mb-3" />
         <div className="relative" ref={userMenuRef}>
           <AnimatePresence>

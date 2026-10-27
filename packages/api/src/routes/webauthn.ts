@@ -216,6 +216,7 @@ webauthnRoutes.post("/login/verify", async (c) => {
       name: user.name,
       role: user.role,
       onboardingStage: user.onboardingStage,
+      onboardingDeferred: user.onboardingDeferred,
       isAdmin: user.isAdmin,
       hasAcceptedTerms: user.acceptedTermsAt != null,
     },
