@@ -1913,7 +1913,7 @@ function PersonalEditPanel({ formData, setFormData, saving, saveError, onCancel,
   const depNum = Number(formData.dependentCount);
   const depError = formData.dependentCount && (depNum < 0 || depNum > 10) ? "Between 0 and 10" : undefined;
   const maxDob = latestAdultBirthDate();
-  const dobError = formData.dateOfBirth && formData.dateOfBirth > maxDob ? "You need to be 18 or older" : undefined;
+  const dobError = formData.dateOfBirth && formData.dateOfBirth > maxDob ? "You need to be 18 or older to use LasagnaFi." : undefined;
 
   return (
     <div className="flex flex-col gap-4">

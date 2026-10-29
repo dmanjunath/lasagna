@@ -100,23 +100,23 @@ export function SegmentProgress({ step, className }: { step: number; className?:
 /** The rail's step list: done steps get a check, the current one a halo. */
 export function StepList({ steps, step }: { steps: string[]; step: number }) {
   return (
-    <ol className="grid gap-1">
+    <ol className="grid gap-1.5">
       {steps.map((label, i) => {
         const done = i < step;
         const cur = i === step;
         return (
           <li key={label} aria-current={cur ? 'step' : undefined}
             className={cn(
-              'flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-sm font-semibold transition-[background-color,color,box-shadow] duration-300 ease-ui',
+              'flex items-center gap-3 rounded-ui-md px-3 py-2.5 text-[16px] font-semibold transition-[background-color,color,box-shadow] duration-300 ease-ui',
               cur ? 'bg-panel/70 text-content shadow-ui-sm' : 'text-content-muted',
             )}>
             <span className={cn(
-              'grid h-[22px] w-[22px] flex-none place-items-center rounded-full border-[1.5px] text-[11px] ui-tnum transition-all duration-300 ease-ui',
+              'grid h-7 w-7 flex-none place-items-center rounded-full border-[1.5px] text-[13px] ui-tnum transition-all duration-300 ease-ui',
               done ? 'border-brand bg-brand text-brand-fg'
               : cur ? 'border-brand text-[rgb(var(--ui-brand-ink))] shadow-[0_0_0_4px_var(--ui-brand-soft)]'
               : 'border-line-heavy',
             )}>
-              {done ? <Check className="h-3 w-3" strokeWidth={3} aria-hidden /> : i + 1}
+              {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden /> : i + 1}
             </span>
             {label}
             {done && <span className="sr-only">(done)</span>}
@@ -129,16 +129,21 @@ export function StepList({ steps, step }: { steps: string[]; step: number }) {
 
 // ─── Choice controls ─────────────────────────────────────
 /** A labelled group for controls that are not one input. */
-export function ChoiceField({ label, hint, required, children }: {
-  label: string; hint?: ReactNode; required?: boolean; children: ReactNode;
+export function ChoiceField({ label, hint, required, labelAction, children }: {
+  label: string; hint?: ReactNode; required?: boolean; labelAction?: ReactNode; children: ReactNode;
 }) {
   const id = useId();
   return (
     <div>
-      <Label id={`${id}-label`}>
-        {label}
-        {required && <span className="ml-0.5 text-brand">*</span>}
-      </Label>
+      {/* Inline, so the action follows the label's last word when it wraps,
+          and pretty wrapping so it never sits on a line by itself. */}
+      <div className="text-pretty">
+        <Label id={`${id}-label`} className="inline">
+          {label}
+          {required && <span className="ml-0.5 text-brand">*</span>}
+        </Label>
+        {labelAction && <span className="ml-1.5 inline-flex align-[-2px]">{labelAction}</span>}
+      </div>
       <div role="group" aria-labelledby={`${id}-label`} className="mt-2">{children}</div>
       {hint && <p className="mt-1.5 text-[12px] text-content-muted">{hint}</p>}
     </div>

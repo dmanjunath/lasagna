@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import {
@@ -16,8 +16,10 @@ import {
   Lock,
   Eye,
   RefreshCw,
+  CircleHelp,
 } from 'lucide-react';
 import { BrandMark } from '../components/common/BrandMark';
+import { InfoPopover } from '../components/common/InfoPopover';
 import { Button, Surface, Field, Input, Label, MoneyInput } from '../components/uikit';
 import {
   EASE, Stagger, Rise, LasagnaLayers, SegmentProgress, StepList, ChoiceField,
@@ -208,7 +210,7 @@ function DateOfBirthField({ value, onChange, onBlur }: {
     if (m < 1 || m > 12 || d < 1 || d > new Date(y, m, 0).getDate()) {
       return { iso: '', error: 'That date does not exist. Enter it as MM/DD/YYYY.' };
     }
-    if (y < minYear || y > maxYear) return { iso: '', error: `Enter a year from ${minYear} to ${maxYear}.` };
+    if (y < minYear) return { iso: '', error: `Enter a year from ${minYear} to ${maxYear}.` };
     const iso = `${digits.slice(4)}-${digits.slice(0, 2)}-${digits.slice(2, 4)}`;
     if (iso > latestAdultBirthDate()) return { iso: '', error: 'You need to be 18 or older to use LasagnaFi.' };
     return { iso };
@@ -253,7 +255,7 @@ function DateOfBirthField({ value, onChange, onBlur }: {
 
   return (
     <Field label="Date of birth" required
-      hint="So we can work out how long your money needs to last."
+      labelAction={<Why topic="your date of birth">So we can work out how long your money needs to last.</Why>}
       error={touched ? error : undefined}>
       <Input ref={inputRef} type="text" inputMode="numeric" autoComplete="bday" placeholder="MM/DD/YYYY"
         value={text} maxLength={10} className={cn(VALUE_INPUT, 'ui-tnum')}
@@ -451,6 +453,17 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
         </div>
       )}
     </div>
+  );
+}
+
+/** "Why we ask" for a field: a ? beside its label that opens on tap. */
+function Why({ topic, children }: { topic: string; children: ReactNode }) {
+  return (
+    <InfoPopover label={`Why we ask about ${topic}`} icon={CircleHelp}
+      triggerClassName="h-6 w-6 text-[rgb(var(--ui-brand-ink))] hover:text-[rgb(var(--ui-brand-ink))] hover:bg-brand-softer max-sm:before:-inset-2.5"
+      iconClassName="h-[18px] w-[18px]">
+      {children}
+    </InfoPopover>
   );
 }
 
@@ -679,7 +692,7 @@ export function Onboarding() {
 
             <Rise>
               <Field label="Annual income before tax" required
-                hint="So we can tell you how much of what you earn is actually being saved.">
+                labelAction={<Why topic="your income">So we can tell you how much of what you earn is actually being saved.</Why>}>
                 <MoneyField value={annualIncome} onChange={setAnnualIncome} placeholder="75,000" />
               </Field>
             </Rise>
@@ -691,14 +704,14 @@ export function Onboarding() {
                 onChange={(iso, valid) => { setDob(iso); setDobValid(valid); }}
                 onBlur={() => setDobTouched(true)} />
               <Field label="State of residence" required
-                hint="Some states tax what you earn and some do not.">
+                labelAction={<Why topic="your state">Some states tax what you earn and some do not.</Why>}>
                 <StatePicker value={stateOfResidence} onChange={setStateOfResidence} />
               </Field>
             </Rise>
 
             <Rise>
               <ChoiceField label="Filing status" required
-                hint="Tax rules differ by filing status, and it changes what you can save tax-free.">
+                labelAction={<Why topic="your filing status">Tax rules differ by filing status, and it changes what you can save tax-free.</Why>}>
                 <PillChips options={[...FILING_STATUSES, { value: 'unsure', label: "I'm not sure" }]}
                   value={filingStatus} onChange={setFilingStatus} />
               </ChoiceField>
@@ -740,18 +753,24 @@ export function Onboarding() {
 
             <Rise>
               <div className="space-y-1.5">
-                <Label id={`${retireHintId}-label`}>Target retirement age</Label>
+                <div>
+                  <Label id={`${retireHintId}-label`} className="inline">Target retirement age</Label>
+                  <span className="ml-1.5 inline-flex align-[-2px]">
+                    <Why topic="your retirement age">We will check whether what you save now gets you there.</Why>
+                  </span>
+                </div>
                 <div role="group" aria-labelledby={`${retireHintId}-label`}>
                   <NumberStepper value={retirementAge} onChange={setRetirementAge} min={30} max={90}
-                    decLabel="One year earlier" incLabel="One year later" describedBy={retireHintId} />
+                    decLabel="One year earlier" incLabel="One year later"
+                    describedBy={yearsToRetire !== null ? retireHintId : undefined} />
                 </div>
-                <p id={retireHintId} className="text-[12px] text-content-muted">
-                  {yearsToRetire !== null && yearsToRetire <= 0
-                    ? 'You are already past that age.'
-                    : yearsToRetire
-                    ? `That is ${yearsToRetire} ${yearsToRetire === 1 ? 'year' : 'years'} from now.`
-                    : 'We will check whether what you save now gets you there.'}
-                </p>
+                {yearsToRetire !== null && (
+                  <p id={retireHintId} className="text-[12px] text-content-muted">
+                    {yearsToRetire <= 0
+                      ? 'You are already past that age.'
+                      : `That is ${yearsToRetire} ${yearsToRetire === 1 ? 'year' : 'years'} from now.`}
+                  </p>
+                )}
               </div>
             </Rise>
           </Stagger>
@@ -762,14 +781,14 @@ export function Onboarding() {
           <Stagger className="flex flex-col gap-[22px]">
             <Rise>
               <ChoiceField label="What kind of work do you do?"
-                hint="Working for yourself opens retirement accounts an employee cannot use.">
+                labelAction={<Why topic="the kind of work you do">Working for yourself opens retirement accounts an employee cannot use.</Why>}>
                 <IconCards value={employmentType} onChange={setEmploymentType} options={WORK_TYPES} />
               </ChoiceField>
             </Rise>
 
             <Rise>
               <ChoiceField label="How many dependents do you have, not counting a spouse?"
-                hint="People who depend on you change what is worth insuring and saving for.">
+                labelAction={<Why topic="dependents">People who depend on you change what is worth insuring and saving for.</Why>}>
                 <RoundPicker value={dependentCount} onChange={setDependentCount}
                   options={[0, 1, 2, 3, 4].map((n) => ({
                     value: n, label: n === 4 ? '4+' : String(n), ariaLabel: n === 4 ? '4 or more' : undefined,
@@ -779,14 +798,14 @@ export function Onboarding() {
 
             <Rise>
               <ChoiceField label="Do you have a high deductible health plan? (HDHP)"
-                hint="A high deductible means you pay more yourself before the plan starts paying. If yours does, you can use a savings account that is never taxed.">
+                labelAction={<Why topic="your health plan">A high deductible means you pay more yourself before the plan starts paying. If yours does, you can use a savings account that is never taxed.</Why>}>
                 <PillChips options={TRI_OPTIONS} value={hdhp} onChange={setHdhp} />
               </ChoiceField>
             </Rise>
 
             <Rise>
-              <ChoiceField label="Do you work for the government or a non-profit?"
-                hint="Government and non-profit workers can have student loans forgiven after 10 years of payments.">
+              <ChoiceField label="Do you work for the government or a non‑profit?"
+                labelAction={<Why topic="where you work">Government and non-profit workers can have student loans forgiven after 10 years of payments.</Why>}>
                 <PillChips options={TRI_OPTIONS} value={pslf} onChange={setPslf} />
               </ChoiceField>
             </Rise>
@@ -884,12 +903,12 @@ export function Onboarding() {
       type="button"
       onClick={() => { void finishLater(); }}
       disabled={saving || leaving}
-      className="group ui-focus -mx-2 -my-2 inline-flex min-h-11 shrink-0 items-center gap-1 rounded-ui-md px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer disabled:opacity-50"
+      className="group ui-focus -mx-2 -my-2 inline-flex min-h-11 shrink-0 items-center gap-1 rounded-ui-md px-2 text-[15px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer disabled:opacity-50"
     >
       Finish later
       {leaving
-        ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-        : <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 ease-ui group-hover:translate-x-0.5" aria-hidden />}
+        ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        : <ArrowRight className="h-4 w-4 transition-transform duration-150 ease-ui group-hover:translate-x-0.5" aria-hidden />}
     </button>
   );
 
@@ -916,7 +935,9 @@ export function Onboarding() {
         style={{ background: 'linear-gradient(165deg, var(--ui-brand-softer), var(--ui-caution-soft))' }}>
         <div className="flex items-center gap-3.5 px-5 pb-3 pt-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))]">
           <LasagnaLayers layers={layers} className="w-[64px] flex-none" />
-          <h1 className="min-w-0 flex-1 font-display text-[24px] font-semibold leading-[1.08] tracking-[-0.025em] text-content text-balance">
+          {/* Two lines tall on every step, so the strip keeps one height
+              whether or not the title wraps beside Finish later. */}
+          <h1 className="flex min-h-[2.16em] min-w-0 flex-1 items-center font-display text-[24px] font-semibold leading-[1.08] tracking-[-0.025em] text-content text-balance">
             {railTitle}
           </h1>
           {finishLaterButton}
@@ -990,12 +1011,12 @@ export function Onboarding() {
                 <div className="flex items-center justify-between gap-3">
                   <div className={cn(step === 0 && 'hidden md:block')}>
                     {step > 0 && (
-                      <Button variant="ghost" onClick={goBack} disabled={leaving} leadingIcon={<ChevronLeft className="h-4 w-4" />}>
+                      <Button variant="ghost" size="lg" onClick={goBack} disabled={leaving} leadingIcon={<ChevronLeft className="h-4 w-4" />}>
                         Back
                       </Button>
                     )}
                   </div>
-                  <Button onClick={goNext} disabled={!canProceed || saving || leaving} loading={saving}
+                  <Button size="lg" onClick={goNext} disabled={!canProceed || saving || leaving} loading={saving}
                     className="flex-1 md:flex-none"
                     trailingIcon={!saving ? <ChevronRight className="h-4 w-4" /> : undefined}>
                     {step === 2 ? 'Finish' : 'Next'}

@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
-import { useBodyScrollLock } from '../lib/hooks/use-body-scroll-lock';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { niceTicks } from '../components/ds/TrendChart';
-import { createPortal } from 'react-dom';
 import { useLocation } from 'wouter';
 import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
 import { FinancialPlansList } from './financial-plans/index';
@@ -12,7 +10,8 @@ import type { FinancialPlanSummary } from '../lib/types';
 import { useChatStore } from '../lib/chat-store';
 import { cn, formatMoney } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-amounts';
-import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil } from 'lucide-react';
+import { InfoPopover } from '../components/common/InfoPopover';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
 import { Badge, Button, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
@@ -99,82 +98,6 @@ function Section({ title, description, right, children, className }: { title?: R
       {description && <p className="mb-4 text-[12.5px] text-content-muted ui-tnum">{description}</p>}
       {children}
     </section>
-  );
-}
-
-// Info popover for KPI labels. A small tap/click toggle (not hover-only, so it
-// works on touch) rendered into a portal to escape the hero's overflow, closing
-// on outside-click or Escape. Label is a screen-reader question for the metric.
-function InfoPopover({ label, children }: { label: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  useBodyScrollLock(open);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  // Links the portalled panel back to its trigger. Without it a screen reader
-  // heard "expanded" from aria-expanded and then found nothing: the panel is a
-  // role="tooltip" rendered into <body>, not a disclosure region inside the
-  // button, so aria-expanded was describing a relationship that did not exist.
-  const panelId = React.useId();
-  const PANEL_W = 260;
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
-    const left = Math.min(Math.max(8, r.left), window.innerWidth - PANEL_W - 8);
-    setPos({ top: r.bottom + 6, left });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (triggerRef.current?.contains(t) || panelRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); } };
-    const onReflow = () => setOpen(false);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onReflow, true);
-    window.addEventListener('resize', onReflow);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onReflow, true);
-      window.removeEventListener('resize', onReflow);
-    };
-  }, [open]);
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        aria-label={label}
-        aria-describedby={open ? panelId : undefined}
-        /* 20x20 is under the 44px touch minimum, and one of these is now the
-           hero's primary explainer. The pseudo-element widens the hit area on
-           phones only, leaving the rendered icon exactly where it was — same
-           idiom as the transactions filter triggers. */
-        className="ui-focus relative inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors max-sm:before:absolute max-sm:before:-inset-3 max-sm:before:content-['']"
-      >
-        <Info className="h-[13px] w-[13px]" />
-      </button>
-      {open && pos && createPortal(
-        <div
-          ref={panelRef}
-          id={panelId}
-          role="tooltip"
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: PANEL_W }}
-          className="ui-root z-[110] rounded-ui-md border border-line bg-panel-raised px-3 py-2.5 text-[12px] leading-[1.5] font-medium text-content-secondary shadow-ui-lg"
-        >
-          {children}
-        </div>,
-        document.body,
-      )}
-    </>
   );
 }
 

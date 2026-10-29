@@ -165,10 +165,16 @@ export function Field({
   error,
   required,
   alert = false,
+  labelAction,
   children,
   className,
 }: {
   label?: ReactNode;
+  /**
+   * A control beside the label, such as a help popover. Kept outside the
+   * <label> so its text never joins the input's accessible name.
+   */
+  labelAction?: ReactNode;
   htmlFor?: string;
   hint?: ReactNode;
   error?: ReactNode;
@@ -200,12 +206,22 @@ export function Field({
   }
   return (
     <div className={cn('space-y-1.5', className)}>
-      {label && (
+      {label && (labelAction ? (
+        // Inline, so the action follows the label's last word when it wraps,
+        // and pretty wrapping so it never sits on a line by itself.
+        <div className="text-pretty">
+          <Label htmlFor={controlId} className="inline">
+            {label}
+            {required && <span className="ml-0.5 text-brand">*</span>}
+          </Label>
+          <span className="ml-1.5 inline-flex align-[-2px]">{labelAction}</span>
+        </div>
+      ) : (
         <Label htmlFor={controlId}>
           {label}
           {required && <span className="ml-0.5 text-brand">*</span>}
         </Label>
-      )}
+      ))}
       {control}
       {error ? (
         <p
