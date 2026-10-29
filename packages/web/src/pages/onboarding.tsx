@@ -26,7 +26,7 @@ import {
 } from '../components/onboarding/story';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { cn, formatMoney } from '../lib/utils';
+import { cn, formatMoney, latestAdultBirthDate } from '../lib/utils';
 
 const STEP_TO_STAGE = ['profile', 'income', 'lifestyle', 'complete'] as const;
 
@@ -199,7 +199,7 @@ function DateOfBirthField({ value, onChange, onBlur }: {
 
   const thisYear = new Date().getFullYear();
   const minYear = thisYear - 100;
-  const maxYear = thisYear - 13;
+  const maxYear = thisYear - 18;
 
   const check = (digits: string): { iso: string; error?: string } => {
     if (!digits) return { iso: '' };
@@ -209,7 +209,9 @@ function DateOfBirthField({ value, onChange, onBlur }: {
       return { iso: '', error: 'That date does not exist. Enter it as MM/DD/YYYY.' };
     }
     if (y < minYear || y > maxYear) return { iso: '', error: `Enter a year from ${minYear} to ${maxYear}.` };
-    return { iso: `${digits.slice(4)}-${digits.slice(0, 2)}-${digits.slice(2, 4)}` };
+    const iso = `${digits.slice(4)}-${digits.slice(0, 2)}-${digits.slice(2, 4)}`;
+    if (iso > latestAdultBirthDate()) return { iso: '', error: 'You need to be 18 or older to use LasagnaFi.' };
+    return { iso };
   };
 
   const digits = text.replace(/\D/g, '');
@@ -875,6 +877,22 @@ export function Onboarding() {
   const railSub = step === 3 ? 'You can change any answer later in your profile.' : STEPS[step].sub;
   const layers = step + 1;
 
+  // Not on step 1: name and income are what the app needs to work.
+  // Not on the connect screen: its own "Skip for now" already leaves.
+  const finishLaterButton = step > 0 && step < totalSteps - 1 && (
+    <button
+      type="button"
+      onClick={() => { void finishLater(); }}
+      disabled={saving || leaving}
+      className="group ui-focus -mx-2 -my-2 inline-flex min-h-11 shrink-0 items-center gap-1 rounded-ui-md px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer disabled:opacity-50"
+    >
+      Finish later
+      {leaving
+        ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        : <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 ease-ui group-hover:translate-x-0.5" aria-hidden />}
+    </button>
+  );
+
   if (initializing) {
     return (
       <div className="ui-root min-h-dvh bg-canvas flex items-start justify-center pt-24 sm:items-center sm:pt-0">
@@ -891,36 +909,31 @@ export function Onboarding() {
       <div className="pointer-events-none fixed inset-0" aria-hidden
         style={{ background: 'radial-gradient(520px 380px at 0% 0%, var(--ui-caution-soft), transparent 70%)' }} />
 
-      {/* The page draws its own chrome instead of the app shell's, so it clears
-          the iOS status bar itself. env() is 0 on the web. */}
-      <header className="relative flex items-center justify-between gap-3 px-5 pb-4 pt-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] md:px-6">
+      {/* Phones: the step strip is the top of the page, under the status bar.
+          The page draws its own chrome instead of the app shell's, so it clears
+          the safe area itself. env() is 0 on the web. */}
+      <div className="relative border-b border-line md:hidden"
+        style={{ background: 'linear-gradient(165deg, var(--ui-brand-softer), var(--ui-caution-soft))' }}>
+        <div className="flex items-center gap-3.5 px-5 pb-3 pt-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))]">
+          <LasagnaLayers layers={layers} className="w-[64px] flex-none" />
+          <h1 className="min-w-0 flex-1 font-display text-[24px] font-semibold leading-[1.08] tracking-[-0.025em] text-content text-balance">
+            {railTitle}
+          </h1>
+          {finishLaterButton}
+        </div>
+        {/* Phones have no rail, so the step list's job falls to this bar. */}
+        {step < 3 && <SegmentProgress step={step} className="px-5 pb-3.5" />}
+      </div>
+
+      <header className="relative hidden items-center justify-between gap-3 px-6 py-4 md:flex">
         <div className="flex items-center gap-2">
           <BrandMark size={28} />
           <span className="font-editorial text-lg font-medium tracking-[-0.015em] text-content">
             Lasagna<span className="text-brand">Fi</span>
           </span>
         </div>
-        <div className="flex items-center gap-4">
-          {/* Not on step 1: name and income are what the app needs to work.
-              Not on the connect screen: its own "Skip for now" already leaves. */}
-          {step > 0 && step < totalSteps - 1 && (
-            <button
-              type="button"
-              onClick={() => { void finishLater(); }}
-              disabled={saving || leaving}
-              className="group ui-focus -mx-2 -my-2 inline-flex min-h-11 items-center gap-1 rounded-ui-md px-2 text-[13px] font-semibold text-[rgb(var(--ui-brand-ink))] transition-colors hover:bg-brand-softer disabled:opacity-50"
-            >
-              Finish later
-              {leaving
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                : <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 ease-ui group-hover:translate-x-0.5" aria-hidden />}
-            </button>
-          )}
-        </div>
+        {finishLaterButton}
       </header>
-
-      {/* Phones have no rail, so the step list's job falls to this bar. */}
-      {step < 3 && <SegmentProgress step={step} className="relative mx-auto w-full max-w-[640px] px-5 pb-1.5 md:hidden" />}
 
       <div className="relative flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[minmax(300px,40%)_1fr]">
         <aside
@@ -945,14 +958,6 @@ export function Onboarding() {
 
         <div className="flex min-h-0 flex-1 flex-col">
           <main ref={mainRef} className="relative min-h-0 flex-1 overflow-y-auto">
-            {/* The rail, folded into a strip above the form. */}
-            <div className="flex items-center gap-4 border-b border-line px-5 py-4 md:hidden"
-              style={{ background: 'linear-gradient(165deg, var(--ui-brand-softer), var(--ui-caution-soft))' }}>
-              <LasagnaLayers layers={layers} className="w-[86px] flex-none" />
-              <h1 className="font-display text-[28px] font-semibold leading-[1.05] tracking-[-0.025em] text-content text-balance">
-                {railTitle}
-              </h1>
-            </div>
             {/* The finish screen has no footer, so it clears the home indicator
                 itself. The others grow by the iOS keyboard's height (--kb): the
                 keyboard covers the page rather than shrinking it, and a low field

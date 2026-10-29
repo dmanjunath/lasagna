@@ -20,6 +20,7 @@ import {
   HOUSEHOLD_FIELDS,
   readHouseholdProfile,
   readUserPersonalProfile,
+  isAdultOn,
 } from "../lib/profile-resolver.js";
 
 export const quickImportRoutes = new Hono<AuthEnv>();
@@ -517,7 +518,8 @@ quickImportRoutes.post("/commit", async (c) => {
       }
 
       const values: Record<string, unknown> = {};
-      if (profile.dateOfBirth)
+      // An under-18 date is dropped rather than failing the whole import.
+      if (profile.dateOfBirth && isAdultOn(profile.dateOfBirth))
         values.dateOfBirth = new Date(profile.dateOfBirth);
       if (profile.annualIncome !== null && profile.annualIncome !== undefined)
         values.annualIncome = String(profile.annualIncome);

@@ -100,6 +100,17 @@ export function resolveProfile(
   };
 }
 
+/**
+ * Whether someone born on `dob` (YYYY-MM-DD) is 18 or older on `today`. A
+ * Feb 29 birthday comes of age on Mar 1 in a non-leap year.
+ */
+export function isAdultOn(dob: string, today: Date = new Date()): boolean {
+  const [y, m, d] = dob.slice(0, 10).split("-").map(Number);
+  const ty = today.getUTCFullYear(), tm = today.getUTCMonth() + 1, td = today.getUTCDate();
+  const age = ty - y - (tm < m || (tm === m && td < d) ? 1 : 0);
+  return age >= 18;
+}
+
 // The PATCH /financial-profile request shape (response-shaped field names).
 export interface ProfileInput {
   dateOfBirth?: string | null;

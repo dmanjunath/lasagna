@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolveProfile,
   splitProfileInput,
+  isAdultOn,
   HOUSEHOLD_FIELDS,
   PERSONAL_FIELDS,
   type HouseholdProfileRow,
@@ -148,5 +149,22 @@ describe("splitProfileInput", () => {
         "riskTolerance",
       ].sort(),
     );
+  });
+});
+
+describe("isAdultOn", () => {
+  const today = new Date("2026-10-29T12:00:00Z");
+  it("is true from the 18th birthday on", () => {
+    expect(isAdultOn("2008-10-29", today)).toBe(true);
+    expect(isAdultOn("2008-10-28", today)).toBe(true);
+    expect(isAdultOn("1990-04-12", today)).toBe(true);
+  });
+  it("is false the day before the 18th birthday", () => {
+    expect(isAdultOn("2008-10-30", today)).toBe(false);
+    expect(isAdultOn("2010-01-01", today)).toBe(false);
+  });
+  it("turns a Feb 29 birthday 18 on Mar 1 in a non-leap year", () => {
+    expect(isAdultOn("2008-02-29", new Date("2026-02-28T12:00:00Z"))).toBe(false);
+    expect(isAdultOn("2008-02-29", new Date("2026-03-01T12:00:00Z"))).toBe(true);
   });
 });

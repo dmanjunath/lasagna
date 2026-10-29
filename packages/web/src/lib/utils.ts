@@ -175,3 +175,15 @@ export function splitParagraphs(body: string): string[] {
     .map((p) => p.trim())
     .filter(Boolean);
 }
+
+/**
+ * The latest birth date (YYYY-MM-DD) of someone who is 18 or older on `today`.
+ * A Feb 29 eighteen years back falls on Feb 28, so that birthday comes of age
+ * on Mar 1, the same as the API's isAdultOn.
+ */
+export function latestAdultBirthDate(today: Date = new Date()): string {
+  const y = today.getFullYear() - 18;
+  const m = today.getMonth() + 1;
+  const d = Math.min(today.getDate(), new Date(y, m, 0).getDate());
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}

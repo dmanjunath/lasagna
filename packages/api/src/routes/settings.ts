@@ -9,6 +9,7 @@ import {
   readUserPersonalProfile,
   resolveProfile,
   upsertSplitProfile,
+  isAdultOn,
   type ProfileInput,
 } from "../lib/profile-resolver.js";
 
@@ -164,6 +165,8 @@ settingsRoutes.get("/household-profiles", async (c) => {
 settingsRoutes.patch("/financial-profile", async (c) => {
   const session = c.get("session");
   const body = await c.req.json<ProfileInput>();
+  if (body.dateOfBirth && !isAdultOn(body.dateOfBirth))
+    return c.json({ error: "You need to be 18 or older to use LasagnaFi." }, 400);
 
   await upsertSplitProfile(session.tenantId, session.userId, body);
 

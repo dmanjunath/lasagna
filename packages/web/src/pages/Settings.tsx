@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { useBilling, startUpgrade, openPortal } from "../lib/billing";
-import { formatMoney, cn, exactSyncTime, formatInstant, formatStoredDate } from "../lib/utils";
+import { formatMoney, cn, exactSyncTime, formatInstant, formatStoredDate, latestAdultBirthDate } from "../lib/utils";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   User,
@@ -1912,13 +1912,17 @@ function PersonalEditPanel({ formData, setFormData, saving, saveError, onCancel,
   const retAgeError = formData.retirementAge && (retAgeNum < 30 || retAgeNum > 100) ? "Between 30 and 100" : undefined;
   const depNum = Number(formData.dependentCount);
   const depError = formData.dependentCount && (depNum < 0 || depNum > 10) ? "Between 0 and 10" : undefined;
+  const maxDob = latestAdultBirthDate();
+  const dobError = formData.dateOfBirth && formData.dateOfBirth > maxDob ? "You need to be 18 or older" : undefined;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Field label="Date of birth">
+        <Field label="Date of birth" error={dobError}>
           <Input
             type="date"
+            max={maxDob}
+            invalid={!!dobError}
             value={formData.dateOfBirth}
             onChange={(e) => setFormData((f) => ({ ...f, dateOfBirth: e.target.value }))}
           />
@@ -2003,7 +2007,7 @@ function PersonalEditPanel({ formData, setFormData, saving, saveError, onCancel,
       )}
 
       <div className="flex gap-2 pt-1">
-        <Button onClick={onSave} disabled={saving} loading={saving}>
+        <Button onClick={onSave} disabled={saving || !!dobError} loading={saving}>
           {saving ? "Saving…" : "Save changes"}
         </Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
