@@ -80,7 +80,9 @@ if [[ -n "$LIVE_SHA" ]] && git -C "$REPO_DIR" cat-file -e "$LIVE_SHA^{commit}" 2
   }
   if ! diff -q <(native_surface "$LIVE_SHA") <(native_surface "$SHA") >/dev/null; then
     echo "REFUSING: the native surface changed between $LIVE_SHA and $SHA." >&2
-    diff <(native_surface "$LIVE_SHA") <(native_surface "$SHA") | head -20 >&2
+    # diff exits 1 when the inputs differ, which they do here. Under pipefail
+    # that ended the script before OTA_FORCE was read, so force never worked.
+    { diff <(native_surface "$LIVE_SHA") <(native_surface "$SHA") || true; } | head -20 >&2
     echo "Plugins, native Swift and permissions cannot ship over the air." >&2
     echo "Ship an App Store build, bump OTA_MIN_NATIVE_VERSION, then publish." >&2
     echo "Set OTA_FORCE=1 only if you are certain this bundle runs on installed shells." >&2
