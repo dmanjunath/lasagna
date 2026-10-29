@@ -1,4 +1,4 @@
-import { useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { motion, useAnimate, useReducedMotion } from 'framer-motion';
 import { Check, Minus, Plus } from 'lucide-react';
 import { Label } from '../uikit';
@@ -297,7 +297,9 @@ export function NumberStepper({ id, value, onChange, min, max, decLabel, incLabe
   // Clearing the field and leaving it puts back the last real age, rather
   // than saving a blank the user never sees.
   const lastValid = useRef(value || String(min));
-  if (value) lastValid.current = value;
+  useEffect(() => {
+    if (value) lastValid.current = value;
+  }, [value]);
   const set = (next: number) => onChange(String(Math.max(min, Math.min(max, next))));
   // The number bumps when − or + changes it. Driven imperatively: keying the
   // input on its value remounted it on every keystroke and dropped focus, so
