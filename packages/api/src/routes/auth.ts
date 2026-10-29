@@ -154,13 +154,15 @@ authRoutes.post("/login/start", async (c) => {
   // no WorkOS link) authenticate by password. Also any account that has a password.
   if ((user?.passwordHash && !user.workosUserId) || user?.hasPassword)
     return c.json({ step: "password" as const });
-  // Passwordless account → send a code. Unknown email → send nothing (no enumeration).
+  // Unknown email → signup. Sending nothing and showing the code screen left
+  // people waiting for an email that never came. A signup that was never
+  // verified (WorkOS user, no local row) lands here too, and signUp resends it.
+  if (!user) return c.json({ step: "signup" as const });
+  // Passwordless account → send a code.
   // Log (don't expose) send failures — otherwise a misconfig like "Magic Auth is
   // disabled" is invisible: the client still lands on the code screen with no email.
-  if (user) {
-    try { await workos.sendMagicAuth({ email }); }
-    catch (err) { console.error("[login/start] sendMagicAuth failed:", workos.friendlyError(err, String(err))); }
-  }
+  try { await workos.sendMagicAuth({ email }); }
+  catch (err) { console.error("[login/start] sendMagicAuth failed:", workos.friendlyError(err, String(err))); }
   return c.json({ step: "code" as const });
 });
 

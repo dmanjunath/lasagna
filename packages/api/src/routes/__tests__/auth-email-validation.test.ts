@@ -86,3 +86,19 @@ describe("GET /signup/options", () => {
     expect(await res.json()).toEqual({ passwordRequired: false });
   });
 });
+
+describe("POST /login/start routes by account", () => {
+  it("sends an email with no account to signup, without emailing a code", async () => {
+    usersFindFirst.mockResolvedValueOnce(undefined);
+    const res = await post("/login/start", { email: "new@example.com" });
+    expect(await res.json()).toEqual({ step: "signup" });
+    expect(workos.sendMagicAuth).not.toHaveBeenCalled();
+  });
+
+  it("emails a code to a passwordless account", async () => {
+    usersFindFirst.mockResolvedValueOnce({ email: "old@example.com", hasPassword: false });
+    const res = await post("/login/start", { email: "old@example.com" });
+    expect(await res.json()).toEqual({ step: "code" });
+    expect(workos.sendMagicAuth).toHaveBeenCalledWith({ email: "old@example.com" });
+  });
+});

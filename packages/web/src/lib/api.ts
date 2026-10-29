@@ -171,7 +171,7 @@ export const api = {
   signupOptions: () =>
     request<{ passwordRequired: boolean }>("/auth/signup/options"),
   loginStart: (email: string) =>
-    request<{ step: "password" | "code" }>("/auth/login/start", { method: "POST", body: JSON.stringify({ email }) }),
+    request<{ step: "password" | "code" | "signup" }>("/auth/login/start", { method: "POST", body: JSON.stringify({ email }) }),
   loginSendCode: (email: string) =>
     request("/auth/login/send-code", { method: "POST", body: JSON.stringify({ email }) }),
   loginCode: (email: string, code: string): Promise<{ user: { id: string; email: string; name: string | null; role: string; onboardingStage: string | null; isAdmin: boolean; hasAcceptedTerms: boolean }; tenant: { id: string; name: string; plan: string } | null; token?: string }> =>

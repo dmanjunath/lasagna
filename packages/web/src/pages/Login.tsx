@@ -15,6 +15,17 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
   const { login, loginWithPasskey, signup } = useAuth();
   const [, navigate] = useLocation();
   const [isSignup, setIsSignup] = useState(defaultSignup);
+  // Set when sign-in found no account and switched to signup, so focus lands
+  // on the first field rather than dropping to the page.
+  const [handedOff, setHandedOff] = useState(false);
+  // App keeps this mounted across /login and /signup, so Back after the
+  // no-account handoff changes the URL but not the form. Follow the URL.
+  const [urlSignup, setUrlSignup] = useState(defaultSignup);
+  if (defaultSignup !== urlSignup) {
+    setUrlSignup(defaultSignup);
+    setIsSignup(defaultSignup);
+    if (!defaultSignup) setHandedOff(false);
+  }
   // Two-step login: "email" collects the address, "password" appears only when the
   // account has one. Passwordless accounts go straight to the emailed-code screen.
   const [step, setStep] = useState<"email" | "password">("email");
@@ -92,6 +103,12 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
     try {
       const { step: next } = await api.loginStart(email);
       if (next === "code") return goToCodeScreen("login");
+      // No account for this email: carry it over to signup.
+      if (next === "signup") {
+        setHandedOff(true);
+        // Pushed, not replaced: Back returns to sign-in after a mistyped email.
+        return toggleSignup(false);
+      }
       setCheckedEmail(email);
       setStep("password");
       // The email was edited on the password step, so carry on signing in
@@ -187,12 +204,12 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
     return handleEmailContinue();
   };
 
-  const toggleSignup = () => {
+  const toggleSignup = (replace = true) => {
     // Keep the address bar honest. Without this, switching to sign-in on
     // /signup leaves the URL saying signup, and a reload throws the user back
     // onto the form they just left. Outside the updater: StrictMode may call
     // that twice, and navigation is not something to do twice.
-    navigate(isSignup ? "/" : "/signup", { replace: true });
+    navigate(isSignup ? "/" : "/signup", { replace });
     setIsSignup((v) => !v);
     setError("");
     setPassword("");
@@ -296,6 +313,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
+                autoFocus={handedOff}
                 />
               </Field>
             )}
@@ -438,7 +456,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
           {!isDemo && (
             <p className="text-center text-content-secondary text-sm mt-4 sm:mt-6">
               {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-              <TextLink onClick={toggleSignup} chevron={false}>{isSignup ? "Sign in" : "Sign up"}</TextLink>
+              <TextLink onClick={() => toggleSignup()} chevron={false}>{isSignup ? "Sign in" : "Sign up"}</TextLink>
             </p>
           )}
 
