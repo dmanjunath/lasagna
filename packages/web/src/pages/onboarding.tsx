@@ -266,6 +266,22 @@ function DateOfBirthField({ value, onChange, onBlur }: {
  * State of residence as a type-ahead over full state names. Fifty two-letter
  * codes are a database value, not a list anyone can scan. Stores the code.
  */
+// Height of the iOS keyboard, which native-shell publishes as --kb on <html>.
+// The keyboard covers the page without shrinking it, so innerHeight alone
+// overstates the room below a field.
+function useKeyboardHeight() {
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const root = document.documentElement;
+    const read = () => setKb(parseFloat(root.style.getPropertyValue('--kb')) || 0);
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(root, { attributes: true, attributeFilter: ['style'] });
+    return () => mo.disconnect();
+  }, []);
+  return kb;
+}
+
 function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
   id?: string;
   value: string;
@@ -276,9 +292,13 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const [dropUp, setDropUp] = useState(false);
+  // Opened upward, the list is capped to the room between the field and the
+  // top of the form column, or a small phone cuts off its first options.
+  const [upRoom, setUpRoom] = useState(240);
   const wrapRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const kb = useKeyboardHeight();
 
   const selected = US_STATES.find((s) => s.code === value) ?? null;
   const q = query.trim().toLowerCase();
@@ -304,21 +324,39 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
   // The field is the last one on the step, so left where it is the list would
   // open straight into the pinned footer. Bring the field up first, and only
   // flip the list upward if that still is not enough room.
+  // With the keyboard up, native-shell already scrolls the field to just above
+  // it, so this only picks the side with room.
   useEffect(() => {
     if (!open) return;
     const el = wrapRef.current;
     if (!el) return;
+    const bottomEdge = window.innerHeight - kb;
     let rect = el.getBoundingClientRect();
-    if (window.innerHeight - rect.bottom < 280) {
+    if (!kb && bottomEdge - rect.bottom < 280) {
       el.scrollIntoView({ block: 'center' });
       rect = el.getBoundingClientRect();
     }
-    setDropUp(window.innerHeight - rect.bottom < 280 && rect.top > 240);
-  }, [open]);
+    const main = el.closest('main');
+    const top = main?.getBoundingClientRect().top ?? 0;
+    setDropUp(bottomEdge - rect.bottom < 280 && rect.top - top > 160);
+    // Re-measured as the column scrolls: native-shell lifts the field above the
+    // keyboard after this runs, which changes the room above it.
+    const measure = () => setUpRoom(Math.min(240, el.getBoundingClientRect().top - top - 8));
+    measure();
+    main?.addEventListener('scroll', measure, { passive: true });
+    return () => main?.removeEventListener('scroll', measure);
+  }, [open, kb]);
 
   useEffect(() => {
     if (!open) return;
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    // Moves only the list. scrollIntoView would also scroll the form column and
+    // fight native-shell's scroll of the field above the keyboard.
+    const list = listRef.current;
+    const item = list?.querySelector<HTMLElement>('[data-active="true"]');
+    if (!list || !item) return;
+    if (item.offsetTop < list.scrollTop) list.scrollTop = item.offsetTop;
+    else if (item.offsetTop + item.offsetHeight > list.scrollTop + list.clientHeight)
+      list.scrollTop = item.offsetTop + item.offsetHeight - list.clientHeight;
   }, [open, active]);
 
   useEffect(() => {
@@ -378,6 +416,7 @@ function StatePicker({ id, value, onChange, 'aria-describedby': describedBy }: {
           ref={listRef}
           id={listId}
           role="listbox"
+          style={dropUp ? { maxHeight: upRoom } : undefined}
           className={cn(
             'absolute left-0 right-0 z-30 max-h-[240px] overflow-y-auto rounded-ui-md border border-line-strong bg-panel-raised py-1 shadow-ui-lg',
             dropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
@@ -421,7 +460,7 @@ const STAGE_TO_STEP: Record<string, number> = {
 
 export function Onboarding() {
   const [, navigate] = useLocation();
-  const { user, setOnboardingStage, setOnboardingDeferred } = useAuth();
+  const { user, updateTenant, setOnboardingStage, setOnboardingDeferred } = useAuth();
   const userId = user?.id ?? '';
   const [initializing, setInitializing] = useState(true);
   const [step, setStep] = useState(0);
@@ -467,7 +506,10 @@ export function Onboarding() {
       const fp = fpData?.financialProfile;
 
       // Restore form fields from existing data
-      if (profileData?.profile?.name) setName(profileData.profile.name);
+      // The account name falls back to the email's local part when signup
+      // skipped the name, and that is not anyone's name.
+      const savedName = profileData?.profile?.name;
+      if (savedName && savedName !== meData.user?.email?.split('@')[0]) setName(savedName);
       if (fp) {
         if (fp.dateOfBirth) setDob(fp.dateOfBirth.split('T')[0]);
         if (fp.filingStatus) setFilingStatus(fp.filingStatus);
@@ -527,6 +569,8 @@ export function Onboarding() {
     try {
       if (step === 0) {
         await api.updateProfile({ name: name.trim() });
+        // Home greets by this name, so it must not keep the signup-time one.
+        updateTenant({ name: name.trim() });
         await api.updateFinancialProfile({
           dateOfBirth: dob || null,
           // "I'm not sure" and "not answered" are both stored as unknown, which
@@ -556,7 +600,7 @@ export function Onboarding() {
     } catch (err) {
       console.error('Failed to save onboarding step:', err);
     }
-  }, [userId, step, name, dob, filingStatus, stateOfResidence, annualIncome, matchAnswer, matchPercent, riskTolerance, retirementAge, employmentType, dependentCount, hdhp, pslf]);
+  }, [userId, step, updateTenant, name, dob, filingStatus, stateOfResidence, annualIncome, matchAnswer, matchPercent, riskTolerance, retirementAge, employmentType, dependentCount, hdhp, pslf]);
 
   const goNext = useCallback(async () => {
     setSaving(true);
@@ -847,7 +891,9 @@ export function Onboarding() {
       <div className="pointer-events-none fixed inset-0" aria-hidden
         style={{ background: 'radial-gradient(520px 380px at 0% 0%, var(--ui-caution-soft), transparent 70%)' }} />
 
-      <header className="relative flex items-center justify-between gap-3 px-5 py-4 md:px-6">
+      {/* The page draws its own chrome instead of the app shell's, so it clears
+          the iOS status bar itself. env() is 0 on the web. */}
+      <header className="relative flex items-center justify-between gap-3 px-5 pb-4 pt-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] md:px-6">
         <div className="flex items-center gap-2">
           <BrandMark size={28} />
           <span className="font-editorial text-lg font-medium tracking-[-0.015em] text-content">
@@ -855,10 +901,6 @@ export function Onboarding() {
           </span>
         </div>
         <div className="flex items-center gap-4">
-          {step < totalSteps - 1 && (
-            // On md+ the rail's step list already says this.
-            <span className="text-[13px] font-medium text-content-muted md:hidden">Step {step + 1} of {totalSteps - 1}</span>
-          )}
           {/* Not on step 1: name and income are what the app needs to work.
               Not on the connect screen: its own "Skip for now" already leaves. */}
           {step > 0 && step < totalSteps - 1 && (
@@ -911,7 +953,16 @@ export function Onboarding() {
                 {railTitle}
               </h1>
             </div>
-            <div className="px-5 pb-8 pt-6 md:px-11 md:pb-12 md:pt-9">
+            {/* The finish screen has no footer, so it clears the home indicator
+                itself. The others grow by the iOS keyboard's height (--kb): the
+                keyboard covers the page rather than shrinking it, and a low field
+                needs the room to scroll above it. */}
+            <div className={cn(
+              'px-5 pt-6 md:px-11 md:pt-9',
+              step === 3
+                ? 'pb-[calc(2rem+env(safe-area-inset-bottom))] md:pb-12'
+                : 'pb-[calc(2rem+var(--kb,0px))] md:pb-12',
+            )}>
               <AnimatePresence mode="wait" custom={direction}>
                 <motion.div key={step} custom={direction} variants={slideVariants}
                   initial="enter" animate="center" exit="exit"
@@ -926,13 +977,13 @@ export function Onboarding() {
           </main>
 
           {step < 3 && (
-            <footer className="relative border-t border-line bg-canvas/85 px-5 py-3.5 backdrop-blur md:px-11">
+            <footer className="relative border-t border-line bg-canvas/85 px-5 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3.5 backdrop-blur md:px-11">
               <div className="flex w-full max-w-[500px] flex-col gap-2">
                 {blockedReason && (
                   <p className="text-[13px] text-content-secondary">{blockedReason}</p>
                 )}
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className={cn(step === 0 && 'hidden md:block')}>
                     {step > 0 && (
                       <Button variant="ghost" onClick={goBack} disabled={leaving} leadingIcon={<ChevronLeft className="h-4 w-4" />}>
                         Back
@@ -940,6 +991,7 @@ export function Onboarding() {
                     )}
                   </div>
                   <Button onClick={goNext} disabled={!canProceed || saving || leaving} loading={saving}
+                    className="flex-1 md:flex-none"
                     trailingIcon={!saving ? <ChevronRight className="h-4 w-4" /> : undefined}>
                     {step === 2 ? 'Finish' : 'Next'}
                   </Button>

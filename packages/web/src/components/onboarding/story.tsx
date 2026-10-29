@@ -328,7 +328,7 @@ export function NumberStepper({ id, value, onChange, min, max, decLabel, incLabe
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
         onBlur={() => (value ? set(n) : onChange(lastValid.current))}
-        className={cn('w-[76px] bg-transparent text-center ui-tnum text-content outline-none', VALUE_TEXT)}
+        className={cn('min-h-11 w-[76px] bg-transparent text-center ui-tnum text-content outline-none', VALUE_TEXT)}
       />
       <button type="button" aria-label={incLabel} className={stepBtn} disabled={n >= max} onClick={() => stepBy(1)}>
         <Plus className="h-4 w-4" aria-hidden />
