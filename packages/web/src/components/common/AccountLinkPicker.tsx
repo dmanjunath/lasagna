@@ -1,8 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { Check, Plus } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
+import { useSheetDrag } from '../../lib/hooks/use-sheet-drag';
 import { InstIcon } from './InstIcon';
 import { ITEM_CLASS, PANEL_CLASS, TriggerInner, triggerClass } from './OptionMenu';
 
@@ -78,10 +80,12 @@ export function AccountLinkPicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
   // The sheet floats over a document that still scrolls.
   useBodyScrollLock(open && isPhone);
+  const sheetY = useSheetDrag({ enabled: open && isPhone, onClose: () => { setOpen(false); setPos(null); }, rootRef: sheetRef, panelRef });
 
   const selected = options.find((o) => o.id === value) ?? null;
 
@@ -259,26 +263,26 @@ export function AccountLinkPicker({
   // Phones: a bottom sheet, as AccountPicker opens, so the list never runs off
   // the screen under its field.
   const sheet = (
-    <div data-sheet className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
+    <div ref={sheetRef} data-sheet className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
         onClick={() => close()}
         aria-hidden
       />
-      <div
+      <motion.div
         ref={panelRef}
         role="listbox"
         aria-label={placeholder}
         onKeyDown={onListKey}
         className="ui-root absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col rounded-t-ui-xl border-t border-line p-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-ui-xl [animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]"
         // .ui-root paints the canvas background; keep the sheet raised.
-        style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
+        style={{ backgroundColor: 'rgb(var(--ui-panel-raised))', y: sheetY }}
       >
         <div className="flex shrink-0 justify-center pb-1 pt-1.5" aria-hidden>
           <span className="h-1 w-10 rounded-full bg-line-strong" />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{rows}</div>
-      </div>
+      </motion.div>
     </div>
   );
 

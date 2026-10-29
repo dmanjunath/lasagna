@@ -16,6 +16,7 @@ import { useEffect } from 'react';
  */
 let locks = 0;
 let restoreOverflow = '';
+let restoreHtmlOverflow = '';
 let restorePadding = '';
 
 /**
@@ -33,9 +34,15 @@ export function useBodyScrollLock(active: boolean): void {
     if (!active) return;
     if (locks === 0) {
       const body = document.body;
+      const html = document.documentElement;
       restoreOverflow = body.style.overflow;
+      restoreHtmlOverflow = html.style.overflow;
       restorePadding = body.style.paddingRight;
-      const gutter = window.innerWidth - document.documentElement.clientWidth;
+      const gutter = window.innerWidth - html.clientWidth;
+      // html too: theme.css gives html `overflow-x: clip`, which stops body's
+      // overflow reaching the viewport, so hiding body alone left the page
+      // scrolling under every open sheet.
+      html.style.overflow = 'hidden';
       body.style.overflow = 'hidden';
       if (gutter > 0) {
         const current = parseFloat(getComputedStyle(body).paddingRight) || 0;
@@ -46,6 +53,7 @@ export function useBodyScrollLock(active: boolean): void {
     return () => {
       locks -= 1;
       if (locks === 0) {
+        document.documentElement.style.overflow = restoreHtmlOverflow;
         document.body.style.overflow = restoreOverflow;
         document.body.style.paddingRight = restorePadding;
       }

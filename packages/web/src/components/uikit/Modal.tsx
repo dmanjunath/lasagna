@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
+import { useSheetDrag } from '../../lib/hooks/use-sheet-drag';
 import { createPortal } from 'react-dom';
-import { motion, useDragControls, type PanInfo } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ChevronLeft, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
@@ -54,15 +55,14 @@ export function Modal({
    */
   stableTopOnPhone?: boolean;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  // Swipe-to-dismiss for the mobile bottom sheet: drag starts only from the
-  // grab handle / header (not the scrollable body) via dragControls.
-  const dragControls = useDragControls();
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
   // On a phone every variant is a bottom tray, so all are swipe-to-dismiss.
   const swipeable = isPhone;
 
   useBodyScrollLock(open);
+  const sheetY = useSheetDrag({ enabled: open && swipeable, onClose, rootRef, panelRef });
 
   // Close, Escape, the overlay, the swipe and the footer's own Cancel all stay
   // live while a submit is in flight. Holding some of them shut and not the rest
@@ -154,7 +154,7 @@ export function Modal({
     // ui-root lives on the PANEL, not this wrapper: .ui-root paints an opaque
     // canvas background, which on a fixed inset-0 wrapper covers the entire
     // page and makes it "disappear" behind the backdrop.
-    <div className="fixed inset-0 z-[90]">
+    <div ref={rootRef} className="fixed inset-0 z-[90]">
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
         onClick={onClose}
@@ -165,31 +165,21 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
-        drag={swipeable ? 'y' : false}
-        dragControls={dragControls}
-        dragListener={false}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 0.9 }}
-        onDragEnd={(_e, info: PanInfo) => {
-          if (info.offset.y > 96 || info.velocity.y > 600) onClose();
-        }}
         className={cn('ui-root flex flex-col border-line bg-panel-raised shadow-ui-xl', panel)}
         // .ui-root's canvas background out-specifies bg-panel-raised in the
         // compiled CSS order; the inline style keeps the panel raised-white.
-        style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
+        // The swipe offset is phone-only: on desktop an inline transform would
+        // override the centring translate.
+        style={{ backgroundColor: 'rgb(var(--ui-panel-raised))', ...(swipeable && { y: sheetY }) }}
       >
         {swipeable && (
-          <div
-            className="flex justify-center pt-2.5 pb-1 touch-none cursor-grab"
-            onPointerDown={(e) => dragControls.start(e)}
-          >
+          <div className="flex justify-center pt-2.5 pb-1">
             <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden />
           </div>
         )}
         {(title || description) && (
           <div
             className="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6"
-            onPointerDown={swipeable ? (e) => dragControls.start(e) : undefined}
           >
             {onBack !== undefined && (
               // Icon-only, sized to mirror Close: the slot is reserved on every

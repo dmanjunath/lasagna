@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { AccountIndexEntry } from '../../lib/use-accounts-index';
 import { InstIcon } from './InstIcon';
 import { Button } from '../uikit';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
+import { useSheetDrag } from '../../lib/hooks/use-sheet-drag';
 import { ITEM_CLASS, PANEL_CLASS, TriggerInner, triggerClass, type ToolbarField } from './OptionMenu';
 
 // ---------------------------------------------------------------------------
@@ -48,10 +50,12 @@ export function AccountPicker(props: (Multi | Single) & {
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const [fixedPos, setFixedPos] = useState<{ left: number; top?: number; bottom?: number; width: number } | null>(null);
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
   // The sheet floats over a document that still scrolls.
   useBodyScrollLock(open && isPhone);
+  const sheetY = useSheetDrag({ enabled: open && isPhone, onClose: () => setOpen(false), rootRef: sheetRef, panelRef });
 
   useEffect(() => {
     if (!open) return;
@@ -204,19 +208,19 @@ export function AccountPicker(props: (Multi | Single) & {
   // Phones: a bottom sheet, as CategoryPicker opens, so a long account list
   // never runs off the screen under its field.
   const sheet = (
-    <div data-sheet className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
+    <div ref={sheetRef} data-sheet className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
         onClick={() => setOpen(false)}
         aria-hidden
       />
-      <div
+      <motion.div
         ref={panelRef}
         role={props.multiple ? 'dialog' : 'listbox'}
         aria-label="Account"
         className="ui-root absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col rounded-t-ui-xl border-t border-line p-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-ui-xl [animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]"
         // .ui-root paints the canvas background; keep the sheet raised.
-        style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
+        style={{ backgroundColor: 'rgb(var(--ui-panel-raised))', y: sheetY }}
       >
         <div className="flex shrink-0 justify-center pb-1 pt-1.5" aria-hidden>
           <span className="h-1 w-10 rounded-full bg-line-strong" />
@@ -227,7 +231,7 @@ export function AccountPicker(props: (Multi | Single) & {
             Done
           </Button>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 

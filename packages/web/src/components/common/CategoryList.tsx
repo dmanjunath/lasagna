@@ -2,7 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Check, Search, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { Skeleton } from '../uikit';
+import { Button, Skeleton } from '../uikit';
 import { categoryOptionLabel, taxonomyIcon, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
 
 // ---------------------------------------------------------------------------
@@ -15,6 +15,46 @@ import { categoryOptionLabel, taxonomyIcon, usePickerGroups, useTaxonomy } from 
 // Keyboard: the search input keeps focus. Arrows move aria-activedescendant,
 // and Enter picks (single) or toggles (multi) the active row.
 // ---------------------------------------------------------------------------
+
+/**
+ * The phone sheet's header: a title, and Manage categories as a button apart
+ * from the list. As the list's last row it read as one more category.
+ */
+export function CategorySheetHeader({
+  id,
+  title,
+  showManage = true,
+  onManage,
+}: {
+  /** For the sheet's aria-labelledby. */
+  id?: string;
+  title: string;
+  showManage?: boolean;
+  /** Called before navigating to category settings, so the host can close. */
+  onManage?: () => void;
+}) {
+  const [, navigate] = useLocation();
+  return (
+    <div className="flex shrink-0 items-center justify-between gap-3 px-1 pb-3">
+      <h2 id={id} className="truncate text-[16px] font-semibold text-content">{title}</h2>
+      {showManage && (
+        // Ghost: it leaves the sheet, so it mustn't outrank the title or look
+        // like the drawer's main action.
+        <Button
+          variant="ghost"
+          size="sm"
+          leadingIcon={<Settings className="h-4 w-4" aria-hidden />}
+          onClick={() => {
+            onManage?.();
+            navigate('/profile#categories');
+          }}
+        >
+          Manage categories
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export function CategoryList({
   mode,

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, useDragControls, type PanInfo } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, SegmentedControl, button } from '../uikit';
 import { cn } from '../../lib/utils';
 import { type ToolbarField } from './OptionMenu';
-import { CategoryList } from './CategoryList';
+import { CategoryList, CategorySheetHeader } from './CategoryList';
 import { CategoryPicker } from './CategoryPicker';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
+import { useSheetDrag } from '../../lib/hooks/use-sheet-drag';
 import { getCategoryDisplay } from '../../lib/categories';
 import { CATEGORY_ID_RE } from '../../lib/spending-filters';
 import { usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
@@ -163,12 +164,13 @@ export function CategoryMultiSelect({
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const dragControls = useDragControls();
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   const isPhone = typeof window !== 'undefined' && window.matchMedia(sheetBelow === 'md' ? '(max-width: 767px)' : '(max-width: 639px)').matches;
   // The sheet floats over a document that still scrolls, so a drag on a short
   // list would slide the page underneath instead.
   useBodyScrollLock(open && isPhone);
+  const sheetY = useSheetDrag({ enabled: open && isPhone && variant === 'filters', onClose: () => setOpen(false), rootRef: sheetRef, panelRef });
 
   // Applies live, debounced: the checkboxes answer instantly while the page
   // behind them refetches once, after the user stops clicking.
@@ -245,6 +247,8 @@ export function CategoryMultiSelect({
             onManage={() => setOpen(false)}
             autoFocus={!isPhone}
             scrollerClassName={isPhone ? 'flex-1' : 'max-h-[320px]'}
+            // The phone sheet carries Manage categories in its header instead.
+            showManage={!isPhone}
           />
         </div>
         <Button
@@ -304,7 +308,7 @@ export function CategoryMultiSelect({
       {trigger}
       {open && isPhone && typeof document !== 'undefined'
         ? createPortal(
-            <div data-sheet className="fixed inset-0 z-[100]">
+            <div ref={sheetRef} data-sheet className="fixed inset-0 z-[100]">
               <div
                 className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
                 onClick={() => setOpen(false)}
@@ -314,24 +318,16 @@ export function CategoryMultiSelect({
                 ref={panelRef}
                 role={variant === 'filters' ? 'dialog' : undefined}
                 aria-label={variant === 'filters' ? 'Filter by category' : undefined}
-                drag="y"
-                dragControls={dragControls}
-                dragListener={false}
-                dragConstraints={{ top: 0, bottom: 0 }}
-                dragElastic={{ top: 0, bottom: 0.9 }}
-                onDragEnd={(_e, info: PanInfo) => {
-                  if (info.offset.y > 96 || info.velocity.y > 600) setOpen(false);
-                }}
-                className="ui-root absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col rounded-t-ui-xl border-t border-line bg-panel-raised px-3 pb-3 shadow-ui-xl [animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]"
+                // A fixed height, as in CategoryPicker's sheet: searching must
+                // not drop the top edge down the screen.
+                className="ui-root absolute inset-x-0 bottom-[var(--kb,0px)] flex h-[calc(80dvh-var(--kb,0px))] flex-col rounded-t-ui-xl border-t border-line bg-panel-raised px-3 pb-3 shadow-ui-xl [animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]"
                 // .ui-root paints the canvas background; keep the sheet raised.
-                style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
+                style={{ backgroundColor: 'rgb(var(--ui-panel-raised))', y: sheetY }}
               >
-                <div
-                  className="flex shrink-0 cursor-grab touch-none justify-center pb-2 pt-2.5"
-                  onPointerDown={(e) => dragControls.start(e)}
-                >
+                <div className="flex shrink-0 justify-center pb-2 pt-2.5">
                   <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden />
                 </div>
+                <CategorySheetHeader title="Filter by category" onManage={() => setOpen(false)} />
                 {panelBody}
               </motion.div>
             </div>,

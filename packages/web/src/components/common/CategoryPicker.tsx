@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, useDragControls, type PanInfo } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
+import { useSheetDrag } from '../../lib/hooks/use-sheet-drag';
 import { Button, button } from '../uikit';
 import { taxonomyIcon, useTaxonomy } from '../../lib/taxonomy';
-import { CategoryList } from './CategoryList';
+import { CategoryList, CategorySheetHeader } from './CategoryList';
 import { TriggerInner, triggerClass, type ToolbarField } from './OptionMenu';
 
 // ---------------------------------------------------------------------------
@@ -62,15 +63,15 @@ export function CategoryPicker(props: (Single | Multi) & {
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  // Swipe-to-dismiss for the phone bottom sheet: drag starts only from the
-  // grab handle (not the scrollable list) via dragControls, as in uikit Modal.
-  const dragControls = useDragControls();
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
 
   // The phone sheet floats over a document that still scrolls, so a drag on
   // a short category list would slide the page underneath instead.
   useBodyScrollLock(open && isPhone);
+  const sheetY = useSheetDrag({ enabled: open && isPhone, onClose: () => setOpen(false), rootRef: sheetRef, panelRef });
 
   const value = props.multiple ? '' : props.value;
   const current = value ? byId.get(value) : undefined;
@@ -219,7 +220,8 @@ export function CategoryPicker(props: (Single | Multi) & {
       scrollerClassName={scrollerClassName}
       excludeIds={excludeIds}
       anyLabel={anyLabel}
-      showManage={showManage}
+      // The phone sheet carries Manage categories in its header instead.
+      showManage={showManage !== false && !isPhone}
     />
   );
 
@@ -232,7 +234,7 @@ export function CategoryPicker(props: (Single | Multi) & {
           // Clicks inside the portal still bubble through the React tree to the
           // clickable transaction row, so stop them here.
           isPhone ? (
-            <div data-sheet className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
+            <div ref={sheetRef} data-sheet className="fixed inset-0 z-[100]" onClick={(e) => e.stopPropagation()}>
               <div
                 className="absolute inset-0 bg-black/45 backdrop-blur-[2px] [animation:ui-fade-in_160ms_ease-out]"
                 onClick={() => close()}
@@ -240,29 +242,30 @@ export function CategoryPicker(props: (Single | Multi) & {
               />
               <motion.div
                 ref={panelRef}
-                drag="y"
-                dragControls={dragControls}
-                dragListener={false}
-                dragConstraints={{ top: 0, bottom: 0 }}
-                dragElastic={{ top: 0, bottom: 0.9 }}
-                onDragEnd={(_e, info: PanInfo) => {
-                  if (info.offset.y > 96 || info.velocity.y > 600) close();
-                }}
-                className="ui-root absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col rounded-t-ui-xl border-t border-line bg-panel-raised p-2 shadow-ui-xl [animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                // A fixed height, not a max: searching shrinks the list, and a
+                // sheet sized to it dropped its top edge (and the search box
+                // being typed in) down the screen. It rides on the keyboard.
+                className="ui-root absolute inset-x-0 bottom-[var(--kb,0px)] flex h-[calc(80dvh-var(--kb,0px))] flex-col rounded-t-ui-xl border-t border-line bg-panel-raised px-3 pb-3 shadow-ui-xl [animation:ui-slide-up_220ms_cubic-bezier(0.22,1,0.36,1)]"
                 // .ui-root paints the canvas background; keep the sheet raised.
-                style={{ backgroundColor: 'rgb(var(--ui-panel-raised))' }}
+                style={{ backgroundColor: 'rgb(var(--ui-panel-raised))', y: sheetY }}
               >
-                <div
-                  className="flex shrink-0 cursor-grab touch-none justify-center pb-1 pt-2.5"
-                  onPointerDown={(e) => dragControls.start(e)}
-                >
+                <div className="flex shrink-0 justify-center pb-2 pt-2.5">
                   <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden />
                 </div>
+                <CategorySheetHeader
+                  id={titleId}
+                  title={props.multiple ? 'Filter by category' : 'Category'}
+                  showManage={showManage !== false}
+                  onManage={() => close()}
+                />
                 {list('flex-1')}
                 {/* Multi mode stays open while you pick, so the sheet needs a
                      way back that isn't a blind tap on the scrim. */}
                 {props.multiple && (
-                  <Button variant="secondary" size="sm" className="mt-1 w-full shrink-0" onClick={() => close(true)}>
+                  <Button variant="secondary" size="sm" className="mt-3 w-full shrink-0" onClick={() => close(true)}>
                     Done
                   </Button>
                 )}
