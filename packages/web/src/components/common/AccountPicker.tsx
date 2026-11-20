@@ -227,7 +227,7 @@ export function AccountPicker(props: (Multi | Single) & {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{options}</div>
         {props.multiple && (
-          <Button variant="secondary" size="sm" className="mt-2 w-full shrink-0" onClick={() => { setOpen(false); triggerRef.current?.focus(); }}>
+          <Button variant="neutral" size="sm" className="mt-2 w-full shrink-0" onClick={() => { setOpen(false); triggerRef.current?.focus(); }}>
             Done
           </Button>
         )}

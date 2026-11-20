@@ -585,6 +585,7 @@ function GoalCard({
         {complete ? (
           <Button
             size="sm"
+            variant="secondary"
             className="flex-1 sm:flex-none"
             leadingIcon={<RotateCw className="h-4 w-4" />}
             onClick={(e) => { e.stopPropagation(); onReallocate(goal); }}
@@ -594,6 +595,7 @@ function GoalCard({
         ) : !(goal.monthlyContribution && parseFloat(goal.monthlyContribution) > 0) ? (
           <Button
             size="sm"
+            variant="secondary"
             className="flex-1 sm:flex-none"
             leadingIcon={<Plus className="h-4 w-4" />}
             onClick={(e) => { e.stopPropagation(); onSetPlan(goal.id); }}

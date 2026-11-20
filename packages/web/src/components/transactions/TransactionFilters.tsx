@@ -848,7 +848,7 @@ export function TransactionFilters({
       aria-expanded={ref ? openPanel === 'more' : undefined}
       aria-haspopup="true"
       tabIndex={ref ? undefined : -1}
-      className={cn(button({ variant: count > 0 ? 'primary' : 'secondary', size: 'sm' }), 'shrink-0 px-3')}
+      className={cn(button({ variant: count > 0 ? 'secondary' : 'neutral', size: 'sm' }), 'shrink-0 px-3')}
     >
       <SlidersHorizontal size={14} className="opacity-70" aria-hidden />
       {moreLabel}

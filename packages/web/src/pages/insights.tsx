@@ -222,11 +222,12 @@ export function Insights() {
         {!isLoading && (
           <div className="flex flex-col items-end gap-2">
             <Button
-              // `primary` rather than a ghost wearing four override classes:
+              // `secondary` rather than a ghost wearing four override classes:
               // ghost's own `hover:text-content` outlived the override, so
               // hovering turned the label and icon near-black on the mint pill.
-              // This variant IS the brand-soft pill.
-              variant="primary"
+              // This variant IS the brand-soft pill. The empty state's
+              // "Generate actions" is the page's one solid primary.
+              variant="secondary"
               size="sm"
               className="max-md:hidden"
               onClick={handleRefresh}
@@ -324,7 +325,7 @@ export function Insights() {
             description="No open actions right now. We'll surface new ones as your accounts, spending, and goals change."
             action={
               <Button
-                variant="secondary"
+                variant="neutral"
                 size="sm"
                 onClick={handleRefresh}
                 disabled={refreshing || !refreshReady}

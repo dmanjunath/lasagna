@@ -55,7 +55,7 @@ export function PlanFreshnessBanner({
         }
         action={
           <Button
-            variant="secondary"
+            variant="neutral"
             size="sm"
             onClick={refresh.onClick}
             disabled={refresh.disabled}
@@ -84,7 +84,7 @@ export function PlanFreshnessBanner({
         title="You have not generated a retirement plan yet"
         action={
           <Button
-            variant="secondary"
+            variant="neutral"
             size="sm"
             onClick={generate.onClick}
             disabled={generate.disabled}

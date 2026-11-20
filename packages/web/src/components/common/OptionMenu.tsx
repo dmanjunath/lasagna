@@ -19,7 +19,7 @@ export type ToolbarField = { name?: string; count: number; badge?: boolean };
 
 export function triggerClass(toolbar: ToolbarField | undefined): string {
   if (!toolbar) return TRIGGER_CLASS;
-  return cn(button({ variant: toolbar.count > 0 ? 'primary' : 'secondary', size: 'sm' }), 'gap-1.5 pl-3 pr-2.5 aria-expanded:border-line-strong');
+  return cn(button({ variant: toolbar.count > 0 ? 'secondary' : 'neutral', size: 'sm' }), 'gap-1.5 pl-3 pr-2.5 aria-expanded:border-line-strong');
 }
 
 // Label plus chevron. The chevron turns over while the menu is open.

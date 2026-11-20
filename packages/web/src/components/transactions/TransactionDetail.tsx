@@ -119,7 +119,7 @@ export function TransactionDetail({ open, tx, onClose, onSaved }: {
       title="Transaction details"
       footer={
         <>
-          <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button variant="neutral" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button variant="primary" size="sm" onClick={() => void handleSave()} loading={saving}>
             {saving ? 'Saving…' : 'Save'}
           </Button>

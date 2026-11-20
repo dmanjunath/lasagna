@@ -234,7 +234,7 @@ function VerbButton({ label, short, onClick }: { label: string; short?: string; 
   return (
     <Button
       size="sm"
-      variant="secondary"
+      variant="neutral"
       onClick={onClick}
       className="px-2 sm:px-3.5"
     >
@@ -507,7 +507,7 @@ function AccordionActionItem(props: ActionItemProps) {
                   <Link
                     href={destination.href}
                     className={cn(
-                      button({ size: 'sm' }),
+                      button({ variant: 'secondary', size: 'sm' }),
                       'min-w-0 max-w-full whitespace-normal h-auto min-h-9 py-2 text-center sm:text-left',
                     )}
                   >
@@ -517,11 +517,12 @@ function AccordionActionItem(props: ActionItemProps) {
                 )}
 
                 {/* Steps back where the row has somewhere to go: two brand-soft
-                    pills side by side gave one row two primary controls and
-                    neither read as the thing to press. */}
+                    pills side by side gave one row two forward controls and
+                    neither read as the thing to press. Rows repeat, so neither
+                    is the screen's one solid primary. */}
                 <Button
                   size="sm"
-                  variant={destination ? 'secondary' : 'primary'}
+                  variant={destination ? 'neutral' : 'secondary'}
                   onClick={() =>
                     openChat(
                       // Same rule as the pill: an awareness row states what it
@@ -539,7 +540,7 @@ function AccordionActionItem(props: ActionItemProps) {
                 {onContextClick && (
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="neutral"
                     onClick={onContextClick}
                     className="w-full sm:w-auto"
                     trailingIcon={<ArrowRight className="h-[14px] w-[14px]" />}

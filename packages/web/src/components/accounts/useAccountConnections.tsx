@@ -1141,7 +1141,7 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
                 tone="caution"
                 action={
                   <Button
-                    variant="secondary"
+                    variant="neutral"
                     size="sm"
                     onClick={handleUpgrade}
                     loading={upgrading}

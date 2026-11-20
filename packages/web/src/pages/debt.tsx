@@ -543,11 +543,11 @@ function AccountCard({
 
       <div className="mt-3.5 flex items-center gap-2">
         {!isDemo && (
-          <Button variant="secondary" size="icon" className="shrink-0" onClick={onEdit} aria-label="Edit loan details">
+          <Button variant="neutral" size="icon" className="shrink-0" onClick={onEdit} aria-label="Edit loan details">
             <Pencil size={15} />
           </Button>
         )}
-        <Button className="flex-1" onClick={onPlan} trailingIcon={<ArrowRight className="h-4 w-4" />}>
+        <Button variant="secondary" className="flex-1" onClick={onPlan} trailingIcon={<ArrowRight className="h-4 w-4" />}>
           Plan payoff
         </Button>
       </div>

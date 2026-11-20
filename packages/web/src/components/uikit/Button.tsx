@@ -23,22 +23,33 @@ export const button = cva(
     // same text colour, and only an opacity a user cannot see told them apart.
     // Drop the semantic colour entirely instead: a disabled button is not a
     // quieter version of the action, it is not the action.
-    'disabled:pointer-events-none',
-    'disabled:bg-canvas-sunken disabled:text-content-faint',
-    'disabled:border-line disabled:shadow-none disabled:ring-0 disabled:translate-y-0',
+    // The fill is the translucent line grey, not canvas-sunken: sunken is the
+    // live neutral fill, so a dead button on it read as a working dark button.
+    // One treatment for every variant (ghost keeps no fill, below).
+    // A loading button (aria-busy) is disabled too but keeps its fill, so a
+    // submit does not flash grey while the spinner runs.
+    'disabled:pointer-events-none disabled:ring-0 disabled:translate-y-0',
+    '[&:disabled:not([aria-busy])]:bg-line-strong [&:disabled:not([aria-busy])]:text-content-faint',
+    '[&:disabled:not([aria-busy])]:border-transparent [&:disabled:not([aria-busy])]:shadow-none',
     'active:translate-y-px',
   ],
   {
     variants: {
-      // All variants share the soft-tinted "pill" pattern (tint bg + ink text +
-      // bold + subtle hover lift/ring), differing only by semantic color.
+      // Four levels of emphasis. primary is the one solid fill per screen, for
+      // the main forward action. secondary is the brand tint for other forward
+      // actions. neutral is for housekeeping (Cancel, Retry, Edit). ghost is
+      // text weight. The fill is brand-ink, not brand: white text on brand
+      // fails AA, and dark mode pairs the bright fill with brand-fg (near
+      // black). Hover keeps the colour because every lighter green fails AA.
       variant: {
         primary:
-          'bg-brand-soft text-[rgb(var(--ui-brand-ink))] font-bold hover:-translate-y-px hover:shadow-ui-sm hover:ring-1 hover:ring-[var(--ui-brand-ring)]',
+          'bg-[rgb(var(--ui-brand-ink))] text-brand-fg font-bold hover:-translate-y-px hover:shadow-ui-sm hover:ring-1 hover:ring-[var(--ui-brand-ring)] hover:ring-offset-2 hover:ring-offset-canvas',
         secondary:
+          'bg-brand-soft text-[rgb(var(--ui-brand-ink))] font-bold hover:-translate-y-px hover:shadow-ui-sm hover:ring-1 hover:ring-[var(--ui-brand-ring)]',
+        neutral:
           'bg-canvas-sunken text-content font-bold border border-line hover:-translate-y-px hover:shadow-ui-sm hover:border-line-strong',
         ghost:
-          'bg-transparent text-content-secondary font-semibold hover:bg-canvas-sunken hover:text-content',
+          'bg-transparent text-content-secondary font-semibold hover:bg-canvas-sunken hover:text-content [&:disabled:not([aria-busy])]:bg-transparent',
         destructive:
           'bg-[var(--ui-negative-soft)] text-[rgb(var(--ui-negative))] font-bold hover:-translate-y-px hover:shadow-ui-sm hover:ring-1 hover:ring-[rgb(var(--ui-negative))]/40',
       },

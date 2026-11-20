@@ -49,7 +49,7 @@ export function DeleteTenantModal({ open, onClose, tenantId, primaryEmail, userC
         />
         {error && <p className="mt-2 text-[12.5px] text-negative">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={close}>Cancel</Button>
+          <Button type="button" variant="neutral" size="sm" onClick={close}>Cancel</Button>
           <Button
             type="submit"
             size="sm"

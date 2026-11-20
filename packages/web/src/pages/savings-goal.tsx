@@ -646,11 +646,11 @@ export function SavingsGoal() {
             </Button>
           )}
           {goal.status === 'completed' && (
-            <Button variant="secondary" size="sm" disabled={actionPending} onClick={reactivate}>
+            <Button variant="neutral" size="sm" disabled={actionPending} onClick={reactivate}>
               {actionPending ? '…' : 'Reactivate'}
             </Button>
           )}
-          <Button variant="secondary" size="sm" className="max-md:hidden" onClick={openEdit}>Edit</Button>
+          <Button variant="neutral" size="sm" className="max-md:hidden" onClick={openEdit}>Edit</Button>
         </div>
       </header>
 
@@ -832,7 +832,7 @@ export function SavingsGoal() {
             )}
           </div>
           {!editingAccounts && (
-            <Button variant="secondary" size="sm" onClick={openAccountsEditor}>Manage accounts</Button>
+            <Button variant="neutral" size="sm" onClick={openAccountsEditor}>Manage accounts</Button>
           )}
         </div>
 
@@ -853,7 +853,7 @@ export function SavingsGoal() {
               <p className="text-[12.5px] text-content-muted">No fundable accounts available.</p>
             )}
             <div className="mt-5 flex gap-2.5">
-              <Button variant="primary" size="sm" loading={savingAccounts} disabled={savingAccounts} onClick={saveAccounts}>
+              <Button variant="secondary" size="sm" loading={savingAccounts} disabled={savingAccounts} onClick={saveAccounts}>
                 {savingAccounts ? 'Saving…' : 'Save'}
               </Button>
               <Button variant="ghost" size="sm" disabled={savingAccounts} onClick={() => setEditingAccounts(false)}>
@@ -1036,7 +1036,7 @@ export function SavingsGoal() {
             )}
             <div className="mt-5 flex gap-2.5">
               <Button
-                variant="primary"
+                variant="secondary"
                 size="sm"
                 loading={savingEdit}
                 disabled={!canSaveEdit || savingEdit}

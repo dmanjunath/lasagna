@@ -173,7 +173,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
         </div>
         {dirty && (
           <div className="mt-3 flex items-center justify-end gap-2">
-            <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => { setName(u.name ?? ''); setEmail(u.email); setErr(''); }}>Discard</Button>
+            <Button type="button" variant="neutral" size="sm" disabled={busy} onClick={() => { setName(u.name ?? ''); setEmail(u.email); setErr(''); }}>Discard</Button>
             <Button type="submit" size="sm" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</Button>
           </div>
         )}
@@ -187,7 +187,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
           <div className="text-[13px] font-semibold text-content">Password reset</div>
           <p className="text-[11.5px] text-content-muted">{resetBlocked || 'Emails a WorkOS reset link. Their current password keeps working until they finish it.'}</p>
         </div>
-        <Button variant="secondary" size="sm" disabled={!!resetBlocked || busy} title={resetBlocked || undefined} onClick={() => void openConfirm('reset')}>
+        <Button variant="neutral" size="sm" disabled={!!resetBlocked || busy} title={resetBlocked || undefined} onClick={() => void openConfirm('reset')}>
           Send reset email
         </Button>
       </div>
@@ -197,7 +197,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
           <div className="text-[13px] font-semibold text-content">Sessions</div>
           <p className="text-[11.5px] text-content-muted">Invalidates every signed-in device immediately.</p>
         </div>
-        <Button variant="secondary" size="sm" disabled={busy} onClick={() => void openConfirm('signout')}>
+        <Button variant="neutral" size="sm" disabled={busy} onClick={() => void openConfirm('signout')}>
           Sign out everywhere
         </Button>
       </div>
@@ -207,7 +207,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
           <div className="text-[13px] font-semibold text-content">Administrator</div>
           <p className="text-[11.5px] text-content-muted">{adminBlocked || 'Full operator access. Takes effect immediately.'}</p>
         </div>
-        <Button variant="secondary" size="sm" disabled={!!adminBlocked || busy} title={adminBlocked || undefined} onClick={() => void openConfirm('admin')}>
+        <Button variant="neutral" size="sm" disabled={!!adminBlocked || busy} title={adminBlocked || undefined} onClick={() => void openConfirm('admin')}>
           {u.isAdmin ? 'Revoke admin' : 'Make admin'}
         </Button>
       </div>
@@ -230,7 +230,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
             onChange={setRole}
             toolbar={{ count: 0 }}
           />
-          <Button variant="secondary" size="sm" disabled={!role || busy} onClick={() => void changeRole()}>
+          <Button variant="neutral" size="sm" disabled={!role || busy} onClick={() => void changeRole()}>
             Apply
           </Button>
         </div>
@@ -243,7 +243,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
         </div>
         <div className="flex items-center gap-2">
           <Input value={moveTenantId} onChange={(e) => setMoveTenantId(e.target.value)} placeholder="tenant uuid" className="h-9 w-[200px]" />
-          <Button variant="secondary" size="sm" disabled={!moveTenantId.trim() || busy} onClick={() => void moveTenant()}>
+          <Button variant="neutral" size="sm" disabled={!moveTenantId.trim() || busy} onClick={() => void moveTenant()}>
             Move
           </Button>
         </div>
@@ -254,7 +254,7 @@ export function UserAccountCard({ u, selfId, authMode, onChanged }: {
           <div className="text-[13px] font-semibold text-content">Remove user</div>
           <p className="text-[11.5px] text-content-muted">Deletes this login and their private data. Pooled household data is untouched.</p>
         </div>
-        <Button variant="secondary" size="sm" disabled={busy} onClick={() => void openConfirm('remove')}>
+        <Button variant="neutral" size="sm" disabled={busy} onClick={() => void openConfirm('remove')}>
           Remove user
         </Button>
       </div>

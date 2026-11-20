@@ -268,11 +268,12 @@ function SpacingRadiusShadow() {
 
 function Buttons() {
   return (
-    <Section title="Buttons" description="Primary / secondary / ghost / destructive, sizes, loading & disabled. 44px touch targets at md+.">
+    <Section title="Buttons" description="Primary (one solid fill per screen), secondary (brand tint), neutral, ghost and destructive. Sizes, loading and disabled. 44px touch targets at md+.">
       <Surface pad="lg" className="space-y-6">
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary">Primary</Button>
           <Button variant="secondary">Secondary</Button>
+          <Button variant="neutral">Neutral</Button>
           <Button variant="ghost">Ghost</Button>
           <Button variant="destructive" leadingIcon={<Trash2 className="h-4 w-4" />}>Delete</Button>
         </div>
@@ -280,12 +281,18 @@ function Buttons() {
           <Button size="sm">Small</Button>
           <Button size="md">Medium</Button>
           <Button size="lg" trailingIcon={<ArrowRight className="h-4 w-4" />}>Large</Button>
-          <Button size="icon" variant="secondary" aria-label="Add"><Plus className="h-5 w-5" /></Button>
+          <Button size="icon" variant="neutral" aria-label="Add"><Plus className="h-5 w-5" /></Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="primary" disabled>Primary disabled</Button>
+          <Button variant="secondary" disabled>Secondary disabled</Button>
+          <Button variant="neutral" disabled>Neutral disabled</Button>
+          <Button variant="ghost" disabled>Ghost disabled</Button>
+          <Button variant="destructive" disabled>Delete disabled</Button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button loading>Saving…</Button>
-          <Button disabled>Disabled</Button>
-          <Button variant="secondary" disabled>Disabled</Button>
+          <Button variant="secondary" loading>Saving…</Button>
           <Button variant="primary" leadingIcon={<Sparkles className="h-4 w-4" />}>With icon</Button>
         </div>
       </Surface>
@@ -455,8 +462,8 @@ function Feedback() {
         <Surface pad="lg" className="space-y-4">
           <CardHeader title="Interactive" description="Trigger the overlays and notifications." />
           <div className="flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={() => setModal(true)}>Open modal</Button>
-            <Button variant="secondary" onClick={() => setSheet(true)}>Open sheet</Button>
+            <Button variant="neutral" onClick={() => setModal(true)}>Open modal</Button>
+            <Button variant="neutral" onClick={() => setSheet(true)}>Open sheet</Button>
             <Button variant="ghost" leadingIcon={<Bell className="h-4 w-4" />} onClick={() => toast({ tone: 'positive', title: 'Saved', description: 'Your changes are safe.' })}>
               Toast
             </Button>
@@ -556,7 +563,7 @@ function StyleguideBody() {
         <PageHeader
           title="A calm, warm language for money."
           lede="One terracotta accent, paper-warm neutrals, a first-class warm dark mode, and tabular numerals everywhere money lives. This page is the living source of truth. Flip the mode in the corner to review both."
-          actions={<Button leadingIcon={<Download className="h-4 w-4" />} variant="secondary">Export tokens</Button>}
+          actions={<Button leadingIcon={<Download className="h-4 w-4" />} variant="neutral">Export tokens</Button>}
         />
         <Colors />
         <Typography />

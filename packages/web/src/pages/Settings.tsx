@@ -997,7 +997,7 @@ function PasswordSecurityCard() {
         </div>
         {!open && (
           <Button
-            variant="secondary"
+            variant="neutral"
             size="sm"
             className="ml-[52px] shrink-0 self-start lg:ml-0"
             onClick={() => {
@@ -1126,7 +1126,7 @@ function PasskeysCard() {
           </div>
         </div>
         {supported && (
-          <Button variant="secondary" size="sm" className="ml-[52px] shrink-0 self-start lg:ml-0" onClick={addPasskey} loading={busy} disabled={busy}>
+          <Button variant="neutral" size="sm" className="ml-[52px] shrink-0 self-start lg:ml-0" onClick={addPasskey} loading={busy} disabled={busy}>
             Add passkey
           </Button>
         )}
@@ -1812,7 +1812,7 @@ function PlanCard() {
                 you can reactivate any time from Manage subscription.
               </p>
             )}
-            <Button variant="secondary" onClick={handleManage} disabled={managing} loading={managing}>
+            <Button variant="neutral" onClick={handleManage} disabled={managing} loading={managing}>
               {managing ? "Redirecting…" : "Manage subscription"}
             </Button>
           </div>

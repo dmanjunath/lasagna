@@ -925,7 +925,7 @@ export function AccountDetail() {
                           onAdd={() => setLocation(`/accounts?add=loan:mortgage&link=${id}`)}
                         />
                       </div>
-                      <Button size="sm" disabled={!pendingDebtId || saving} onClick={() => { linkDebt(pendingDebtId); setPendingDebtId(''); }}>
+                      <Button size="sm" variant="secondary" disabled={!pendingDebtId || saving} onClick={() => { linkDebt(pendingDebtId); setPendingDebtId(''); }}>
                         Link
                       </Button>
                     </div>
@@ -1058,7 +1058,7 @@ export function AccountDetail() {
               an error under a banner that already explains why. */}
           {!isManual && !acct.frozen && (
             <Button
-              variant="secondary"
+              variant="neutral"
               disabled={actionPending}
               onClick={handleSync}
               leadingIcon={<RefreshCw size={14} className={actionPending ? 'animate-spin' : ''} />}
@@ -1067,7 +1067,7 @@ export function AccountDetail() {
             </Button>
           )}
           <Button
-            variant="secondary"
+            variant="neutral"
             onClick={openEdit}
             leadingIcon={<Pencil size={14} />}
           >

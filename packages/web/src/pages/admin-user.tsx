@@ -137,7 +137,7 @@ export function AdminUser() {
           tone="negative"
           title="Couldn't load this user"
           className="mt-6"
-          action={<Button variant="secondary" size="sm" onClick={() => { setError(''); void load(); }}>Retry</Button>}
+          action={<Button variant="neutral" size="sm" onClick={() => { setError(''); void load(); }}>Retry</Button>}
         >
           {error}
         </Alert>
@@ -242,7 +242,7 @@ export function AdminUser() {
                 </p>
               </div>
               <Button
-                variant="secondary"
+                variant="neutral"
                 size="sm"
                 disabled={busy || (detail.isSelf && !disabled)}
                 onClick={() => void (disabled ? toggleDisabled() : confirmPause())}
@@ -358,7 +358,7 @@ export function AdminUser() {
             </p>
             {deleteBlocked && <p className="mt-1.5 text-[12.5px] font-medium text-content-secondary">{deleteBlocked}</p>}
             <Button
-              variant="secondary"
+              variant="neutral"
               size="sm"
               className="mt-2.5 !text-negative"
               disabled={!!deleteBlocked}

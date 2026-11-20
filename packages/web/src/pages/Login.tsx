@@ -439,7 +439,7 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
               {showPasskey && (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="neutral"
                   size="lg"
                   className="w-full mt-3"
                   disabled={loading}

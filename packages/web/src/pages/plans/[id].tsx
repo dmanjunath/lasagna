@@ -412,7 +412,7 @@ export function PlanDetailPage() {
                   </div>
                   {import.meta.env.VITE_DEMO_MODE !== "true" && (
                     <Button
-                      variant="secondary"
+                      variant="neutral"
                       size="sm"
                       onClick={() => handleRestoreVersion(edit.id)}
                     >

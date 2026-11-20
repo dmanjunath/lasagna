@@ -49,7 +49,7 @@ export function CompControl({ tenantId, email, comped, onDone }: {
   return (
     <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
       {comped ? (
-        <Button variant="secondary" size="sm" disabled={busy} onClick={() => void run()}>
+        <Button variant="neutral" size="sm" disabled={busy} onClick={() => void run()}>
           Revoke
         </Button>
       ) : (
@@ -64,7 +64,7 @@ export function CompControl({ tenantId, email, comped, onDone }: {
             className="w-[76px] text-right ui-tnum"
           />
           <span className="text-[12px] text-content-muted">days</span>
-          <Button variant="secondary" size="sm" disabled={!daysValid || busy} title={daysValid ? undefined : 'Between 1 and 3650 days'} onClick={() => void run()}>
+          <Button variant="neutral" size="sm" disabled={!daysValid || busy} title={daysValid ? undefined : 'Between 1 and 3650 days'} onClick={() => void run()}>
             Comp
           </Button>
         </>

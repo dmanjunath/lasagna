@@ -773,6 +773,7 @@ function FocusArticle({ step, state, actions, hideHeader = false, canMark, onAsk
           <div className="flex gap-2 mt-2.5">
             <Button
               size="sm"
+              variant="secondary"
               loading={spinning('done')}
               onClick={async () => {
                 // Only clear what they typed once it is stored. The composer
@@ -1008,7 +1009,7 @@ export function FinancialLevel() {
         action={
           <div className="flex flex-wrap justify-center gap-2.5">
             <Link href="/onboarding" className={button({ variant: 'primary' })}>Get started</Link>
-            <Link href="/accounts" className={button({ variant: 'secondary' })}>Link account</Link>
+            <Link href="/accounts" className={button({ variant: 'neutral' })}>Link account</Link>
           </div>
         }
       />
@@ -1169,6 +1170,7 @@ export function FinancialLevel() {
             </p>
           </div>
           <Button
+            variant="secondary"
             className="shrink-0"
             onClick={() => openChat(`I've finished all ${steps.length} steps on my financial path. What should I focus on next?`)}
             trailingIcon={<ArrowRight className="h-4 w-4" />}

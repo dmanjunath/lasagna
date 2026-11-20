@@ -31,7 +31,7 @@ export function ImprovementActionsRenderer({ block }: { block: ImprovementAction
                 <p className="text-xs text-content-muted mt-1">{maskCurrencyInText(action.tradeoff)}</p>
               )}
             </div>
-            <Button size="sm" className="shrink-0" trailingIcon={<ArrowRight className="w-4 h-4" />}>
+            <Button size="sm" variant="secondary" className="shrink-0" trailingIcon={<ArrowRight className="w-4 h-4" />}>
               Apply
             </Button>
           </div>

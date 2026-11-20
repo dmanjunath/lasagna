@@ -138,7 +138,7 @@ export function Admin() {
           tone="negative"
           title="Couldn't load users"
           className="mt-7"
-          action={<Button variant="secondary" size="sm" onClick={() => { setLoading(true); void load(); }}>Retry</Button>}
+          action={<Button variant="neutral" size="sm" onClick={() => { setLoading(true); void load(); }}>Retry</Button>}
         >
           {error}
         </Alert>

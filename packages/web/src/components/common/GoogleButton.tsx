@@ -40,7 +40,7 @@ export function GoogleButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="w-full inline-flex items-center justify-center gap-3 h-12 px-6 rounded-ui-md border border-line bg-white text-[15px] font-semibold text-[#1f1f1f] min-h-touch hover:bg-[#f7f8f8] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      className="w-full inline-flex items-center justify-center gap-3 h-12 px-6 rounded-ui-md border border-line bg-white text-[15px] font-semibold text-[#1f1f1f] min-h-touch hover:bg-[#f7f8f8] disabled:cursor-not-allowed disabled:bg-line-strong disabled:text-content-faint disabled:border-transparent [&:disabled_svg]:opacity-40 transition-colors"
     >
       <GoogleG />
       {label}

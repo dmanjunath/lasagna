@@ -103,14 +103,14 @@ export function BulkEditBar({
           )}
         </div>
 {variant === 'toolbar' ? (
-          <Button variant="secondary" size="sm" className="order-3 ml-auto shrink-0" onClick={onClear}>Done</Button>
+          <Button variant="neutral" size="sm" className="order-3 ml-auto shrink-0" onClick={onClear}>Done</Button>
         ) : null}
         {count > 0 && (variant === 'floating' ? (
           // One row on phones: it scrolls sideways rather than wrapping.
           <div className="order-3 -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-2 overflow-x-auto px-3 sm:order-2 sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0 [&>*]:shrink-0">
             <CategoryPicker variant="action" value="" currentLabel="Category" onChange={(id) => onApply({ category: id })} />
             {actions.map((a) => (
-              <Button key={a.key} variant="secondary" size="sm" disabled={busy} onClick={a.run}>{a.label}</Button>
+              <Button key={a.key} variant="neutral" size="sm" disabled={busy} onClick={a.run}>{a.label}</Button>
             ))}
           </div>
         ) : (
@@ -235,7 +235,7 @@ function ToolbarActions({ actions, busy, onCategory }: {
   const moreButton = (live: boolean) => (
     <Button
       ref={live ? moreRef : undefined}
-      variant="secondary"
+      variant="neutral"
       size="sm"
       disabled={live && busy}
       tabIndex={live ? undefined : -1}
@@ -252,7 +252,7 @@ function ToolbarActions({ actions, busy, onCategory }: {
       <div className="flex items-center gap-2 [&>*]:shrink-0">
         <CategoryPicker variant="action" value="" currentLabel="Category" onChange={onCategory} />
         {shown.map((a) => (
-          <Button key={a.key} variant="secondary" size="sm" disabled={busy} onClick={a.run}>{a.label}</Button>
+          <Button key={a.key} variant="neutral" size="sm" disabled={busy} onClick={a.run}>{a.label}</Button>
         ))}
         {rest.length > 0 && (
           <div ref={menuRef} className="relative">
@@ -280,7 +280,7 @@ function ToolbarActions({ actions, busy, onCategory }: {
       <div aria-hidden className="pointer-events-none invisible absolute inset-0 overflow-hidden">
         <div ref={measureRef} inert className="absolute left-0 top-0 flex w-max items-center gap-2">
           <CategoryPicker variant="action" value="" currentLabel="Category" onChange={() => {}} />
-          {actions.map((a) => <Button key={a.key} variant="secondary" size="sm">{a.label}</Button>)}
+          {actions.map((a) => <Button key={a.key} variant="neutral" size="sm">{a.label}</Button>)}
           {moreButton(false)}
         </div>
       </div>

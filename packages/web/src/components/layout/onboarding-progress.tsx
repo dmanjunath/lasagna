@@ -86,7 +86,7 @@ export function OnboardingResumeCard({ className }: { className?: string }) {
         <div className="mt-3"><Meter pct={d.pct} /></div>
       </div>
       {/* Secondary: on an empty home the page's own "Connect an account" is the primary. */}
-      <Button variant="secondary" onClick={d.resume} loading={d.resuming} disabled={d.resuming}
+      <Button variant="neutral" onClick={d.resume} loading={d.resuming} disabled={d.resuming}
         trailingIcon={<ArrowRight className="h-4 w-4" />} className="shrink-0">
         Continue
       </Button>

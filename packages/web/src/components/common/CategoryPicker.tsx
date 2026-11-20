@@ -168,7 +168,7 @@ export function CategoryPicker(props: (Single | Multi) & {
       <button
         {...common}
         // Same shape as the page's toolbar dropdowns (OptionMenu's toolbar trigger).
-        className={cn(button({ variant: 'secondary', size: 'sm' }), 'gap-1.5 pl-3 pr-2.5', className)}
+        className={cn(button({ variant: 'neutral', size: 'sm' }), 'gap-1.5 pl-3 pr-2.5', className)}
       >
         {currentLabel}
         <ChevronDown size={15} className={cn('shrink-0 text-content-muted transition-transform duration-150', open && 'rotate-180')} aria-hidden />
@@ -265,7 +265,7 @@ export function CategoryPicker(props: (Single | Multi) & {
                 {/* Multi mode stays open while you pick, so the sheet needs a
                      way back that isn't a blind tap on the scrim. */}
                 {props.multiple && (
-                  <Button variant="secondary" size="sm" className="mt-3 w-full shrink-0" onClick={() => close(true)}>
+                  <Button variant="neutral" size="sm" className="mt-3 w-full shrink-0" onClick={() => close(true)}>
                     Done
                   </Button>
                 )}

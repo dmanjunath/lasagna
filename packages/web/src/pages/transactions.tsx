@@ -888,7 +888,7 @@ export function Transactions() {
                 icon={<Search size={22} />}
                 title="No transactions match"
                 description="Adjust or clear your filters to see more."
-                action={<Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</Button>}
+                action={<Button variant="neutral" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</Button>}
               />
             ) : (
               <EmptyState

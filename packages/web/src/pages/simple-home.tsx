@@ -1137,7 +1137,7 @@ export function ActionsSection({
           </span>
           {/* The real button, hidden, so its touch-target height holds too. */}
           <span className="relative inline-flex">
-            <Button size="sm" tabIndex={-1} className="invisible">Generate actions</Button>
+            <Button size="sm" variant="secondary" tabIndex={-1} className="invisible">Generate actions</Button>
             <Skeleton className="absolute inset-0 rounded-ui-md" />
           </span>
         </div>
@@ -1208,7 +1208,7 @@ export function ActionsSection({
       ) : (
         <div className="mt-5 rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">
           <span className="text-[13.5px] text-content-muted">Get personalized actions based on your finances.</span>
-          <Button size="sm" disabled={generating} onClick={() => { void onGenerate(); }}>
+          <Button size="sm" variant="secondary" disabled={generating} onClick={() => { void onGenerate(); }}>
             {generating ? 'Generating…' : 'Generate actions'}
           </Button>
         </div>

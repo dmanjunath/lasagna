@@ -144,7 +144,7 @@ export function AdminSpend() {
           tone="negative"
           title="Couldn't load spend"
           className="mt-6"
-          action={<Button variant="secondary" size="sm" onClick={() => load(days)}>Retry</Button>}
+          action={<Button variant="neutral" size="sm" onClick={() => load(days)}>Retry</Button>}
         >
           {error}
         </Alert>

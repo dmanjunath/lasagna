@@ -55,7 +55,7 @@ export function RulesManager() {
   };
 
   const newRule = (
-    <Button variant="secondary" size="sm" leadingIcon={<Plus size={14} />} onClick={() => setEditing({ rule: null })}>
+    <Button variant="neutral" size="sm" leadingIcon={<Plus size={14} />} onClick={() => setEditing({ rule: null })}>
       New rule
     </Button>
   );

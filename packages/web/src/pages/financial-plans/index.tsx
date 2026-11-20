@@ -204,7 +204,7 @@ export function FinancialPlansList({
           title="Couldn't load your plans"
           description="Something went wrong fetching your plans. Please try again."
           action={
-            <Button variant="secondary" onClick={load}>
+            <Button variant="neutral" onClick={load}>
               Retry
             </Button>
           }

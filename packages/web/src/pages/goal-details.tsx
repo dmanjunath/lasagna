@@ -1049,7 +1049,7 @@ export function GoalTargetReadout({
             // is this well's own background. Secondary on bg-panel keeps it
             // reading as a control against the sunken well.
             <Button
-              variant="secondary"
+              variant="neutral"
               size="sm"
               className="w-full bg-panel sm:w-auto"
               onClick={() => onUseMonthlyPlan(pace.amount)}
@@ -1072,7 +1072,7 @@ export function NoSpendData({ onSetPlainTarget }: { onSetPlainTarget: () => void
         We do not have enough categorized spending yet to price this in months. Enter a target amount instead.
       </p>
       <div className="mt-2.5">
-        <Button variant="secondary" size="sm" className="w-full bg-panel sm:w-auto" onClick={onSetPlainTarget}>
+        <Button variant="neutral" size="sm" className="w-full bg-panel sm:w-auto" onClick={onSetPlainTarget}>
           Set a target amount
         </Button>
       </div>

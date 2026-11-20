@@ -252,7 +252,7 @@ export function CategoryMultiSelect({
           />
         </div>
         <Button
-          variant="secondary"
+          variant="neutral"
           size="sm"
           className="mt-3 w-full shrink-0"
           onClick={() => { setOpen(false); triggerRef.current?.focus(); }}
@@ -295,7 +295,7 @@ export function CategoryMultiSelect({
         aria-haspopup="dialog"
         title={iconOnlyBelowLg ? 'Filters' : undefined}
         // The toolbar button look shared with /transactions' filter buttons.
-        className={cn(button({ variant: count > 0 ? 'primary' : 'secondary', size: 'sm' }), 'shrink-0 px-3', hideTriggerOnPhone && (sheetBelow === 'md' ? 'max-md:hidden' : 'max-sm:hidden'))}
+        className={cn(button({ variant: count > 0 ? 'secondary' : 'neutral', size: 'sm' }), 'shrink-0 px-3', hideTriggerOnPhone && (sheetBelow === 'md' ? 'max-md:hidden' : 'max-sm:hidden'))}
       >
         <SlidersHorizontal size={14} className="opacity-70" aria-hidden />
         <span className={cn(iconOnlyBelowLg && 'max-lg:sr-only')}>Filters</span>

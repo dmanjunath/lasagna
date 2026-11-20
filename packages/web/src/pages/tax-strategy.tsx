@@ -1005,7 +1005,7 @@ export function TaxStrategy() {
                             which is the very thing this is avoiding. The icon
                             carries the progress instead. */}
                         <Button
-                          variant="secondary"
+                          variant="neutral"
                           size="sm"
                           className="mt-3"
                           aria-busy={summaryLoading || undefined}
@@ -1333,7 +1333,7 @@ export function TaxStrategy() {
             tone="negative"
             title="We could not load your documents."
             action={
-              <Button variant="secondary" size="sm" onClick={loadDocuments}>
+              <Button variant="neutral" size="sm" onClick={loadDocuments}>
                 Try again
               </Button>
             }

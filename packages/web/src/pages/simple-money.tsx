@@ -286,7 +286,7 @@ export function SimpleMoney() {
         {hasMoney && (
           <div className="hidden gap-2.5 md:flex">
             <Button
-              variant="secondary"
+              variant="neutral"
               size="sm"
               className="flex-1 sm:flex-none"
               onClick={handleSyncAll}
@@ -318,7 +318,7 @@ export function SimpleMoney() {
           tone="negative"
           className="mt-6"
           title={syncError}
-          action={<Button size="sm" variant="secondary" onClick={() => setSyncError(null)}>Dismiss</Button>}
+          action={<Button size="sm" variant="neutral" onClick={() => setSyncError(null)}>Dismiss</Button>}
         />
       )}
 

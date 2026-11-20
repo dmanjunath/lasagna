@@ -1078,7 +1078,7 @@ export function ProbabilityOfSuccess() {
               tone="negative"
               title="Simulation error"
               className="relative"
-              action={<Button variant="secondary" size="sm" onClick={runSimulations} leadingIcon={<RefreshCw className="h-4 w-4" />}>Retry</Button>}
+              action={<Button variant="neutral" size="sm" onClick={runSimulations} leadingIcon={<RefreshCw className="h-4 w-4" />}>Retry</Button>}
             >
               {error}
             </Alert>

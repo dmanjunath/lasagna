@@ -1950,7 +1950,7 @@ export function RetirementV2() {
               No linked accounts yet. These numbers start from example defaults. Connect your accounts to plan with real balances.
             </span>
             <span className="alert-action shrink-0">
-              <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>Link accounts</Button>
+              <Button variant="neutral" size="sm" onClick={() => navigate('/accounts')}>Link accounts</Button>
             </span>
           </div>
         </div>

@@ -358,14 +358,14 @@ export function RulesPanel({
   const footer =
     view.mode === 'form' ? (
       <>
-        <Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+        <Button variant="neutral" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
         <Button variant="primary" size="sm" onClick={() => void handleSave()} loading={saving}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </>
     ) : (
       <>
-        <Button variant="secondary" size="sm" onClick={() => finish(view.wasEdit)} disabled={saving}>Skip</Button>
+        <Button variant="neutral" size="sm" onClick={() => finish(view.wasEdit)} disabled={saving}>Skip</Button>
         <Button variant="primary" size="sm" onClick={() => void handleApply()} loading={saving} disabled={applyCount === 0}>
           {saving ? 'Applying…' : `Apply to ${applyCount}`}
         </Button>

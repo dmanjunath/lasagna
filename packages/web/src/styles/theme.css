@@ -58,7 +58,7 @@
   --ui-line-strong:  rgba(16, 24, 38, 0.20);
 
   /* ── Brand accent — Bright grin-green (CTAs) ──────────────────────────── */
-  --ui-brand:        5 178 121;        /* green fills, white text AA          */
+  --ui-brand:        5 178 121;        /* green accents. Solid buttons fill with --ui-brand-ink */
   --ui-brand-hover:  4 158 107;
   --ui-brand-active: 3 138 93;
   --ui-brand-ink:    4 122 84;         /* dark green TEXT on light/tints, AA   */

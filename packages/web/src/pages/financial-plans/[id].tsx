@@ -698,7 +698,7 @@ function GoalsSectionView({
     <ReportSection n={sectionNo} label="Goals">
       {!complete && (
         <div className="mt-4 plan-print-hide">
-          <Button variant="secondary" onClick={onComplete}>
+          <Button variant="neutral" onClick={onComplete}>
             Complete your goals
           </Button>
         </div>
@@ -1081,7 +1081,7 @@ function FreeformReportView({
       ) : (
         <div className="mb-3 flex justify-end">
           <Button
-            variant="secondary"
+            variant="neutral"
             size="sm"
             onClick={retry}
             disabled={sending || busy}
@@ -1106,7 +1106,7 @@ function FreeformReportView({
             placeholder="Feedback on this plan"
             className="min-w-0 flex-1 bg-transparent text-[14px] text-content placeholder:text-content-faint focus:outline-none disabled:opacity-60"
           />
-          <Button onClick={send} disabled={sending || busy || !feedback.trim()}>
+          <Button variant="secondary" onClick={send} disabled={sending || busy || !feedback.trim()}>
             {sending ? "Sending…" : "Send"}
           </Button>
         </div>
@@ -1756,7 +1756,7 @@ function PlanChat({
           disabled={creating}
           className="flex-1 rounded-ui-md border border-line-strong bg-panel px-4 py-2.5 text-[14px] text-content placeholder:text-content-faint shadow-ui-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]"
         />
-        <Button type="submit" disabled={creating || !composer.trim()}>
+        <Button type="submit" variant="secondary" disabled={creating || !composer.trim()}>
           Ask
         </Button>
       </form>
@@ -2140,7 +2140,7 @@ export function FinancialPlanDetailPage() {
                 : "Something went wrong loading this plan. Please try again."
             }
             action={
-              <Button variant="secondary" onClick={() => navigate("/financial-plans")}>
+              <Button variant="neutral" onClick={() => navigate("/financial-plans")}>
                 Back to plans
               </Button>
             }
@@ -2222,7 +2222,7 @@ export function FinancialPlanDetailPage() {
                   />
                 </div>
                 <Button
-                  variant="secondary"
+                  variant="neutral"
                   leadingIcon={<Download className="h-4 w-4" />}
                   onClick={printPlanToPdf}
                 >

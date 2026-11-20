@@ -936,7 +936,7 @@ export function Spending() {
           )}
           {canSync && (
             <Button
-              variant="secondary"
+              variant="neutral"
               size="sm"
               // Admin only. Between md and lg the column is too narrow for it
               // beside the period controls.

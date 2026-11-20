@@ -235,7 +235,7 @@ export function CategoryManager() {
         <Alert tone="negative" title="Couldn't load categories">
           {taxonomyError}
         </Alert>
-        <Button variant="secondary" size="sm" onClick={() => void refresh()}>
+        <Button variant="neutral" size="sm" onClick={() => void refresh()}>
           Retry
         </Button>
       </Surface>
@@ -264,7 +264,7 @@ export function CategoryManager() {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="secondary"
+              variant="neutral"
               size="sm"
               leadingIcon={<Plus size={14} />}
               onClick={() => { setModalError(null); setNewCat({ name: '', groupId: '' }); }}
@@ -445,7 +445,7 @@ export function CategoryManager() {
         description="Custom categories can be renamed, moved, or deleted any time."
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setNewCat(null)} disabled={modalBusy}>Cancel</Button>
+            <Button variant="neutral" size="sm" onClick={() => setNewCat(null)} disabled={modalBusy}>Cancel</Button>
             <Button variant="primary" size="sm" onClick={() => void handleCreateCategory()} loading={modalBusy}>
               {modalBusy ? 'Creating…' : 'Create'}
             </Button>
@@ -486,7 +486,7 @@ export function CategoryManager() {
         description="Groups organize categories and set how they count (income, expense, or transfer)."
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setNewGroup(null)} disabled={modalBusy}>Cancel</Button>
+            <Button variant="neutral" size="sm" onClick={() => setNewGroup(null)} disabled={modalBusy}>Cancel</Button>
             <Button variant="primary" size="sm" onClick={() => void handleCreateGroup()} loading={modalBusy}>
               {modalBusy ? 'Creating…' : 'Create'}
             </Button>
@@ -530,7 +530,7 @@ export function CategoryManager() {
         description="Its transactions and rules move to the category you pick. History stays intact."
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setDeleting(null)} disabled={modalBusy}>Cancel</Button>
+            <Button variant="neutral" size="sm" onClick={() => setDeleting(null)} disabled={modalBusy}>Cancel</Button>
             <Button variant="destructive" size="sm" onClick={() => void handleDeleteCategory()} loading={modalBusy}>
               {modalBusy ? 'Deleting…' : 'Delete'}
             </Button>
