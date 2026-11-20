@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "./api.js";
-import { setNativeToken } from "./native.js";
+import { isNativeApp, setNativeToken } from "./native.js";
 import { setPasskeyRegistered } from "./passkey-hint.js";
 import { clearFaceIdOnSignOut } from "./biometric-lock.js";
 
@@ -169,6 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // Before the session ends, since removing the token needs it.
+    if (isNativeApp()) await import('./push.js').then((m) => m.unregisterPush()).catch(() => {});
     await api.logout();
     setNativeToken(null);
     // Face ID is device-local state tied to being signed in: leaving the lock on

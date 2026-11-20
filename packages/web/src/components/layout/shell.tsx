@@ -20,6 +20,7 @@ import { useMobileHeaderConfig } from '../../lib/mobile-header';
 
 // Native-only, lazy so the Capacitor plugins stay out of the web bundle.
 const FaceIdSetupPrompt = lazy(() => import('../native/FaceIdSetupPrompt'));
+const PushRegistration = lazy(() => import('../native/PushRegistration'));
 
 // What the page keeps clear at the bottom: the tab bar, or the keyboard while
 // it is up (`--kb`, set by native-shell.ts), whichever is taller. The keyboard
@@ -430,6 +431,7 @@ export function Shell({ children }: ShellProps) {
       {isNativeApp() && (
         <Suspense fallback={null}>
           <FaceIdSetupPrompt />
+          <PushRegistration />
         </Suspense>
       )}
     </div>

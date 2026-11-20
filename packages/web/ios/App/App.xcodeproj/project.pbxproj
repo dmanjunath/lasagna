@@ -92,6 +92,7 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				5F1A9C2E2EB0000100A1B2C3 /* Copy Firebase config */,
 			);
 			buildRules = (
 			);
@@ -158,6 +159,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5F1A9C2E2EB0000100A1B2C3 /* Copy Firebase config */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Firebase config";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# GoogleService-Info.plist names the real Firebase project, so it lives in\n# lasagna-infra, not this repo. Without it the app runs and push stays off.\nSRC=\"${LASAGNA_FIREBASE_PLIST:-$SRCROOT/../../../../../lasagna-infra/ios/GoogleService-Info.plist}\"\nif [ -f \"$SRC\" ]; then\n  cp \"$SRC\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GoogleService-Info.plist\"\nelse\n  echo \"warning: $SRC not found, push notifications are off in this build\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		504EC3001FED79650016851F /* Sources */ = {

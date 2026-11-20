@@ -176,6 +176,9 @@ importers:
       '@aparajita/capacitor-biometric-auth':
         specifier: ^10.0.0
         version: 10.0.0
+      '@capacitor-firebase/messaging':
+        specifier: ^8.6.0
+        version: 8.6.0(@capacitor/core@8.4.1)
       '@capacitor/android':
         specifier: ^8.4.1
         version: 8.4.1(@capacitor/core@8.4.1)
@@ -482,6 +485,15 @@ packages:
   '@babel/types@7.29.0':
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
+
+  '@capacitor-firebase/messaging@8.6.0':
+    resolution: {integrity: sha512-DRx4O/naR/tguHAbSlhsm66x/XUKn0IM3KfKcn6lx0pPTGucSfGjJUbSztJmvv5vSwJpUU39tTWUboFe4IVpQA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+      firebase: ^12.6.0
+    peerDependenciesMeta:
+      firebase:
+        optional: true
 
   '@capacitor/android@8.4.1':
     resolution: {integrity: sha512-igtDCJ7QQn0P2qHFD9p4KXaa6V1b2PRNt+MxjVwtjTm/BJvqmiazOJq6rPjwFSZnfHm6iFoZk8TfzHd44pyBGw==}
@@ -6107,6 +6119,10 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@capacitor-firebase/messaging@8.6.0(@capacitor/core@8.4.1)':
+    dependencies:
+      '@capacitor/core': 8.4.1
 
   '@capacitor/android@8.4.1(@capacitor/core@8.4.1)':
     dependencies:

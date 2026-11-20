@@ -109,6 +109,9 @@ export async function initNativeShell(navigate: (to: string) => void): Promise<v
 
   checkForOtaUpdate().catch((e) => console.info('[ota] check failed:', e?.message ?? e));
 
+  // Here rather than at sign-in, so a tap that cold-starts the app is caught.
+  import('./push').then((m) => m.listenForNotificationTaps(navigate)).catch(() => {});
+
   // The in-app browser sheet (Stripe Checkout / portal) does NOT resign the app's
   // active state, so appStateChange never fires when it closes. browserFinished
   // is the signal that the user dismissed the sheet — refresh the plan then.

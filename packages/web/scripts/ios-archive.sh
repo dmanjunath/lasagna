@@ -17,6 +17,15 @@ fi
 : "${VITE_API_URL:?VITE_API_URL not set — e.g. https://app.lasagnafi.com}"
 : "${VITE_OTA_MANIFEST_URL:?VITE_OTA_MANIFEST_URL not set — without it the shipped app cannot take OTA updates}"
 
+# The Xcode build copies this in. A dev build without it only warns, but a store
+# build without it ships an app that can never get push notifications.
+FIREBASE_PLIST="${LASAGNA_FIREBASE_PLIST:-$(dirname "$INFRA_ENV")/GoogleService-Info.plist}"
+if [[ ! -f "$FIREBASE_PLIST" ]]; then
+  echo "error: $FIREBASE_PLIST not found — download it from the Firebase project's iOS app settings" >&2
+  exit 1
+fi
+export LASAGNA_FIREBASE_PLIST="$FIREBASE_PLIST"
+
 # Blank is valid, not fatal, matching ota-publish.sh: it is what a self-hosted
 # build gets, and it fails toward counting nothing. Warned about below so a
 # variable someone forgot to set is visible rather than silent.

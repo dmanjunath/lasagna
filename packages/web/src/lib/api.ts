@@ -193,6 +193,12 @@ export const api = {
 
   logout: () => request("/auth/logout", { method: "POST" }),
 
+  savePushToken: (data: { token: string; platform: string }) =>
+    request<{ ok: boolean }>("/push/token", { method: "POST", body: JSON.stringify(data) }),
+
+  deletePushToken: (data: { token: string }) =>
+    request<{ ok: boolean }>("/push/token", { method: "DELETE", body: JSON.stringify(data) }),
+
   // WebAuthn / passkeys (Face ID / Touch ID sign-in)
   webauthnRegisterOptions: () =>
     request<Record<string, unknown>>("/auth/webauthn/register/options", { method: "POST" }),

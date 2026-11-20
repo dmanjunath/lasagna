@@ -11,6 +11,7 @@ import { authMode } from "../lib/auth/mode.js";
 import { env } from "../lib/env.js";
 import { monthlyPlaidCostForAccountTypes } from "../lib/plaid-pricing.js";
 import { FEATURE_FLAGS, readAllFlags, setFeatureFlag, type FeatureFlagKey } from "../lib/feature-flags.js";
+import { sendPushToUser } from "../lib/push.js";
 
 export const adminRoutes = new Hono<AuthEnv>();
 
@@ -32,6 +33,20 @@ adminRoutes.use("*", async (c, next) => {
     return c.json({ error: "Forbidden" }, 403);
   }
   return next();
+});
+
+// ── Push test ────────────────────────────────────────────────────────────────
+//
+// Sends a test notification to every device the caller is signed in on. There
+// is no automated sender yet, so this is how delivery is checked end to end.
+
+adminRoutes.post("/push-test", async (c) => {
+  const session = c.get("session");
+  const result = await sendPushToUser(session.userId, {
+    title: "Test notification",
+    body: "Push notifications are working.",
+  });
+  return c.json(result);
 });
 
 // ── Feature flags ────────────────────────────────────────────────────────────

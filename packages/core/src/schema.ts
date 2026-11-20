@@ -1229,3 +1229,19 @@ export const pageViews = pgTable(
   },
   (t) => [index("page_views_user_visited_idx").on(t.userId, t.visitedAt)],
 );
+
+// FCM registration tokens, one row per app install. A token moves to whoever
+// signs in on that device last, so it is unique on its own, not per user.
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    token: text("token").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("push_tokens_user_idx").on(t.userId)],
+);

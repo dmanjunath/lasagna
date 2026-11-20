@@ -41,7 +41,11 @@ export default function FaceIdSetupPrompt() {
     };
   }, []);
 
-  const markPrompted = () => setSetupPrompted(true);
+  const markPrompted = () => {
+    setSetupPrompted(true);
+    // PushRegistration waits for this, so two prompts never stack.
+    window.dispatchEvent(new Event('native:faceid-prompted'));
+  };
 
   const dismiss = () => {
     markPrompted();

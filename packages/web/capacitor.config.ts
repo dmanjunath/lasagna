@@ -11,6 +11,17 @@ const config: CapacitorConfig = {
   appId: 'com.lasagnafi.app',
   appName: 'LasagnaFi',
   webDir: 'dist',
+  // Linked by symlink, or SwiftPM sees two packages with the same identity
+  // (capawesome-team/capacitor-firebase#959).
+  experimental: {
+    ios: {
+      spm: {
+        packageOptions: {
+          '@capacitor-firebase/messaging': { symlink: true },
+        },
+      },
+    },
+  },
   // No root backgroundColor: it can only hold one value, so it painted the
   // webview light on a dark device. MainViewController sets a dark-aware colour
   // instead, and the storyboard uses the SplashBackground colour set.

@@ -17,6 +17,7 @@
   "dependencies": {
     "@ai-sdk/react": "^3.0.136",
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
+    "@capacitor-firebase/messaging": "^8.6.0",
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
