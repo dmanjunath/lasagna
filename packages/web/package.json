@@ -36,6 +36,7 @@
     "ai": "^6.0.134",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "firebase": "^12.19.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.577.0",
     "pdfjs-dist": "^5.5.207",
