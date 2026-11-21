@@ -32,6 +32,8 @@ interface DebtAccount {
   subtype: string | null;
   property: { id: string; name: string } | null;
   apr: number;
+  /** No rate on file, so `apr` is a stand-in. Everything built on it says so. */
+  aprAssumed: boolean;
   minPayment: number;
   /** What the old fixed plan put on top of the minimum (0.8x on a high-rate
    * non-mortgage debt). Only seeds the extra-payment field. */
@@ -169,6 +171,7 @@ export function Debt() {
           subtype: d.subtype ?? null,
           property: d.property ?? null,
           apr: Math.round(apr * 100) / 100,
+          aprAssumed: d.planRole !== 'needs-rate' && d.interestRate == null,
           minPayment: minPay,
           suggestedExtra,
           payoffDate: d.payoffDate ?? null,
@@ -565,7 +568,7 @@ function AttackList({ debts, extra, ranked }: { debts: DebtAccount[]; extra: num
     <List className="animate-fade-in flex flex-col gap-2">
       {debts.map((d, i) => {
         const focus = ranked && i === 0;
-        const high = d.apr > 20;
+        const high = d.apr > 20 && !d.aprAssumed;
         // Every row states the amount to SEND, so the column is one scale and
         // sums to the "Monthly payment" KPI above it. The lead row used to show
         // only the increment ($20) next to siblings showing totals ($4,075),
@@ -574,6 +577,9 @@ function AttackList({ debts, extra, ranked }: { debts: DebtAccount[]; extra: num
         const role = focus && extra > 0
           ? `${formatCurrency(d.minPayment + extra)}/mo, ${formatCurrency(extra)} above the minimum`
           : `${formatCurrency(d.minPayment)}/mo minimum`;
+        // Said on the line that wraps, not in the badge, so a phone keeps the
+        // card's name readable beside it.
+        const rateNote = d.aprAssumed ? ' (rate assumed)' : '';
         return (
           <li
             key={d.id}
@@ -605,7 +611,7 @@ function AttackList({ debts, extra, ranked }: { debts: DebtAccount[]; extra: num
                   <span className="min-w-0 truncate">{d.name}</span>
                   {d.mask && <span className="shrink-0">&nbsp;••{d.mask}</span>}
                 </span>
-                <Badge tone={high ? 'negative' : 'neutral'} size="sm" className="shrink-0 ui-tnum">
+                <Badge tone={d.aprAssumed ? 'caution' : high ? 'negative' : 'neutral'} size="sm" className="shrink-0 ui-tnum">
                   {d.apr}%
                 </Badge>
               </div>
@@ -618,7 +624,7 @@ function AttackList({ debts, extra, ranked }: { debts: DebtAccount[]; extra: num
                   the row, and at 768-834 (desktop sidebar plus a narrow window)
                   ellipsising it hid the payment: "Pay the $4,075/mo minimum
                   for n…". A name can survive an ellipsis; an amount cannot. */}
-              <div className="mt-0.5 text-balance text-[12px] font-medium text-content-muted">{role}</div>
+              <div className="mt-0.5 text-balance text-[12px] font-medium text-content-muted">{role}{rateNote}</div>
             </div>
             <div className="shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-negative ui-tnum">
               {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(d.balance)}
@@ -655,7 +661,7 @@ function AccountCard({
   onPlan: () => void;
   className?: string;
 }) {
-  const high = d.apr > 20;
+  const high = d.apr > 20 && !d.aprAssumed;
   const share = maxBalance > 0 ? Math.max(4, (Math.abs(d.balance) / maxBalance) * 100) : 0;
   const payoff = planPayoff;
   return (
@@ -685,17 +691,28 @@ function AccountCard({
       </div>
 
       <div className="mt-3.5 grid grid-cols-3 gap-2 border-t border-line pt-3.5">
-        <AccountStat label="APR" value={`${d.apr}%`} neg={high} />
+        <AccountStat label={d.aprAssumed ? 'APR, assumed' : 'APR'} value={`${d.apr}%`} neg={high} />
         <AccountStat label="Min pay" value={`${formatCurrency(d.minPayment)}/mo`} />
         <AccountStat label="Payoff" value={payoff} />
       </div>
 
       <div className="mt-3.5 flex items-center gap-2">
-        {!isDemo && (
+        {/* An assumed rate asks for the real one by name. Same modal as the
+            pencil, so the pencil steps aside rather than doubling it. */}
+        {!isDemo && (d.aprAssumed ? (
+          <Button
+            variant="secondary"
+            className="shrink-0"
+            onClick={onEdit}
+            aria-label={`Add rate for ${d.name}${d.mask ? ` ••${d.mask}` : ''}`}
+          >
+            Add rate
+          </Button>
+        ) : (
           <Button variant="neutral" size="icon" className="shrink-0" onClick={onEdit} aria-label="Edit loan details">
             <Pencil size={15} />
           </Button>
-        )}
+        ))}
         <Button variant="secondary" className="flex-1" onClick={onPlan} trailingIcon={<ArrowRight className="h-4 w-4" />}>
           Plan payoff
         </Button>
@@ -735,7 +752,9 @@ function HasDebtView({
   // Highest-rate account — `debts` arrives pre-sorted by APR desc, so the head
   // is the first target. Surfaced as a distinct KPI (never the blended APR).
   const highest = debts[0];
-  const highRateCount = debts.filter((d) => d.apr > 20).length;
+  // An assumed rate is not evidence the debt is punishing, so it is not counted.
+  const highRateCount = debts.filter((d) => d.apr > 20 && !d.aprAssumed).length;
+  const assumed = debts.filter((d) => d.aprAssumed);
   const totalMinPayment = debts.reduce((s, d) => s + d.minPayment, 0);
   const maxBalance = debts.reduce((m, d) => Math.max(m, Math.abs(d.balance)), 0);
 
@@ -814,6 +833,13 @@ function HasDebtView({
               <>At this payment the debt still never clears. Raise the extra amount below to set a real debt-free date.</>
             )}
           </p>
+          {assumed.length > 0 && (
+            <p className="mt-1.5 text-[13px] font-medium text-content-muted ui-tnum">
+              {assumed.length === 1
+                ? `Includes an assumed ${assumed[0].apr}% rate on ${assumed[0].name}${assumed[0].mask ? ` ••${assumed[0].mask}` : ''}.`
+                : `Includes assumed rates on ${assumed.length} debts.`}
+            </p>
+          )}
 
           {debts.length > 0 && (
             <div className="mt-6">
@@ -830,13 +856,18 @@ function HasDebtView({
       {/* With no extra the plan's payment is the minimum due, so that tile
           would say the same figure twice. */}
       <div className={cn('mt-7 grid grid-cols-2 gap-x-6 gap-y-6', extra > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
-        <Kpi label="Blended APR" value={`${apr}%`} sub="weighted average" />
+        <Kpi label="Blended APR" value={`${apr}%`} sub={assumed.length > 0 ? 'includes an assumed rate' : 'weighted average'} />
         {extra > 0 && (
           <Kpi label="Monthly payment" value={formatCurrency(totalMinPayment + extra)} sub="minimums plus extra" />
         )}
         <Kpi label="Minimum due" value={formatCurrency(totalMinPayment)} sub="required each month" />
         {highest && (
-          <Kpi label="Highest rate" value={`${highest.apr}%`} sub={debtTypeLabel(highest)} neg={highest.apr > 20} />
+          <Kpi
+            label="Highest rate"
+            value={`${highest.apr}%`}
+            sub={highest.aprAssumed ? `${debtTypeLabel(highest)}, assumed` : debtTypeLabel(highest)}
+            neg={highest.apr > 20 && !highest.aprAssumed}
+          />
         )}
       </div>
 
@@ -847,6 +878,11 @@ function HasDebtView({
         <div className="flex items-center gap-2.5 pb-4">
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Your payoff plan</h2>
         </div>
+        {assumed.length > 0 && (
+          <p className="-mt-2 max-w-[60ch] pb-3.5 text-[13px] leading-[1.5] text-content-muted">
+            These dates and interest totals include an assumed rate.
+          </p>
+        )}
 
         <div className="debt-plan-summary">
           <div className="rounded-ui-lg border border-line bg-panel p-4 shadow-ui-sm">
@@ -951,7 +987,7 @@ function HasDebtView({
                   : undefined
               }
               onEdit={() => onEditDebt(d)}
-              onPlan={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`, `${d.name} payoff plan`)}
+              onPlan={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.aprAssumed ? 'rate not on file' : `${d.apr}% APR`}, ${formatMoney(d.balance, true)} balance).`, `${d.name} payoff plan`)}
             />
           ))}
         </div>
