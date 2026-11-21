@@ -319,7 +319,9 @@ export function NumberStepper({ id, value, onChange, min, max, decLabel, incLabe
     'grid h-11 w-11 place-items-center rounded-[10px] bg-canvas-sunken text-content-secondary hover:text-content disabled:opacity-40',
   );
   return (
-    <div className="inline-flex items-center gap-1 rounded-ui-lg border border-line-heavy bg-panel p-1 shadow-ui-sm focus-within:border-brand focus-within:shadow-[0_0_0_3px_var(--ui-brand-soft)]">
+    // The same box and focus ring as a typed field: 52px tall, so the 44px
+    // buttons sit in 3px of padding. A focused button shows its own ring.
+    <div className="inline-flex items-center gap-1 rounded-ui-md border border-line-strong bg-panel p-[3px] shadow-ui-sm transition-[border-color,box-shadow] duration-150 ease-ui has-[input:focus]:border-brand has-[input:focus]:shadow-[0_0_0_3px_var(--ui-brand-ring)]">
       <button type="button" aria-label={decLabel} className={stepBtn} disabled={n <= min} onClick={() => stepBy(-1)}>
         <Minus className="h-4 w-4" aria-hidden />
       </button>
