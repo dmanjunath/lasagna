@@ -30,7 +30,7 @@ export class BootBoundary extends Component<{ children: ReactNode }, { failed: b
             Couldn't finish loading
           </p>
           <p className="mt-1.5 text-[13.5px] text-content-muted">
-            Check your connection and try again.
+            Reload to try again.
           </p>
         </div>
         <Button onClick={() => window.location.reload()}>Reload</Button>

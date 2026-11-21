@@ -17,6 +17,8 @@ import { GlobalChatSidebar } from '../chat/global-chat-sidebar';
 import { api } from '../../lib/api';
 import { setInAppDepth } from '../../lib/in-app-history';
 import { useMobileHeaderConfig } from '../../lib/mobile-header';
+import { useAmountsHidden } from '../../lib/hide-amounts';
+import { MOBILE_HEADER_STRIP } from '../uikit/PrivacyToggle';
 
 // Native-only, lazy so the Capacitor plugins stay out of the web bundle.
 const FaceIdSetupPrompt = lazy(() => import('../native/FaceIdSetupPrompt'));
@@ -57,6 +59,7 @@ export function Shell({ children }: ShellProps) {
   // Bumped by pull-to-refresh to remount (and so refetch) the current page.
   const [refreshKey, setRefreshKey] = useState(0);
   const isMobile = useIsMobile();
+  const amountsHidden = useAmountsHidden();
   const [location, setLocation] = useLocation();
   // One page view per route shown, for "since Monday of last week" on home.
   // Fire and forget: a failed write must never touch the page.
@@ -272,7 +275,13 @@ export function Shell({ children }: ShellProps) {
   }, [chatOpen, isMobile]);
 
   return (
-    <div className={`w-full max-w-full bg-canvas app-wash flex flex-col ${mobileDocScroll ? 'min-h-dvh' : 'h-dvh overflow-hidden'}`}>
+    <div
+      className={`w-full max-w-full bg-canvas app-wash flex flex-col ${mobileDocScroll ? 'min-h-dvh' : 'h-dvh overflow-hidden'}`}
+      // The fixed phone header's height under the notch: a 48px row, its 1px
+      // rule, and the "Amounts hidden" strip while that is on. Content and
+      // sticky bars read it so nothing slides under the header.
+      style={{ '--mobile-header-h': `${49 + (amountsHidden ? MOBILE_HEADER_STRIP : 0)}px` } as React.CSSProperties}
+    >
       {/* Shared top bar — same component the Simple shell uses, so the
           Simple/Advanced toggle and overall chrome are consistent across
           modes. Hidden when the mobile chat overlay is up. */}
@@ -315,7 +324,7 @@ export function Shell({ children }: ShellProps) {
           /* Mobile pages: document scroll — fixed header/tab-bar space is
              reserved with padding; no nested scroll container. */
           <PullToRefresh
-            topOffset="calc(env(safe-area-inset-top) + 48px)"
+            topOffset="calc(env(safe-area-inset-top) + var(--mobile-header-h) - 1px)"
             onRefresh={() => setRefreshKey((k) => k + 1)}
           >
             {/* key remounts just the routed page — every page refetches its
@@ -331,7 +340,7 @@ export function Shell({ children }: ShellProps) {
                   animate={{ x: 0, opacity: 1 }}
                   exit={animateRoutes ? { x: navDir * -28, opacity: 0 } : undefined}
                   transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                  className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+49px)]"
+                  className="w-full max-w-full pt-[calc(env(safe-area-inset-top)+var(--mobile-header-h))]"
                   style={{ paddingBottom: CLEAR_BOTTOM }}
                 >
                   {children}
@@ -346,7 +355,7 @@ export function Shell({ children }: ShellProps) {
             {/* The composer sits above the tab bar, and above the keyboard
                 while it is up, eased to roughly the keyboard's own slide. */}
             <main
-              className="w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+49px)] transition-[padding] duration-[250ms] ease-out"
+              className="w-full max-w-full flex flex-col overflow-hidden pt-[calc(env(safe-area-inset-top)+var(--mobile-header-h))] transition-[padding] duration-[250ms] ease-out"
               style={{ paddingBottom: CLEAR_BOTTOM }}
             >
               <div className="flex-1 overflow-y-auto">

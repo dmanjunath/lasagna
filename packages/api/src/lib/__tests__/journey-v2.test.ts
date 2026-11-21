@@ -3,6 +3,7 @@ import { buildPathContextDefaults as zeroedContext, type PathContext } from '../
 import {
   buildJourneyCatalog,
   buildJourneyPayload,
+  goalStepTitle,
   journeyCandidates,
   parseJourneyJson,
   readTargetAmount,
@@ -303,6 +304,44 @@ describe('step titles', () => {
     });
     expect(before).not.toBe(after);
     expect(after).toBe('Pay off Blue Card \u2022\u20224321 of $1,000');
+  });
+});
+
+describe('goal step titles', () => {
+  it('says a goal as an instruction, like the steps around it', () => {
+    expect(goalStepTitle('New car fund', 'savings')).toBe('Save for your new car');
+    expect(goalStepTitle('Retirement', 'retirement')).toBe('Save for retirement');
+    expect(goalStepTitle('Retirement Savings', 'retirement')).toBe('Save for retirement');
+    expect(goalStepTitle('Emergency Fund', 'emergency_fund')).toBe('Save an emergency fund');
+    expect(goalStepTitle('Vacation / Travel', 'vacation')).toBe('Save for travel');
+    expect(goalStepTitle('General Savings', 'savings')).toBe('Build your savings');
+  });
+
+  it('keeps a name that is already an instruction', () => {
+    expect(goalStepTitle('Become Debt Free', 'debt_payoff')).toBe('Become Debt Free');
+  });
+
+  it('drops the person\'s own possessive or article, since the instruction supplies one', () => {
+    expect(goalStepTitle('Our wedding', 'wedding')).toBe('Save for your wedding');
+    expect(goalStepTitle('The big trip', 'vacation')).toBe('Save for your big trip');
+    expect(goalStepTitle('My new car', 'car')).toBe('Save for your new car');
+    expect(goalStepTitle('Student loans', 'debt_payoff')).toBe('Pay off your student loans');
+  });
+
+  it('reads a bare savings, fund or goal as generic', () => {
+    expect(goalStepTitle('Savings', 'savings')).toBe('Build your savings');
+    expect(goalStepTitle('My savings', 'savings')).toBe('Build your savings');
+    expect(goalStepTitle('Fund', 'savings')).toBe('Build your savings');
+    expect(goalStepTitle('Goal', 'debt_payoff')).toBe('Pay off your debt');
+  });
+
+  it('uses the name as given when it cannot be said with certainty', () => {
+    expect(goalStepTitle('My house!!', 'home_purchase')).toBe('My house!!');
+    expect(goalStepTitle('Savings for house', 'home_purchase')).toBe('Savings for house');
+    expect(goalStepTitle('Paying off car', 'debt_payoff')).toBe('Paying off car');
+    expect(goalStepTitle('Retirement 2050', 'retirement')).toBe('Retirement 2050');
+    expect(goalStepTitle('Japan Trip', 'travel')).toBe('Japan Trip');
+    expect(goalStepTitle('Retirement home', 'savings')).toBe('Retirement home');
   });
 });
 

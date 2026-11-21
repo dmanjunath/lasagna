@@ -9,7 +9,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
-import { PrivacyToggle } from '../uikit/PrivacyToggle';
+import { AmountsHiddenLabel, PrivacyToggle } from '../uikit/PrivacyToggle';
 import { BrandMark } from '../common/BrandMark';
 import { PlanUsage } from './plan-usage';
 import { OnboardingProgress } from './onboarding-progress';
@@ -415,6 +415,7 @@ export function Sidebar({ className }: SidebarProps) {
             )}
           </AnimatePresence>
 
+          <AmountsHiddenLabel className="mb-2 text-right" />
           <div className="flex items-center gap-2.5">
             <button
               ref={userMenuTriggerRef}

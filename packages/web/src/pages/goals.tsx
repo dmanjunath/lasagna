@@ -261,11 +261,7 @@ export function Goals() {
                 <Link
                   key={preset.category}
                   href={`/goals/new?kind=${preset.category}`}
-                  aria-label={
-                    preset.suggestedTarget
-                      ? `Add ${preset.name} goal, suggested target ${formatCurrency(preset.suggestedTarget)}`
-                      : `Add ${preset.name} goal`
-                  }
+                  aria-label={`Add ${preset.name} goal`}
                   className="group flex items-center gap-3 rounded-ui-lg border border-line bg-panel shadow-ui-sm p-3.5 text-left transition-[box-shadow,border-color] hover:shadow-ui-md hover:border-line-strong min-h-touch"
                 >
                   <span
@@ -276,11 +272,6 @@ export function Goals() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-bold text-content">{preset.name}</span>
-                    {preset.suggestedTarget && (
-                      <span className="text-[11.5px] font-semibold text-content-muted ui-tnum">
-                        suggested {formatCurrency(preset.suggestedTarget)}
-                      </span>
-                    )}
                   </span>
                   <ArrowRight className="h-4 w-4 shrink-0 text-content-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-brand" />
                 </Link>
@@ -544,12 +535,16 @@ function GoalCard({
       <div className="relative mt-3.5 flex flex-wrap items-center gap-2.5">
         {complete ? (
           <>
-            <Badge tone="brand" className="gap-1">
-              <Check className="h-3 w-3" strokeWidth={3} /> Funded 🎉
+            {/* Neutral, not a celebration: money past the target is money
+                that could be put to work, which is what Reallocate is for. */}
+            <Badge tone="neutral" className="gap-1">
+              <Check className="h-3 w-3" strokeWidth={3} /> Funded
             </Badge>
-            <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">
-              {exceeded ? `${formatCurrency(surplus)} over target` : 'Fully funded'}
-            </span>
+            {exceeded && (
+              <span className="text-[12.5px] font-semibold text-content-muted ui-tnum">
+                <MaskedText text={formatCurrency(surplus)} /> above target
+              </span>
+            )}
           </>
         ) : notStarted ? (
           <>

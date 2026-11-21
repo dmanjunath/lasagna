@@ -2181,8 +2181,8 @@ export function RetirementV2() {
           .ret-pin__bar { left: -12px; right: -12px; padding: 8px 16px; }
         }
         @media (max-width: 767px) {
-          /* Clear the fixed mobile top bar (48px + 1px border + notch). */
-          .ret-pin { top: calc(env(safe-area-inset-top) + 49px); }
+          /* Clear the fixed mobile top bar (shell's --mobile-header-h + notch). */
+          .ret-pin { top: calc(env(safe-area-inset-top) + var(--mobile-header-h)); }
           .ret-pin__bar {
             display: grid;
             grid-template-columns: auto auto;

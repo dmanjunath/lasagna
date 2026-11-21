@@ -72,21 +72,21 @@ export function iconFor(key: string | null | undefined, size = 20): ReactElement
 // the create-goal page (kind picker), so both offer the same set.
 // ---------------------------------------------------------------------------
 
-// A typed category works its own target out from what the user tells it, so it
-// carries no suggested number — one would only contradict the form.
-export const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey; suggestedTarget?: number }> = [
+// No preset carries a target. A typed category works its own out from what the
+// user tells it, and any other number would be one we made up.
+export const GOAL_PRESETS: Array<{ name: string; category: string; icon: IconKey }> = [
   { name: 'Emergency Fund', category: 'emergency_fund', icon: 'shield' },
   { name: 'Home Purchase', category: 'home_purchase', icon: 'home' },
-  { name: 'Vacation / Travel', category: 'vacation', icon: 'plane', suggestedTarget: 5000 },
+  { name: 'Vacation / Travel', category: 'vacation', icon: 'plane' },
   { name: 'Vehicle Purchase', category: 'car', icon: 'car' },
-  { name: 'Wedding Fund', category: 'wedding', icon: 'heart', suggestedTarget: 30000 },
+  { name: 'Wedding Fund', category: 'wedding', icon: 'heart' },
   { name: 'Education / 529', category: 'education', icon: 'graduationCap' },
-  { name: 'Home Repair', category: 'home_repair', icon: 'wrench', suggestedTarget: 15000 },
-  { name: 'Major Purchase', category: 'major_purchase', icon: 'sparkles', suggestedTarget: 10000 },
-  { name: 'Life Event', category: 'life_event', icon: 'sparkles', suggestedTarget: 10000 },
+  { name: 'Home Repair', category: 'home_repair', icon: 'wrench' },
+  { name: 'Major Purchase', category: 'major_purchase', icon: 'sparkles' },
+  { name: 'Life Event', category: 'life_event', icon: 'sparkles' },
   { name: 'Fully funded retirement', category: 'retirement', icon: 'palmtree' },
-  { name: 'Debt Payoff', category: 'debt_payoff', icon: 'creditCard', suggestedTarget: 20000 },
-  { name: 'General Savings', category: 'savings', icon: 'wallet', suggestedTarget: 10000 },
+  { name: 'Debt Payoff', category: 'debt_payoff', icon: 'creditCard' },
+  { name: 'General Savings', category: 'savings', icon: 'wallet' },
 ];
 
 // Bright accent per category — mirrors the redesign mockup's --b-viz mapping.

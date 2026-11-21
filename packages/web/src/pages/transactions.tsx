@@ -4,7 +4,7 @@ import { Banknote, ChevronLeft, ChevronRight, DollarSign, Receipt, Search, Slide
 import { api, type TxnQueryRow, type TxnQuerySummary } from '../lib/api';
 import { useAccountsIndex } from '../lib/use-accounts-index';
 import { cn, formatStoredDay, storedDayKey } from '../lib/utils';
-import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
+import { HIDDEN_AMOUNT, isAmountsHidden, isMasked, useAmountsHidden } from '../lib/hide-amounts';
 import { HiddenAmount } from '../components/uikit';
 import { usePageContext } from '../lib/page-context';
 import { Alert, Button, EmptyState, Skeleton, useToast } from '../components/uikit';
@@ -307,6 +307,9 @@ export function Transactions() {
     io.observe(el);
     return () => io.disconnect();
   }, [stickyTop]);
+  // Hiding amounts grows the phone's top bar (--mobile-header-h), which moves
+  // where the toolbar sticks without resizing it, so re-measure on the toggle.
+  const amountsHidden = useAmountsHidden();
   useEffect(() => {
     const el = stickyRef.current;
     if (!el) return;
@@ -318,7 +321,7 @@ export function Transactions() {
     ro.observe(el);
     window.addEventListener('resize', measure);
     return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
-  }, []);
+  }, [amountsHidden]);
 
   // Accounts with institution identity — for the account filter options/chips.
   const { list: accounts } = useAccountsIndex();
@@ -795,7 +798,7 @@ export function Transactions() {
       <div
         ref={stickyRef}
         className={cn(
-          'sticky top-[calc(env(safe-area-inset-top)+48px)] z-20 py-2 transition-shadow sm:top-0 sm:py-3 md:mt-2',
+          'sticky top-[calc(env(safe-area-inset-top)+var(--mobile-header-h)-1px)] z-20 py-2 transition-shadow sm:top-0 sm:py-3 md:mt-2',
           stuck && 'bg-canvas',
           stuck && !showKpiLine && 'border-b border-line shadow-ui-sm',
         )}

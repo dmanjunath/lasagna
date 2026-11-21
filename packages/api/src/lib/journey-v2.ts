@@ -239,6 +239,77 @@ const CATALOG: Record<string, CatalogEntry> = {
   },
 };
 
+// ── Goal step titles ──────────────────────────────────────────────────────────
+//
+// A goal is stored under the name the person gave it ("New car fund",
+// "Retirement"), which reads as a label beside steps that all say what to do.
+// The step says the same thing as an instruction. Built on every read like the
+// other titles, and never part of the journey fingerprint, so a wording change
+// here regenerates nothing.
+
+/** Names that only restate their category, and the instruction each stands for. */
+const GENERIC_GOAL_TITLES: Record<string, string> = {
+  retirement: 'Save for retirement',
+  'fully funded retirement': 'Save for retirement',
+  emergency: 'Save an emergency fund',
+  'vacation / travel': 'Save for travel',
+  'home purchase': 'Save for a home',
+  'vehicle purchase': 'Save for a car',
+  'education / 529': 'Save for education',
+  'home repair': 'Save for home repairs',
+  'major purchase': 'Save for a major purchase',
+  'life event': 'Save for a life event',
+  'debt payoff': 'Pay off your debt',
+  general: 'Build your savings',
+};
+
+/** Leading words that already make the name an instruction. */
+const GOAL_VERB = /^(save|pay|build|buy|become|fund|grow|reach|start|max)\s+\S/i;
+
+/**
+ * Common words a person capitalizes in a name but that read lowercase
+ * mid-sentence. Any other capitalized word might be a proper noun ("Japan") or
+ * might not ("Retirement home"), so a name holding one is used as given.
+ */
+const COMMON_GOAL_WORDS = new Set([
+  'new', 'dream', 'first', 'big', 'family', 'car', 'boat', 'truck', 'bike', 'house', 'home',
+  'vacation', 'trip', 'travel', 'holiday', 'honeymoon', 'wedding', 'ring', 'engagement',
+  'college', 'school', 'tuition', 'education', 'baby', 'kids', 'down', 'payment', 'renovation',
+  'repair', 'repairs', 'roof', 'kitchen', 'furniture', 'computer', 'laptop', 'gift', 'gifts',
+  'mortgage', 'loan', 'loans', 'student', 'credit', 'card', 'cards', 'medical', 'bills', 'auto',
+  'personal',
+]);
+
+/** Words that make the name a phrase of its own, which "your" cannot lead. */
+const PHRASE_WORDS = new Set(['savings', 'saving', 'fund', 'funds', 'goal', 'goals']);
+
+/**
+ * The goal as an instruction. Anything it cannot say as "Save for your <name>"
+ * with certainty (punctuation, a number, a gerund, a capitalized word that may
+ * be a proper noun) falls back to the name exactly as the person wrote it.
+ */
+export function goalStepTitle(name: string, category: string): string {
+  const trimmed = name.trim();
+  if (GOAL_VERB.test(trimmed)) return trimmed;
+  // "My house", "The big trip": the instruction supplies its own possessive.
+  const body = trimmed.replace(/^(my|our|your|the|a|an)\s+/i, '');
+  const stem = body.replace(/(^|\s+)(fund|savings|goal)$/i, '').trim();
+  const generic = GENERIC_GOAL_TITLES[stem.toLowerCase()];
+  if (generic) return generic;
+  if (!stem) return category === 'debt_payoff' ? 'Pay off your debt' : 'Build your savings';
+  const words = stem.split(/\s+/);
+  const phrase: string[] = [];
+  for (const [i, w] of words.entries()) {
+    const lower = w.toLowerCase();
+    if (!/^[a-z][a-z'’-]*$/i.test(w) || PHRASE_WORDS.has(lower)) return trimmed;
+    if (i === 0 && /ing$/.test(lower) && !COMMON_GOAL_WORDS.has(lower)) return trimmed;
+    if (COMMON_GOAL_WORDS.has(lower)) phrase.push(lower);
+    else if (/^[A-Z]/.test(w)) return trimmed;
+    else phrase.push(w);
+  }
+  return category === 'debt_payoff' ? `Pay off your ${phrase.join(' ')}` : `Save for your ${phrase.join(' ')}`;
+}
+
 // ── Candidates, ungated ───────────────────────────────────────────────────────
 
 /**
@@ -325,7 +396,7 @@ export function buildJourneyCatalog(ctx: PathContext): PathCandidate[] {
     out.push({
       key: `goal:${goal.id}`,
       kind: 'goal',
-      title: goal.name,
+      title: goalStepTitle(goal.name, goal.category),
       subtitle: `${usd(goal.currentAmount)} of ${usd(goal.targetAmount)}`,
       description: 'Something you told us you are saving for. It gets money alongside the rest of your plan.',
       why: '',

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { motion, type MotionStyle } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { ChevronLeft } from 'lucide-react';
-import { PrivacyToggle } from '../uikit/PrivacyToggle';
+import { AmountsHiddenStrip, PrivacyToggle } from '../uikit/PrivacyToggle';
 import { BrandMark } from '../common/BrandMark';
 import { subscribePull, getPullState } from '../../lib/pull-store';
 import { titleForPath } from '../../lib/page-titles';
@@ -242,6 +242,7 @@ export function AppHeader({ leadingSlot, style }: AppHeaderProps) {
           <PrivacyToggle size={44} />
         </div>
       </div>
+      <AmountsHiddenStrip />
     </motion.header>
   );
 }

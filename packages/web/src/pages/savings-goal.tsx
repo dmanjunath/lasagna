@@ -735,7 +735,7 @@ export function SavingsGoal() {
               ) : complete ? (
                 <span className="inline-flex items-center gap-1.5 font-bold text-content">
                   <Sparkles className="h-4 w-4 text-brand" />
-                  {surplus >= 1 ? `${formatCurrency(surplus)} over target. Nicely done.` : 'Fully funded. Nicely done.'}
+                  {surplus >= 1 ? `Funded. ${formatCurrency(surplus)} above target.` : 'Funded.'}
                 </span>
               ) : notStarted ? (
                 <span className="inline-flex items-center gap-1.5">

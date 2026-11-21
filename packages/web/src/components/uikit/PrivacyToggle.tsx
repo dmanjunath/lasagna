@@ -9,7 +9,12 @@ import { Tooltip } from './Tooltip';
  *
  * Icon shows the ACTION, tint shows the STATE, which is how the light/dark
  * buttons beside it already work: eye-off means "tap to hide", and once hidden
- * the button takes a brand tint so the mode is never invisible.
+ * the button takes a brand tint so the mode is never invisible. While hidden the
+ * mode is also said in words: a tinted eye alone reads as a setting, not as the
+ * reason every figure on screen is a mask. The words never ride in the button,
+ * which would crowd the page title on a phone. On phones `AmountsHiddenStrip`
+ * runs under the header. In the sidebar `AmountsHiddenLabel` sits on its own
+ * line above the account row.
  *
  * `size` picks the chrome slot it is dropped into: 36 is the desktop sidebar
  * footer (bordered, and tooltipped, since there is a pointer there), 44 is the
@@ -58,4 +63,33 @@ export function PrivacyToggle({ size = 36, className }: { size?: 36 | 44; classN
 
   if (!sidebar) return button;
   return <Tooltip content={hidden ? 'Show amounts' : 'Hide amounts'}>{button}</Tooltip>;
+}
+
+/** The sidebar's "Amounts hidden" line, shown only while amounts are hidden. */
+export function AmountsHiddenLabel({ className }: { className?: string }) {
+  const hidden = useAmountsHidden();
+  if (!hidden) return null;
+  return (
+    <p className={cn('text-[12.5px] font-semibold text-[rgb(var(--ui-brand-ink))]', className)}>Amounts hidden</p>
+  );
+}
+
+/**
+ * The phone's "Amounts hidden" strip, a row of the fixed header shown only
+ * while amounts are hidden. It adds MOBILE_HEADER_STRIP px to the header, which
+ * the shell adds to `--mobile-header-h` so content and sticky bars clear it.
+ */
+export const MOBILE_HEADER_STRIP = 24;
+
+export function AmountsHiddenStrip() {
+  const hidden = useAmountsHidden();
+  if (!hidden) return null;
+  return (
+    <p
+      className="relative flex items-center justify-center bg-brand-soft text-[12px] font-semibold text-[rgb(var(--ui-brand-ink))]"
+      style={{ height: MOBILE_HEADER_STRIP }}
+    >
+      Amounts hidden
+    </p>
+  );
 }

@@ -43,10 +43,9 @@ export function NewGoal() {
   const [initialPreset] = useState(() => presetFor(new URLSearchParams(window.location.search).get('kind')));
 
   // Create form state — seeded from the preselected kind exactly as
-  // selectPreset would set it (name follows an untouched/default name,
-  // target only when the preset suggests one).
+  // selectPreset would set it (name follows an untouched/default name).
   const [newName, setNewName] = useState(initialPreset?.name ?? '');
-  const [newTarget, setNewTarget] = useState(initialPreset?.suggestedTarget ? String(initialPreset.suggestedTarget) : '');
+  const [newTarget, setNewTarget] = useState('');
   const [newMonthly, setNewMonthly] = useState('');
   const [newIcon, setNewIcon] = useState<string>(initialPreset?.icon ?? 'target');
   const [newDeadline, setNewDeadline] = useState('');
@@ -133,7 +132,6 @@ export function NewGoal() {
     // so it follows the kind rather than going stale.
     const untouched = !newName.trim() || GOAL_PRESETS.some((q) => q.name === newName.trim());
     if (untouched) setNewName(preset.name);
-    if (!newTarget && preset.suggestedTarget) setNewTarget(String(preset.suggestedTarget));
   };
 
   // Browser forward (or any URL change) to a kind the form isn't on yet.

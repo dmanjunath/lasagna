@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Gift, Flame, HeartPulse, Sprout,
   TrendingUp, CreditCard, Rocket, Target, Home,
-  AlertCircle, Check, ChevronRight, Sparkles, ArrowRight, Info,
+  AlertCircle, Check, ChevronDown, ChevronRight, Sparkles, ArrowRight, Info,
   PiggyBank, Layers, Wallet, Percent, LineChart, ScrollText,
 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
@@ -814,6 +814,9 @@ export function FinancialLevel() {
   // half-written sentence for that is the same loss as dropping it on a failed
   // save. Coming back to the row finds it exactly as it was left.
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  // Steps off the path stay folded under one row. Read open, each one is a row
+  // as tall as a step and the page ends on a list of things not to do.
+  const [offPathOpen, setOffPathOpen] = useState(false);
   const setNoteDraft = (stepId: string, value: string | undefined) =>
     setNoteDrafts(prev => {
       if (value === undefined) {
@@ -1264,10 +1267,27 @@ export function FinancialLevel() {
         // a thousand pixels of nothing between the title and the button.
         <section className="mt-10 grid grid-cols-1 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] gap-6 items-start">
           <div className="min-w-0">
-          <h2 className="font-editorial text-[19px] font-bold tracking-[-0.018em] text-content">
-            Not on your path
+          <div className="rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+          <h2>
+          <button
+            type="button"
+            onClick={() => setOffPathOpen(o => !o)}
+            aria-expanded={offPathOpen}
+            className={`ui-focus flex w-full items-center gap-3 px-4 py-3.5 text-left rounded-ui-xl transition-colors [@media(hover:hover)]:hover:bg-brand-softer sm:px-5${offPathOpen ? ' rounded-b-none' : ''}`}
+          >
+            <span className="min-w-0 flex-1 flex items-baseline gap-2">
+              <span className="font-editorial text-[16.5px] font-bold tracking-[-0.01em] text-content">Not on your path</span>
+              <span className="text-[12.5px] font-medium text-content-muted">{offPath.length} {offPath.length === 1 ? 'step' : 'steps'}</span>
+            </span>
+            <ChevronDown
+              size={18}
+              aria-hidden
+              className={`shrink-0 text-content-faint transition-transform duration-200 ease-ui${offPathOpen ? '' : ' -rotate-90'}`}
+            />
+          </button>
           </h2>
-          <ul className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm px-2 sm:px-3.5 py-1">
+          {offPathOpen && (
+          <ul className="border-t border-line px-2 sm:px-3.5 py-1">
             {offPath.map(off => (
               <li key={off.id} className="flex items-start gap-3 border-t border-line py-3 px-1.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
@@ -1300,6 +1320,8 @@ export function FinancialLevel() {
               </li>
             ))}
           </ul>
+          )}
+          </div>
           </div>
         </section>
       )}

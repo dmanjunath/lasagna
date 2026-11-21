@@ -854,6 +854,12 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 
 type CompSegment = { key: string; label: string; value: number; count: number; color: string };
 
+/** A segment's share of the column. A real balance never reads as 0%. */
+function shareLabel(value: number, total: number): string {
+  const pct = (value / (total || 1)) * 100;
+  return pct > 0 && pct < 0.5 ? '<1%' : `${Math.round(pct)}%`;
+}
+
 /** One "What you own / owe" column: a proportional stacked bar + name·value·% legend. */
 function CompositionColumn({
   title, accountCount, segments, total, ariaLabel,
@@ -877,13 +883,13 @@ function CompositionColumn({
         aria-label={ariaLabel}
       >
         {segments.map((s) => {
-          const pct = Math.round((s.value / (total || 1)) * 100);
+          const pct = shareLabel(s.value, total);
           return (
             <div
               key={s.key}
               className="h-full"
               style={{ flexGrow: s.value, minWidth: 4, background: s.color }}
-              title={`${s.label}, ${pct}%`}
+              title={`${s.label}, ${pct}`}
             />
           );
         })}
@@ -891,13 +897,13 @@ function CompositionColumn({
       {/* legend — name · value · % */}
       <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 ui-tnum">
         {segments.map((s) => {
-          const pct = Math.round((s.value / (total || 1)) * 100);
+          const pct = shareLabel(s.value, total);
           return (
             <span key={s.key} className="inline-flex flex-wrap items-center gap-1.5 text-[13px]">
               <span className="w-[9px] h-[9px] rounded-[3px] shrink-0" style={{ background: s.color }} />
               <span className="font-bold">{s.label}</span>
               <span className="font-editorial font-extrabold tracking-[-0.01em]"><MaskedText text={fmtUsd(s.value)} /></span>
-              <span className="text-[12px] font-semibold text-content-muted whitespace-nowrap">{pct}%, {s.count} account{s.count === 1 ? '' : 's'}</span>
+              <span className="text-[12px] font-semibold text-content-muted whitespace-nowrap">{pct}, {s.count} account{s.count === 1 ? '' : 's'}</span>
             </span>
           );
         })}
@@ -1563,7 +1569,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
                     <span className="truncate group-hover:text-brand transition-colors">{g.name}</span>
                   </span>
                   {reached ? (
-                    <Badge tone="brand" size="sm" className="shrink-0">Funded</Badge>
+                    <Badge tone="neutral" size="sm" className="shrink-0">Funded</Badge>
                   ) : (
                     <span className="font-editorial text-[13px] font-extrabold text-content-muted shrink-0 ui-tnum">{Math.round(pct)}%</span>
                   )}
@@ -1577,7 +1583,9 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
                 </div>
                 <div className="mt-2 text-[12px] font-semibold text-content-muted ui-tnum">
                   {reached
-                    ? 'Fully funded. Surplus ready to reallocate 🎉'
+                    ? current - target >= 1
+                      ? <><MaskedText text={formatCurrency(current - target)} /> above target</>
+                      : <>{formatCurrency(current)} of {formatCurrency(target)}</>
                     : notStarted
                       ? 'Not started yet. Kick it off anytime.'
                       : <>{formatCurrency(current)} of {formatCurrency(target)}</>}

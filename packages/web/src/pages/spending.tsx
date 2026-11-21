@@ -791,6 +791,11 @@ export function Spending() {
         ? monthLabel(`${hoveredPeriod.period}-01`)
         : hoveredPeriod.period)
     : stale ? loadedPeriod.label : null;
+  // The page opens on last month, the newest one with every transaction in, and
+  // says so: the picker names the month but not why it is not this one.
+  const lastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+  const onLastCompleteMonth = granularity === 'month'
+    && selectedPeriod === `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
 
   // A month with nothing in it. Gated on the filter: "Connect an account" is a
   // catastrophically wrong answer to "you excluded everything that had spending".
@@ -1029,7 +1034,7 @@ export function Spending() {
           <div className="relative flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
             <div className="flex flex-col gap-1">
               <div className="text-[14px] font-semibold text-content-muted">
-                {heroCaption ? `Spent in ${heroCaption}` : 'Spent'}
+                {heroCaption ? `Spent in ${heroCaption}` : onLastCompleteMonth ? 'Spent in your last complete month' : 'Spent'}
               </div>
               {/* Keyed by period so switching months slides the new figure in;
                    hover swaps stay instant (same key, no re-animation). */}
