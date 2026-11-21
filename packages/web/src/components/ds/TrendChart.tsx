@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartHover } from './ChartHover';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 import { formatStoredDate, formatStoredDay } from '../../lib/utils';
+import { clampedDomain } from '../../lib/chart-domain';
 
 // ── Shared interactive trend chart ─────────────────────────────────────────
 // Extracted verbatim from simple-money's NetWorthChart so the Money page and
@@ -96,11 +97,8 @@ export function TrendChart({ points, range, onHoverChange }: { points: TrendPoin
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
 
   const { yMin, yMax, yTicks } = useMemo(() => {
-    const values = points.map((p) => p.value);
-    const rawMin = Math.min(...values);
-    const rawMax = Math.max(...values);
-    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
-    return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
+    const { min, max, ticks } = clampedDomain(points.map((p) => p.value));
+    return { yMin: min, yMax: max, yTicks: ticks };
   }, [points]);
 
   const xAt = (i: number) => chartLeft + (i / Math.max(1, points.length - 1)) * innerW;
@@ -226,19 +224,7 @@ export function filterByRange(history: TrendPoint[], range: Range): TrendPoint[]
   return history.filter((p) => new Date(p.date).getTime() >= cutoff);
 }
 
-export function niceTicks(min: number, max: number, count: number): number[] {
-  if (min === max) return [min];
-  const range = max - min;
-  const rawStep = range / count;
-  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
-  const norm = rawStep / mag;
-  let step: number;
-  if (norm < 1.5) step = mag; else if (norm < 3) step = 2 * mag; else if (norm < 7) step = 5 * mag; else step = 10 * mag;
-  const first = Math.ceil(min / step) * step;
-  const out: number[] = [];
-  for (let v = first; v <= max + step * 0.001; v += step) out.push(Number(v.toFixed(10)));
-  return out;
-}
+export { niceTicks } from '../../lib/chart-domain';
 
 // Decimals needed so adjacent tick labels stay distinct in compact ($X.XXM)
 // notation: at least `minDecimals`, more when the tick step is small relative

@@ -8,7 +8,8 @@ import { isAmountsHidden } from '../lib/hide-amounts';
 import { MaskedText, MoneyInput } from '../components/uikit';
 import { Alert, Button, EmptyState, Field, Input, PageMeta, PageMetaItem, SegmentedControl, Skeleton, TextLink, Tooltip, useToast } from '../components/uikit';
 import { useConfirm, filterByRange, type Range, type TrendPoint } from '../components/ds';
-import { smoothLinePath, niceTicks, pickXLabels } from '../components/ds/TrendChart';
+import { smoothLinePath, pickXLabels } from '../components/ds/TrendChart';
+import { clampedDomain } from '../lib/chart-domain';
 import { InstIcon } from '../components/common/InstIcon';
 import { PageTitle } from '../components/ds/PageTitle';
 import { AddressAutocomplete } from '../components/common/AddressAutocomplete';
@@ -1382,11 +1383,8 @@ function ValueChart({ points, range, onHoverChange }: { points: TrendPoint[]; ra
   const innerH = CHART_H - CHART_M.top - CHART_M.bottom;
 
   const { yMin, yMax, yTicks } = useMemo(() => {
-    const values = points.map((p) => p.value);
-    const rawMin = Math.min(...values);
-    const rawMax = Math.max(...values);
-    const pad = (rawMax - rawMin) * 0.08 || Math.abs(rawMax) * 0.08 || 1;
-    return { yMin: rawMin - pad, yMax: rawMax + pad, yTicks: niceTicks(rawMin - pad, rawMax + pad, 4) };
+    const { min, max, ticks } = clampedDomain(points.map((p) => p.value));
+    return { yMin: min, yMax: max, yTicks: ticks };
   }, [points]);
 
   // Y-axis label formatter that keeps adjacent gridlines distinct. For a

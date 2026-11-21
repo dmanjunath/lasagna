@@ -4,7 +4,8 @@ import { cn, formatStoredDay } from '../../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../../lib/hide-amounts';
 import { HiddenAmount, SegmentedControl, Skeleton } from '../uikit';
 import { filterByRange, type Range, type TrendPoint } from '../ds';
-import { smoothLinePath, niceTicks, pickXLabels, formatShortMoney, tickDecimals } from '../ds/TrendChart';
+import { smoothLinePath, pickXLabels, formatShortMoney, tickDecimals } from '../ds/TrendChart';
+import { clampedDomain } from '../../lib/chart-domain';
 
 const fmtUsd = (n: number, frac = 0) =>
   isAmountsHidden()
@@ -78,21 +79,6 @@ const CHART_M_LEFT_WIDE = 78;
 const MAX_TICK_CHARS = 8;
 
 /**
- * Narrowest y-window the chart will draw, as a fraction of the series mean.
- *
- * Fitting the window to the data alone turns a rounding error into a cliff: a
- * month in which an $8.7M net worth moved 1% filled the frame top to bottom,
- * the line plunging to the floor and spiking back, immediately beside a caption
- * reading +1.1%. The chart contradicted its own number, on the surface people
- * open when they are anxious about money.
- *
- * So the window has a floor. Below it the domain is widened around the series
- * and a small move draws small. Above it nothing changes, so a real collapse
- * still fills the frame.
- */
-const MIN_Y_SPAN_FRACTION = 0.1;
-
-/**
  * A y-axis tick as it is drawn. The true minus, not the hyphen
  * formatShortMoney emits, so a negative net worth reads the way every other
  * figure in the app does. Both glyphs are in the numerals face.
@@ -123,18 +109,8 @@ function NetWorthChart({ points, range, onHoverChange }: { points: TrendPoint[];
   }, []);
 
   const { yMin, yMax, yTicks } = useMemo(() => {
-    const values = points.map((p) => p.value);
-    const rawMin = Math.min(...values);
-    const rawMax = Math.max(...values);
-    const mean = values.reduce((sum, v) => sum + v, 0) / (values.length || 1);
-    // Widen around the MIDDLE of the series, not around zero: the window keeps
-    // the line centred, so what grows is the empty room above and below it.
-    const mid = (rawMin + rawMax) / 2;
-    const half = Math.max((rawMax - rawMin) / 2, (Math.abs(mean) * MIN_Y_SPAN_FRACTION) / 2);
-    const lo = mid - half;
-    const hi = mid + half;
-    const pad = (hi - lo) * 0.08 || 1;
-    return { yMin: lo - pad, yMax: hi + pad, yTicks: niceTicks(lo - pad, hi + pad, 4) };
+    const { min, max, ticks } = clampedDomain(points.map((p) => p.value));
+    return { yMin: min, yMax: max, yTicks: ticks };
   }, [points]);
 
   // Money y-axis labels are removed while amounts are hidden rather than
