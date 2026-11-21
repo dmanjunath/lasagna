@@ -136,6 +136,12 @@ const ADD_OPTIONS: AddOption[] = [MANUAL_OPTION, PROPERTY_OPTION];
 // ---------------------------------------------------------------------------
 
 /**
+ * The width `choices` takes in a centred empty state, whose action slot shrinks
+ * to its content. Left-aligned, as the rows are in the dialog.
+ */
+export const CONNECT_CHOICES_WIDTH = "w-[min(340px,calc(100vw_-_72px))] text-left";
+
+/**
  * Everything about adding and updating connections, for the Accounts page.
  *
  * The page that used to own this (/accounts, "Connected accounts") was folded
@@ -176,6 +182,9 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
   // — nothing is submitted under a guessed type.
   const [formOption, setFormOption] = useState<AddOption | null>(null);
   const [activeType, setActiveType] = useState<AccountTypeOption | null>(null);
+  // The form was opened straight from an empty state, whose choices are still
+  // on screen behind the dialog, so there is no step 1 to go back to.
+  const [openedOnForm, setOpenedOnForm] = useState(false);
   // The category the values currently in the fields were typed under. Back keeps
   // them, so only picking a *different* category clears them.
   const [typedUnder, setTypedUnder] = useState<string | null>(null);
@@ -219,16 +228,18 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
 
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
-  const loadItems = (showLoader = true) => {
+  const loadItems = (showLoader = true, notify = true) => {
     if (showLoader) setLoading(true);
     api.getItems()
       .then((d) => setItems(d.items))
       .catch(() => setError("Failed to load accounts"))
       .finally(() => setLoading(false));
-    onChangedRef.current?.();
+    if (notify) onChangedRef.current?.();
   };
 
-  useEffect(() => loadItems(), []);
+  // The first load is the hook's own. Nothing has changed yet, so the page,
+  // which loads its own data on mount, is not told to load it again.
+  useEffect(() => loadItems(true, false), []);
 
   // Auto-open Plaid Link if navigated with ?autoLink=true.
   // Guard with a ref (instead of effect cleanup) so React StrictMode's dev
@@ -530,6 +541,7 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
   // create — Back moves the step pointer and keeps everything typed.
   const resetManualForm = () => {
     setFormOption(null);
+    setOpenedOnForm(false);
     setActiveType(null);
     setTypedUnder(null);
     setPendingLinkedId(null);
@@ -636,9 +648,15 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
 
   // The quieter ways in, under the connect button. Equal weight to each other:
   // none of them is the recommended path, and the newest is not the loudest.
+  // Outside the dialog (an empty state) a form opens the dialog on that form.
+  const openForm = (opt: AddOption) => {
+    selectOption(opt);
+    if (!showManualModal) setOpenedOnForm(true);
+    setShowManualModal(true);
+  };
   const secondaryAdds = [
-    { label: "Add a balance manually", icon: Pencil, run: () => selectOption(MANUAL_OPTION) },
-    { label: "Add a property", icon: Home, run: () => selectOption(PROPERTY_OPTION) },
+    { label: "Add a balance manually", icon: Pencil, run: () => openForm(MANUAL_OPTION) },
+    { label: "Add a property", icon: Home, run: () => openForm(PROPERTY_OPTION) },
     { label: "Describe your accounts in plain English", icon: Sparkles, run: startDescribe },
   ];
 
@@ -875,6 +893,125 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
     </>
   );
 
+  // Step 1 of the add dialog, and on its own the whole empty state of Home and
+  // the Accounts page: one click from there reaches Plaid. Every surface that
+  // offers "connect" renders this, so they cannot drift apart. Connecting asks
+  // no type question: Plaid already knows what each account is. The ways in
+  // for what Plaid cannot reach sit under it, equal to each other.
+  const choices = (
+      <div className="flex flex-col gap-5">
+        {/* At the cap, the next institution connects and then sits frozen.
+            The plan meter lives in the sidebar, which on a phone is behind
+            the hamburger — so without this the first the user hears of it is
+            after handing over their bank credentials. */}
+        {isFree && billing && billing.usage.institutions >= billing.usage.maxInstitutions && (
+          <Alert
+            tone="caution"
+            action={
+              <Button
+                variant="neutral"
+                size="sm"
+                onClick={handleUpgrade}
+                loading={upgrading}
+                disabled={upgrading}
+                // Reserves the slot the spinner takes, so the label does not
+                // shift right mid-flight. Same reason plan-usage does it.
+                leadingIcon={<Sparkles size={15} />}
+              >
+                Upgrade
+              </Button>
+            }
+          >
+            {`You're at your free plan limit of ${billing.usage.maxInstitutions} institutions. A new one won't sync until you upgrade.`}
+          </Alert>
+        )}
+
+        {/* Plaid's web SDK does not run inside the iOS app's WebView, so
+            there the bank options are replaced by one note rather than
+            offered and then refused after a tap. */}
+        {native ? (
+          <Alert tone="info">
+            Connecting a bank isn't available in the app yet. Connect from the web and your accounts sync here.
+          </Alert>
+        ) : (
+        <Button
+          variant="primary"
+          size="lg"
+          className="w-full"
+          onClick={startConnect}
+          disabled={linking}
+          loading={linking}
+          leadingIcon={<Zap size={17} />}
+        >
+          {/* "New" only means something beside the banks already connected. */}
+          {addableItems.length > 0 ? "Connect a new bank or card" : "Connect your bank or card"}
+        </Button>
+        )}
+
+        {/* A newly opened account at a bank you already connected is added
+            through that connection (Plaid's update mode). Connecting the
+            bank again would duplicate every account it holds. */}
+        {!native && addableItems.length > 0 && (
+          <div>
+            <p className="mb-1.5 px-2 text-[12.5px] font-semibold text-content-muted">
+              Add an account at a bank you already connected
+            </p>
+            <div className="flex flex-col">
+              {addableItems.map((item) => {
+                const name = item.institutionName ?? "Your bank";
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => startAddTo(item)}
+                    disabled={linking}
+                    className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md px-2 py-1.5 text-left transition-colors active:bg-canvas-sunken [@media(hover:hover)]:hover:bg-canvas-sunken disabled:opacity-50"
+                  >
+                    <InstIcon institution={name} isManual={false} size={28} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-semibold text-content">{name}</span>
+                      <span className="block text-[12px] text-content-muted">
+                        {isItemError(item) ? "Reconnect and add accounts" : `${item.accounts.length} account${item.accounts.length === 1 ? "" : "s"} connected`}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={15}
+                      className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col">
+          {!native && addableItems.length > 0 && (
+            <p className="mb-1.5 px-2 text-[12.5px] font-semibold text-content-muted">Or add one yourself</p>
+          )}
+          {secondaryAdds.map(({ label, icon: Icon, run }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => run()}
+              // Plaid is opening. A form opened now would sit under it.
+              disabled={linking}
+              className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md px-2 text-left text-[13.5px] font-semibold text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content disabled:opacity-50"
+            >
+              <Icon size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" aria-hidden="true" />
+              <span className="flex-1">{label}</span>
+              <ChevronRight
+                size={15}
+                className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+  );
+
   const modal = (
       <Modal
         open={showManualModal}
@@ -886,7 +1023,7 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
         // this dialog has steps, so the header holds the Back slot open even
         // where there's nowhere back to, and the title doesn't slide sideways
         // between steps.
-        onBack={formOption ? backToConnect : null}
+        onBack={formOption && !openedOnForm ? backToConnect : null}
         // The type answer re-shapes the form beneath it, so the panel grows
         // downward instead of recentring under what's already filled in.
         stableTop
@@ -1128,116 +1265,7 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
             )}
           </div>
         ) : (
-          // Step 1 — connecting is the whole answer for most people, and it asks
-          // no type question: Plaid already knows what each account is. The ways
-          // in for what Plaid cannot reach sit under it, equal to each other.
-          <div className="flex flex-col gap-5">
-            {/* At the cap, the next institution connects and then sits frozen.
-                The plan meter lives in the sidebar, which on a phone is behind
-                the hamburger — so without this the first the user hears of it is
-                after handing over their bank credentials. */}
-            {isFree && billing && billing.usage.institutions >= billing.usage.maxInstitutions && (
-              <Alert
-                tone="caution"
-                action={
-                  <Button
-                    variant="neutral"
-                    size="sm"
-                    onClick={handleUpgrade}
-                    loading={upgrading}
-                    disabled={upgrading}
-                    // Reserves the slot the spinner takes, so the label does not
-                    // shift right mid-flight. Same reason plan-usage does it.
-                    leadingIcon={<Sparkles size={15} />}
-                  >
-                    Upgrade
-                  </Button>
-                }
-              >
-                {`You're at your free plan limit of ${billing.usage.maxInstitutions} institutions. A new one won't sync until you upgrade.`}
-              </Alert>
-            )}
-
-            {/* Plaid's web SDK does not run inside the iOS app's WebView, so
-                there the bank options are replaced by one note rather than
-                offered and then refused after a tap. */}
-            {native ? (
-              <Alert tone="info">
-                Connecting a bank isn't available in the app yet. Connect from the web and your accounts sync here.
-              </Alert>
-            ) : (
-            <Button
-              variant="primary"
-              size="lg"
-              className="w-full"
-              onClick={startConnect}
-              disabled={linking}
-              leadingIcon={<Zap size={17} />}
-            >
-              Connect a new bank or card
-            </Button>
-            )}
-
-            {/* A newly opened account at a bank you already connected is added
-                through that connection (Plaid's update mode). Connecting the
-                bank again would duplicate every account it holds. */}
-            {!native && addableItems.length > 0 && (
-              <div>
-                <p className="mb-1.5 px-2 text-[12.5px] font-semibold text-content-muted">
-                  Add an account at a bank you already connected
-                </p>
-                <div className="flex flex-col">
-                  {addableItems.map((item) => {
-                    const name = item.institutionName ?? "Your bank";
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => startAddTo(item)}
-                        disabled={linking}
-                        className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md px-2 py-1.5 text-left transition-colors active:bg-canvas-sunken [@media(hover:hover)]:hover:bg-canvas-sunken disabled:opacity-50"
-                      >
-                        <InstIcon institution={name} isManual={false} size={28} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13.5px] font-semibold text-content">{name}</span>
-                          <span className="block text-[12px] text-content-muted">
-                            {isItemError(item) ? "Reconnect and add accounts" : `${item.accounts.length} account${item.accounts.length === 1 ? "" : "s"} connected`}
-                          </span>
-                        </span>
-                        <ChevronRight
-                          size={15}
-                          className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5"
-                          aria-hidden="true"
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col">
-              {!native && addableItems.length > 0 && (
-                <p className="mb-1.5 px-2 text-[12.5px] font-semibold text-content-muted">Or add one yourself</p>
-              )}
-              {secondaryAdds.map(({ label, icon: Icon, run }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => run()}
-                  className="ui-focus group flex min-h-touch items-center gap-3 rounded-ui-md px-2 text-left text-[13.5px] font-semibold text-content-secondary transition-colors hover:bg-canvas-sunken hover:text-content"
-                >
-                  <Icon size={16} strokeWidth={1.75} className="shrink-0 text-content-muted" aria-hidden="true" />
-                  <span className="flex-1">{label}</span>
-                  <ChevronRight
-                    size={15}
-                    className="shrink-0 text-content-faint transition-transform group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
+          choices
         )}
       </Modal>
   );
@@ -1245,6 +1273,8 @@ export function useAccountConnections({ onChanged }: { onChanged?: () => void } 
   return {
     modal,
     banners,
+    /** The connect button and the by-hand ways in, for an empty state. */
+    choices,
     /** Open the add dialog on its first step. */
     openAdd: () => setShowManualModal(true),
     /** Plaid update mode on one connection: add accounts to it, or repair it. */

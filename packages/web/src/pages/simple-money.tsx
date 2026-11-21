@@ -21,7 +21,7 @@ import { type TrendPoint } from '../components/ds';
 import { faviconUrl, institutionDomainFor } from '../components/ds/institutions';
 import { PageTitle } from '../components/ds/PageTitle';
 import { HeaderAction } from '../components/layout/app-header';
-import { useAccountConnections } from '../components/accounts/useAccountConnections';
+import { CONNECT_CHOICES_WIDTH, useAccountConnections } from '../components/accounts/useAccountConnections';
 import { isNativeApp } from '../lib/native';
 import { useIsMobile } from '../lib/hooks/use-mobile';
 import { RowMenu } from '../components/common/row-menu';
@@ -401,10 +401,8 @@ export function SimpleMoney() {
           <EmptyState
             icon={<Wallet size={24} />}
             title="No accounts connected"
-            description="Link a bank or brokerage to see your accounts here."
-            action={
-              <Button variant="primary" onClick={connections.openAdd} disabled={connections.linking}>Connect an account</Button>
-            }
+            description="Link a bank, card or brokerage to see your accounts here."
+            action={<div className={CONNECT_CHOICES_WIDTH}>{connections.choices}</div>}
           />
         </div>
       )}

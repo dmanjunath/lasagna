@@ -9,7 +9,7 @@ import { api, type AccountFacts, type FinancialPath } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
 import { toActionRow, type ActionRow } from '../lib/action-rows';
 import { useChatStore } from '../lib/chat-store';
-import { Badge, Button, button, EmptyState, Skeleton, TextLink, useToast } from '../components/uikit';
+import { Badge, Button, EmptyState, Skeleton, TextLink, useToast } from '../components/uikit';
 import { TransactionDetail, type DetailTx } from '../components/transactions/TransactionDetail';
 import { transactionsHref } from '../components/transactions/TransactionFilters';
 import { ActionItem } from '../components/common/action-item';
@@ -19,6 +19,7 @@ import { actionSentence, netWorthChange, quickLinks } from '../lib/home-briefing
 import { formatStoredDay } from '../lib/utils';
 import { formatCurrency, goalAccent, iconFor } from './goal-shared';
 import { OnboardingResumeCard } from '../components/layout/onboarding-progress';
+import { CONNECT_CHOICES_WIDTH, useAccountConnections } from '../components/accounts/useAccountConnections';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -212,6 +213,29 @@ function writeBriefingShape(shape: BriefingShape) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Home with nothing connected. Connecting starts here, in place: one click
+ * reaches Plaid, the same choices the Accounts page offers. Mounted only while
+ * Home is empty, so a populated Home never fetches the connections.
+ */
+function ConnectFirstAccount({ onChanged }: { onChanged: () => void }) {
+  const connections = useAccountConnections({ onChanged });
+  return (
+    <div className="w-full max-w-[560px]">
+      {connections.banners}
+      <EmptyState
+        variant="page"
+        className="mt-5 first:mt-0"
+        icon={<Wallet size={24} />}
+        title="Connect your first account"
+        description="Link a bank, card or brokerage to see your net worth, spending and next steps here."
+        action={<div className={CONNECT_CHOICES_WIDTH}>{connections.choices}</div>}
+      />
+      {connections.modal}
+    </div>
+  );
+}
+
 export function SimpleHome() {
   const { user, tenant } = useAuth();
   // Mirrors OnboardingResumeCard's own condition.
@@ -225,6 +249,9 @@ export function SimpleHome() {
   // disagree with the Accounts page or chat.
   const [facts, setFacts] = useState<AccountFacts | null>(null);
   const breakdown = useMemo(() => (facts ? breakdownFrom(facts) : null), [facts]);
+  // Bumped when the empty state adds the first account, so the page loads the
+  // dashboard it now has in place.
+  const [dataVersion, setDataVersion] = useState(0);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
   const [goals, setGoals] = useState<Goal[]>([]);
   const [nwHistory, setNwHistory] = useState<{ date: string; value: number }[]>([]);
@@ -437,7 +464,7 @@ export function SimpleHome() {
         }
       })
       .catch(() => {});
-  }, [loadPath]);
+  }, [loadPath, dataVersion]);
 
   // Household size decides whether "Invite your spouse" still applies. Only the
   // owner can send invites, so nobody else needs either call. An expired
@@ -519,7 +546,7 @@ export function SimpleHome() {
         }
       })
       .finally(() => setSideLoading(false));
-  }, []);
+  }, [dataVersion]);
 
   function submitAsk(e?: React.FormEvent) {
     e?.preventDefault();
@@ -629,21 +656,7 @@ export function SimpleHome() {
         {/* Centred alone, but under the resume card that left a hole above it. */}
         <div className={`mt-7 flex justify-center ${resumeShown ? '' : 'min-h-[58vh] items-center'}`}>
           {homeState === 'empty' ? (
-            <EmptyState
-              variant="page"
-              className="w-full max-w-[560px]"
-              icon={<Wallet size={24} />}
-              title="Connect your first account"
-              description="Link a bank, card or brokerage to see your net worth, spending and next steps here."
-              action={
-                /* ?autoLink=true opens the connect flow on arrival: /accounts
-                   otherwise greets them with this same headline and asks for a
-                   second click to start the same task. */
-                <Link href="/accounts?autoLink=true" className={button({ variant: 'primary' })}>
-                  Connect an account
-                </Link>
-              }
-            />
+            <ConnectFirstAccount onChanged={() => setDataVersion((v) => v + 1)} />
           ) : (
             <EmptyState
               variant="page"
