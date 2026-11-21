@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { niceTicks, formatShortMoney } from '../ds/TrendChart';
 import { isAmountsHidden } from '../../lib/hide-amounts';
+import { Legend } from '../uikit';
 
 // ---------------------------------------------------------------------------
 // CashflowBars — diverging income/expense bars on --ui-* tokens.
@@ -26,6 +27,8 @@ import { isAmountsHidden } from '../../lib/hide-amounts';
 
 const CHART_H = 210;
 const CHART_M = { top: 14, right: 12, bottom: 32, left: 52 };
+
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -300,11 +303,15 @@ export function CashflowBars({
 
   // X labels — month mode: short month, year added on January or the first
   // in-window label; thin to every other column when >8 visible (keeping the
-  // newest labeled). Year mode: every year. Indexes are ABSOLUTE.
+  // newest labeled). Year mode: every year. Indexes are ABSOLUTE. The
+  // in-progress period carries an asterisk, keyed by the caption in the legend.
+  // An asterisk and not "so far": six columns at 390px are ~44px wide, and
+  // "Jan ’27 so far" would run into its neighbour.
   const xLabels = useMemo(() => {
     const out: Array<{ idx: number; label: string }> = [];
+    const mark = (ai: number, label: string) => (ai === partialIdx ? `${label}*` : label);
     if (granularity === 'year') {
-      periods.forEach((p, i) => out.push({ idx: i, label: p.period }));
+      periods.forEach((p, i) => out.push({ idx: i, label: mark(i, p.period) }));
       return out;
     }
     const thin = visN > 8;
@@ -316,10 +323,10 @@ export function CashflowBars({
       const m = Number(p.period.slice(5, 7));
       const short = MONTHS[m - 1] ?? p.period;
       const withYear = m === 1 || ai === firstInWindow;
-      out.push({ idx: ai, label: withYear ? `${short} ’${p.period.slice(2, 4)}` : short });
+      out.push({ idx: ai, label: mark(ai, withYear ? `${short} ’${p.period.slice(2, 4)}` : short) });
     });
     return out;
-  }, [periods, granularity, visN, start, n]);
+  }, [periods, granularity, visN, start, n, partialIdx]);
 
   // Maps a clientX to a WINDOW-relative index (callers add `start` for the
   // absolute one).
@@ -500,43 +507,39 @@ export function CashflowBars({
   // is already CSS pixels — and outside the pointer overlay below, which is
   // inset-0 over its own wrapper and would otherwise turn a click on the word
   // "Income" into a period selection.
+  const partialPeriod = partialIdx >= 0 ? periods[partialIdx].period : '';
   const legend = (
-    <div
-      className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-semibold text-content-muted"
+    <Legend
+      className="mt-2"
       style={{ paddingLeft: chartLeft }}
-    >
-      <span className="inline-flex items-center gap-1.5">
-        <span className="h-[11px] w-[11px] shrink-0 rounded-[3.5px]" style={{ background: 'var(--ui-viz-2)' }} />
-        Income
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="h-[11px] w-[11px] shrink-0 rounded-[3.5px]" style={{ background: 'var(--ui-viz-4)' }} />
-        Spending
-      </span>
-      {/* Only while the hatched column is actually on screen. Paged past it,
-          this entry keys a mark the plot no longer carries. Paging is a
-          discrete, snapped step, so the entry appears and disappears once per
-          page rather than flickering, and it is the last item on the line, so
-          nothing else moves when it goes. */}
-      {partialInWindow && (
-        <span className="inline-flex items-center gap-1.5">
-          {/* Matches the <pattern> on the bar: stripes running the same way,
-              3.5px wide on a 7px pitch, struck in the same panel colour. CSS
-              measures its stops ALONG the gradient line, which is normal to the
-              stripes, so 135deg here draws the "/" that rotate(45) draws there
-              — 45deg would mirror it and the key would contradict the mark. */}
-          <span
-            className="h-[11px] w-[11px] shrink-0 rounded-[3.5px]"
-            style={{
-              background: 'rgb(var(--ui-content-faint))',
-              backgroundImage:
-                'repeating-linear-gradient(135deg, rgb(var(--ui-panel) / 0.62) 0 3.5px, transparent 3.5px 7px)',
-            }}
-          />
-          {granularity === 'year' ? 'Year to date' : 'Month to date'}
-        </span>
-      )}
-    </div>
+      items={[
+        { key: 'income', label: 'Income', color: 'var(--ui-viz-2)' },
+        { key: 'spending', label: 'Spending', color: 'var(--ui-viz-4)' },
+        // Only while the hatched column is actually on screen. Paged past it,
+        // this entry keys a mark the plot no longer carries. Paging is a
+        // discrete, snapped step, so the entry appears and disappears once per
+        // page rather than flickering, and it is the last item on the line, so
+        // nothing else moves when it goes. It is also the caption for the
+        // asterisk on that column's axis label.
+        //
+        // The swatch matches the <pattern> on the bar: stripes running the same
+        // way, 3.5px wide on a 7px pitch, struck in the same panel colour. CSS
+        // measures its stops ALONG the gradient line, which is normal to the
+        // stripes, so 135deg here draws the "/" that rotate(45) draws there.
+        // 45deg would mirror it and the key would contradict the mark.
+        ...(partialInWindow
+          ? [{
+              key: 'partial',
+              label: `*${granularity === 'year' ? partialPeriod : MONTHS_LONG[Number(partialPeriod.slice(5, 7)) - 1]} is still in progress`,
+              color: 'rgb(var(--ui-content-faint))',
+              swatchStyle: {
+                backgroundImage:
+                  'repeating-linear-gradient(135deg, rgb(var(--ui-panel) / 0.62) 0 3.5px, transparent 3.5px 7px)',
+              },
+            }]
+          : []),
+      ]}
+    />
   );
 
   // Nothing is drawn until the wrapper has been measured. The layout effect

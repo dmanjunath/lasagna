@@ -14,7 +14,7 @@ import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, X } from 'lucide-react';
 import { InfoPopover } from '../components/common/InfoPopover';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
-import { Alert, Badge, Button, Input, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus, useToast } from '../components/uikit';
+import { Alert, Badge, Button, Input, Legend, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus, useToast } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import { PageTitle } from '../components/ds/PageTitle';
 import {
@@ -606,6 +606,12 @@ function simulatePlan(opts: {
   }
   return rows;
 }
+
+// Swatches for the growth-chart legends: the two fan bands at the opacity the
+// band reads at, and the median or single path as a line.
+const FAN_OUTER_SWATCH = { width: 12, height: 6, borderRadius: 1.5, opacity: 0.3 };
+const FAN_INNER_SWATCH = { width: 12, height: 6, borderRadius: 1.5, opacity: 0.55 };
+const LINE_SWATCH = { width: 12, height: 2, borderRadius: 1 };
 
 // Shared, interactive legend for the drawdown charts: a color swatch + label for
 // every series (each account/type, plus Social Security / other income on the
@@ -2915,14 +2921,15 @@ export function RetirementV2() {
             ) : histBands ? (
               <div style={{ opacity: btLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
                 <FanChartV2 bands={histBands} currentAge={currentAge} retireAge={effRetireAge} clipLabel="best cohorts" percentileLabels={['10th', '25th', 'Median', '75th', '90th']} />
-                <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-hist">
-                  <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />10th to 90th cohort range</span>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />25th to 75th</span>
-                  <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median cohort</span>
-                  <span style={{ marginLeft: 'auto' }}>
+                <Legend className="pt-3" data-testid="rv2-growth-legend-hist" items={[
+                  { key: 'outer', label: '10th to 90th cohort range', color: 'var(--ui-viz-2)', swatchStyle: FAN_OUTER_SWATCH },
+                  { key: 'inner', label: '25th to 75th', color: 'var(--ui-viz-2)', swatchStyle: FAN_INNER_SWATCH },
+                  { key: 'median', label: 'median cohort', color: 'rgb(var(--ui-content-secondary))', swatchStyle: LINE_SWATCH },
+                ]}>
+                  <span className="ml-auto">
                     {btResult.startYearCount} retirements 1928 on, median at {lifeExp}: <strong>{fmtShort(histBands.p50[histBands.p50.length - 1] || 0)}</strong>
                   </span>
-                </div>
+                </Legend>
               </div>
             ) : (
               <p className="text-[13px] text-content-muted">Not enough market history for this horizon. Switch method or shorten the plan.</p>
@@ -2930,28 +2937,30 @@ export function RetirementV2() {
           ) : isBlend ? (
             <>
               <BlendedChartV2 values={blendSeries} currentAge={currentAge} retireAge={effRetireAge} runsShortAge={detRanShortAge} />
-              <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-blend">
-                <span><span style={{ display: 'inline-block', width: 12, height: 2, background: 'var(--ui-viz-2)', marginRight: 6, verticalAlign: 'middle', borderRadius: 1 }} />one projected path at {expReturn.toFixed(1)}%/yr, no market randomness</span>
-                <span style={{ marginLeft: 'auto' }}>
+              <Legend className="pt-3" data-testid="rv2-growth-legend-blend" items={[
+                  { key: 'path', label: `one projected path at ${expReturn.toFixed(1)}%/yr, no market randomness`, color: 'var(--ui-viz-2)', swatchStyle: LINE_SWATCH },
+                ]}>
+                <span className="ml-auto">
                   {detRanShortAge !== null
                     ? <>runs out at age <strong>{detRanShortAge}</strong></>
                     : <>at {lifeExp}: <strong>{fmtShort(blendSeries[blendSeries.length - 1] || 0)}</strong></>}
                 </span>
-              </div>
+              </Legend>
             </>
           ) : !mcResult ? (
             <Skeleton className="h-[300px] w-full rounded-ui-xl" />
           ) : (
             <div style={{ opacity: mcLoading ? 0.6 : 1, transition: 'opacity 150ms ease' }}>
               <FanChartV2 bands={realBands} currentAge={currentAge} retireAge={effRetireAge} />
-              <div style={{ display: 'flex', gap: 20, fontVariantNumeric: 'tabular-nums', fontSize: 11.5, color: 'rgb(var(--ui-content-muted))', paddingTop: 12, flexWrap: 'wrap' }} data-testid="rv2-growth-legend-mc">
-                <span><span className="rv2-fan-outer" style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.3 }} />p5 to p95 range</span>
-                <span><span style={{ display: 'inline-block', width: 12, height: 6, marginRight: 6, verticalAlign: 'middle', background: 'var(--ui-viz-2)', opacity: 0.55 }} />p25 to p75 likely</span>
-                <span><span style={{ display: 'inline-block', width: 12, height: 1.5, background: 'rgb(var(--ui-content-secondary))', marginRight: 6, verticalAlign: 'middle' }} />median</span>
-                <span style={{ marginLeft: 'auto' }}>
+              <Legend className="pt-3" data-testid="rv2-growth-legend-mc" items={[
+                  { key: 'outer', label: 'p5 to p95 range', color: 'var(--ui-viz-2)', swatchStyle: FAN_OUTER_SWATCH },
+                  { key: 'inner', label: 'p25 to p75 likely', color: 'var(--ui-viz-2)', swatchStyle: FAN_INNER_SWATCH },
+                  { key: 'median', label: 'median', color: 'rgb(var(--ui-content-secondary))', swatchStyle: LINE_SWATCH },
+                ]}>
+                <span className="ml-auto">
                   median at {currentAge + realBands.p50.length - 1}: <strong>{fmtShort(realBands.p50[realBands.p50.length - 1] || 0)}</strong>
                 </span>
-              </div>
+              </Legend>
             </div>
           )}
         </Card>
