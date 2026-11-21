@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText } from '../components/uikit';
 import { useInsights, type Insight } from '../hooks/useInsights';
-import { api, type FinancialPath } from '../lib/api';
+import { api, type AccountFacts, type FinancialPath } from '../lib/api';
 import { actionArea } from '../lib/action-destination';
 import { toActionRow, type ActionRow } from '../lib/action-rows';
 import { useChatStore } from '../lib/chat-store';
@@ -92,7 +92,25 @@ interface NetBreakdown {
   creditCardsCount: number;
   loans: number;
   loansCount: number;
+  /** Every counted asset: cash + investments + other assets. */
+  assetTotal: number;
   netWorth: number;
+}
+
+/** The composition's shape, read straight off the server's facts. */
+function breakdownFrom({ netWorth: n }: AccountFacts): NetBreakdown {
+  const t = n.byType;
+  return {
+    cash: t.cash.total, cashCount: t.cash.count,
+    investments: t.investments.total, investmentsCount: t.investments.count,
+    assets: t.realEstate.total + t.alternative.total, assetsCount: t.realEstate.count + t.alternative.count,
+    realEstateValue: t.realEstate.total, alternativeValue: t.alternative.total,
+    debts: n.debt, debtsCount: t.creditCards.count + t.loans.count,
+    creditCards: t.creditCards.total, creditCardsCount: t.creditCards.count,
+    loans: t.loans.total, loansCount: t.loans.count,
+    assetTotal: n.assets,
+    netWorth: n.netWorth,
+  };
 }
 
 /**
@@ -107,6 +125,16 @@ function assetsLabel(b: NetBreakdown): string {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const NO_TOTAL = { total: 0, count: 0 };
+const NO_FACTS: AccountFacts = {
+  accountsConnected: 0,
+  accountsCounted: 0,
+  netWorth: {
+    assets: 0, debt: 0, netWorth: 0,
+    byType: { cash: NO_TOTAL, investments: NO_TOTAL, realEstate: NO_TOTAL, alternative: NO_TOTAL, creditCards: NO_TOTAL, loans: NO_TOTAL },
+  },
+};
 
 const fmtUsd = (n: number, frac = 0) =>
   isAmountsHidden()
@@ -193,7 +221,10 @@ export function SimpleHome() {
   const toast = useToast();
   const { insights, refresh: refreshInsights, dismiss, complete, snooze, isLoading: insightsLoading, isError: insightsFailed } = useInsights();
   const [generatingInsights, setGeneratingInsights] = useState(false);
-  const [breakdown, setBreakdown] = useState<NetBreakdown | null>(null);
+  // Account count and net worth come from the server, so this page cannot
+  // disagree with the Accounts page or chat.
+  const [facts, setFacts] = useState<AccountFacts | null>(null);
+  const breakdown = useMemo(() => (facts ? breakdownFrom(facts) : null), [facts]);
   const [accountsById, setAccountsById] = useState<Map<string, { name: string; balance: number }>>(new Map());
   const [goals, setGoals] = useState<Goal[]>([]);
   const [nwHistory, setNwHistory] = useState<{ date: string; value: number }[]>([]);
@@ -205,7 +236,7 @@ export function SimpleHome() {
   const [levelLoading, setLevelLoading] = useState(true);
   // One flag per request, not one for the page. Every card on Home now paints
   // when its own data lands: a slow endpoint costs its own card a skeleton and
-  // nothing else. `loading` is balances only, because that is what decides
+  // nothing else. `loading` is facts only, because that is what decides
   // between the dashboard, the empty state and the failure state.
   const [loading, setLoading] = useState(true);
   const [goalsLoading, setGoalsLoading] = useState(true);
@@ -218,11 +249,11 @@ export function SimpleHome() {
   const [goalsFailed, setGoalsFailed] = useState(false);
   const [txnsFailed, setTxnsFailed] = useState(false);
   const [flowFailed, setFlowFailed] = useState(false);
-  // An empty balances list means two different things: nobody has connected
-  // anything, or the request failed and we do not know. The catch below
-  // flattens both to [], so without this the page tells a tenant with 22
-  // accounts to connect their first one the moment the endpoint 500s.
-  const [balancesFailed, setBalancesFailed] = useState(false);
+  // No accounts means two different things: nobody has connected anything,
+  // or the request failed and we do not know. Without this the page tells a
+  // tenant with 22 accounts to connect their first one the moment the
+  // endpoint 500s.
+  const [factsFailed, setFactsFailed] = useState(false);
   const [monthFlow, setMonthFlow] = useState<MonthFlow | null>(null);
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
   const [sideLoading, setSideLoading] = useState(true);
@@ -335,57 +366,32 @@ export function SimpleHome() {
     // between a net worth on screen and four skeletons.
     void loadPath().finally(() => setLevelLoading(false));
 
-    // Balances: the headline, the composition, and which of the three page
+    // Facts: the headline, the composition, and which of the three page
     // states renders. Its failure is the one the page has to tell apart from
     // "nothing connected", so it keeps its own flag.
+    api.getFacts()
+      .then(setFacts)
+      .catch(() => {
+        setFactsFailed(true);
+        // Still set it: `facts` is what tells the page the request is over,
+        // and the failure branch reads factsFailed rather than these numbers.
+        setFacts(NO_FACTS);
+      })
+      .finally(() => setLoading(false));
+
+    // Balances: per-account details only (the bill note's account, the
+    // property link), never a total.
     api.getBalances()
       .then(({ balances }) => {
-        const next: NetBreakdown = {
-          cash: 0, cashCount: 0,
-          investments: 0, investmentsCount: 0,
-          assets: 0, assetsCount: 0,
-          realEstateValue: 0, alternativeValue: 0,
-          debts: 0, debtsCount: 0,
-          creditCards: 0, creditCardsCount: 0,
-          loans: 0, loansCount: 0,
-          netWorth: 0,
-        };
         const map = new Map<string, { name: string; balance: number }>();
         for (const b of balances) {
-          // Effective balance = raw with the user's invert override applied, matching
-          // the server's net-worth math. Skip accounts excluded from net worth so the
-          // headline reconciles with the graph and the Money page.
           const v = b.effectiveBalance ?? (b.invertBalance ? -1 : 1) * parseFloat(b.balance ?? '0');
           map.set(b.accountId, { name: b.name, balance: Number.isNaN(v) ? 0 : v });
-          if (Number.isNaN(v) || b.excludeFromNetWorth) continue;
-          if (b.type === 'depository') { next.cash += v; next.cashCount++; }
-          else if (b.type === 'investment') { next.investments += v; next.investmentsCount++; }
-          else if (b.type === 'real_estate') { next.assets += v; next.assetsCount++; next.realEstateValue += v; }
-          else if (b.type === 'alternative') { next.assets += v; next.assetsCount++; next.alternativeValue += v; }
-          else if (b.type === 'credit') { next.debts += Math.abs(v); next.debtsCount++; next.creditCards += Math.abs(v); next.creditCardsCount++; }
-          else if (b.type === 'loan') { next.debts += Math.abs(v); next.debtsCount++; next.loans += Math.abs(v); next.loansCount++; }
         }
-        next.netWorth = next.cash + next.investments + next.assets - next.debts;
-        setBreakdown(next);
         setAccountsById(map);
         setHasRealEstate(balances.some((b) => b.type === 'real_estate'));
       })
-      .catch(() => {
-        setBalancesFailed(true);
-        // Still set it: `breakdown` is what tells the page the request is over,
-        // and the failure branch reads balancesFailed rather than these numbers.
-        setBreakdown({
-          cash: 0, cashCount: 0,
-          investments: 0, investmentsCount: 0,
-          assets: 0, assetsCount: 0,
-          realEstateValue: 0, alternativeValue: 0,
-          debts: 0, debtsCount: 0,
-          creditCards: 0, creditCardsCount: 0,
-          loans: 0, loansCount: 0,
-          netWorth: 0,
-        });
-      })
-      .finally(() => setLoading(false));
+      .catch(() => {});
 
     // Daily history: the baseline for the briefing's net worth sentence.
     api.getNetWorthHistory()
@@ -570,11 +576,11 @@ export function SimpleHome() {
   // top of a live dashboard, which then headlined a $0 net worth and a -100%
   // pill built from a fetch that had failed.
   //
-  // accountsById holds a row per account before any net-worth exclusion is
-  // applied, so an empty one means no accounts at all, not "none that count".
+  // accountsConnected counts every account, excluded or not, so zero means no
+  // accounts at all, not "none that count".
   const homeState: 'failed' | 'empty' | 'dashboard' =
-    balancesFailed && accountsById.size === 0 ? 'failed'
-    : accountsById.size === 0 ? 'empty'
+    factsFailed ? 'failed'
+    : !facts || facts.accountsConnected === 0 ? 'empty'
     : 'dashboard';
 
   // Rendered here rather than inside the card so its handlers stay with the page.
@@ -886,7 +892,7 @@ function NetWorthBreakdown({
 }: {
   breakdown: NetBreakdown;
 }) {
-  const assetTotal = breakdown.cash + breakdown.investments + breakdown.assets;
+  const { assetTotal } = breakdown;
   const assetAccounts = breakdown.cashCount + breakdown.investmentsCount + breakdown.assetsCount;
 
   // Assets stacked-bar segments (Cash · Investments · Property) — proportional.

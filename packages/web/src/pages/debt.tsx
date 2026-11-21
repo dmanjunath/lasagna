@@ -125,7 +125,8 @@ export function Debt() {
   const [debts, setDebts] = useState<DebtAccount[]>([]);
   const [paidInFullCards, setPaidInFullCards] = useState<DebtAccount[]>([]);
   const [needsRateCards, setNeedsRateCards] = useState<DebtAccount[]>([]);
-  const [totalDebt, setTotalDebt] = useState(0);
+  const [debtOnPlan, setDebtOnPlan] = useState(0);
+  const [notInPlan, setNotInPlan] = useState({ amount: 0, count: 0 });
   const [hasAccounts, setHasAccounts] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingDebt, setEditingDebt] = useState<DebtAccount | null>(null);
@@ -140,7 +141,7 @@ export function Debt() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; property: { id: string; name: string } | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; planRole: 'payoff' | 'clears-monthly' | 'needs-rate'; paidInFull: boolean; paidInFullMonthly: boolean; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; property: { id: string; name: string } | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; planRole: 'payoff' | 'clears-monthly' | 'needs-rate'; paidInFull: boolean; paidInFullMonthly: boolean; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, debtOnPayoffPlan: undefined, monthlyInterest: 0 })),
       api.getBalances().catch(() => ({ balances: [] })),
     ]).then(([debtResult, balanceData]) => {
       setHasAccounts(balanceData.balances.length > 0);
@@ -191,7 +192,17 @@ export function Debt() {
       setDebts(paydown);
       setPaidInFullCards(mapped.filter((d) => d.planRole === 'clears-monthly'));
       setNeedsRateCards(mapped.filter((d) => d.planRole === 'needs-rate'));
-      setTotalDebt(paydown.reduce((sum, d) => sum + d.balance, 0));
+      // The server's split of total debt, so this page and chat state the
+      // same figures. An API older than this page sends none, so fall back to
+      // adding up the rows until both are deployed.
+      if (debtResult.debtOnPayoffPlan) {
+        setDebtOnPlan(debtResult.debtOnPayoffPlan.amount);
+        setNotInPlan(debtResult.debtOnPayoffPlan.notInPlan);
+      } else {
+        const off = mapped.filter((d) => d.planRole !== 'payoff');
+        setDebtOnPlan(paydown.reduce((sum, d) => sum + d.balance, 0));
+        setNotInPlan({ amount: off.reduce((sum, d) => sum + d.balance, 0), count: off.length });
+      }
     })
     .finally(() => setLoading(false));
   }, [refreshKey]);
@@ -206,7 +217,7 @@ export function Debt() {
     }
   }, [loading, setPageContext]);
 
-  const hasDebt = totalDebt > 0;
+  const hasDebt = debtOnPlan > 0;
 
   // One order, highest rate first. There was a snowball alternative beside it,
   // but calcTotalInterest is a per-debt sum with no waterfall cascade, so it
@@ -259,7 +270,8 @@ export function Debt() {
           debts={debts}
           paidInFullCards={paidInFullCards}
           needsRateCards={needsRateCards}
-          totalDebt={totalDebt}
+          debtOnPlan={debtOnPlan}
+          notInPlan={notInPlan}
           totalMonthlyPayment={totalMonthlyPayment}
           totalInterest={totalInterest}
           debtFreeDate={debtFreeDate}
@@ -581,14 +593,15 @@ function AccountCard({
 // ── Has Debt View ─────────────────────────────────────────────────────────────
 
 function HasDebtView({
-  debts, paidInFullCards, needsRateCards, totalDebt, totalMonthlyPayment, totalInterest,
+  debts, paidInFullCards, needsRateCards, debtOnPlan, notInPlan, totalMonthlyPayment, totalInterest,
   debtFreeDate, minOnlyDate, apr, orderedDebts,
   openChat, onEditDebt,
 }: {
   debts: DebtAccount[];
   paidInFullCards: DebtAccount[];
   needsRateCards: DebtAccount[];
-  totalDebt: number;
+  debtOnPlan: number;
+  notInPlan: { amount: number; count: number };
   totalMonthlyPayment: number;
   totalInterest: number;
   debtFreeDate: string;
@@ -612,8 +625,6 @@ function HasDebtView({
 
   // Cards that clear every month or have no rate on file are owed but kept
   // off the plan, so the hero names the plan's total and says what it leaves out.
-  const excluded = [...needsRateCards, ...paidInFullCards];
-  const excludedTotal = excluded.reduce((s, d) => s + d.balance, 0);
 
   return (
     <>
@@ -650,15 +661,15 @@ function HasDebtView({
         />
         <div className="relative">
           <div className="text-[14px] font-semibold text-content-muted">
-            {excluded.length > 0 ? 'Debt in your payoff plan' : 'Total debt'}
+            {notInPlan.count > 0 ? 'Debt in your payoff plan' : 'Total debt'}
           </div>
           <div className="mt-2 font-editorial text-[40px] sm:text-[56px] font-extrabold leading-[0.9] tracking-[-0.035em] text-negative ui-tnum">
             {/* Owed by definition under this label, so red and unsigned. */}
-            {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(totalDebt)}
+            {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(debtOnPlan)}
           </div>
-          {excluded.length > 0 && (
+          {notInPlan.count > 0 && (
             <div className="mt-2.5 text-[13px] font-medium text-content-muted ui-tnum">
-              <MaskedText text={formatCurrency(excludedTotal)} /> on {excluded.length} card{excluded.length === 1 ? '' : 's'} is not in the plan
+              <MaskedText text={formatCurrency(notInPlan.amount)} /> on {notInPlan.count} card{notInPlan.count === 1 ? '' : 's'} is not in the plan
             </div>
           )}
           <p className="mt-4 max-w-[54ch] text-[14.5px] leading-[1.55] text-content-secondary ui-tnum">

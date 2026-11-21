@@ -96,7 +96,7 @@ describe("createSimulationTools – run_monte_carlo", () => {
 });
 
 describe("createSimulationTools – run_backtest", () => {
-  it("with no overrides, successRate matches runRetirementBacktest(resolveSimInputs())", async () => {
+  it("with no overrides, historicalSuccessRate matches runRetirementBacktest(resolveSimInputs())", async () => {
     if (!dbAvailable || !tenantId) {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
@@ -105,13 +105,15 @@ describe("createSimulationTools – run_backtest", () => {
     const tools = createSimulationTools(tenantId, userId!);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const toolResult = (await tools.run_backtest.execute!({}, { messages: [], toolCallId: "test" })) as {
-      successRate: number;
+      historicalSuccessRate: number;
       startYearCount: number;
     };
 
     const resolved = await resolveSimInputs(tenantId, userId!);
     const summary = runRetirementBacktest(resolved);
-    expect(toolResult.successRate).toBe(Math.round(summary.successRate * 100));
+    expect(toolResult.historicalSuccessRate).toBe(Math.round(summary.successRate * 100));
+    // The backtest no longer exposes a field a reader could take for the headline.
+    expect(toolResult).not.toHaveProperty("successRate");
     expect(toolResult.startYearCount).toBe(summary.startYearCount);
     expect(toolResult.startYearCount).toBeGreaterThan(0);
   });

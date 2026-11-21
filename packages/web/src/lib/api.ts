@@ -147,6 +147,63 @@ export interface FinancialPath {
   };
 }
 
+/** A total and how many accounts make it up. Mirrors api lib/facts.ts. */
+export interface TypeTotal {
+  total: number;
+  count: number;
+}
+
+/** The canonical account count and net worth. Mirrors api lib/facts.ts. */
+export interface AccountFacts {
+  accountsConnected: number;
+  accountsCounted: number;
+  netWorth: {
+    assets: number;
+    debt: number;
+    netWorth: number;
+    byType: {
+      cash: TypeTotal;
+      investments: TypeTotal;
+      realEstate: TypeTotal;
+      alternative: TypeTotal;
+      creditCards: TypeTotal;
+      loans: TypeTotal;
+    };
+  };
+}
+
+/** An amount owed and how many accounts make it up. Mirrors api lib/facts.ts. */
+export interface DebtAmount {
+  amount: number;
+  count: number;
+}
+
+/**
+ * Total debt and the payoff plan's share of it. Mirrors api lib/facts.ts.
+ * `totalDebt` equals `netWorth.debt`. `debtOnPayoffPlan` is narrower: it
+ * leaves out cards that clear every month and cards with no rate on file.
+ */
+export interface DebtFacts {
+  totalDebt: number;
+  debtOnPayoffPlan: {
+    amount: number;
+    notInPlan: DebtAmount & { clearsMonthly: DebtAmount; needsRate: DebtAmount };
+  };
+}
+
+/**
+ * Income, spending and net for the last full month, the month /spending opens
+ * on. Mirrors api lib/facts.ts. `net` is negative for a shortfall.
+ */
+export interface MonthlyNetFlowFacts {
+  monthlyNetFlow: {
+    window: { start: string; end: string; label: string };
+    income: number;
+    spending: number;
+    net: number;
+  };
+}
+
 export interface FeatureFlag {
   key: string;
   label: string;
@@ -348,6 +405,8 @@ export const api = {
       }>;
     }>("/accounts/balances"),
 
+  getFacts: () => request<AccountFacts & DebtFacts & MonthlyNetFlowFacts>("/facts"),
+
   getHistory: (accountId: string) =>
     request<{
       account: { id: string; name: string; type: string };
@@ -378,9 +437,8 @@ export const api = {
         liabilityLastSyncedAt: string | null;
         lastUpdated: string | null;
       }>;
-      totalDebt: number;
       monthlyInterest: number;
-    }>("/accounts/debts"),
+    } & DebtFacts>("/accounts/debts"),
 
   patchLoanDetails: (accountId: string, body: Record<string, unknown>) =>
     request<{ metadata: Record<string, unknown> }>(
@@ -1212,6 +1270,9 @@ export const api = {
       profileUpdated: boolean;
     }>('/quick-import/commit', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // The plan the retirement sim runs on when nothing is overridden (server-resolved).
+  getRetirementInputs: () => request<RetirementSimInputs>('/retirement/inputs'),
+
   // Retirement Monte Carlo — server engine (same runRetirementSim the chat uses).
   simulateRetirement: (overrides: RetirementSimOverrides) =>
     request<SimResult>('/retirement/simulate', { method: 'POST', body: JSON.stringify(overrides) }),
@@ -1241,6 +1302,11 @@ export interface RetirementSimOverrides {
   allocation?: { usStocks: number; intlStocks: number; bonds: number; reits: number; cash: number };
   numSimulations?: number;
 }
+
+// Every input the server resolves for the sim. The page prefills from these and
+// overrides only the fields the user has changed.
+export type RetirementSimInputs = Required<Omit<RetirementSimOverrides, 'strategyParams' | 'allocation'>> &
+  Pick<RetirementSimOverrides, 'strategyParams' | 'allocation'>;
 
 export interface SimResult {
   successRate: number; // 0..1

@@ -466,15 +466,13 @@ export function Spending() {
     setRefreshKey((k) => k + 1);
   }, []);
 
-  // Detect linked accounts and credit card balances
+  // Detect linked accounts and credit card balances, from the server's facts
+  // so the card total skips excluded accounts and respects the invert override.
   useEffect(() => {
-    api.getBalances()
-      .then((data) => {
-        setHasLinkedAccounts(data.balances.length > 0);
-        const ccTotal = data.balances
-          .filter((b: { type: string }) => b.type === 'credit')
-          .reduce((sum: number, b: { balance: string | null }) => sum + Math.abs(parseFloat(b.balance || '0')), 0);
-        setCreditCardTotal(ccTotal);
+    api.getFacts()
+      .then((facts) => {
+        setHasLinkedAccounts(facts.accountsConnected > 0);
+        setCreditCardTotal(facts.netWorth.byType.creditCards.total);
       })
       .catch(() => {});
   }, []);

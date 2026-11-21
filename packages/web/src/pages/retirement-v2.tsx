@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { niceTicks } from '../components/ds/TrendChart';
 import { useLocation } from 'wouter';
-import { api, type SimResult, type RetirementSimOverrides, type BacktestSummary } from '../lib/api';
+import { api, type SimResult, type RetirementSimOverrides, type RetirementSimInputs, type BacktestSummary } from '../lib/api';
 import { FinancialPlansList } from './financial-plans/index';
 import { OptionMenu } from '../components/common/OptionMenu';
 import { PlanFreshnessBanner } from '../components/common/plan-freshness-banner';
@@ -13,7 +13,7 @@ import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-
 import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil } from 'lucide-react';
 import { InfoPopover } from '../components/common/InfoPopover';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
-import { Badge, Button, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus } from '../components/uikit';
+import { Alert, Badge, Button, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import { PageTitle } from '../components/ds/PageTitle';
 import {
@@ -1098,6 +1098,18 @@ export function RetirementV2() {
   const [ssMonthly, setSsMonthly] = useState(0);
   const [ssTouched, setSsTouched] = useState(false);
 
+  // The plan the server resolves when nothing is overridden. The levers start
+  // from it, and the sim is sent only the fields that differ from it, so the
+  // untouched headline is the same figure chat and facts report. `baseBalance`
+  // is the starting bucket total, the balance the levers start from.
+  const [simBase, setSimBase] = useState<RetirementSimInputs | null>(null);
+  const [baseBalance, setBaseBalance] = useState(0);
+  // GET /retirement/inputs failed. The sims still run on the server's own plan
+  // ({}), but nothing built from the client defaults is shown until a retry
+  // loads the real inputs.
+  const [inputsFailed, setInputsFailed] = useState(false);
+  const [inputsRetrying, setInputsRetrying] = useState(false);
+
   // Inputs & assumptions (collapsible; two tabbed sub-sections)
   const [inputsOpen, setInputsOpen] = useState(false);
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
@@ -1149,15 +1161,42 @@ export function RetirementV2() {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
+  // Levers start from the server-resolved plan (age, retirement age, spend,
+  // savings, Social Security), the one chat and facts simulate.
+  const applySimInputs = (simInputs: RetirementSimInputs) => {
+    setCurrentAge(simInputs.currentAge);
+    setRetireAge(simInputs.retirementAge);
+    setLifeExp(simInputs.planThroughAge);
+    setMonthlySpend(simInputs.monthlySpend);
+    setMonthlySavings(simInputs.monthlySavings);
+    setSsClaimAge(simInputs.ssClaimAge);
+    setSsMonthly(simInputs.ssMonthly);
+    setOtherMonthly(simInputs.otherMonthly);
+    setOtherStartAge(simInputs.otherStartAge);
+    setSimBase(simInputs);
+  };
+
+  const retryInputs = () => {
+    setInputsRetrying(true);
+    api
+      .getRetirementInputs()
+      .then((simInputs) => {
+        applySimInputs(simInputs);
+        setInputsFailed(false);
+      })
+      .catch(() => {})
+      .finally(() => setInputsRetrying(false));
+  };
+
   // ── Prefill from real data ─────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
       api.getBalances().catch(() => ({ balances: [] })),
       api.getFinancialProfile().catch(() => ({ financialProfile: null })),
       api.getPortfolioAllocation().catch(() => ({ allocation: null, totalValue: 0 })),
-      api.getSpendingSummary().catch(() => null),
       api.getPortfolioExposure().catch(() => null),
-    ]).then(([balanceData, profileData, portfolioData, spendingData, exposureData]) => {
+      api.getRetirementInputs().catch(() => null),
+    ]).then(([balanceData, profileData, portfolioData, exposureData, simInputs]) => {
       // Balances → per-account list + tax buckets (the /accounts/balances rows
       // carry subtype at runtime, same source the /plaid/items list uses).
       const balances = (balanceData as { balances: Array<{ accountId: string; name: string; balance?: string | null; type?: string; subtype?: string | null }> }).balances;
@@ -1175,7 +1214,9 @@ export function RetirementV2() {
       }
       const investable = sums.taxable + sums.deferred + sums.roth + sums.hsa;
       if (investable > 0) {
-        setBuckets({ taxable: Math.round(sums.taxable), deferred: Math.round(sums.deferred), roth: Math.round(sums.roth), hsa: Math.round(sums.hsa) });
+        const rounded = { taxable: Math.round(sums.taxable), deferred: Math.round(sums.deferred), roth: Math.round(sums.roth), hsa: Math.round(sums.hsa) };
+        setBuckets(rounded);
+        setBaseBalance(rounded.taxable + rounded.deferred + rounded.roth + rounded.hsa);
       }
       setAccounts(accts);
       setAccountOrder(
@@ -1186,38 +1227,13 @@ export function RetirementV2() {
           .map(a => a.id),
       );
 
-      // Profile → age / retirement age / income
-      const profile = (profileData as { financialProfile: { age?: number | null; dateOfBirth?: string | null; annualIncome?: number | null; retirementAge?: number | null; employerMatchPercent?: number | null } | null }).financialProfile;
-      let age = 40;
-      let income = 0;
-      let matchPct = 0;
-      if (profile) {
-        if (profile.age) age = profile.age;
-        else if (profile.dateOfBirth) {
-          const dob = new Date(profile.dateOfBirth);
-          if (!Number.isNaN(dob.getTime())) age = Math.max(18, Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)));
-        }
-        if (profile.annualIncome) income = Number(profile.annualIncome);
-        if (profile.retirementAge) setRetireAge(profile.retirementAge);
-        if (profile.employerMatchPercent) matchPct = Number(profile.employerMatchPercent);
-      }
-      setCurrentAge(age);
-      setAnnualIncome(income);
+      // Profile → income, which the Social Security estimate re-reads when the
+      // user moves the claim age.
+      const profile = (profileData as { financialProfile: { annualIncome?: number | null } | null }).financialProfile;
+      if (profile?.annualIncome) setAnnualIncome(Number(profile.annualIncome));
 
-      // Spending → desired retirement spend default (monthly)
-      const sd = spendingData as { totalSpending?: number } | null;
-      const monthly = sd && sd.totalSpending && sd.totalSpending > 0 ? Math.round(sd.totalSpending) : 5000;
-      setMonthlySpend(Math.max(1, monthly));
-
-      // Savings estimate: after-tax income minus current spending, plus a rough
-      // employer match — just a starting point for the lever.
-      // SERVER MIRROR: this savings/spend derivation is replicated in
-      // packages/api/src/services/retirement-defaults.ts (deriveSimInputs) so
-      // the chat agent starts from the same inputs. INVARIANT: keep in lockstep.
-      if (income > 0) {
-        const annualSavings = Math.max(0, income * 0.75 - monthly * 12) + income * (matchPct / 100);
-        setMonthlySavings(Math.max(0, Math.min(15000, Math.round(annualSavings / 12 / 50) * 50)));
-      }
+      if (simInputs) applySimInputs(simInputs);
+      else setInputsFailed(true);
 
       // Allocation → composition + equity fraction; exposure → blended return
       const pd = portfolioData as { allocation: Record<string, number> | null };
@@ -1279,11 +1295,12 @@ export function RetirementV2() {
     };
   }, []);
 
-  // SS benefit tracks the claim-age estimate until the user overrides it.
+  // SS benefit tracks the claim-age estimate until the user overrides it. At
+  // the server's claim age it is the server's own estimate.
   useEffect(() => {
     if (ssTouched) return;
-    setSsMonthly(estimateSSMonthly(annualIncome, ssClaimAge));
-  }, [annualIncome, ssClaimAge, ssTouched]);
+    setSsMonthly(simBase && ssClaimAge === simBase.ssClaimAge ? simBase.ssMonthly : estimateSSMonthly(annualIncome, ssClaimAge));
+  }, [annualIncome, ssClaimAge, ssTouched, simBase]);
 
   // ── Effective composition ──────────────────────────────────────────────────
   // 'current' uses the real-portfolio-derived equity % + expected return; a
@@ -1387,32 +1404,43 @@ export function RetirementV2() {
     return { usStocks, intlStocks, bonds, reits, cash };
   }, [compPreset, allocation, customAlloc]);
 
-  const overrides = useMemo<RetirementSimOverrides>(() => ({
-    currentAge,
-    retirementAge: effRetireAge,
-    planThroughAge: lifeExp,
-    startingBalance: portfolioValue,
-    monthlySavings,
-    monthlySpend,
-    ssMonthly,
-    ssClaimAge,
-    otherMonthly,
-    otherStartAge,
-    strategy,
-    strategyParams: strategyParams as Record<string, unknown> | undefined,
+  // Only the levers the user has moved off the server-resolved plan are sent;
+  // the server resolves the rest. Null until that plan loads, or {} (the
+  // server's plan as is) if it failed to load.
+  const overrides = useMemo<RetirementSimOverrides | null>(() => {
+    if (!simBase) return inputsFailed ? {} : null;
+    const levers = {
+      currentAge,
+      retirementAge: effRetireAge,
+      planThroughAge: lifeExp,
+      monthlySavings,
+      monthlySpend,
+      ssMonthly,
+      ssClaimAge,
+      otherMonthly,
+      otherStartAge,
+      strategy,
+    };
+    const out: RetirementSimOverrides = {};
+    for (const key of Object.keys(levers) as (keyof typeof levers)[]) {
+      if (levers[key] !== simBase[key]) (out as Record<string, unknown>)[key] = levers[key];
+    }
+    if (portfolioValue !== baseBalance) out.startingBalance = portfolioValue;
+    if (strategyParams) out.strategyParams = strategyParams as Record<string, unknown>;
     // Omit the allocation for "My portfolio" so the server resolves the real
     // allocation AND its holdings-derived per-bucket returns (keeping the sim's
     // expected return equal to the figure shown below). A preset/custom mix is
     // hypothetical, so it's sent explicitly and runs on flat assumptions.
-    allocation: compPreset === 'current' ? undefined : simAllocation,
-    numSimulations: 1000,
-  }), [currentAge, effRetireAge, lifeExp, portfolioValue, monthlySavings, monthlySpend, ssMonthly, ssClaimAge, otherMonthly, otherStartAge, strategy, strategyParams, compPreset, simAllocation]);
+    if (compPreset !== 'current') out.allocation = simAllocation;
+    return out;
+  }, [simBase, inputsFailed, baseBalance, currentAge, effRetireAge, lifeExp, portfolioValue, monthlySavings, monthlySpend, ssMonthly, ssClaimAge, otherMonthly, otherStartAge, strategy, strategyParams, compPreset, simAllocation]);
 
   const [mcResult, setMcResult] = useState<SimResult | null>(null);
   const [mcLoading, setMcLoading] = useState(false);
   const overridesKey = JSON.stringify(overrides);
 
   useEffect(() => {
+    if (overridesKey === 'null') return;
     const controller = new AbortController();
     let superseded = false;
     setMcLoading(true);
@@ -1463,6 +1491,7 @@ export function RetirementV2() {
   const [btLoading, setBtLoading] = useState(false);
 
   useEffect(() => {
+    if (overridesKey === 'null') return;
     const controller = new AbortController();
     let superseded = false;
     setBtLoading(true);
@@ -1635,6 +1664,8 @@ export function RetirementV2() {
   const shownVerdict = resultsPending ? 'Estimating…' : verdict;
   const shownVerdictColor = resultsPending ? 'rgb(var(--ui-content-muted))' : verdictColor;
   const shownMcChance = resultsPending ? '…' : `${bands.mcSuccessRate}%`;
+  // The plan-through age is the user's only once the inputs have loaded.
+  const throughAge = inputsFailed ? '' : `, through age ${lifeExp},`;
 
   // Age-based sustainable draw: rule-of-thumb withdrawal rate × projected
   // retirement balance / 12. Same in all modes (MC, Hist, Blended).
@@ -1647,7 +1678,11 @@ export function RetirementV2() {
   // The verdict is the same one the headline shows, so the conversation starts
   // from the figure the page states rather than from whichever method happens
   // to be selected.
-  const askLasagnaPrompt = resultsPending
+  const askLasagnaPrompt = inputsFailed
+    ? (resultsPending
+      ? 'I want to assess my retirement plan. Can you walk me through what my chances look like?'
+      : `I want to assess my retirement plan. The dashboard says "${shownVerdict}": a ${shownMcChance} chance my money lasts. Can you walk me through what's driving that?`)
+    : resultsPending
     ? `I want to assess my retirement plan: retiring at ${effRetireAge} with ${fmtPromptMoney(portfolioValue)} saved, spending ${fmtPromptMoney(monthlySpendEff)}/mo, planning through age ${lifeExp}. Can you walk me through what my chances look like?`
     : `I want to assess my retirement plan. The dashboard says "${shownVerdict}": a ${shownMcChance} chance my money lasts through age ${lifeExp}, retiring at ${effRetireAge} with ${fmtPromptMoney(portfolioValue)} saved and spending ${fmtPromptMoney(monthlySpendEff)}/mo. Can you walk me through what's driving that?`;
 
@@ -2004,10 +2039,12 @@ export function RetirementV2() {
             <span className="ret-pin__label">Historical backtest</span>
             <span className="ret-pin__pct ret-pin__pct--check ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
           </span>
-          <span className="ret-pin__metric">
-            <span className="ret-pin__label">Sustainable draw</span>
-            <span className="ret-pin__pct ret-pin__pct--check ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} />/mo</span>
-          </span>
+          {!inputsFailed && (
+            <span className="ret-pin__metric">
+              <span className="ret-pin__label">Sustainable draw</span>
+              <span className="ret-pin__pct ret-pin__pct--check ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} />/mo</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -2069,7 +2106,7 @@ export function RetirementV2() {
                   )}
                 </Badge>
                 <InfoPopover label="What is Monte Carlo?">
-                  Runs 1,000 randomized market scenarios and reports how often your money lasts to age {lifeExp}. It reflects good and bad luck, including a bad run of early returns.
+                  Runs 1,000 randomized market scenarios and reports how often your money lasts {inputsFailed ? 'through your plan' : `to age ${lifeExp}`}. It reflects good and bad luck, including a bad run of early returns.
                 </InfoPopover>
               </span>
             )}
@@ -2081,13 +2118,14 @@ export function RetirementV2() {
                   rather than the words "On track", which read as a correction
                   of the headline when the headline says "At risk". */}
               {outlook === 'on_track'
-                ? `A chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}, counts as on track.`
-                : `A chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets, through age ${lifeExp}, would count as on track. Retiring later, spending less or saving more each month would close the gap.`}
+                ? `A chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets${throughAge} counts as on track.`
+                : `A chance of ${TARGET_SUCCESS}% or better across 1,000 simulated markets${throughAge} would count as on track. Retiring later, spending less or saving more each month would close the gap.`}
             </p>
           )}
           <div className="mt-4 sm:hidden">
             {renderAskLasagna('rv2-ask-lasagna-mobile')}
           </div>
+          {!inputsFailed && (
           <div className="rv2-kpi-grid mt-6 pt-5 border-t border-line">
             <div className="min-w-0" data-testid="rv2-kpi-years">
               <div className="text-[12px] font-semibold text-content-muted">Years to retirement</div>
@@ -2122,6 +2160,7 @@ export function RetirementV2() {
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">age {effRetireAge} → {lifeExp}</div>
             </div>
           </div>
+          )}
 
           {/* The other two readouts, kept but quieter. They are corroboration,
               not the answer, so they no longer render at the same size and
@@ -2141,6 +2180,7 @@ export function RetirementV2() {
                 </div>
                 <div className="mt-0.5 text-[12px] font-medium text-content-muted ui-tnum">{btResult ? `over ${btResult.startYearCount} start-years since 1928` : ''}</div>
               </div>
+              {!inputsFailed && (
               <div className="min-w-0" data-testid="rv2-kpi-draw">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="inline-flex items-center gap-1 text-[13px] font-medium text-content-secondary">
@@ -2157,11 +2197,24 @@ export function RetirementV2() {
                   ~{Math.round(sustainableDrawRatePct * 100)}% of your projected balance at retirement
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>
       </section>
 
+      {inputsFailed && (
+        <Alert
+          tone="negative"
+          className="mt-6"
+          title="Couldn't load your plan details"
+          action={<Button size="sm" variant="neutral" loading={inputsRetrying} onClick={retryInputs} data-testid="rv2-inputs-retry">Try again</Button>}
+        >
+          The outlook above is up to date. Your inputs and charts need these details to show.
+        </Alert>
+      )}
+
+      {!inputsFailed && (<>
       {/* ── 2 · Inputs & assumptions (You / Portfolio) ─────────────────────── */}
       <div ref={inputsRef} className="scroll-mt-4">
       <Section title="Inputs & assumptions" description="Every edit re-runs the simulation live.">
@@ -2795,6 +2848,7 @@ export function RetirementV2() {
           )}
         </Card>
       </Section>
+      </>)}
 
       <div className="mt-8">
         <LegalDisclaimer variant="projections" />

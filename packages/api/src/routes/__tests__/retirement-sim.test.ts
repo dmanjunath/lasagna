@@ -13,16 +13,20 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { Hono } from "hono";
 import type { AuthEnv } from "../../middleware/auth.js";
 import { retirementSimRouter } from "../retirement-sim.js";
-import { holdings } from "@lasagna/core";
+import { eq, holdings, users } from "@lasagna/core";
 import { db } from "../../lib/db.js";
+import { computeRetirementSuccess } from "../../lib/facts.js";
+import { createSimulationTools } from "../../agent/tools/simulation.js";
+import { resolveSimInputs } from "../../services/resolve-sim-inputs.js";
 
 // ── Test app with a fake session middleware ───────────────────────────────────
-function makeApp(tenantId: string) {
+// Personal sim inputs are read per user, so the user id must be a real uuid.
+function makeApp(tenantId: string, userId = "00000000-0000-0000-0000-000000000000") {
   const app = new Hono<AuthEnv>();
   app.use("*", async (c, next) => {
     c.set("session", {
       tenantId,
-      userId: "test-user-id",
+      userId,
       isDemo: false,
       isAdmin: false,
       iat: Math.floor(Date.now() / 1000),
@@ -36,6 +40,7 @@ function makeApp(tenantId: string) {
 
 // ── DB discovery (for happy-path) ─────────────────────────────────────────────
 let tenantId: string | null = null;
+let userId: string | null = null;
 let dbAvailable = false;
 
 beforeAll(async () => {
@@ -47,7 +52,13 @@ beforeAll(async () => {
       .limit(1);
     if (rows.length > 0) {
       tenantId = rows[0].tenantId;
-      dbAvailable = true;
+      const urows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.tenantId, tenantId))
+        .limit(1);
+      userId = urows[0]?.id ?? null;
+      dbAvailable = userId != null;
     }
   } catch {
     dbAvailable = false;
@@ -174,7 +185,7 @@ describe("POST /simulate — integration", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const app = makeApp(tenantId);
+    const app = makeApp(tenantId, userId!);
     const res = await app.request("/simulate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -193,7 +204,7 @@ describe("POST /simulate — integration", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const app = makeApp(tenantId);
+    const app = makeApp(tenantId, userId!);
     const res = await app.request("/simulate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -216,7 +227,7 @@ describe("POST /simulate — integration", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const app = makeApp(tenantId);
+    const app = makeApp(tenantId, userId!);
     const res = await app.request("/simulate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -273,7 +284,7 @@ describe("POST /backtest — integration", () => {
       console.warn("SKIP: no DB / no seeded tenant with holdings");
       return;
     }
-    const app = makeApp(tenantId);
+    const app = makeApp(tenantId, userId!);
     const res = await app.request("/backtest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -289,5 +300,59 @@ describe("POST /backtest — integration", () => {
     expect(body).toHaveProperty("startYearCount");
     expect(body.startYearCount).toBeGreaterThan(0);
     expect(body.cohortBands.p50.length).toBe(body.horizonYears + 1);
+  });
+});
+
+// ── One headline: page (no overrides) == facts == chat ─────────────────────────
+
+describe("retirement chance of success — one figure", () => {
+  it("simulate with no overrides, facts retirementSuccess and chat run_monte_carlo agree", async () => {
+    if (!dbAvailable || !tenantId) {
+      console.warn("SKIP: no DB / no seeded tenant with holdings");
+      return;
+    }
+    const app = makeApp(tenantId, userId!);
+    const res = await app.request("/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    const page = Math.round((await res.json()).successRate * 100);
+
+    const fact = await computeRetirementSuccess(tenantId, userId!);
+    const tools = createSimulationTools(tenantId, userId!);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const chat = (await tools.run_monte_carlo.execute!({}, { messages: [], toolCallId: "parity" })) as {
+      successRate: number;
+    };
+
+    expect(fact.percent).toBe(page);
+    expect(chat.successRate).toBe(page);
+    expect(fact.method).toBe("monte_carlo");
+  });
+
+  it("GET /inputs returns the plan the no-override sim runs on", async () => {
+    if (!dbAvailable || !tenantId) {
+      console.warn("SKIP: no DB / no seeded tenant with holdings");
+      return;
+    }
+    const app = makeApp(tenantId, userId!);
+    const res = await app.request("/inputs");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const resolved = await resolveSimInputs(tenantId, userId!, {});
+    expect(body).toEqual(JSON.parse(JSON.stringify(resolved)));
+
+    // Sending the resolved plan back as overrides changes nothing, which is
+    // what lets the page send only the levers the user moved.
+    const sim = async (b: unknown) =>
+      (await (await app.request("/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(b),
+      })).json()).successRate;
+    const { assetClassReturns: _r, allocation: _a, ...levers } = body;
+    expect(await sim(levers)).toBe(await sim({}));
   });
 });

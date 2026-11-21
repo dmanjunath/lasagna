@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { excludedTxnAccountIds } from "../lib/account-balances.js";
 import { buildPeriods } from "../lib/trend.js";
+import { computeCashFlow } from "../lib/cash-flow.js";
 import { validateQueryBody, buildKeysetPredicate, encodeCursor, cursorForRow } from "../lib/txn-query.js";
 import { loadTaxonomy, UUID_RE } from "../lib/taxonomy.js";
 
@@ -417,83 +418,13 @@ transactionRoutes.get("/spending-summary", async (c) => {
     ? new Date(c.req.query("endDate")!)
     : new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59); // Previous month end
 
-  const conditions = [
-    eq(transactions.tenantId, session.tenantId),
-    sql`${transactions.date} >= ${startDate.toISOString()}::timestamptz`,
-    sql`${transactions.date} <= ${endDate.toISOString()}::timestamptz`,
-    sql`${transactions.excludedAt} is null`,
-  ];
-  const excludedIds = await excludedTxnAccountIds(session.tenantId);
-  if (excludedIds.length > 0) {
-    conditions.push(notInArray(transactions.accountId, excludedIds));
-  }
-
-  const rows = await db
-    .select({
-      id: categories.id,
-      name: categories.name,
-      systemKey: categories.systemKey,
-      groupId: categories.groupId,
-      groupName: categoryGroups.name,
-      groupType: categoryGroups.type,
-      total: sql<string>`sum(${transactions.amount})`,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(transactions)
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-    .where(and(...conditions))
-    .groupBy(categories.id, categories.name, categories.systemKey, categories.groupId, categoryGroups.name, categoryGroups.type)
-    .orderBy(sql`sum(${transactions.amount}) DESC`);
-
-  // Income = income-category totals only; spending = positive totals in
-  // non-income, non-transfer categories. A refund-heavy expense category (net
-  // negative) counts as neither. Matches get_spending_summary + insights engine.
-  //
-  // Such a category also drops out of the BREAKDOWN, not just the total: it
-  // would otherwise render its refund as if it were spending, and the rows the
-  // page lists under the hero have to add up to the hero.
-  const countedRows = rows.filter((row) => {
-    const gt = row.groupType ?? "expense";
-    return gt === "income" || gt === "transfer" || parseFloat(row.total || "0") > 0;
-  });
-
-  let totalSpending = 0;
-  let totalIncome = 0;
-
-  const categoryRows = countedRows.map((row) => {
-    const total = parseFloat(row.total || "0");
-    const gt = row.groupType ?? "expense";
-    if (gt === "income") {
-      totalIncome += Math.abs(total);
-    } else if (gt !== "transfer" && total > 0) {
-      totalSpending += total;
-    }
-    return {
-      id: row.id,
-      name: row.name ?? "Other",
-      systemKey: row.systemKey,
-      groupId: row.groupId,
-      groupName: row.groupName ?? "Other",
-      groupType: row.groupType ?? "expense",
-      total: Math.round(Math.abs(total) * 100) / 100,
-      count: row.count,
-      percentage: 0, // calculated below
-    };
-  });
-
-  // Calculate percentages based on spending only (exclude income)
-  for (const cat of categoryRows) {
-    if (cat.groupType !== "income" && totalSpending > 0) {
-      cat.percentage = Math.round((cat.total / totalSpending) * 10000) / 100;
-    }
-  }
+  const flow = await computeCashFlow(session.tenantId, startDate, endDate);
 
   return c.json({
-    categories: categoryRows,
-    totalSpending: Math.round(totalSpending * 100) / 100,
-    totalIncome: Math.round(totalIncome * 100) / 100,
-    netCashFlow: Math.round((totalIncome - totalSpending) * 100) / 100,
+    categories: flow.categories,
+    totalSpending: flow.spending,
+    totalIncome: flow.income,
+    netCashFlow: flow.net,
     period: {
       start: startDate.toISOString(),
       end: endDate.toISOString(),

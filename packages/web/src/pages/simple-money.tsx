@@ -5,7 +5,7 @@ import {
   Lock, ChevronDown, ChevronRight, Pencil,
   DollarSign, Banknote,
 } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, type AccountFacts } from '../lib/api';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import { cn, stripAccountMask, exactSyncTime } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden } from '../lib/hide-amounts';
@@ -79,6 +79,9 @@ export function SimpleMoney() {
   // history when in fact we could not ask. Home already tracks this.
   const [historyFailed, setHistoryFailed] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // The account count and net worth, from the server, so this page states the
+  // same figures Home and chat do. Null when the request failed.
+  const [facts, setFacts] = useState<AccountFacts | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
@@ -99,8 +102,10 @@ export function SimpleMoney() {
       api.getItems().catch(() => ({ items: [] as Item[] })),
       api.getNetWorthHistory().catch(() => { setHistoryFailed(true); return { history: [] as TrendPoint[] }; }),
       api.getTransactions({ limit: 8 }).catch(() => ({ transactions: [] as Transaction[] })),
-    ]).then(([itemsData, historyData, txData]) => {
+      api.getFacts().catch(() => null),
+    ]).then(([itemsData, historyData, txData, factsData]) => {
       setItems(itemsData.items);
+      setFacts(factsData);
       setHistory(historyData.history || []);
       setTransactions(txData.transactions);
     }).finally(() => setLoading(false));
@@ -118,6 +123,7 @@ export function SimpleMoney() {
       if (results.includes(false)) setSyncError('Some accounts failed to sync. Try again.');
       const fresh = await api.getItems();
       setItems(fresh.items);
+      reloadFacts();
     } catch {
       setSyncError('Some accounts failed to sync. Try again.');
     }
@@ -129,6 +135,11 @@ export function SimpleMoney() {
   // changes (a bank added, accounts added to one, one disconnected).
   const reloadItems = () => {
     api.getItems().then((d) => setItems(d.items)).catch(() => {});
+    reloadFacts();
+  };
+  // Balances moved, so the count and net worth may have too.
+  const reloadFacts = () => {
+    api.getFacts().then(setFacts).catch(() => setFacts(null));
   };
 
   // Adding and updating connections: the add dialog, Plaid's flows, and the
@@ -199,31 +210,35 @@ export function SimpleMoney() {
   const altAccounts = allAccounts.filter((a) => a.type === 'alternative');
   const debtAccounts = allAccounts.filter((a) => a.type === 'credit' || a.type === 'loan');
   // Subtotals skip accounts the user excluded from net worth and respect the
-  // invert override, so they reconcile with the net-worth figure and the chart.
+  // invert override, the same rules as the server's facts, so they add up to
+  // the net worth figure above them.
   const sumBalances = (arr: typeof allAccounts) =>
     arr.filter((a) => !a.excludeFromNetWorth).reduce((s, a) => s + effectiveBalance(a), 0);
   const cashTotal = sumBalances(cashAccounts);
   const investTotal = sumBalances(investAccounts);
   const realEstateTotal = sumBalances(realEstateAccounts);
   const altTotal = sumBalances(altAccounts);
-  const assetsTotal = realEstateTotal + altTotal;
   const debtTotal = debtAccounts
     .filter((a) => !a.excludeFromNetWorth)
     .reduce((s, a) => s + Math.abs(effectiveBalance(a)), 0);
-  const netWorth = cashTotal + investTotal + assetsTotal - debtTotal;
   // Gross assets = the asset base shared with the Home composition ribbon.
   // Section shares are expressed against this (not net worth) so the same
   // account reads at the same % on both pages and the slices sum to 100%.
-  const grossAssets = cashTotal + investTotal + assetsTotal;
+  const grossAssets = facts?.netWorth.assets ?? 0;
 
-  const totalAccountCount = cashAccounts.length + investAccounts.length + realEstateAccounts.length + altAccounts.length + debtAccounts.length;
+  // Every account, and how many of them the user keeps out of net worth.
+  const notCounted = facts ? facts.accountsConnected - facts.accountsCounted : 0;
+  const accountCountText = facts
+    ? `${facts.accountsConnected} account${facts.accountsConnected === 1 ? '' : 's'}` +
+      (notCounted > 0 ? ` (${notCounted} not counted in net worth)` : '')
+    : null;
   const lastSynced = useMemo(() => {
     const stamps = items.map((i) => i.lastSyncedAt).filter(Boolean) as string[];
     if (stamps.length === 0) return null;
     return stamps.reduce((a, b) => (new Date(a) > new Date(b) ? a : b));
   }, [items]);
 
-  const hasMoney = !loading && totalAccountCount > 0;
+  const hasMoney = !loading && allAccounts.length > 0;
 
   // On a phone, the header's two actions live in the top bar.
   useMobileHeader(hasMoney ? {
@@ -254,9 +269,9 @@ export function SimpleMoney() {
             ) : (
               hasMoney && (
                 <>
-                  <PageMetaItem className="ui-tnum">
-                    {totalAccountCount} account{totalAccountCount === 1 ? '' : 's'}
-                  </PageMetaItem>
+                  {accountCountText && (
+                    <PageMetaItem className="ui-tnum">{accountCountText}</PageMetaItem>
+                  )}
                   {lastSynced && (
                     exactSyncTime(lastSynced) ? (
                       <Tooltip content={exactSyncTime(lastSynced)!} side="bottom">
@@ -361,11 +376,19 @@ export function SimpleMoney() {
       )}
 
       {/* ── Net-worth + chart card ── */}
-      {hasMoney && (
+      {hasMoney && !facts && (
+        <Alert
+          tone="negative"
+          className="mt-2 md:mt-6"
+          title="Couldn't load your net worth"
+          action={<Button size="sm" variant="neutral" onClick={reloadFacts}>Try again</Button>}
+        />
+      )}
+      {hasMoney && facts && (
         <NetWorthTrendCard
           history={history}
           historyError={historyFailed}
-          netWorth={netWorth}
+          netWorth={facts.netWorth.netWorth}
           className="mt-2 md:mt-6"
           // A label over the figure, not a heading competing with it.
           titleClassName="text-[14px] font-semibold text-content-muted"
@@ -393,9 +416,9 @@ export function SimpleMoney() {
         // name. On a phone the row also carries the page's count and sync
         // time, which sit under the title on desktop.
         <div className="mt-7 flex items-center justify-between gap-3 px-1 md:justify-end">
-          <span className="min-w-0 truncate text-[13px] font-medium text-content-muted ui-tnum md:hidden">
-            {totalAccountCount} account{totalAccountCount === 1 ? '' : 's'}
-            {lastSynced && `, synced ${relativeTime(lastSynced)}`}
+          <span className="min-w-0 text-[13px] font-medium text-content-muted ui-tnum md:hidden">
+            {accountCountText}
+            {lastSynced && `${accountCountText ? ', synced' : 'Synced'} ${relativeTime(lastSynced)}`}
           </span>
           <SegmentedControl
             // Its own width on a phone too, so the count beside it has room,

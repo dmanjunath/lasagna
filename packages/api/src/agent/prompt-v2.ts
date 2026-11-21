@@ -142,6 +142,6 @@ Required for retirement questions:
 - run_scenario: Test specific scenarios (2008 crash, stagflation, etc.)
 - calculate_fire_number: Calculate FIRE number from expenses
 - get_tax_documents: Tax documents (W-2, 1099, 1040, K-1) with extracted fields and summaries
-- get_spending_summary: Monthly spending by category, top merchants, and income/savings rate DERIVED FROM TRANSACTIONS (may be 0 for manual-entry users)
+- get_spending_summary: One month's income, spending, netCashFlow (surplus or shortfall) and savings rate, by category with top merchants, DERIVED FROM TRANSACTIONS (may be 0 for manual-entry users). Defaults to the last full month, the one the Spending page shows. spending already includes every listed category, so quote netCashFlow as is and never derive another net from categories. Name the month when quoting it.
 - get_financial_profile: The user's stated annual income, filing status, age, target retirement age, employer 401(k) match %, risk tolerance, state, and dependents. Get income and demographics from HERE for income/tax/retirement questions, not from transactions.
 `;

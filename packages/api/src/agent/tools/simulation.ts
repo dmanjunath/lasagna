@@ -46,7 +46,9 @@ export function createSimulationTools(tenantId: string, userId: string) {
         "Simulate the user's actual retirement plan using Monte Carlo analysis. Unspecified values default " +
         "to the user's real data (portfolio balance, spending, savings, allocation, Social Security, etc.). " +
         "Only pass overrides for explicit what-if questions (e.g. 'what if I retire at 55?'). " +
-        "Returns success rate, median balance trajectory, and percentile bands.",
+        "Returns successRate: the user's chance of success (Monte Carlo, the figure on the Retirement page). " +
+        "With no overrides it is exactly the number the Retirement page leads with, so quote it as their " +
+        "chance of success. Also returns the median balance trajectory and percentile bands.",
       inputSchema: z.object({
         retirementAge: z.number().int().positive().optional(),
         planThroughAge: z.number().int().positive().optional(),
@@ -79,7 +81,9 @@ export function createSimulationTools(tenantId: string, userId: string) {
         const lastIdx = result.percentiles.p50.length - 1;
         const midIdx = Math.floor(lastIdx / 2);
         return {
+          // Whole percent, the same rounding the Retirement page prints.
           successRate: Math.round(result.successRate * 100),
+          successRateLabel: "chance of success (Monte Carlo, the figure on the Retirement page)",
           medianLastsToAge: result.medianLastsToAge,
           blendedExpectedReturn: Math.round(result.blendedExpectedReturn * 10000) / 100,
           horizonYears: result.horizonYears,
@@ -114,8 +118,10 @@ export function createSimulationTools(tenantId: string, userId: string) {
         "(S&P 500 + bonds + CPI, every start year from 1928 on). Unspecified values default " +
         "to the user's real data (portfolio balance, spending, savings, allocation, Social " +
         "Security, etc.). Only pass overrides for explicit what-if questions (e.g. 'what if I " +
-        "retire at 55?'). Returns the historical success rate, how many start-year cohorts " +
-        "were tested, and the median real-dollar balance trajectory across cohorts.",
+        "retire at 55?'). Returns historicalSuccessRate (the share of past start years the plan " +
+        "survived), how many start-year cohorts were tested, and the median real-dollar balance " +
+        "trajectory across cohorts. historicalSuccessRate is a secondary check. Never quote it as " +
+        "the user's chance of success: that is run_monte_carlo's successRate, the Retirement page figure.",
       inputSchema: z.object({
         retirementAge: z.number().int().positive().optional(),
         planThroughAge: z.number().int().positive().optional(),
@@ -147,7 +153,7 @@ export function createSimulationTools(tenantId: string, userId: string) {
         const lastIdx = result.cohortBands.p50.length - 1;
         const midIdx = Math.floor(lastIdx / 2);
         return {
-          successRate: Math.round(result.successRate * 100),
+          historicalSuccessRate: Math.round(result.successRate * 100),
           startYearCount: result.startYearCount,
           firstStartYear: result.firstStartYear,
           horizonYears: result.horizonYears,

@@ -7,9 +7,10 @@
  * For the dashboard and the AI chat to agree, the server must replicate those
  * derivations EXACTLY. This module is that replica.
  *
- * INVARIANT: `estimateSSMonthly` and the savings/spend/age derivations here must
- * stay in lockstep with retirement-v2.tsx (lines ~26-40 and ~1284-1345). If you
- * change one, change the other.
+ * The page now prefills its levers from these server-resolved inputs (GET
+ * /retirement/inputs) instead of deriving them. INVARIANT: `estimateSSMonthly`
+ * must stay in lockstep with the copy in retirement-v2.tsx, which re-estimates
+ * the benefit when the user moves the claim age.
  *
  * `deriveSimInputs` is PURE (no DB / IO) so it can be unit-tested against static
  * fixtures — it is the testable core of dashboard↔chat consistency. The DB

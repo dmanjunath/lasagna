@@ -112,6 +112,15 @@ async function parseOverrides(
   return { ok: true, overrides };
 }
 
+// The inputs the simulation runs on when the caller overrides nothing: the
+// same ones facts' retirementSuccess and chat's run_monte_carlo use. The page
+// prefills its levers from these and sends back only the fields the user has
+// changed, so the untouched plan is resolved here, once.
+retirementSimRouter.get("/inputs", async (c) => {
+  const { tenantId, userId } = c.get("session");
+  return c.json(await resolveSimInputs(tenantId, userId, {}));
+});
+
 retirementSimRouter.post("/simulate", async (c) => {
   const { tenantId, userId } = c.get("session");
 

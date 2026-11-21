@@ -6,6 +6,7 @@ import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
 import { resolveDebtAccounts, creditCardPaysInFull, payoffStanding, type DebtAccount } from "../lib/debt-accounts.js";
+import { computeAccountFacts, debtFactsFrom } from "../lib/facts.js";
 import { netWorthHistory, validTimeZone } from "../lib/net-worth-history.js";
 import { kickOffValueEstimate, advanceValueEstimate } from "../lib/value-estimate.js";
 import { pollRealEstateValue } from "../services/fetchRealEstateValues.js";
@@ -98,7 +99,10 @@ export function debtsMonthlyInterest(debts: DebtAccount[]): number {
 accountRoutes.get("/debts", async (c) => {
   const session = c.get("session");
 
-  const debtAccounts = await resolveDebtAccounts(session.tenantId);
+  const [debtAccounts, accountFacts] = await Promise.all([
+    resolveDebtAccounts(session.tenantId),
+    computeAccountFacts(session.tenantId),
+  ]);
 
   const propertyRows = await db.query.accounts.findMany({
     where: and(eq(accounts.tenantId, session.tenantId), eq(accounts.type, "real_estate")),
@@ -138,12 +142,13 @@ accountRoutes.get("/debts", async (c) => {
     };
   });
 
-  const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
   const monthlyInterest = debtsMonthlyInterest(debtAccounts);
 
   return c.json({
     debts,
-    totalDebt: Math.round(totalDebt * 100) / 100,
+    // The same totalDebt Home states, and the narrower figure the page's
+    // hero shows. Both from facts, so no page re-adds the balances.
+    ...debtFactsFrom(accountFacts.netWorth.debt, debtAccounts),
     monthlyInterest: Math.round(monthlyInterest * 100) / 100,
   });
 });

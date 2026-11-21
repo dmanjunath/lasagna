@@ -16,10 +16,8 @@ import { readResolvedProfile } from "../../lib/profile-resolver.js";
 import { getHoldingsInput } from "../../routes/portfolio.js";
 import { readStoredPath } from "../../routes/financial-path.js";
 import { aggregatePortfolio } from "../../services/portfolio-aggregator.js";
-import {
-  fetchAccountsWithBalances,
-  netWorthContribution,
-} from "../../lib/account-balances.js";
+import { fetchAccountsWithBalances } from "../../lib/account-balances.js";
+import { computeAccountFacts, debtFactsFrom } from "../../lib/facts.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "../../lib/goal-progress.js";
 import { resolveDebtAccounts, payoffStanding, payoffPlanForChat } from "../../lib/debt-accounts.js";
 import { loadTaxonomy, UUID_RE } from "../../lib/taxonomy.js";
@@ -92,7 +90,7 @@ export function createFinancialTools(tenantId: string, userId: string) {
 
     get_net_worth: tool({
       description:
-        "Get the user's current net worth with a per-type breakdown (cash, investment, real_estate, alternative, credit, loan). Real estate and all asset/liability types are included.",
+        "Get the user's current net worth, assets, debt and account counts, with a per-type breakdown (cash, investments, realEstate, alternative, creditCards, loans). These are the same figures the app shows. Each field is defined in `definitions`.",
       inputSchema: z.object({
         timeframe: z
           .enum(["1m", "3m", "6m", "1y", "all"])
@@ -100,25 +98,24 @@ export function createFinancialTools(tenantId: string, userId: string) {
           .default("3m"),
       }),
       execute: async () => {
-        const accts = await fetchAccountsWithBalances(tenantId);
-
-        if (accts.length === 0) {
-          return { currentNetWorth: 0, breakdown: {}, accountCount: 0 };
-        }
-
-        // Excluded accounts contribute 0; inverted balances already flipped.
-        let currentNetWorth = 0;
-        const breakdown: Record<string, number> = {};
-        for (const a of accts) {
-          const contribution = netWorthContribution(a);
-          currentNetWorth += contribution;
-          breakdown[a.type] = (breakdown[a.type] ?? 0) + contribution;
-        }
-
+        // The same fact Home and the Accounts page state, so chat cannot
+        // quote a different net worth or account count.
+        const facts = await computeAccountFacts(tenantId);
         return {
-          currentNetWorth,
-          breakdown,
-          accountCount: accts.length,
+          netWorth: facts.netWorth.netWorth,
+          assets: facts.netWorth.assets,
+          debt: facts.netWorth.debt,
+          accountsCounted: facts.accountsCounted,
+          accountsConnected: facts.accountsConnected,
+          byType: facts.netWorth.byType,
+          definitions: {
+            netWorth: "assets minus debt, over the accounts counted in net worth",
+            assets: "sum of counted cash, investment, real estate and alternative balances",
+            debt: "sum of counted credit card and loan balances, as a positive number",
+            accountsCounted: "accounts included in net worth (the user can mark an account as not counted)",
+            accountsConnected: "every account the user has, counted or not",
+            byType: "total and account count per type, over counted accounts only, debts as positive numbers",
+          },
         };
       },
     }),
@@ -155,16 +152,17 @@ export function createFinancialTools(tenantId: string, userId: string) {
 
     get_debts: tool({
       description:
-        "Get the user's debts and liabilities (credit cards, loans, mortgages) with balances, APR, and loan details (term, payment, payoff date) from metadata. Use for debt-payoff, interest, refinance, and minimum-payment questions. Debts linked to a real-estate account include property {id, name, currentValue} — use it for home-equity and LTV questions. payoffPlan says where each debt stands in the user's payoff plan. When a debt has guidance, follow it exactly.",
+        "Get the user's debts and liabilities (credit cards, loans, mortgages) with balances, APR, and loan details (term, payment, payoff date) from metadata. Use for debt-payoff, interest, refinance, and minimum-payment questions. Debts linked to a real-estate account include property {id, name, currentValue} — use it for home-equity and LTV questions. payoffPlan says where each debt stands in the user's payoff plan. When a debt has guidance, follow it exactly. totalDebt and debtOnPayoffPlan are the same figures the app shows, each defined in `definitions`.",
       inputSchema: z.object({}),
       execute: async () => {
-        const [accts, aprRows, resolvedDebts] = await Promise.all([
+        const [accts, aprRows, resolvedDebts, accountFacts] = await Promise.all([
           fetchAccountsWithBalances(tenantId),
           db
             .select({ id: accounts.id, apr: accounts.apr, apy: accounts.apy })
             .from(accounts)
             .where(eq(accounts.tenantId, tenantId)),
           resolveDebtAccounts(tenantId),
+          computeAccountFacts(tenantId),
         ]);
         const aprMap = new Map(aprRows.map((r) => [r.id, r.apr]));
         // The rate and plan role /debt and the journey read, so chat cannot
@@ -182,6 +180,7 @@ export function createFinancialTools(tenantId: string, userId: string) {
             type: a.type,
             subtype: a.subtype,
             balance: Math.abs(a.effectiveBalance),
+            countedInNetWorth: !a.excludeFromNetWorth,
             apr: resolved ? resolved.apr : aprMap.get(a.id) ? parseFloat(aprMap.get(a.id)!) : null,
             ...(resolved
               ? payoffPlanForChat(payoffStanding(resolved))
@@ -196,9 +195,19 @@ export function createFinancialTools(tenantId: string, userId: string) {
               : null,
           };
         });
+        // Home's Debt figure and the /debt hero, from facts, so chat quotes
+        // the same totals the pages state.
+        const { totalDebt, debtOnPayoffPlan } = debtFactsFrom(accountFacts.netWorth.debt, resolvedDebts);
         return {
           debts: apr,
-          totalDebt: apr.reduce((s, d) => s + d.balance, 0),
+          totalDebt,
+          debtOnPayoffPlan,
+          definitions: {
+            totalDebt: "every credit card and loan counted in net worth, as a positive number (Home's Debt figure)",
+            debtOnPayoffPlan:
+              "the part of totalDebt in the payoff plan (the Debt page's main figure). notInPlan is what it leaves out: cards that clear every month and cards with no rate on file",
+            countedInNetWorth: "false when the user marked the debt as not counted in net worth. It is in neither total",
+          },
         };
       },
     }),

@@ -3,64 +3,33 @@ import { z } from "zod";
 import { db } from "../../lib/db.js";
 import { transactions, categories, categoryGroups, eq, and, sql, notInArray } from "@lasagna/core";
 import { excludedTxnAccountIds } from "../../lib/account-balances.js";
+import { computeCashFlow, monthWindow, lastFullMonthWindow } from "../../lib/cash-flow.js";
 
 export function createSpendingTools(tenantId: string) {
   return {
     get_spending_summary: tool({
       description:
-        "Get a spending summary by category for a given month, including top merchants and totals. Use this to answer questions about spending patterns, budgets, and expenses.",
+        "Get income, spending and net cash flow for one calendar month, with spending by category and top merchants. The same figures the Spending page shows. spending already includes every category listed in categories, including savings and investment transfers categorised as spending. netCashFlow (income minus spending) is the one monthly surplus (positive) or shortfall (negative) figure: quote it as is. Never subtract or add categories to derive another net, surplus or \"cash left over\" figure. Each field is defined in `definitions`. Always name the month (monthLabel) when you quote a figure. Use this to answer questions about spending patterns, budgets, and expenses.",
       inputSchema: z.object({
         month: z
           .string()
           .optional()
           .describe(
-            'Month in YYYY-MM format (e.g., "2025-04"). Defaults to current month.'
+            'Month in YYYY-MM format (e.g., "2025-04"). Defaults to the last full month, the month the Spending page opens on.'
           ),
       }),
       execute: async ({ month }) => {
-        const now = new Date();
-        let year: number, mon: number;
-
+        let win;
         if (month) {
           const [y, m] = month.split("-").map(Number);
-          year = y;
-          mon = m - 1; // JS months are 0-indexed
+          win = monthWindow(y, m - 1); // JS months are 0-indexed
         } else {
-          year = now.getFullYear();
-          mon = now.getMonth();
+          win = lastFullMonthWindow();
         }
 
-        const monthStart = new Date(year, mon, 1);
-        const monthEnd = new Date(year, mon + 1, 0, 23, 59, 59);
+        const flow = await computeCashFlow(tenantId, win.start, win.end);
 
         const excludedIds = await excludedTxnAccountIds(tenantId);
-
-        // Spending by category — classification via taxonomy group type;
-        // labels are the tenant's display names.
-        const categoryNameExpr = sql<string>`coalesce(${categories.name}, 'Other')`;
-        const categoryRows = await db
-          .select({
-            category: categoryNameExpr,
-            total: sql<string>`coalesce(sum(${transactions.amount}), 0)`,
-            count: sql<string>`count(*)`,
-          })
-          .from(transactions)
-          .leftJoin(categories, eq(transactions.categoryId, categories.id))
-          .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-          .where(
-            and(
-              eq(transactions.tenantId, tenantId),
-              sql`${transactions.amount} > 0`,
-              sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
-              sql`${transactions.date} >= ${monthStart.toISOString()}`,
-              sql`${transactions.date} <= ${monthEnd.toISOString()}`,
-              ...(excludedIds.length > 0
-                ? [notInArray(transactions.accountId, excludedIds)]
-                : [])
-            )
-          )
-          .groupBy(categoryNameExpr)
-          .orderBy(sql`sum(${transactions.amount}) DESC`);
 
         // Top merchants
         const merchantRows = await db
@@ -78,8 +47,9 @@ export function createSpendingTools(tenantId: string) {
               sql`${transactions.amount} > 0`,
               sql`coalesce(${categoryGroups.type}::text, 'expense') NOT IN ('income', 'transfer')`,
               sql`${transactions.merchantName} IS NOT NULL`,
-              sql`${transactions.date} >= ${monthStart.toISOString()}`,
-              sql`${transactions.date} <= ${monthEnd.toISOString()}`,
+              sql`${transactions.excludedAt} is null`,
+              sql`${transactions.date} >= ${win.start.toISOString()}::timestamptz`,
+              sql`${transactions.date} <= ${win.end.toISOString()}::timestamptz`,
               ...(excludedIds.length > 0
                 ? [notInArray(transactions.accountId, excludedIds)]
                 : [])
@@ -89,53 +59,36 @@ export function createSpendingTools(tenantId: string) {
           .orderBy(sql`sum(${transactions.amount}) DESC`)
           .limit(10);
 
-        // Income for the month — INCOME-category transactions only. Filtering by
-        // `amount < 0` alone counted every inflow (transfers between the user's own
-        // accounts, refunds, credits) as income, inflating it. Matches the spending
-        // query above and the insights engine (type = 'income').
-        const [incomeRow] = await db
-          .select({
-            total: sql<string>`coalesce(sum(abs(${transactions.amount})), 0)`,
-          })
-          .from(transactions)
-          .leftJoin(categories, eq(transactions.categoryId, categories.id))
-          .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-          .where(
-            and(
-              eq(transactions.tenantId, tenantId),
-              sql`coalesce(${categoryGroups.type}::text, 'expense') = 'income'`,
-              sql`${transactions.date} >= ${monthStart.toISOString()}`,
-              sql`${transactions.date} <= ${monthEnd.toISOString()}`,
-              ...(excludedIds.length > 0
-                ? [notInArray(transactions.accountId, excludedIds)]
-                : [])
-            )
-          );
-
-        const totalSpending = categoryRows.reduce(
-          (sum, r) => sum + parseFloat(r.total),
-          0
-        );
-        const totalIncome = parseFloat(incomeRow?.total || "0");
-
         return {
-          month: `${year}-${String(mon + 1).padStart(2, "0")}`,
-          totalSpending: Math.round(totalSpending * 100) / 100,
-          totalIncome: Math.round(totalIncome * 100) / 100,
+          month: `${win.start.getUTCFullYear()}-${String(win.start.getUTCMonth() + 1).padStart(2, "0")}`,
+          monthLabel: win.label,
+          income: flow.income,
+          spending: flow.spending,
+          netCashFlow: flow.net,
           savingsRate:
-            totalIncome > 0
-              ? Math.round(((totalIncome - totalSpending) / totalIncome) * 1000) / 10
+            flow.income > 0
+              ? Math.round((flow.net / flow.income) * 1000) / 10
               : null,
-          categories: categoryRows.map((r) => ({
-            category: r.category,
-            total: Math.round(parseFloat(r.total) * 100) / 100,
-            transactionCount: parseInt(r.count),
-          })),
+          categories: flow.categories
+            .filter((c) => c.groupType !== "income" && c.groupType !== "transfer")
+            .map((c) => ({
+              category: c.name,
+              total: c.total,
+              transactionCount: c.count,
+            })),
           topMerchants: merchantRows.map((r) => ({
             merchant: r.merchant || "Unknown",
             total: Math.round(parseFloat(r.total) * 100) / 100,
             transactionCount: parseInt(r.count),
           })),
+          definitions: {
+            income: "money received this month",
+            spending:
+              "everything spent this month. It already includes every entry in categories, including savings and investment transfers categorised as spending",
+            netCashFlow:
+              "income minus spending, the one surplus (positive) or shortfall (negative) for the month. Quote it as is. Never subtract or add categories to it",
+            categories: "the parts of spending. They sum to spending and are never taken out of it again",
+          },
         };
       },
     }),
