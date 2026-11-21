@@ -53,6 +53,10 @@ vi.mock("../spend-cuts.js", () => ({
   generateSpendCuts: (id: string) => generateSpendCuts(id),
 }));
 vi.mock("../billing.js", () => ({ resolveTenantPlan: async () => "free" }));
+vi.mock("../actions-refresh.js", () => ({
+  DUE_SLACK_MS: 4 * 60 * 60 * 1000,
+  runRequestedRefreshes: async () => ({ succeeded: 0, failed: 0, deferred: 0 }),
+}));
 
 import { PgDialect, accounts, users } from "@lasagna/core";
 import { runDailyInsights } from "../cron.js";
@@ -123,13 +127,14 @@ describe("the cadence: every 3 days, or daily for someone here in the last day",
     expect(whereSql().sql).toContain("visited_at");
   });
 
-  it("binds a 3 day and a 1 day cutoff", async () => {
+  it("binds a 3 day and a 1 day cutoff, each short by 4 hours of slack, and a 1 day presence window", async () => {
     await runDailyInsights();
-    const days = whereSql()
+    const hours = whereSql()
       .params.filter((p): p is string => typeof p === "string" && !Number.isNaN(Date.parse(p)))
-      .map((p) => Math.round((Date.now() - Date.parse(p)) / (24 * 60 * 60 * 1000)));
-    expect(days).toContain(3);
-    expect(days).toContain(1);
+      .map((p) => Math.round((Date.now() - Date.parse(p)) / (60 * 60 * 1000)));
+    expect(hours).toContain(72 - 4);
+    expect(hours).toContain(24 - 4);
+    expect(hours).toContain(24);
   });
 
   it("refreshes the spend cuts for the same households, without the paid rewrite", async () => {

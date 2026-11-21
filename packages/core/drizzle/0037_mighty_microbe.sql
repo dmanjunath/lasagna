@@ -1,0 +1,1 @@
+ALTER TABLE "financial_profiles" ADD COLUMN "actions_refresh_requested_at" timestamp with time zone;

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, desc, inArray, insights, accounts, financialProfiles, transactions, sql } from "@lasagna/core";
+import { eq, and, desc, inArray, insights, accounts, transactions, sql } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import {
@@ -30,26 +30,14 @@ import { readHouseholdProfile } from "../lib/profile-resolver.js";
 import { UUID_RE } from "../lib/taxonomy.js";
 import { env } from "../lib/env.js";
 import { capOverspend } from "../lib/overspend-cap.js";
+import {
+  ACTIONS_STALE_MS,
+  SPEND_CUTS_STALE_MS,
+  isStale,
+  requestActionsRefresh,
+} from "../lib/actions-refresh.js";
 
 export const insightsRoutes = new Hono<AuthEnv>();
-
-// Cloud Scheduler is the happy path for daily regeneration. If it stalls, the
-// next read older than this window TRIGGERS one as a backstop, and answers from
-// what is stored without waiting for it.
-//
-// This doubles as the COOLDOWN between two generation attempts for the same
-// household, because generateInsights records the attempt whether it succeeded
-// or not. That is the brake on this path: the marker used to be written only on
-// success, ~140 lines past the parse that could throw, so a household whose
-// generation kept failing was stale on every single read and every single read
-// paid for a fresh model call. useInsights is mounted on the home screen as
-// well as /insights, so nearly every navigation re-entered it. One household
-// ran 303 calls for $23.78 in 15 hours that way.
-//
-// A day, because a read IS the person being here: an active household's
-// actions are worked out daily, an idle one's every 3 days by the cron
-// (lib/cron.ts).
-const REGEN_STALE_MS = 24 * 60 * 60 * 1000;
 
 function loadActiveInsights(tenantId: string) {
   return db
@@ -188,10 +176,10 @@ function heldForRequest(tenantId: string): Promise<HeldSecurities> {
   return env.HOSTED_MODE ? heldSecurityNames(tenantId) : Promise.resolve(NO_HELD_SECURITIES);
 }
 
-// Only a tenant with accounts can produce actions. Used to skip the backstop
-// lock/regen path for empty (pre-connection) tenants, whose lastActionsGeneratedAt
-// is null and would otherwise re-enter generateInsights on every read only for it
-// to no-op. Mirrors generateInsights' own 0-account early return.
+// Only a tenant with accounts can produce actions. Used to skip the refresh
+// request for empty (pre-connection) tenants, whose lastActionsGeneratedAt is
+// null and would otherwise ask for a refresh on every read only for it to
+// no-op. Mirrors generateInsights' own 0-account early return.
 async function tenantHasAccounts(tenantId: string): Promise<boolean> {
   const rows = await db
     .select({ one: sql`1` })
@@ -200,67 +188,6 @@ async function tenantHasAccounts(tenantId: string): Promise<boolean> {
     .limit(1);
   return rows.length > 0;
 }
-
-/**
- * Take the right to regenerate for this household, or answer false because
- * somebody else already has it.
- *
- * Two things hold this shut, and the split is the point. The advisory lock is
- * transaction-scoped: it settles a race between two requests arriving at the
- * same instant, and it releases the moment this returns. What holds after that
- * is the freshness marker, stamped inside the same transaction, because every
- * caller's staleness test reads it — so the next read sees a household that has
- * just been claimed and does not claim it again.
- *
- * Stamping BEFORE the work is what lets the work happen outside the
- * transaction. Both backstops used to run their generator inside it, which
- * bought nothing (the generator opens its own connection and never touches
- * `tx`) and cost a pooled connection, held for a whole model call, out of
- * postgres.js's default ten.
- *
- * The marker therefore means "an attempt was claimed", which is what it already
- * meant: `markGenerationAttempt` writes it on the way out whether or not the
- * generation produced anything, precisely so a household whose generation keeps
- * failing cannot buy a fresh model call on every page view.
- */
-async function claimRegeneration(
-  tenantId: string,
-  mark: { lastActionsGeneratedAt: Date } | { lastSpendCutsGeneratedAt: Date },
-): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    const locked = await tx.execute(
-      sql`select pg_try_advisory_xact_lock(hashtext(${tenantId})) as locked`
-    );
-    if (!(locked as unknown as Array<{ locked: boolean }>)[0]?.locked) return false;
-    await tx
-      .insert(financialProfiles)
-      .values({ tenantId, ...mark })
-      .onConflictDoUpdate({ target: financialProfiles.tenantId, set: mark });
-    return true;
-  });
-}
-
-/**
- * Whether the stored spend cuts are old enough to redo.
- *
- * The scheduled runs are the happy path: the actions cron recomputes these on
- * its cadence, and the monthly run also rewrites the wording. If they are
- * missed, the read keeps it correct: anything worked out more than a day ago
- * is redone on the next look.
- *
- * A SECOND marker, never the one the actions backstop reads. That one gates a
- * paid model call; this one gates a free deterministic recompute. Sharing one marker is what made a free regeneration close
- * the paid refresh throttle, and the same reasoning forbids sharing here.
- */
-function spendCutsStale(last: Date | string | null | undefined, now: Date): boolean {
-  if (!last) return true;
-  // Daily, like the actions beside it. The recompute is free, and each run that
-  // finds a cut still holds extends its 30 days, so a monthly cadence would let
-  // a still-true cut expire in a 31-day month.
-  return now.getTime() - new Date(last).getTime() > SPEND_CUTS_STALE_MS;
-}
-
-const SPEND_CUTS_STALE_MS = 24 * 60 * 60 * 1000;
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -445,59 +372,27 @@ insightsRoutes.get("/", async (c) => {
   // pre-connection household can tell "connect an account" from "nothing found".
   const hasAccounts = await tenantHasAccounts(session.tenantId);
 
-  const last = profile?.lastActionsGeneratedAt;
-  const stale = !last || Date.now() - new Date(last).getTime() > REGEN_STALE_MS;
+  // The backstop for a stalled scheduler: a read that finds either producer's
+  // marker stale asks for a refresh and answers from what is stored. It never
+  // generates here. The scheduled insights run claims the request and does the
+  // work (lib/actions-refresh.ts), because work left running after this
+  // response would be starved of CPU on Cloud Run.
+  const now = new Date();
+  const actionsStale = isStale(profile?.lastActionsGeneratedAt, ACTIONS_STALE_MS, now);
+  const stale = actionsStale || isStale(profile?.lastSpendCutsGeneratedAt, SPEND_CUTS_STALE_MS, now);
+  // Reported only for the ACTIONS marker, because the page promises new
+  // actions: a spend-cuts-only recompute is quiet and free. And only while
+  // stale, so a request a manual Generate has since made moot is not shown.
+  let refreshing = false;
   if (stale && hasAccounts) {
-    // Out of band, and that is the whole shape of this. Regenerating is a model
-    // call of 45 to 60 seconds, so awaiting it here made a household returning
-    // after two days wait that long to read a page whose rows were already
-    // loaded above. They are served as they stand, and the fresh ones are there
-    // on the next read — the same bargain the daily cron already offers, which
-    // is the path this only backs up.
-    //
-    // Nothing is re-read after the claim either: the rows in hand and the
-    // `lastActionsGeneratedAt` the payload prints are then the same generation,
-    // rather than a fresh timestamp over stale rows.
-    let claimed = false;
     try {
-      claimed = await claimRegeneration(session.tenantId, { lastActionsGeneratedAt: new Date() });
+      if (profile?.actionsRefreshRequestedAt == null) await requestActionsRefresh(session.tenantId);
+      refreshing = actionsStale;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[Insights] Backstop claim failed: ${msg.slice(0, 300)}`);
-    }
-    if (claimed) {
-      void generateInsights(session.tenantId).catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error(`[Insights] Backstop regeneration failed: ${msg.slice(0, 300)}`);
-      });
-    }
-  }
-
-  // The second producer's backstop. A SEPARATE claim from the one above, not a
-  // second statement inside it: both take the same tenant-keyed advisory lock,
-  // so sharing a transaction would mean a held insights lock silently skipped
-  // the spend-cut regeneration for a whole month.
-  //
-  // Deterministic on purpose: generateSpendCuts is called WITHOUT `polish`, so
-  // looking at the page can never bill a model call. The rewritten wording
-  // arrives on the monthly cron or on an explicit refresh press. It still runs
-  // out of band, for the same reason as above: a read answers from what is
-  // stored, never from what is being worked out.
-  if (spendCutsStale(profile?.lastSpendCutsGeneratedAt, new Date()) && hasAccounts) {
-    let claimed = false;
-    try {
-      claimed = await claimRegeneration(session.tenantId, { lastSpendCutsGeneratedAt: new Date() });
-    } catch (e) {
-      // A failed claim must not fail the read. Stale suggestions are worth more
+      // A failed request must not fail the read. Stale actions are worth more
       // than an error page.
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[SpendCuts] Backstop claim failed: ${msg.slice(0, 300)}`);
-    }
-    if (claimed) {
-      void generateSpendCuts(session.tenantId).catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error(`[SpendCuts] Backstop regeneration failed: ${msg.slice(0, 300)}`);
-      });
+      console.error(`[Insights] Refresh request failed: ${msg.slice(0, 300)}`);
     }
   }
 
@@ -597,6 +492,9 @@ insightsRoutes.get("/", async (c) => {
     // The second producer's freshness marker. Two timestamps, because they
     // answer two questions, and neither may be read for the other's.
     lastSpendCutsGeneratedAt: profile?.lastSpendCutsGeneratedAt ?? null,
+    // A refresh is waiting for the scheduled run. The rows above are the ones
+    // it will replace.
+    refreshing,
     // When this household last asked to PAY for the rewrite, which is the only
     // thing the refresh throttle may go on.
     lastPolishAttemptAt: lastPolish?.toISOString() ?? null,

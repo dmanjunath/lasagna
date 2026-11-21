@@ -71,7 +71,7 @@ export function Insights() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
-  const { insights, lastActionsGeneratedAt, isLoading: insightsLoading, refresh } = useInsights();
+  const { insights, lastActionsGeneratedAt, refreshing: queuedRefresh, isLoading: insightsLoading, refresh } = useInsights();
   const lifecycle = useActionLifecycle();
 
   const REFRESH_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -210,11 +210,14 @@ export function Insights() {
             {isLoading ? (
               <PageMetaSkeleton widths={['w-[150px]']} />
             ) : (
-              totalActive > 0 && (
-                <PageMetaItem className="ui-tnum">
-                  {totalActive === 1 ? '1 open action' : `${totalActive} open actions`}
-                </PageMetaItem>
-              )
+              <>
+                {totalActive > 0 && (
+                  <PageMetaItem className="ui-tnum">
+                    {totalActive === 1 ? '1 open action' : `${totalActive} open actions`}
+                  </PageMetaItem>
+                )}
+                {queuedRefresh && <PageMetaItem>New actions within a day</PageMetaItem>}
+              </>
             )}
           </PageMeta>
         </div>
@@ -243,7 +246,9 @@ export function Insights() {
               {refreshing ? 'Generating…' : 'Generate'}
             </Button>
             {lastActionsGeneratedAt && (
-              <span className="text-[12px] font-semibold text-content-muted">
+              // On a phone the refresh notice in the meta row takes this line's
+              // room, and it says the newer thing.
+              <span className={`text-[12px] font-semibold text-content-muted ${queuedRefresh ? 'max-md:hidden' : ''}`}>
                 Updated {formatRelativeTime(lastActionsGeneratedAt)}
               </span>
             )}

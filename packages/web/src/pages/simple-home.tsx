@@ -219,7 +219,7 @@ export function SimpleHome() {
   const [, setLocation] = useLocation();
   const { openChat } = useChatStore();
   const toast = useToast();
-  const { insights, refresh: refreshInsights, dismiss, complete, snooze, isLoading: insightsLoading, isError: insightsFailed } = useInsights();
+  const { insights, refresh: refreshInsights, dismiss, complete, snooze, refreshing: insightsRefreshing, isLoading: insightsLoading, isError: insightsFailed } = useInsights();
   const [generatingInsights, setGeneratingInsights] = useState(false);
   // Account count and net worth come from the server, so this page cannot
   // disagree with the Accounts page or chat.
@@ -589,6 +589,7 @@ export function SimpleHome() {
       actions={actions}
       loading={actionsLoading}
       failed={insightsFailed}
+      refreshing={insightsRefreshing}
       skeletonRows={shape.actions}
       skeletonMinHeight={shape.width === widthBucket() ? shape.listHeight ?? undefined : undefined}
       listRef={actionsListRef}
@@ -1052,6 +1053,9 @@ function NetWorthBreakdown({
  *  ladder), so it reads as its own thing — not another action card. */
 // ─── Actions ────────────────────────────────────────────────────────────────
 
+/** The scheduled run picks a queued refresh up within a day. */
+const REFRESHING_COPY = 'New actions arrive within a day.';
+
 /** How many actions home shows before handing off to the actions page. */
 const HOME_ACTION_LIMIT = 3;
 
@@ -1090,12 +1094,14 @@ const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, 
  * five quicker rows happening to fill the shortlist.
  */
 export function ActionsSection({
-  actions, loading, failed = false, skeletonRows = HOME_ACTION_LIMIT, skeletonMinHeight, listRef, generating, onGenerate, onComplete, onSnooze, onDismiss,
+  actions, loading, failed = false, refreshing = false, skeletonRows = HOME_ACTION_LIMIT, skeletonMinHeight, listRef, generating, onGenerate, onComplete, onSnooze, onDismiss,
 }: {
   actions: Insight[];
   loading: boolean;
   /** The fetch failed: say so, rather than offering to generate actions the user may already have. */
   failed?: boolean;
+  /** The server has queued a refresh: the rows shown are the ones it will replace. */
+  refreshing?: boolean;
   /** How many rows the loading state holds room for. 0 holds the empty state's box. */
   skeletonRows?: number;
   /** The list's height last time, so rows whose titles wrap do not grow it. */
@@ -1211,10 +1217,15 @@ export function ActionsSection({
               />
             );
           })}
+          {/* Under the rows rather than above them, so the list does not
+              drop when it lands. */}
+          {refreshing && <p className="px-3 sm:px-4 text-[13px] text-content-muted">{REFRESHING_COPY}</p>}
         </div>
       ) : (
         <div className="mt-5 rounded-ui-lg border border-dashed border-line-strong bg-panel p-5 flex items-center justify-between gap-4 flex-wrap">
-          <span className="text-[13.5px] text-content-muted">Get personalized actions based on your finances.</span>
+          <span className="text-[13.5px] text-content-muted">
+            {refreshing ? 'New actions arrive within a day, or generate them now.' : 'Get personalized actions based on your finances.'}
+          </span>
           <Button size="sm" variant="secondary" disabled={generating} onClick={() => { void onGenerate(); }}>
             {generating ? 'Generating…' : 'Generate actions'}
           </Button>

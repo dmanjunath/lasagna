@@ -20,6 +20,9 @@ export type Insight = ApiActionRow;
 export function useInsights(typeFilter?: string | string[]) {
   const [allInsights, setAllInsights] = useState<Insight[]>([]);
   const [lastActionsGeneratedAt, setLastActionsGeneratedAt] = useState<Date | null>(null);
+  // The server has queued a refresh for its next scheduled run, which is up to
+  // a day away. Not polled for that reason: the next visit loads the new set.
+  const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   // A failed fetch is not an empty list: callers that print "no actions" need
   // to tell the two apart.
@@ -33,6 +36,7 @@ export function useInsights(typeFilter?: string | string[]) {
       setLastActionsGeneratedAt(
         data.lastActionsGeneratedAt ? new Date(data.lastActionsGeneratedAt) : null
       );
+      setRefreshing(data.refreshing ?? false);
       setIsError(false);
     } catch {
       setIsError(true);
@@ -85,5 +89,5 @@ export function useInsights(typeFilter?: string | string[]) {
       ? allInsights
       : allInsights.filter((i) => types.includes(i.type ?? 'general'));
 
-  return { insights: filtered, lastActionsGeneratedAt, isLoading, isError, dismiss, complete, snooze, reload, refresh };
+  return { insights: filtered, lastActionsGeneratedAt, refreshing, isLoading, isError, dismiss, complete, snooze, reload, refresh };
 }

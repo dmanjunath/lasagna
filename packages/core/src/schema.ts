@@ -200,6 +200,9 @@ export const financialProfiles = pgTable("financial_profiles", {
   // recomputation, and one marker answering both questions meant a free
   // regeneration silently closed the paid refresh throttle.
   lastSpendCutsGeneratedAt: timestamp("last_spend_cuts_generated_at", { withTimezone: true }),
+  // Set when a read finds either marker above stale, cleared when the scheduled
+  // run claims the refresh. Non-null means "a refresh is waiting to run".
+  actionsRefreshRequestedAt: timestamp("actions_refresh_requested_at", { withTimezone: true }),
   // Plain-language description of what this household's tax documents show.
   // Regenerated only when the fingerprint (the documents plus the profile
   // fields the summary reads) changes, so a page view costs nothing.

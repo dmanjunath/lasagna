@@ -15,10 +15,9 @@ import { Hono } from "hono";
  * a paid one closes it, and a paid attempt that FAILED closes it too, so a
  * broken model path cannot be pressed over and over.
  *
- * Driven against routes/insights.ts, which owns both producers now. The actions
- * marker is kept fresh throughout so the OTHER (paid, model) backstop never
- * fires: the two are separate markers and separate transactions, and nothing
- * here is allowed to bill a model call.
+ * Driven against routes/insights.ts, which owns both producers now. A stale read
+ * only asks the scheduled run for a refresh (lib/actions-refresh.ts), so no read
+ * here generates anything, and nothing here is allowed to bill a model call.
  */
 
 const TENANT = "00000000-0000-4000-8000-000000000001";
@@ -57,13 +56,6 @@ function selectChain() {
 vi.mock("../../lib/db.js", () => ({
   db: {
     select: () => selectChain(),
-    // The claim takes the lock AND stamps the freshness marker, in one short
-    // transaction, so the generation can run outside it.
-    transaction: async (fn: (tx: unknown) => Promise<boolean>) =>
-      fn({
-        execute: async () => [{ locked: true }],
-        insert: () => ({ values: () => ({ onConflictDoUpdate: async () => undefined }) }),
-      }),
   },
 }));
 
@@ -102,9 +94,14 @@ vi.mock("../../lib/insights-engine.js", async (importOriginal) => ({
   generateInsights: () => generateInsights(),
 }));
 vi.mock("../../lib/path-generator.js", () => ({ readPathSteps: async () => [] }));
+const requestActionsRefresh = vi.fn(async () => undefined);
+vi.mock("../../lib/actions-refresh.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/actions-refresh.js")>()),
+  requestActionsRefresh: () => requestActionsRefresh(),
+}));
 vi.mock("../../lib/profile-resolver.js", () => ({
   readHouseholdProfile: async () => ({
-    // Fresh, so the 48h paid backstop never fires in this file.
+    // Fresh, so only the spend-cuts marker decides whether a read asks.
     lastActionsGeneratedAt: new Date(),
     lastSpendCutsGeneratedAt: lastGeneratedAt,
   }),
@@ -134,32 +131,34 @@ const lastMonth = () => {
 beforeEach(() => {
   generateSpendCuts.mockClear();
   generateInsights.mockClear();
+  requestActionsRefresh.mockClear();
   lastGeneratedAt = null;
   lastPolishAt = null;
   hasAccounts = true;
 });
 
 describe("a free regeneration leaves the paid refresh open", () => {
-  it("regenerates a stale set without polish, and does not throttle the press after it", async () => {
+  it("asks for a free refresh of a stale set, and does not throttle the press after it", async () => {
     lastGeneratedAt = lastMonth();
 
     const body = (await (await read()).json()) as {
-      lastSpendCutsGeneratedAt: string | null;
       lastPolishAttemptAt: string | null;
+      refreshing: boolean;
     };
 
-    // The backstop ran, for free. And the paid one did not run at all.
-    expect(generateSpendCuts).toHaveBeenCalledTimes(1);
-    expect(generateSpendCuts.mock.calls[0]?.[1]?.polish).toBeFalsy();
+    // The read asked the scheduled run for a refresh and generated nothing.
+    // Not reported as refreshing: the actions themselves are fresh.
+    expect(requestActionsRefresh).toHaveBeenCalledTimes(1);
+    expect(body.refreshing).toBe(false);
+    expect(generateSpendCuts).not.toHaveBeenCalled();
     expect(generateInsights).not.toHaveBeenCalled();
-    // And it moved the freshness marker only. This is the measured defect: the
-    // page used to read the throttle off the field above and print
-    // "Next in 6h" over a dimmed button.
-    expect(body.lastSpendCutsGeneratedAt).not.toBeNull();
+    // The paid marker is untouched. This is the measured defect: the page used
+    // to read the throttle off the freshness marker and print "Next in 6h"
+    // over a dimmed button.
     expect(body.lastPolishAttemptAt).toBeNull();
 
     expect((await press()).status).toBe(200);
-    expect(generateSpendCuts.mock.calls[1]?.[1]?.polish).toBe(true);
+    expect(generateSpendCuts.mock.calls[0]?.[1]?.polish).toBe(true);
   });
 
   it("does not throttle the press when the figures were worked out minutes ago for free", async () => {
@@ -176,7 +175,8 @@ describe("a free regeneration leaves the paid refresh open", () => {
 
     const res = await read();
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ hasAccounts: false });
+    expect(await res.json()).toMatchObject({ hasAccounts: false, refreshing: false });
+    expect(requestActionsRefresh).not.toHaveBeenCalled();
     expect(generateSpendCuts).not.toHaveBeenCalled();
   });
 });

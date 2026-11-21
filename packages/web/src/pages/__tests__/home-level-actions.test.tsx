@@ -68,7 +68,7 @@ const CURRENT = {
   target: 10000,
 };
 
-function renderActions(actions: Insight[], over: { loading?: boolean; generating?: boolean; failed?: boolean } = {}) {
+function renderActions(actions: Insight[], over: { loading?: boolean; generating?: boolean; failed?: boolean; refreshing?: boolean } = {}) {
   return renderToStaticMarkup(
     <Router ssrPath="/">
       <ChatStoreProvider>
@@ -76,6 +76,7 @@ function renderActions(actions: Insight[], over: { loading?: boolean; generating
           actions={actions}
           loading={over.loading ?? false}
           failed={over.failed}
+          refreshing={over.refreshing}
           generating={over.generating ?? false}
           onGenerate={noop}
           onComplete={noop}
@@ -288,5 +289,26 @@ describe('a failed actions fetch is not an empty list', () => {
 
   it('still offers to generate when the list loaded empty', () => {
     expect(words(renderActions([]))).toContain('Generate actions');
+  });
+});
+
+describe('a queued refresh is said, not spun', () => {
+  const REFRESHING = 'New actions arrive within a day.';
+
+  it('says so under the rows it will replace', () => {
+    const html = words(renderActions([action('a1', 'Move idle cash')], { refreshing: true }));
+    expect(html).toContain(REFRESHING);
+    expect(html).toContain('Move idle cash');
+  });
+
+  it('says so in place of the empty prompt, and keeps Generate', () => {
+    const html = words(renderActions([], { refreshing: true }));
+    expect(html).toContain('New actions arrive within a day, or generate them now.');
+    expect(html).not.toContain('Get personalized actions');
+    expect(html).toContain('Generate actions');
+  });
+
+  it('says nothing about it when no refresh is queued', () => {
+    expect(words(renderActions([action('a1', 'Move idle cash')]))).not.toContain('within a day');
   });
 });

@@ -4,6 +4,7 @@ import { and, eq, gte, sql, accounts, financialProfiles, pageViews, plaidItems, 
 import { syncItem } from "./sync.js";
 import { generateInsights } from "./insights-engine.js";
 import { generateSpendCuts } from "./spend-cuts.js";
+import { DUE_SLACK_MS, runRequestedRefreshes } from "./actions-refresh.js";
 import { resolveTenantPlan } from "./billing.js";
 import { runWithRetry } from "./retry-failed.js";
 import { refreshValueEstimates } from "./value-estimate.js";
@@ -70,14 +71,19 @@ const INSIGHTS_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
 // How often a household's actions are worked out again: every 3 days, or
 // daily for one that was here in the last day. Active means a sign-in OR a page
 // view: a phone that stays signed in behind Face ID never signs in again, so
-// the sign-in alone would read a daily user as idle.
-const ACTIONS_EVERY_MS = 3 * 24 * 60 * 60 * 1000;
-const ACTIONS_ACTIVE_EVERY_MS = 24 * 60 * 60 * 1000;
+// the sign-in alone would read a daily user as idle. Each cadence is short by
+// DUE_SLACK_MS: the marker is stamped minutes after a run starts, and the run
+// that should pick the household up again starts at the same clock time (see
+// lib/actions-refresh.ts).
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ACTIONS_EVERY_MS = 3 * DAY_MS - DUE_SLACK_MS;
+const ACTIONS_ACTIVE_EVERY_MS = DAY_MS - DUE_SLACK_MS;
 
-function tenantsWorthGenerating(now: Date = new Date()) {
+export function tenantsWorthGenerating(now: Date = new Date()) {
   const activeSince = new Date(now.getTime() - INSIGHTS_IDLE_MS);
   const dueBefore = new Date(now.getTime() - ACTIONS_EVERY_MS).toISOString();
   const activeDueBefore = new Date(now.getTime() - ACTIONS_ACTIVE_EVERY_MS).toISOString();
+  const hereSince = new Date(now.getTime() - DAY_MS).toISOString();
   const lastRun = sql`coalesce((select ${financialProfiles.lastActionsGeneratedAt} from ${financialProfiles} where ${financialProfiles.tenantId} = ${tenants.id}), 'epoch'::timestamptz)`;
   return db
     .selectDistinct({ id: tenants.id })
@@ -88,14 +94,21 @@ function tenantsWorthGenerating(now: Date = new Date()) {
       and(
         gte(users.lastLoginAt, activeSince),
         sql`(${lastRun} < ${dueBefore} OR (${lastRun} < ${activeDueBefore} AND (
-          ${users.lastLoginAt} >= ${activeDueBefore}
-          OR exists (select 1 from ${pageViews} where ${pageViews.tenantId} = ${tenants.id} and ${pageViews.visitedAt} >= ${activeDueBefore})
+          ${users.lastLoginAt} >= ${hereSince}
+          OR exists (select 1 from ${pageViews} where ${pageViews.tenantId} = ${tenants.id} and ${pageViews.visitedAt} >= ${hereSince})
         )))`,
       ),
     );
 }
 
+// Cloud Scheduler gives this run 1800s, and retries one that runs past it
+// while the first is still going. The requested refreshes claim no new
+// household after this much of the run, so the last few in flight (about 50s
+// each, 4 at a time) finish well inside the deadline.
+const REQUESTED_REFRESH_BUDGET_MS = 20 * 60 * 1000;
+
 export async function runDailyInsights(): Promise<CronRunResult> {
+  const startedAt = Date.now();
   console.log("[Cron] Starting daily insights generation...");
   try {
     const targetTenants = await tenantsWorthGenerating();
@@ -116,7 +129,13 @@ export async function runDailyInsights(): Promise<CronRunResult> {
         console.error(`[Cron] Spend cuts refresh failed for ${id}:`, e instanceof Error ? e.message : e),
       );
     }
-    const succeeded = succeededFirstPass + recoveredOnRetry;
+    // The refreshes a read asked for (see lib/actions-refresh.ts). After the
+    // cadence pass, so a household it just refreshed is found fresh and skipped.
+    const requested = await runRequestedRefreshes(startedAt + REQUESTED_REFRESH_BUDGET_MS).catch((e: unknown) => {
+      console.error("[Cron] Requested refreshes error:", e instanceof Error ? e.message : e);
+      return { succeeded: 0, failed: 0 };
+    });
+    const succeeded = succeededFirstPass + recoveredOnRetry + requested.succeeded;
     console.log(
       `[Cron] Insights generation complete: ${succeeded} succeeded, ${stillFailedIds.length} failed` +
         (recoveredOnRetry > 0 ? ` (${recoveredOnRetry} recovered on retry)` : "")
@@ -129,7 +148,7 @@ export async function runDailyInsights(): Promise<CronRunResult> {
     if (stillFailedIds.length > 0) {
       console.error(`[Cron] Insights still failing after retry for tenants: ${stillFailedIds.join(", ")}`);
     }
-    return { succeeded, failed: stillFailedIds.length, recovered: recoveredOnRetry };
+    return { succeeded, failed: stillFailedIds.length + requested.failed, recovered: recoveredOnRetry };
   } catch (err) {
     console.error("[Cron] Insights generation error:", err);
     return { succeeded: 0, failed: 0, recovered: 0 };

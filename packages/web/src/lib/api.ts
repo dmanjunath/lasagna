@@ -953,6 +953,8 @@ export const api = {
     request<{
       insights: ApiActionRow[];
       lastActionsGeneratedAt: string | null;
+      /** A refresh is waiting for the scheduled run. Absent on an older API. */
+      refreshing?: boolean;
     }>("/insights"),
 
   dismissInsight: (id: string) =>
