@@ -19,6 +19,7 @@ import { actionSentence, netWorthChange, quickLinks } from '../lib/home-briefing
 import { formatStoredDay } from '../lib/utils';
 import { formatCurrency, goalAccent, iconFor } from './goal-shared';
 import { OnboardingResumeCard } from '../components/layout/onboarding-progress';
+import { PlanUsage } from '../components/layout/plan-usage';
 import { CONNECT_CHOICES_WIDTH, useAccountConnections } from '../components/accounts/useAccountConnections';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -642,6 +643,9 @@ export function SimpleHome() {
 
   return (
     <div className="cq-inline mx-auto max-w-[1180px] px-3 sm:px-11 pt-4 sm:pt-9 pb-6 sm:pb-28 text-content">
+      {/* Phone only. The sidebar carries this on wider screens, and most phone
+          sessions never open the drawer, so Home states it too. */}
+      <PlanUsage className="mb-4 md:hidden" />
       {/* Nothing connected, or nothing loaded. The page-scale EmptyState:
           this is the whole screen, not a placeholder in a slot, so it takes the
           solid panel every other card on this page wears. Centred in the
