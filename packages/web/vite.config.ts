@@ -21,6 +21,10 @@ export default defineConfig({
       "@lasagna/core/retirement-verdict": fileURLToPath(
         new URL("../core/src/retirement-verdict.ts", import.meta.url),
       ),
+      // And the payoff math: one schedule for the debt page and the journey.
+      "@lasagna/core/debt-payoff": fileURLToPath(
+        new URL("../core/src/debt-payoff.ts", import.meta.url),
+      ),
     },
   },
   server: {

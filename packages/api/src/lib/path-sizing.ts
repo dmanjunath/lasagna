@@ -1,4 +1,5 @@
 import { RETIREMENT_INCOME_MULTIPLE } from '@lasagna/core';
+import { monthsToPayOff } from '@lasagna/core/debt-payoff';
 import { payoffStanding } from './debt-accounts.js';
 import type { PathContext } from './path-context.js';
 import type { PathStepMark } from './path-generator.js';
@@ -289,15 +290,8 @@ export function scheduledPayoff(
   return end.getTime() > Date.now() ? end.toISOString().slice(0, 10) : null;
 }
 
-export function monthsToPayOff(balance: number, payment: number, aprPercent: number | null): number {
-  if (balance <= 0) return 0;
-  if (payment <= 0) return Infinity;
-  const r = (aprPercent ?? 0) / 100 / 12;
-  if (r <= 0) return Math.ceil(balance / payment);
-  // Anything at or below the monthly interest never touches the principal.
-  if (payment <= balance * r) return Infinity;
-  return Math.ceil(-Math.log(1 - (balance * r) / payment) / Math.log(1 + r));
-}
+// One payoff formula for the API and the web debt page.
+export { monthsToPayOff };
 
 function towardTarget(current: number, target: number): Pick<Measure, 'status' | 'progress'> {
   if (target > 0 && current >= target) return { status: 'complete', progress: 100 };

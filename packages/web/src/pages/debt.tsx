@@ -5,6 +5,7 @@ import { cn, formatMoney, formatInstant, formatStoredMonth } from '../lib/utils'
 import { accountTypeLabel } from '../lib/account-types';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
+import { compareStrategies, simulatePayoff, type PayoffResult, type PayoffStrategy } from '@lasagna/core/debt-payoff';
 import { PageTitle } from '../components/ds/PageTitle';
 import { usePageContext } from '../lib/page-context';
 import { useChatStore } from '../lib/chat-store';
@@ -32,9 +33,9 @@ interface DebtAccount {
   property: { id: string; name: string } | null;
   apr: number;
   minPayment: number;
-  suggestedPayment: number;
-  minPayoffDate: string;
-  suggestedPayoffDate: string;
+  /** What the old fixed plan put on top of the minimum (0.8x on a high-rate
+   * non-mortgage debt). Only seeds the extra-payment field. */
+  suggestedExtra: number;
   payoffDate: string | null;
   planRole: 'payoff' | 'clears-monthly' | 'needs-rate';
   paidInFullMonthly: boolean;
@@ -54,29 +55,27 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-/** Calculate months to pay off with given monthly payment */
-function monthsToPayoff(balance: number, apr: number, payment: number): number {
-  const monthlyRate = apr / 100 / 12;
-  if (payment <= balance * monthlyRate) return 999;
-  if (monthlyRate === 0) return Math.ceil(balance / payment);
-  return Math.ceil(Math.log(payment / (payment - balance * monthlyRate)) / Math.log(1 + monthlyRate));
-}
-
 function addMonths(months: number): string {
-  if (months >= 999) return 'Never (at minimum)';
+  if (!Number.isFinite(months)) return 'Never';
   const d = new Date();
   d.setMonth(d.getMonth() + months);
   return formatInstant(d, { month: 'short', year: 'numeric' });
 }
 
-/** Calculate total interest paid (simple per-debt sum, no waterfall cascade) */
-function calcTotalInterest(debts: DebtAccount[], paymentFn: (d: DebtAccount) => number): number {
-  return debts.reduce((sum, d) => {
-    const pmt = paymentFn(d);
-    const months = monthsToPayoff(d.balance, d.apr, pmt);
-    if (months >= 999) return sum + 999_999;
-    return sum + Math.max(0, pmt * months - d.balance);
-  }, 0);
+/** "4 years 2 months", "11 months". */
+function formatDuration(months: number): string {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  const parts = [];
+  if (y > 0) parts.push(`${y} year${y === 1 ? '' : 's'}`);
+  if (m > 0) parts.push(`${m} month${m === 1 ? '' : 's'}`);
+  return parts.join(' ');
+}
+
+/** The extra-payment field as a number. Empty, invalid or negative is none. */
+function parseExtra(text: string): number {
+  const n = Number(text);
+  return text.trim() !== '' && Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /** Blended weighted-average APR */
@@ -130,6 +129,9 @@ export function Debt() {
   const [hasAccounts, setHasAccounts] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingDebt, setEditingDebt] = useState<DebtAccount | null>(null);
+  // Null until the user types: the field then shows the suggested extra.
+  const [extraText, setExtraText] = useState<string | null>(null);
+  const [strategy, setStrategy] = useState<PayoffStrategy>('avalanche');
 
   const handleLoanDetailsSaved = () => {
     setEditingDebt(null);
@@ -157,9 +159,7 @@ export function Debt() {
           : d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
         const minPay = d.minimumPayment;
         const isHighInterest = apr >= 7 && !isMortgage;
-        const suggestedPay = isHighInterest ? Math.round(minPay * 1.8) : minPay;
-        const minMonths = monthsToPayoff(d.balance, apr, minPay);
-        const sugMonths = monthsToPayoff(d.balance, apr, suggestedPay);
+        const suggestedExtra = isHighInterest ? Math.round(minPay * 1.8) - minPay : 0;
         return {
           id: d.id,
           name: d.name,
@@ -170,9 +170,7 @@ export function Debt() {
           property: d.property ?? null,
           apr: Math.round(apr * 100) / 100,
           minPayment: minPay,
-          suggestedPayment: suggestedPay,
-          minPayoffDate: addMonths(minMonths),
-          suggestedPayoffDate: addMonths(sugMonths),
+          suggestedExtra,
           payoffDate: d.payoffDate ?? null,
           // An API older than this page sends no planRole. Read its paidInFull
           // so a deploy in either order never drops every debt off the page.
@@ -219,25 +217,23 @@ export function Debt() {
 
   const hasDebt = debtOnPlan > 0;
 
-  // One order, highest rate first. There was a snowball alternative beside it,
-  // but calcTotalInterest is a per-debt sum with no waterfall cascade, so it
-  // returned the identical figure for both — the chooser could not have shown a
-  // difference for any portfolio. Offering it, or claiming the two cost the
-  // same, both assert something this model cannot support. Restore the choice
-  // when the engine rolls a cleared debt's payment into the next one.
-  const orderedDebts = [...debts].sort((a, b) => b.apr - a.apr);
-  const totalInterest = calcTotalInterest(orderedDebts, d => d.suggestedPayment);
+  // The extra field starts at what the old fixed plan suggested, so a card
+  // holder lands on the same plan as before and a loans-only household on the
+  // minimums, stated as such.
+  const suggestedExtra = Math.round(debts.reduce((s, d) => s + d.suggestedExtra, 0));
+  const extraValue = extraText ?? (suggestedExtra > 0 ? String(suggestedExtra) : '');
+  const extra = parseExtra(extraValue);
+  const payoffDebts = debts.map((d) => ({ id: d.id, balance: d.balance, apr: d.apr, minPayment: d.minPayment }));
+  const comparison = compareStrategies(payoffDebts, extra);
+  // Identical orders are never offered as a choice: the plan is the one order.
+  const activeStrategy: PayoffStrategy = comparison.tie ? 'avalanche' : strategy;
+  const plan = comparison[activeStrategy];
+  const minimums = simulatePayoff(payoffDebts, 'avalanche', 0);
+  // What $500 a month would do, offered while no extra is set.
+  const preview = extra === 0 ? simulatePayoff(payoffDebts, 'avalanche', 500) : null;
+  const byId = new Map(debts.map((d) => [d.id, d]));
+  const orderedDebts = plan.order.map((id) => byId.get(id)!);
 
-  const suggestedMonths = orderedDebts.length > 0
-    ? Math.max(...orderedDebts.map(d => monthsToPayoff(d.balance, d.apr, d.suggestedPayment)))
-    : 0;
-  const minOnlyMonths = orderedDebts.length > 0
-    ? Math.max(...orderedDebts.map(d => monthsToPayoff(d.balance, d.apr, d.minPayment)))
-    : 0;
-
-  const debtFreeDate = addMonths(suggestedMonths);
-  const minOnlyDate = addMonths(minOnlyMonths);
-  const totalMonthlyPayment = debts.reduce((s, d) => s + d.suggestedPayment, 0);
   const apr = blendedApr(debts);
 
   return (
@@ -272,12 +268,17 @@ export function Debt() {
           needsRateCards={needsRateCards}
           debtOnPlan={debtOnPlan}
           notInPlan={notInPlan}
-          totalMonthlyPayment={totalMonthlyPayment}
-          totalInterest={totalInterest}
-          debtFreeDate={debtFreeDate}
-          minOnlyDate={minOnlyDate}
           apr={apr}
           orderedDebts={orderedDebts}
+          extraValue={extraValue}
+          onExtraChange={setExtraText}
+          extra={extra}
+          comparison={comparison}
+          strategy={activeStrategy}
+          onStrategyChange={setStrategy}
+          plan={plan}
+          minimums={minimums}
+          preview={preview}
           openChat={openChat}
           onEditDebt={setEditingDebt}
         />
@@ -444,23 +445,134 @@ function DebtBreakdown({ debts }: { debts: DebtAccount[] }) {
   );
 }
 
+// ── Order: one statement when the orders tie, a choice when they differ ──────
+
+/** What to call this set of debts in a sentence, so the claim stays true. */
+function debtsNoun(debts: DebtAccount[]): string {
+  const mortgage = accountTypeLabel('loan', 'mortgage');
+  if (debts.every((d) => debtTypeLabel(d) === mortgage)) return 'mortgages';
+  if (debts.every((d) => d.type === 'credit')) return 'cards';
+  if (debts.every((d) => d.type === 'loan')) return 'loans';
+  return 'debts';
+}
+
+function OrderStatement({ debts, extra, clears }: { debts: DebtAccount[]; extra: number; clears: boolean }) {
+  // One debt has no order to talk about. A plan that never clears is already
+  // said in the hero, and no order fixes it. "Same as paying only the
+  // minimums" is said once, under the debt-free date.
+  if (debts.length === 1 || !clears) return null;
+  const text =
+    extra === 0
+      ? `With no extra payment, the order you pay these ${debtsNoun(debts)} in does not change anything. What changes it is paying more.`
+      : 'Paying the highest rate first or the smallest balance first comes out the same here.';
+  return (
+    <p className="rounded-ui-lg border border-line bg-panel p-4 text-[13.5px] leading-[1.55] text-content-secondary shadow-ui-sm">
+      {text}
+    </p>
+  );
+}
+
+function StrategyChoice({
+  comparison, strategy, onChange, openChat,
+}: {
+  comparison: ReturnType<typeof compareStrategies>;
+  strategy: PayoffStrategy;
+  onChange: (s: PayoffStrategy) => void;
+  openChat: (prompt: string) => void;
+}) {
+  const { avalanche: a, snowball: b } = comparison;
+  // Each claim shows only on the order the numbers bear it out for.
+  const cheaper: PayoffStrategy | null =
+    Math.round(a.totalInterest) < Math.round(b.totalInterest) ? 'avalanche'
+      : Math.round(b.totalInterest) < Math.round(a.totalInterest) ? 'snowball' : null;
+  const firstClose: PayoffStrategy | null =
+    a.firstClearedMonths < b.firstClearedMonths ? 'avalanche'
+      : b.firstClearedMonths < a.firstClearedMonths ? 'snowball' : null;
+  const options: { value: PayoffStrategy; title: string; result: PayoffResult }[] = [
+    { value: 'avalanche', title: 'Highest rate first', result: a },
+    { value: 'snowball', title: 'Smallest balance first', result: b },
+  ];
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(e.key)) return;
+    e.preventDefault();
+    const next: PayoffStrategy = strategy === 'avalanche' ? 'snowball' : 'avalanche';
+    onChange(next);
+    (e.currentTarget.querySelector(`[data-value="${next}"]`) as HTMLElement | null)?.focus();
+  };
+  return (
+    <div>
+      <div className="debt-plan-summary" role="radiogroup" aria-label="Payoff order" onKeyDown={onKeyDown}>
+        {options.map((o) => {
+          const active = o.value === strategy;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              data-value={o.value}
+              tabIndex={active ? 0 : -1}
+              onClick={() => onChange(o.value)}
+              className={cn(
+                'ui-focus flex items-start gap-3 rounded-ui-lg border p-4 text-left shadow-ui-sm transition-colors',
+                active ? 'border-brand bg-brand-softer' : 'border-line bg-panel hover:border-line-strong',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border-2',
+                  active ? 'border-[rgb(var(--ui-brand-ink))]' : 'border-line-strong',
+                )}
+              >
+                {active && <span className="h-2.5 w-2.5 rounded-full bg-[rgb(var(--ui-brand-ink))]" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-editorial text-[16px] font-bold tracking-[-0.015em] text-content">{o.title}</span>
+                  {cheaper === o.value && <Badge tone="brand" size="sm">Lowest-cost order</Badge>}
+                  {firstClose === o.value && <Badge tone="neutral" size="sm">Closes accounts fastest</Badge>}
+                </span>
+                <span className="mt-1.5 flex flex-wrap gap-x-3 text-[12.5px] text-content-muted ui-tnum">
+                  <span>Debt-free <span className="font-bold text-content">{addMonths(o.result.months)}</span></span>
+                  {Number.isFinite(o.result.totalInterest) && (
+                    <span>
+                      <span className="font-bold text-content"><MaskedText text={formatCurrency(Math.round(o.result.totalInterest))} /></span> interest
+                    </span>
+                  )}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-2.5">
+        <TextLink onClick={() => openChat('Should I pay my highest-rate debt first or my smallest balance first?')}>
+          Which order should I pick?
+        </TextLink>
+      </div>
+    </div>
+  );
+}
+
 // ── Payoff order — the concrete "fastest way out": which balance to pay down
 // first, then the rest. ──────────────────────────────────────────────────────
 
-function AttackList({ debts }: { debts: DebtAccount[] }) {
+function AttackList({ debts, extra, ranked }: { debts: DebtAccount[]; extra: number; ranked: boolean }) {
+  // Unranked when the order changes nothing: no ordinals, no lead row.
+  const List = ranked ? 'ol' : 'ul';
   return (
-    <ol className="animate-fade-in flex flex-col gap-2">
+    <List className="animate-fade-in flex flex-col gap-2">
       {debts.map((d, i) => {
-        const focus = i === 0;
+        const focus = ranked && i === 0;
         const high = d.apr > 20;
-        const extra = Math.max(0, d.suggestedPayment - d.minPayment);
         // Every row states the amount to SEND, so the column is one scale and
         // sums to the "Monthly payment" KPI above it. The lead row used to show
         // only the increment ($20) next to siblings showing totals ($4,075),
         // which made the column add up to $6,527 — neither KPI — and left the
         // figure the user actually pays on that card ($45) nowhere on the page.
         const role = focus && extra > 0
-          ? `${formatCurrency(d.suggestedPayment)}/mo, ${formatCurrency(extra)} above the minimum`
+          ? `${formatCurrency(d.minPayment + extra)}/mo, ${formatCurrency(extra)} above the minimum`
           : `${formatCurrency(d.minPayment)}/mo minimum`;
         return (
           <li
@@ -470,7 +582,7 @@ function AttackList({ debts }: { debts: DebtAccount[] }) {
               focus ? 'border-brand bg-brand-softer' : 'border-line bg-panel',
             )}
           >
-            <span
+            {ranked && <span
               className={cn(
                 'grid h-7 w-7 shrink-0 place-items-center rounded-full text-[13px] font-extrabold ui-tnum',
                 // brand-ink is the token that stays legible as a fill in both
@@ -481,7 +593,7 @@ function AttackList({ debts }: { debts: DebtAccount[] }) {
               )}
             >
               {i + 1}
-            </span>
+            </span>}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 {/* Same split as the legend: the name gives up characters so
@@ -514,7 +626,7 @@ function AttackList({ debts }: { debts: DebtAccount[] }) {
           </li>
         );
       })}
-    </ol>
+    </List>
   );
 }
 
@@ -532,9 +644,11 @@ function AccountStat({ label, value, neg }: { label: string; value: string; neg?
 }
 
 function AccountCard({
-  debt: d, maxBalance, isDemo, onEdit, onPlan, className,
+  debt: d, planPayoff, maxBalance, isDemo, onEdit, onPlan, className,
 }: {
   debt: DebtAccount;
+  /** This debt's payoff month under the plan above, already formatted. */
+  planPayoff: string;
   maxBalance: number;
   isDemo: boolean;
   onEdit: () => void;
@@ -543,7 +657,7 @@ function AccountCard({
 }) {
   const high = d.apr > 20;
   const share = maxBalance > 0 ? Math.max(4, (Math.abs(d.balance) / maxBalance) * 100) : 0;
-  const payoff = d.payoffDate ? formatStoredMonth(d.payoffDate) : d.suggestedPayoffDate;
+  const payoff = planPayoff;
   return (
     <div className={cn("flex flex-col rounded-ui-xl border border-line bg-panel p-4 shadow-ui-sm transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-ui-md", className)}>
       <div className="flex items-start gap-3">
@@ -593,8 +707,8 @@ function AccountCard({
 // ── Has Debt View ─────────────────────────────────────────────────────────────
 
 function HasDebtView({
-  debts, paidInFullCards, needsRateCards, debtOnPlan, notInPlan, totalMonthlyPayment, totalInterest,
-  debtFreeDate, minOnlyDate, apr, orderedDebts,
+  debts, paidInFullCards, needsRateCards, debtOnPlan, notInPlan, apr, orderedDebts,
+  extraValue, onExtraChange, extra, comparison, strategy, onStrategyChange, plan, minimums, preview,
   openChat, onEditDebt,
 }: {
   debts: DebtAccount[];
@@ -602,12 +716,17 @@ function HasDebtView({
   needsRateCards: DebtAccount[];
   debtOnPlan: number;
   notInPlan: { amount: number; count: number };
-  totalMonthlyPayment: number;
-  totalInterest: number;
-  debtFreeDate: string;
-  minOnlyDate: string;
   apr: number;
   orderedDebts: DebtAccount[];
+  extraValue: string;
+  onExtraChange: (text: string) => void;
+  extra: number;
+  comparison: ReturnType<typeof compareStrategies>;
+  strategy: PayoffStrategy;
+  onStrategyChange: (s: PayoffStrategy) => void;
+  plan: PayoffResult;
+  minimums: PayoffResult;
+  preview: PayoffResult | null;
   openChat: (prompt: string) => void;
   onEditDebt: (debt: DebtAccount) => void;
 }) {
@@ -620,8 +739,14 @@ function HasDebtView({
   const totalMinPayment = debts.reduce((s, d) => s + d.minPayment, 0);
   const maxBalance = debts.reduce((m, d) => Math.max(m, Math.abs(d.balance)), 0);
 
-  const noNeverDate = !debtFreeDate.toLowerCase().startsWith('never');
-  const sameAsMinimums = debtFreeDate === minOnlyDate;
+  const debtFreeDate = addMonths(plan.months);
+  const noNeverDate = Number.isFinite(plan.months);
+  const totalInterest = plan.totalInterest;
+  const sameAsMinimums = extra === 0;
+  const extraInvalid = extraValue.trim() !== '' && !(Number(extraValue) >= 0);
+  // The order only matters when there is extra to send and more than one debt
+  // to send it to.
+  const ranked = extra > 0 && debts.length > 1;
 
   // Cards that clear every month or have no rate on file are owed but kept
   // off the plan, so the hero names the plan's total and says what it leaves out.
@@ -675,17 +800,18 @@ function HasDebtView({
           <p className="mt-4 max-w-[54ch] text-[14.5px] leading-[1.55] text-content-secondary ui-tnum">
             {noNeverDate ? (
               <>
-                {/* No strategy named: there is one order, and calling it a
-                    chosen plan implied an alternative the page cannot cost. */}
+                {/* The plan below: the extra each month, in the order chosen. */}
                 You&apos;re debt-free by{' '}
                 <strong className="font-bold text-content">{debtFreeDate}</strong>, and it costs about{' '}
                 <strong className="font-bold text-negative">{isAmountsHidden() ? <HiddenAmount /> : formatCurrency(Math.round(totalInterest))}</strong> in interest along the way.
               </>
-            ) : (
+            ) : extra === 0 ? (
               <>
                 At minimum payments this debt never clears. Put more toward the highest-rate balance to set a real
                 debt-free date and cut the interest you&apos;re paying.
               </>
+            ) : (
+              <>At this payment the debt still never clears. Raise the extra amount below to set a real debt-free date.</>
             )}
           </p>
 
@@ -701,77 +827,95 @@ function HasDebtView({
       </section>
 
       {/* ── Supporting KPIs — distinct from the hero figures ── */}
-      <div className="mt-7 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+      {/* With no extra the plan's payment is the minimum due, so that tile
+          would say the same figure twice. */}
+      <div className={cn('mt-7 grid grid-cols-2 gap-x-6 gap-y-6', extra > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
         <Kpi label="Blended APR" value={`${apr}%`} sub="weighted average" />
-        <Kpi label="Monthly payment" value={formatCurrency(totalMonthlyPayment)} sub="suggested plan" />
+        {extra > 0 && (
+          <Kpi label="Monthly payment" value={formatCurrency(totalMinPayment + extra)} sub="minimums plus extra" />
+        )}
         <Kpi label="Minimum due" value={formatCurrency(totalMinPayment)} sub="required each month" />
         {highest && (
           <Kpi label="Highest rate" value={`${highest.apr}%`} sub={debtTypeLabel(highest)} neg={highest.apr > 20} />
         )}
       </div>
 
-      {/* ── YOUR PAYOFF PLAN — the method, then the concrete order to pay ──
-          This was a two-option radio group. The options always carried the same
-          interest figure, because the model behind them cannot tell the two
-          orders apart, so nothing here compares them: the card states the rule
-          the list below follows and stops there. */}
+      {/* ── YOUR PAYOFF PLAN — the lever (extra each month), what it does, then
+          the order. Two orders are offered as a choice only when they cost
+          different amounts or finish in different months. */}
       <section className="cq-inline mt-11">
         <div className="flex items-center gap-2.5 pb-4">
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Your payoff plan</h2>
         </div>
 
-        {/* The rule and the finish date sit side by side ABOVE the list, not in
-            a narrow rail beside it. Deleting the strategy chooser left that rail
-            holding two short cards against a full-height list, so it carried a
-            ~150px void at every desktop width while the list squeezed into
-            1fr and truncated account names below 1200px. */}
         <div className="debt-plan-summary">
           <div className="rounded-ui-lg border border-line bg-panel p-4 shadow-ui-sm">
-            <h3 className="font-editorial text-[16px] font-bold tracking-[-0.015em] text-content">
-              Highest rate first
-            </h3>
-            <p className="mt-1.5 text-[13px] leading-[1.5] text-content-secondary">
-              Everything else gets its minimum until the top balance clears.
-            </p>
+            <Field
+              label="Extra each month"
+              error={extraInvalid ? 'Enter an amount of $0 or more.' : undefined}
+              hint={
+                extraInvalid ? undefined : extra > 0 ? (
+                  Number.isFinite(plan.months) && Number.isFinite(minimums.months) ? (
+                    <span className="ui-tnum">
+                      {minimums.months > plan.months
+                        ? `${formatDuration(minimums.months - plan.months)} sooner than paying only the minimums, and `
+                        : 'Same finish as paying only the minimums, and '}
+                      <MaskedText text={formatCurrency(Math.round(minimums.totalInterest - plan.totalInterest))} /> less in interest.
+                    </span>
+                  ) : null
+                ) : preview && Number.isFinite(preview.months) ? (
+                  <span className="ui-tnum">
+                    Add $500/month and you are debt-free in {addMonths(preview.months)}
+                    {Number.isFinite(minimums.totalInterest) && (
+                      <>, saving <MaskedText text={formatCurrency(Math.round(minimums.totalInterest - preview.totalInterest))} /> in interest</>
+                    )}.
+                  </span>
+                ) : null
+              }
+            >
+              <MoneyInput
+                type="number" step="1" min="0"
+                value={extraValue}
+                onChange={(e) => onExtraChange(e.target.value)}
+                placeholder="0"
+                invalid={extraInvalid}
+                leadingIcon={<span className="text-[13px]">$</span>}
+                className="ui-tnum"
+              />
+            </Field>
           </div>
 
-          {/* Same surface and elevation as its sibling. It used to be sunken,
-              which read as hierarchy while it sat under the rule card in a
-              rail. Side by side as equal peers, one raised panel next to one
-              recessed well reads as a card beside an empty region — and in
-              dark the sunken fill (9,12,17) is darker than the page itself. */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-ui-lg border border-line bg-panel p-4 shadow-ui-sm">
-            <div className="flex flex-wrap gap-x-6 gap-y-2.5">
-              {/* One date when the plan and the minimums land on the same
-                  month: two tiles reading the same value under different
-                  labels made it look like a rendering fault, not a finding. */}
-              <div>
-                <div className="text-[12px] font-semibold text-content-muted">Debt-free</div>
-                <div className="mt-0.5 text-[14px] font-bold text-content ui-tnum">{debtFreeDate}</div>
-                {sameAsMinimums && (
-                  <div className="mt-0.5 text-[12px] font-medium text-content-muted">same as paying only the minimums</div>
-                )}
-              </div>
-              {!sameAsMinimums && (
-                <div>
-                  <div className="text-[12px] font-semibold text-content-muted">At minimums</div>
-                  <div className="mt-0.5 text-[14px] font-bold text-content-muted ui-tnum">{minOnlyDate}</div>
-                </div>
+          <div className="flex flex-wrap content-start gap-x-6 gap-y-2.5 rounded-ui-lg border border-line bg-panel p-4 shadow-ui-sm" aria-live="polite">
+            <div>
+              <div className="text-[12px] font-semibold text-content-muted">Debt-free</div>
+              <div className="mt-0.5 text-[14px] font-bold text-content ui-tnum">{debtFreeDate}</div>
+              {sameAsMinimums && (
+                <div className="mt-0.5 text-[12px] font-medium text-content-muted">same as paying only the minimums</div>
               )}
             </div>
-            {/* Aimed at the question the page still answers. It used to read
-                "Avalanche or snowball?", which was the last thing on the page
-                offering a choice that no longer exists. */}
-            <TextLink onClick={() => openChat('Why should I pay my highest-rate debt first?')}>
-              Why highest rate first?
-            </TextLink>
+            {!sameAsMinimums && plan.months !== minimums.months && (
+              <div>
+                <div className="text-[12px] font-semibold text-content-muted">At minimums</div>
+                <div className="mt-0.5 text-[14px] font-bold text-content-muted ui-tnum">{addMonths(minimums.months)}</div>
+              </div>
+            )}
           </div>
+        </div>
+
+        <div className="mt-3">
+          {comparison.tie ? (
+            <OrderStatement debts={debts} extra={extra} clears={noNeverDate} />
+          ) : (
+            <StrategyChoice comparison={comparison} strategy={strategy} onChange={onStrategyChange} openChat={openChat} />
+          )}
         </div>
 
         {/* The order, at the section's full width so long account names and
             their payment line have room. */}
-        <h3 className="mb-2.5 mt-6 text-[15px] font-semibold text-content">Pay in this order</h3>
-        <AttackList debts={orderedDebts} />
+        <h3 className="mb-2.5 mt-6 text-[15px] font-semibold text-content">
+          {ranked ? 'Pay in this order' : debts.length === 1 ? 'Your payment' : 'Your payments'}
+        </h3>
+        <AttackList debts={orderedDebts} extra={extra} ranked={ranked} />
       </section>
 
       <NeedsRateSection cards={needsRateCards} onEdit={onEditDebt} className="mt-11" />
@@ -790,6 +934,13 @@ function HasDebtView({
             <AccountCard
               key={d.id}
               debt={d}
+              planPayoff={
+                // The lender's stored date while this debt gets only its
+                // minimum, the plan's month once extra speeds it up.
+                d.payoffDate && plan.monthsById[d.id] >= minimums.monthsById[d.id]
+                  ? formatStoredMonth(d.payoffDate)
+                  : addMonths(plan.monthsById[d.id])
+              }
               maxBalance={maxBalance}
               isDemo={isDemo}
               // A lone final card in the 2-col grid would leave an empty right

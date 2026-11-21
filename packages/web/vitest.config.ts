@@ -12,6 +12,9 @@ export default defineConfig({
       "@lasagna/core/retirement-verdict": fileURLToPath(
         new URL("../core/src/retirement-verdict.ts", import.meta.url),
       ),
+      "@lasagna/core/debt-payoff": fileURLToPath(
+        new URL("../core/src/debt-payoff.ts", import.meta.url),
+      ),
     },
   },
   test: {
