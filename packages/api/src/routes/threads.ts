@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../lib/db.js";
 import { chatThreads, messages, financialPlans, eq, and, ne, desc, asc, inArray } from "@lasagna/core";
 import { type AuthEnv } from "../middleware/auth.js";
+import { displayTitle, LEGACY_FAILED_REPLY } from "../lib/chat-title.js";
 
 export const threadsRouter = new Hono<AuthEnv>();
 
@@ -107,15 +108,24 @@ threadsRouter.get("/", async (c) => {
       if (!snippets[row.threadId]) snippets[row.threadId] = { firstUser: null, firstAssistant: null };
       const s = snippets[row.threadId];
       if (row.role === 'user' && s.firstUser === null) s.firstUser = row.content;
-      if (row.role === 'assistant' && s.firstAssistant === null) s.firstAssistant = row.content;
+      // The stored failure notice is not an answer.
+      if (row.role === 'assistant' && s.firstAssistant === null && row.content !== LEGACY_FAILED_REPLY) s.firstAssistant = row.content;
     }
   }
 
-  const threadsWithSnippets = results.map(t => ({
-    ...t,
-    firstMessage: snippets[t.id]?.firstUser ?? null,
-    firstAssistantSnippet: snippets[t.id]?.firstAssistant ?? null,
-  }));
+  // The plan-scoped lists are page state for the plan screens and stay as
+  // stored. The full history is what the user reads, so it holds only threads
+  // that got an answer (a failed first turn stores nothing, and older rows may
+  // hold only the failure notice), each under a readable title.
+  const scoped = Boolean(planId || financialPlanId);
+  const threadsWithSnippets = results
+    .filter(t => scoped || snippets[t.id]?.firstAssistant != null)
+    .map(t => ({
+      ...t,
+      title: scoped ? t.title : displayTitle(t.title, snippets[t.id]?.firstUser ?? null),
+      firstMessage: snippets[t.id]?.firstUser ?? null,
+      firstAssistantSnippet: snippets[t.id]?.firstAssistant ?? null,
+    }));
 
   return c.json({ threads: threadsWithSnippets });
 });

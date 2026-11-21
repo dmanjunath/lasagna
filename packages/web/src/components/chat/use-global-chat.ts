@@ -55,7 +55,7 @@ function makeAssistantMessage(threadId: string, response: string, error?: boolea
     id: `assistant-${Date.now()}`,
     threadId: threadId || '',
     role: 'assistant',
-    content: error ? ERROR_TEXT : response,
+    content: error ? response || ERROR_TEXT : response,
     toolCalls: null,
     uiPayload: null,
     createdAt: new Date().toISOString(),
@@ -177,7 +177,6 @@ export function useGlobalChat() {
       // rather than replacing a pending question with a half-written one.
       if (apiMessages[apiMessages.length - 1]?.role !== 'assistant') return false;
 
-      const firstUser = apiMessages.find((m) => m.role === 'user');
       const firstAssistant = apiMessages.find((m) => m.role === 'assistant');
       setThreads(prev => prev.map(row =>
         row.thread.id === t.thread.id
@@ -186,7 +185,6 @@ export function useGlobalChat() {
               messages: apiMessages,
               thread: {
                 ...row.thread,
-                question: firstUser?.content || row.thread.question,
                 answerPreview: firstAssistant ? stripMarkdown(firstAssistant.content).slice(0, 200) : row.thread.answerPreview,
               },
             }
@@ -358,6 +356,7 @@ export function useGlobalChat() {
     if (!pendingMessage || pendingMessage.nonce === pendingHandledNonce) return;
     pendingHandledNonce = pendingMessage.nonce;
     const msg = pendingMessage.text;
+    const launchTitle = pendingMessage.title;
     clearPendingMessage();
 
     const doSend = async () => {
@@ -378,7 +377,7 @@ export function useGlobalChat() {
       const localId = `thread-${Date.now()}`;
       const preferredLevel = getPreferredModelLevel();
       const newThread = {
-        thread: { id: localId, question: msg, answerPreview: '', timestamp, tags },
+        thread: { id: localId, question: launchTitle || msg, answerPreview: '', timestamp, tags },
         messages: [userMsg],
         apiThreadId: null as string | null,
         modelLevel: preferredLevel,
@@ -388,7 +387,7 @@ export function useGlobalChat() {
       setActiveThread(0);
       setThreadLoading(localId, true);
 
-      const { response, threadId, threadTitle, error } = await sendMessage(msg, null, ctx.contextString, ctx.contextMeta, tags, preferredLevel);
+      const { response, threadId, threadTitle, error } = await sendMessage(msg, null, ctx.contextString, ctx.contextMeta, tags, preferredLevel, launchTitle);
 
       const assistantMsg = makeAssistantMessage(threadId, response, error);
       const isViewing = (chatOpen || onChatPage) && activeThreadIdRef.current === localId;
@@ -424,7 +423,8 @@ export function useGlobalChat() {
         const mapped = apiThreads.map((t) => ({
           thread: {
             id: t.id,
-            question: t.title || t.firstMessage || 'Conversation',
+            // The server always lists a thread under a readable title.
+            question: t.title || t.firstMessage || '',
             answerPreview: t.firstAssistantSnippet ? stripMarkdown(t.firstAssistantSnippet).slice(0, 200) : '',
             timestamp: formatInstant(t.createdAt, { month: 'short', day: 'numeric' }),
             tags: (t.tags as string[]) || [],

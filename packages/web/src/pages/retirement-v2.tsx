@@ -1961,7 +1961,7 @@ export function RetirementV2() {
     <Button
       size="sm"
       data-testid={testId}
-      onClick={() => openChat(askLasagnaPrompt)}
+      onClick={() => openChat(askLasagnaPrompt, 'My retirement plan')}
       leadingIcon={<Sparkles className="h-[15px] w-[15px]" aria-hidden />}
     >
       Ask Lasagna

@@ -56,6 +56,9 @@ interface ThreadRow {
 }
 let threadTable: ThreadRow[] = [];
 
+// Message rows the list reads for snippets. Null → one answered turn per thread.
+let messageRows: { threadId: string; role: string; content: string }[] | null = null;
+
 // A tiny in-memory financial_plans table so the create route's ownership check
 // (before linking a thread to a plan) can be exercised end to end.
 interface PlanRow {
@@ -128,10 +131,15 @@ vi.mock("../../lib/db.js", () => ({
             // The create route's plan-ownership check destructures [ownedPlan].
             return Promise.resolve(matchPlans(where));
           }
-          // messages selects → return empty (no snippets / no history needed).
-          const result = Promise.resolve([] as unknown[]);
+          // messages selects → the snippet rows. By default every seeded thread
+          // has one answered turn, so the history list shows it.
+          const rows = messageRows ?? threadTable.flatMap((t) => [
+            { threadId: t.id, role: "user", content: `question ${t.id}` },
+            { threadId: t.id, role: "assistant", content: `answer ${t.id}` },
+          ]);
+          const result = Promise.resolve(rows as unknown[]);
           (result as unknown as { orderBy: (o?: unknown) => Promise<unknown[]> }).orderBy = () =>
-            Promise.resolve([]);
+            Promise.resolve(rows);
           return result;
         },
       }),
@@ -180,6 +188,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   threadTable = [];
   planTable = [];
+  messageRows = null;
 });
 
 describe("POST /api/threads", () => {
@@ -312,5 +321,56 @@ describe("DELETE /api/threads/:id rejects another member's thread", () => {
     const app = appWithSession(userA);
     const res = await app.request("/api/threads/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { method: "DELETE" });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /api/threads (history list) hides failed threads and fixes titles", () => {
+  it("leaves out a thread with no answer or only the old failure notice", async () => {
+    threadTable = [
+      seedThread("t-ok", "tenant-1", "user-a"),
+      seedThread("t-empty", "tenant-1", "user-a"),
+      seedThread("t-failed", "tenant-1", "user-a"),
+    ];
+    messageRows = [
+      { threadId: "t-ok", role: "user", content: "How much did I spend?" },
+      { threadId: "t-ok", role: "assistant", content: "About $3,000." },
+      { threadId: "t-failed", role: "user", content: "Am I on track?" },
+      { threadId: "t-failed", role: "assistant", content: "I wasn't able to generate a response. Please try again." },
+    ];
+    const res = await appWithSession(userA).request("/api/threads");
+    const body = (await res.json()) as { threads: { id: string }[] };
+    expect(body.threads.map((t) => t.id)).toEqual(["t-ok"]);
+  });
+
+  it("replaces a leaked prompt, a placeholder and a missing title with the first message", async () => {
+    threadTable = [
+      { ...seedThread("t-leak", "tenant-1", "user-a"), title: "The user wants a short title (3-6 words) for a financial conversation. The conversation is about ste" },
+      { ...seedThread("t-placeholder", "tenant-1", "user-a"), title: "Conversation" },
+      seedThread("t-step", "tenant-1", "user-a"),
+      { ...seedThread("t-good", "tenant-1", "user-a"), title: "Retirement outlook check" },
+    ];
+    messageRows = [
+      { threadId: "t-leak", role: "user", content: "Should I pay my car loan early?" },
+      { threadId: "t-leak", role: "assistant", content: "a" },
+      { threadId: "t-placeholder", role: "user", content: "What is my net worth?" },
+      { threadId: "t-placeholder", role: "assistant", content: "b" },
+      {
+        threadId: "t-step",
+        role: "user",
+        content: 'Walk me through step 3 of my financial path, "Cut spending to free up cash". What exactly should I do on this step, and why does it sit where it does?',
+      },
+      { threadId: "t-step", role: "assistant", content: "c" },
+      { threadId: "t-good", role: "user", content: "Am I on track?" },
+      { threadId: "t-good", role: "assistant", content: "d" },
+    ];
+    const res = await appWithSession(userA).request("/api/threads");
+    const body = (await res.json()) as { threads: { id: string; title: string }[] };
+    const titles = Object.fromEntries(body.threads.map((t) => [t.id, t.title]));
+    expect(titles).toEqual({
+      "t-leak": "Should I pay my car loan early?",
+      "t-placeholder": "What is my net worth?",
+      "t-step": "Cut spending to free up cash",
+      "t-good": "Retirement outlook check",
+    });
   });
 });

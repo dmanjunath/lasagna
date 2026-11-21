@@ -1047,7 +1047,8 @@ export function FinancialLevel() {
       // itself, so a copy of the step travelling with the question could only
       // ever go stale against the one this page is showing.
       onAsk={() => openChat(
-        `Walk me through step ${step.order} of my financial path, "${step.title}". What exactly should I do on this step, and why does it sit where it does?`
+        `Walk me through step ${step.order} of my financial path, "${step.title}". What exactly should I do on this step, and why does it sit where it does?`,
+        step.title,
       )}
     />
   );

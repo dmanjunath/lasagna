@@ -80,6 +80,9 @@ const insertValues = vi.fn(async (v?: Record<string, unknown>) => {
   }
 });
 
+// Captures update(chatThreads).set(...) so the stored title can be asserted.
+const threadSets = vi.fn();
+
 vi.mock("../../lib/db.js", () => ({
   db: {
     select: (_proj?: unknown) => ({
@@ -104,7 +107,7 @@ vi.mock("../../lib/db.js", () => ({
       }),
     }),
     insert: () => ({ values: (v: Record<string, unknown>) => insertValues(v) }),
-    update: () => ({ set: () => ({ where: async () => undefined }) }),
+    update: () => ({ set: (v: Record<string, unknown>) => { threadSets(v); return { where: async () => undefined }; } }),
   },
 }));
 
@@ -231,5 +234,74 @@ describe("POST /api/chat prompts the model with the turn it is answering", () =>
     // returned it — the prompt must still carry exactly one copy.
     expect(messageTable).toContainEqual({ threadId: THREAD_ID, role: "user", content: "how much did I spend last month?" });
     expect(promptSent()).toEqual([{ role: "user", content: "how much did I spend last month?" }]);
+  });
+});
+
+describe("POST /api/chat stores only answered turns and always titles them", () => {
+  const THREAD_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const post = (message: string) =>
+    appWithSession(userA).request("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId: THREAD_ID, message }),
+    });
+  const reply = (text: string, finishReason = "stop") =>
+    ({ text, toolCalls: [], finishReason, usage: {} }) as never;
+
+  it("stores nothing when the first generation fails", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-1", userId: "user-a", title: null }];
+    vi.mocked(generateText).mockRejectedValue(new Error("upstream 500"));
+
+    const res = await post("Am I on track to retire?");
+
+    expect(await res.json()).toMatchObject({ error: "ai_error", threadTitle: null });
+    expect(messageTable).toEqual([]);
+    expect(threadSets).not.toHaveBeenCalled();
+  });
+
+  it("stores nothing when the model returns no text", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-1", userId: "user-a", title: null }];
+    vi.mocked(generateText).mockResolvedValue(reply(""));
+
+    const res = await post("Am I on track to retire?");
+
+    expect(await res.json()).toMatchObject({ error: "ai_error" });
+    expect(messageTable).toEqual([]);
+  });
+
+  it("falls back to the first message when the title comes back as the model's reasoning", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-1", userId: "user-a", title: null }];
+    vi.mocked(generateText)
+      .mockResolvedValueOnce(reply("You are on track."))
+      .mockResolvedValueOnce(reply("The user wants a short title (3-6 words) for a financial conversation. The", "length"));
+
+    const res = await post("Am I on track to retire? I am 40.");
+
+    expect((await res.json()).threadTitle).toBe("Am I on track to retire?");
+    expect(threadSets).toHaveBeenCalledWith({ title: "Am I on track to retire?" });
+    expect(messageTable.map((m) => m.role)).toEqual(["user", "assistant"]);
+  });
+
+  it("stores a usable generated title", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-1", userId: "user-a", title: null }];
+    vi.mocked(generateText)
+      .mockResolvedValueOnce(reply("You are on track."))
+      .mockResolvedValueOnce(reply("Retirement readiness at 40"));
+
+    const res = await post("Am I on track to retire? I am 40.");
+
+    expect((await res.json()).threadTitle).toBe("Retirement readiness at 40");
+  });
+
+  it("does not re-title a thread a launcher opened with its subject", async () => {
+    threadTable = [{ id: THREAD_ID, tenantId: "tenant-1", userId: "user-a", title: "Cut spending to free up cash" }];
+    vi.mocked(generateText).mockResolvedValue(reply("Here is how."));
+
+    const res = await post('Walk me through step 3 of my financial path, "Cut spending to free up cash".');
+
+    expect((await res.json()).threadTitle).toBeNull();
+    // One model call: the answer. No title call.
+    expect(vi.mocked(generateText)).toHaveBeenCalledTimes(1);
+    expect(threadSets).not.toHaveBeenCalled();
   });
 });

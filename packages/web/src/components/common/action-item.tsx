@@ -527,7 +527,8 @@ function AccordionActionItem(props: ActionItemProps) {
                     openChat(
                       // Same rule as the pill: an awareness row states what it
                       // is above usual, so chat is not told it saves that much.
-                      `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${rowFigure({ ...props, full: false }) ?? ''}\n\n${chatPrompt}`
+                      `Walk me through this insight:\n\nTitle: ${title}\nDescription: ${description}\nImpact: ${rowFigure({ ...props, full: false }) ?? ''}\n\n${chatPrompt}`,
+                      title,
                     )
                   }
                   className="w-full sm:w-auto"

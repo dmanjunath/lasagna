@@ -77,6 +77,7 @@ export function Goals() {
       `Look at my monthly spending, my other goals and their progress and planned contributions, ` +
       `and the rest of my financial picture (debts, recurring bills, net worth), ` +
       `then recommend how to best reallocate that monthly amount, and why.`,
+      `Reallocate the ${goal.name} savings`,
     );
   };
 

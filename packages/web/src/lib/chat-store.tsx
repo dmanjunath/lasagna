@@ -51,6 +51,16 @@ export function setChatExpanded(expanded: boolean) {
   try { localStorage.setItem('lf-chat-expanded', expanded ? '1' : '0'); } catch { /* ignore */ }
 }
 
+// The conversation list on the desktop /chat page starts hidden so the
+// conversation gets the width. Showing or hiding it is remembered.
+export function getChatHistoryOpen(): boolean {
+  try { return localStorage.getItem('lf-chat-history-open') === '1'; } catch { return false; }
+}
+
+export function setChatHistoryOpen(open: boolean) {
+  try { localStorage.setItem('lf-chat-history-open', open ? '1' : '0'); } catch { /* ignore */ }
+}
+
 // Local message shape — extends the API `Message` with a client-only flag
 // marking a failed assistant turn so the UI can render an error + retry.
 export type ChatMessage = Message & { isError?: boolean };
@@ -70,9 +80,13 @@ export interface ThreadData {
   originalModelLevel?: ModelLevel;
 }
 
+type PendingMessage = { text: string; nonce: number; title?: string };
+
 interface ChatStoreState {
   chatOpen: boolean;
-  openChat: (initialMessage?: string) => void;
+  // `title` names a thread the app opens from a step, insight or plan, so it is
+  // listed under that subject and not under its prompt.
+  openChat: (initialMessage?: string, title?: string) => void;
   closeChat: () => void;
   // Route to return to when collapsing the full-page chat back into the sidebar.
   chatReturnPath: string | null;
@@ -86,10 +100,10 @@ interface ChatStoreState {
   unreadCount: number;
   clearUnread: () => void;
   incrementUnread: () => void;
-  pendingMessage: { text: string; nonce: number } | null;
-  setPendingMessage: (msg: { text: string; nonce: number } | null) => void;
+  pendingMessage: PendingMessage | null;
+  setPendingMessage: (msg: PendingMessage | null) => void;
   clearPendingMessage: () => void;
-  sendMessage: (text: string, existingThreadId: string | null, contextString: string, contextMeta: unknown, tags?: string[], modelLevel?: ModelLevel) => Promise<{ response: string; threadId: string; contextMeta: unknown; threadTitle: string | null; error?: boolean }>;
+  sendMessage: (text: string, existingThreadId: string | null, contextString: string, contextMeta: unknown, tags?: string[], modelLevel?: ModelLevel, title?: string) => Promise<{ response: string; threadId: string; contextMeta: unknown; threadTitle: string | null; error?: boolean }>;
 }
 
 const ChatStoreContext = createContext<ChatStoreState | null>(null);
@@ -108,12 +122,12 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [pendingMessage, setPendingMessage] = useState<{ text: string; nonce: number } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(null);
   const [chatReturnPath, setChatReturnPath] = useState<string | null>(null);
 
-  const openChat = useCallback((initialMessage?: string) => {
+  const openChat = useCallback((initialMessage?: string, title?: string) => {
     if (initialMessage) {
-      setPendingMessage({ text: initialMessage, nonce: Date.now() });
+      setPendingMessage({ text: initialMessage, nonce: Date.now(), title });
     }
     setChatOpen(true);
     setUnreadCount(0);
@@ -134,6 +148,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     contextMeta: unknown,
     tags?: string[],
     modelLevel?: ModelLevel,
+    title?: string,
   ) => {
     // Hoisted so a failure after the thread exists still reports its real id.
     // The server finishes and persists the turn even when the client's request
@@ -141,7 +156,7 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
     let threadId = existingThreadId;
     try {
       if (!threadId) {
-        const { thread } = await api.createThread(undefined, undefined, tags);
+        const { thread } = await api.createThread(undefined, title, tags);
         threadId = thread.id;
       }
 
@@ -164,6 +179,11 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error('Chat request failed');
 
       const data = await res.json();
+      // The server answers a failed generation with 200 and an error code. It
+      // stored nothing, so the turn is shown as failed with a retry.
+      if (data.error) {
+        return { response: data.response?.chat ?? '', threadId, contextMeta: null, threadTitle: null, error: true };
+      }
 
       const response = (data.response?.chat || data.response?.content || '').trim()
         || 'I apologize, but I could not process your request.';

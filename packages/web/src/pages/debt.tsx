@@ -727,7 +727,7 @@ function HasDebtView({
   plan: PayoffResult;
   minimums: PayoffResult;
   preview: PayoffResult | null;
-  openChat: (prompt: string) => void;
+  openChat: (prompt: string, title?: string) => void;
   onEditDebt: (debt: DebtAccount) => void;
 }) {
   const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
@@ -951,7 +951,7 @@ function HasDebtView({
                   : undefined
               }
               onEdit={() => onEditDebt(d)}
-              onPlan={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`)}
+              onPlan={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.apr}% APR, ${formatMoney(d.balance, true)} balance).`, `${d.name} payoff plan`)}
             />
           ))}
         </div>

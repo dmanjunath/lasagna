@@ -11,6 +11,7 @@ import { resolveTenantPlan } from "../lib/billing.js";
 import { resolveModelLevel } from "../lib/model-gate.js";
 import { FREE_MODEL_LEVEL } from "@lasagna/core";
 import { resolvePlanGrounding } from "../services/plan-grounding.js";
+import { cleanGeneratedTitle, fallbackTitle } from "../lib/chat-title.js";
 
 export const chatRouter = new Hono<AuthEnv>();
 
@@ -77,17 +78,6 @@ chatRouter.post("/", async (c) => {
     .from(messages)
     .where(eq(messages.threadId, body.threadId))
     .orderBy(messages.createdAt);
-
-  // Save user message — store only the actual user text, not the context prefix
-  if (!isDemo) {
-    await db.insert(messages).values({
-      threadId: body.threadId,
-      tenantId,
-      role: "user",
-      content: body.message,
-      uiPayload: body.uiPayload ? JSON.stringify(body.uiPayload) : null,
-    });
-  }
 
   // Build conversation messages for AI. `history` stops at the previous turn,
   // so the turn being answered is always appended here, demo or not.
@@ -306,10 +296,16 @@ chatRouter.post("/", async (c) => {
     const joiner = /\w$/.test(finalText) && /^\w/.test(contResult.text) ? " " : "";
     finalText = finalText + joiner + contResult.text;
   }
+
+  // No text after the synthesis retry is a failed turn. Report it like a
+  // provider error so nothing is stored for it.
+  if (!finalText.trim()) throw new Error("The model returned no text");
   } catch (err) {
     // The AI provider call failed (e.g. OpenRouter 402 out-of-credits, rate
     // limit, upstream outage). Don't 500 — return a clear assistant message the
-    // user can act on. Not persisted, so the next successful turn is clean.
+    // user can act on. Neither side of the turn is persisted, so a thread whose
+    // first turn fails holds nothing and stays out of the history list, and a
+    // retry does not leave the question in the transcript twice.
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[Chat] AI generation failed:", msg);
     const isCredit = /credit|max_tokens|402|quota|insufficient|payment/i.test(msg);
@@ -332,46 +328,58 @@ chatRouter.post("/", async (c) => {
 
   console.log(`[Chat] Final response: ${finalText.length} chars, ${allToolCalls.length} tool calls`);
 
-  // Save assistant message with full markdown response
+  // Save the turn only now that it succeeded. The user message is stored
+  // without the context prefix.
   if (!isDemo) {
     await db.insert(messages).values({
       threadId,
       tenantId,
+      role: "user",
+      content: body.message,
+      uiPayload: body.uiPayload ? JSON.stringify(body.uiPayload) : null,
+    });
+    await db.insert(messages).values({
+      threadId,
+      tenantId,
       role: "assistant",
-      content: finalText || "I wasn't able to generate a response. Please try again.",
+      content: finalText,
       toolCalls: allToolCalls.length > 0 ? JSON.stringify(allToolCalls) : null,
     });
   }
 
-  // Auto-generate thread title on first message
+  // Title a thread on its first answered turn. A thread the app opened from a
+  // step or an insight already has its title. Every untitled thread leaves here
+  // with one: the model's when it is usable, else the first message cut short.
   let generatedThreadTitle: string | null = null;
   if (!isDemo && !thread.title) {
     try {
-      const titleLevel = plan === "free" ? FREE_MODEL_LEVEL : "quality";
+      const titleLevel = plan === "free" ? FREE_MODEL_LEVEL : "fast";
       const titleResult = await llmGenerateText({ tenantId, source: "chat-title", aliasMap }, {
         model: getModel(titleLevel),
-        system: "Generate a short title (3-6 words) for this financial conversation. No quotes, no punctuation at the end. Just the title.",
-        messages: [{ role: "user", content: `Title for: "${body.message.slice(0, 200)}"` }],
-        maxOutputTokens: 32,
+        system: "Write a short title (3-6 words) for a conversation that starts with the user's message below. Reply with the title only: no quotes, no explanation, no punctuation at the end.",
+        messages: [{ role: "user", content: body.message.slice(0, 500) }],
+        // Room for a reasoning model to think and still answer. At 32 tokens
+        // the reasoning ate the budget and the title came back as the model's
+        // own thinking or half a word.
+        maxOutputTokens: 512,
       });
-      generatedThreadTitle = titleResult.text.trim().slice(0, 100);
-      if (generatedThreadTitle && generatedThreadTitle.length > 2) {
-        await db
-          .update(chatThreads)
-          .set({ title: generatedThreadTitle })
-          .where(and(eq(chatThreads.id, threadId), eq(chatThreads.tenantId, tenantId)));
-      } else {
-        generatedThreadTitle = null;
-      }
+      generatedThreadTitle = cleanGeneratedTitle(titleResult.text, titleResult.finishReason);
     } catch {
-      // Non-fatal
+      // Non-fatal: falls back below.
+    }
+    generatedThreadTitle ??= fallbackTitle(body.message);
+    if (generatedThreadTitle) {
+      await db
+        .update(chatThreads)
+        .set({ title: generatedThreadTitle })
+        .where(and(eq(chatThreads.id, threadId), eq(chatThreads.tenantId, tenantId)));
     }
   }
 
   return c.json({
     threadTitle: generatedThreadTitle,
     response: {
-      chat: finalText || "I wasn't able to generate a response. Please try again.",
+      chat: finalText,
     },
     toolResults: allToolCalls.map(tc => ({
       toolName: tc.toolName,

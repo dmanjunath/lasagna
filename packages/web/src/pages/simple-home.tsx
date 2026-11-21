@@ -682,7 +682,7 @@ export function SimpleHome() {
               shortSummary={shape.actions === 0}
               linksLoading={linksLoading}
               linksPlaceholder={shape.links}
-              onAsk={(prompt) => openChat(prompt)}
+              onAsk={(prompt, title) => openChat(prompt, title)}
               actions={renderActions(insights, insightsLoading)}
             />
 
@@ -700,7 +700,8 @@ export function SimpleHome() {
                 // The same words /financial-level hands off with, because it is
                 // the same button on the same step.
                 openChat(
-                  `Walk me through step ${currentStep.order} of my financial path, "${currentStep.title}". What exactly should I do on this step, and why does it sit where it does?`
+                  `Walk me through step ${currentStep.order} of my financial path, "${currentStep.title}". What exactly should I do on this step, and why does it sit where it does?`,
+                  currentStep.title,
                 );
               }}
               onDid={() => markCurrentStep('done')}

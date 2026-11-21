@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Minimize2, SquarePen, Trash2, Send, Sparkles, ArrowUpRight, MessageSquare } from 'lucide-react';
+import { Minimize2, SquarePen, Trash2, Send, Sparkles, ArrowUpRight, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { EmptyState } from '../uikit';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
-import { useChatStore, setChatExpanded } from '../../lib/chat-store';
+import { useChatStore, setChatExpanded, getChatHistoryOpen, setChatHistoryOpen } from '../../lib/chat-store';
 import { useGlobalChat } from './use-global-chat';
 import { ChatThreadView } from './chat-thread-view';
 import { ChatThreadList } from './chat-thread-list';
@@ -150,6 +150,15 @@ export function ChatFullPage() {
     }
   }, [search, setPendingMessage, setLocation]);
 
+  // Desktop only: the conversation list is showing.
+  const [historyOpen, setHistoryOpenState] = useState(getChatHistoryOpen);
+  const toggleHistory = () => {
+    setHistoryOpenState((open) => {
+      setChatHistoryOpen(!open);
+      return !open;
+    });
+  };
+
   // Mobile only: the new-chat screen is open.
   const [composing, setComposing] = useState(false);
   // Re-tapping the Chat tab returns to the history list.
@@ -242,12 +251,31 @@ export function ChatFullPage() {
     );
   }
 
-  // Desktop: history rail + conversation pane.
+  const railIconButton = 'grid place-items-center w-9 h-9 rounded-ui-md text-content-secondary hover:bg-canvas-sunken hover:text-content transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-brand-ring)]';
+
+  // Desktop: history rail + conversation pane. The rail starts as a strip of
+  // icons so the conversation gets the width.
   return (
     <div className="flex h-full min-h-0">
-      {/* History rail */}
+      {!historyOpen ? (
+        <div className="w-14 flex-shrink-0 border-r border-line flex flex-col items-center gap-1 py-2.5 bg-canvas">
+          <button onClick={toggleHistory} className={railIconButton} title="Show conversations" aria-label="Show conversations" aria-expanded={false}>
+            <PanelLeftOpen className="w-[18px] h-[18px]" />
+          </button>
+          <button onClick={() => setActiveThread(null)} className={railIconButton} title="New chat" aria-label="New chat">
+            <SquarePen className="w-4 h-4" />
+          </button>
+          <button onClick={handleCollapse} className={`${railIconButton} mt-auto`} title="Collapse to sidebar" aria-label="Collapse to sidebar">
+            <Minimize2 className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
       <div className="w-[300px] flex-shrink-0 border-r border-line flex flex-col bg-canvas min-h-0">
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-line flex-shrink-0">
+          <div className="flex items-center gap-1">
+          <button onClick={toggleHistory} className={railIconButton} title="Hide conversations" aria-label="Hide conversations" aria-expanded={true}>
+            <PanelLeftClose className="w-[18px] h-[18px]" />
+          </button>
           <button
             onClick={handleCollapse}
             className="flex items-center gap-1.5 px-2 py-2 rounded-ui-md hover:bg-canvas-sunken transition-colors text-content-secondary hover:text-content"
@@ -256,6 +284,7 @@ export function ChatFullPage() {
             <Minimize2 className="w-4 h-4" />
             <span className="text-xs font-semibold">Collapse</span>
           </button>
+          </div>
           <button
             onClick={() => setActiveThread(null)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-ui-md bg-brand-soft text-[rgb(var(--ui-brand-ink))] text-xs font-bold hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
@@ -322,6 +351,7 @@ export function ChatFullPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Conversation pane — min-w-0 so wide content (tables, long lines) stays
           inside the pane and never pushes the layout under the nav/rail. */}

@@ -41,7 +41,7 @@ export function BriefingCard({
   linksLoading: boolean;
   /** How many placeholder links to hold room for while loading. */
   linksPlaceholder?: number;
-  onAsk: (prompt: string) => void;
+  onAsk: (prompt: string, title: string) => void;
 }) {
   const strong = 'font-semibold text-content';
   // Whole dollars, so a change under 50 cents reads "unchanged", never "up $0".
@@ -136,7 +136,7 @@ export function BriefingCard({
             return l.kind === 'page' ? (
               <Link key={l.id} href={l.href} className={cls}>{icon}{l.label}</Link>
             ) : (
-              <button key={l.id} type="button" onClick={() => onAsk(l.prompt)} className={cls}>{icon}{l.label}</button>
+              <button key={l.id} type="button" onClick={() => onAsk(l.prompt, l.label)} className={cls}>{icon}{l.label}</button>
             );
           })}
         </nav>
