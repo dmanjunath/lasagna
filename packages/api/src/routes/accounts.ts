@@ -5,7 +5,7 @@ import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
 import { validatePropertyLink } from "../lib/account-links.js";
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
-import { resolveDebtAccounts, creditCardPaysInFull, type DebtAccount } from "../lib/debt-accounts.js";
+import { resolveDebtAccounts, creditCardPaysInFull, payoffStanding, type DebtAccount } from "../lib/debt-accounts.js";
 import { netWorthHistory, validTimeZone } from "../lib/net-worth-history.js";
 import { kickOffValueEstimate, advanceValueEstimate } from "../lib/value-estimate.js";
 import { pollRealEstateValue } from "../services/fetchRealEstateValues.js";
@@ -106,30 +106,37 @@ accountRoutes.get("/debts", async (c) => {
   });
   const propertyById = new Map(propertyRows.map((p) => [p.id, p]));
 
-  const debts = debtAccounts.map((d) => ({
-    id: d.id,
-    name: d.name,
-    mask: d.mask,
-    type: d.type,
-    subtype: d.subtype,
-    property: d.propertyAccountId ? (propertyById.get(d.propertyAccountId) ?? null) : null,
-    balance: d.balance,
-    interestRate: d.apr,
-    termMonths: d.termMonths,
-    originationDate: d.originationDate,
-    minimumPayment: d.minimumPayment,
-    payoffDate: d.payoffDate,
-    // A card cleared in full each month. The balance is real and still owed, so
-    // it stays on the page, but it is this month's spending rather than a debt
-    // to pay down: no interest counted, no payoff framing.
-    paidInFull: creditCardPaysInFull(d),
-    // The user's own designation (distinct from paidInFull, which is also true
-    // when the bank's statement data says so). Drives the toggle's state.
-    paidInFullMonthly: d.paidInFullMonthly,
-    liabilitySource: d.liabilitySource,
-    liabilityLastSyncedAt: d.liabilityLastSyncedAt,
-    lastUpdated: d.lastUpdated,
-  }));
+  const debts = debtAccounts.map((d) => {
+    const planRole = payoffStanding(d);
+    return {
+      id: d.id,
+      name: d.name,
+      mask: d.mask,
+      type: d.type,
+      subtype: d.subtype,
+      property: d.propertyAccountId ? (propertyById.get(d.propertyAccountId) ?? null) : null,
+      balance: d.balance,
+      interestRate: d.apr,
+      termMonths: d.termMonths,
+      originationDate: d.originationDate,
+      minimumPayment: d.minimumPayment,
+      payoffDate: d.payoffDate,
+      // Where this debt sits in a payoff plan, from the same classifier the
+      // journey reads. "needs-rate" is a card with no rate and no payment
+      // history: off the payoff plan until the user adds the rate.
+      planRole,
+      // A card cleared in full each month. The balance is real and still owed, so
+      // it stays on the page, but it is this month's spending rather than a debt
+      // to pay down: no interest counted, no payoff framing.
+      paidInFull: planRole === "clears-monthly",
+      // The user's own designation (distinct from paidInFull, which is also true
+      // when the bank's statement data says so). Drives the toggle's state.
+      paidInFullMonthly: d.paidInFullMonthly,
+      liabilitySource: d.liabilitySource,
+      liabilityLastSyncedAt: d.liabilityLastSyncedAt,
+      lastUpdated: d.lastUpdated,
+    };
+  });
 
   const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
   const monthlyInterest = debtsMonthlyInterest(debtAccounts);

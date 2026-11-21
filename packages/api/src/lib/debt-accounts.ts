@@ -92,11 +92,14 @@ export function statementPaidInFull(
  * behaviour is evidence and the missing rate is an assumption, so the evidence
  * wins: a card that clears every month gets no payoff step on any surface.
  *
- * An unknown card is treated as revolving everywhere it matters, exactly as it
- * was before: a card we cannot read is not dropped from a plan on a guess. It
- * is named apart from `revolving` because "we have not seen it clear" and "we
- * watched it carry" are not the same claim, and nothing may state the second
- * when it only has the first.
+ * An unknown card with a rate on file is planned like a revolving one: the rate
+ * is evidence of what it costs, so it keeps its payoff step. An unknown card
+ * with NO rate has neither signal, and ranking it as expensive is exactly the
+ * guess that made the journey and /debt disagree. It gets no payoff step on any
+ * surface and is flagged once, on /debt, as a rate to add (`payoffStanding`).
+ * It is named apart from `revolving` because "we have not seen it clear" and
+ * "we watched it carry" are not the same claim, and nothing may state the
+ * second when it only has the first.
  */
 export type DebtBehaviour = "clears-monthly" | "revolving" | "unknown-behaviour";
 
@@ -122,6 +125,54 @@ export function debtBehaviour(account: DebtAccount): DebtBehaviour {
  */
 export function creditCardPaysInFull(account: DebtAccount): boolean {
   return debtBehaviour(account) === "clears-monthly";
+}
+
+/**
+ * Where a debt sits in a payoff plan. The one rule every surface reads (the
+ * journey, v1 candidates, the debt-free milestone, /debt and chat), so no two
+ * of them can give one card opposite advice.
+ *
+ *  - `payoff` — gets a payoff step: a loan, a card we watched carry, or an
+ *    unknown card whose rate is on file.
+ *  - `clears-monthly` — costs no interest, so it never gets a payoff step.
+ *  - `needs-rate` — unknown behaviour and no rate. Off every plan until the
+ *    user adds the rate.
+ */
+export type PayoffStanding = "payoff" | "clears-monthly" | "needs-rate";
+
+export function payoffStanding(account: DebtAccount): PayoffStanding {
+  const behaviour = debtBehaviour(account);
+  if (behaviour === "clears-monthly") return "clears-monthly";
+  if (behaviour === "unknown-behaviour" && account.apr == null) return "needs-rate";
+  return "payoff";
+}
+
+/**
+ * How chat is told where a debt stands, in words it can repeat to the user.
+ *
+ * The raw standing ("needs-rate") leaked into replies verbatim, and a hint in
+ * the tool description did not stop the model calling an unrated card
+ * expensive. So each debt carries a plain label and, when the plan leaves it
+ * out, the instruction itself.
+ */
+export function payoffPlanForChat(standing: PayoffStanding): {
+  payoffPlan: string;
+  guidance: string | null;
+} {
+  if (standing === "clears-monthly") {
+    return {
+      payoffPlan: "clears every month, costs no interest",
+      guidance: "Costs no interest because it clears every month. Never a payoff priority.",
+    };
+  }
+  if (standing === "needs-rate") {
+    return {
+      payoffPlan: "rate not on file",
+      guidance:
+        "We do not know this card's rate or whether it carries a balance month to month. Do not call it expensive, cheap, or a priority, and do not guess its rate. Do not compare it to typical card rates. Tell the user to add the rate on the Debt page.",
+    };
+  }
+  return { payoffPlan: "in payoff plan", guidance: null };
 }
 
 /**
@@ -225,7 +276,12 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
         }
       }
 
-      const interestRate = resolveDebtApr(acct.metadata ?? null);
+      // Metadata first, then the accounts.apr column. Quick import writes the
+      // rate to the column only, so reading metadata alone left those debts
+      // with no rate on /debt, the journey and chat.
+      const columnApr = acct.apr != null ? parseFloat(acct.apr) : NaN;
+      const interestRate =
+        resolveDebtApr(acct.metadata ?? null) ?? (Number.isFinite(columnApr) ? columnApr : null);
 
       // Resolve payoffDate
       let payoffDate: string | null = null;

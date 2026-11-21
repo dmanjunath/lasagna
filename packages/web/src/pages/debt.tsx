@@ -36,7 +36,7 @@ interface DebtAccount {
   minPayoffDate: string;
   suggestedPayoffDate: string;
   payoffDate: string | null;
-  paidInFull: boolean;
+  planRole: 'payoff' | 'clears-monthly' | 'needs-rate';
   paidInFullMonthly: boolean;
   liabilitySource: "plaid" | "manual" | null;
   liabilityLastSyncedAt: string | null;
@@ -124,6 +124,7 @@ export function Debt() {
   const [loading, setLoading] = useState(true);
   const [debts, setDebts] = useState<DebtAccount[]>([]);
   const [paidInFullCards, setPaidInFullCards] = useState<DebtAccount[]>([]);
+  const [needsRateCards, setNeedsRateCards] = useState<DebtAccount[]>([]);
   const [totalDebt, setTotalDebt] = useState(0);
   const [hasAccounts, setHasAccounts] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -139,7 +140,7 @@ export function Debt() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; property: { id: string; name: string } | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; paidInFull: boolean; paidInFullMonthly: boolean; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
+      api.getDebts().catch(() => ({ debts: [] as Array<{ id: string; name: string; type: string; subtype: string | null; property: { id: string; name: string } | null; balance: number; interestRate: number | null; termMonths: number | null; originationDate: string | null; minimumPayment: number; payoffDate: string | null; planRole: 'payoff' | 'clears-monthly' | 'needs-rate'; paidInFull: boolean; paidInFullMonthly: boolean; liabilitySource: "plaid" | "manual" | null; liabilityLastSyncedAt: string | null; lastUpdated: string | null }>, totalDebt: 0, monthlyInterest: 0 })),
       api.getBalances().catch(() => ({ balances: [] })),
     ]).then(([debtResult, balanceData]) => {
       setHasAccounts(balanceData.balances.length > 0);
@@ -148,7 +149,11 @@ export function Debt() {
         // Subtype first: a mortgage named for its lender ("Wells Fargo") was
         // reading as a generic loan and getting the 8% stand-in, not 6.5%.
         const isMortgage = d.subtype === 'mortgage' || d.name?.toLowerCase().includes('mortgage');
-        const apr = d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
+        // A card with no rate and no payment history gets no stand-in: it sits
+        // outside the payoff math until the user adds the rate.
+        const apr = d.planRole === 'needs-rate'
+          ? 0
+          : d.interestRate ?? (d.type === 'credit' ? 21.99 : isMortgage ? 6.5 : 8.0);
         const minPay = d.minimumPayment;
         const isHighInterest = apr >= 7 && !isMortgage;
         const suggestedPay = isHighInterest ? Math.round(minPay * 1.8) : minPay;
@@ -168,7 +173,9 @@ export function Debt() {
           minPayoffDate: addMonths(minMonths),
           suggestedPayoffDate: addMonths(sugMonths),
           payoffDate: d.payoffDate ?? null,
-          paidInFull: d.paidInFull,
+          // An API older than this page sends no planRole. Read its paidInFull
+          // so a deploy in either order never drops every debt off the page.
+          planRole: d.planRole ?? (d.paidInFull ? 'clears-monthly' : 'payoff'),
           paidInFullMonthly: d.paidInFullMonthly,
           liabilitySource: d.liabilitySource ?? null,
           liabilityLastSyncedAt: d.liabilityLastSyncedAt ?? null,
@@ -177,10 +184,13 @@ export function Debt() {
 
       mapped.sort((a, b) => b.apr - a.apr);
       // A card cleared in full each month is this month's spending, not a debt
-      // to pay down: it drives none of the payoff math and is listed apart.
-      const paydown = mapped.filter((d) => !d.paidInFull);
+      // to pay down: it drives none of the payoff math and is listed apart. A
+      // card with no rate and no payment history is listed apart too, asking
+      // for the rate, because the journey leaves it off for the same reason.
+      const paydown = mapped.filter((d) => d.planRole === 'payoff');
       setDebts(paydown);
-      setPaidInFullCards(mapped.filter((d) => d.paidInFull));
+      setPaidInFullCards(mapped.filter((d) => d.planRole === 'clears-monthly'));
+      setNeedsRateCards(mapped.filter((d) => d.planRole === 'needs-rate'));
       setTotalDebt(paydown.reduce((sum, d) => sum + d.balance, 0));
     })
     .finally(() => setLoading(false));
@@ -233,6 +243,14 @@ export function Debt() {
         @container (min-width: 560px) {
           .debt-plan-summary { grid-template-columns: 1fr 1fr; }
         }
+        /* Off-plan card rows: the balance sits under the name until the list
+           is wide enough to hold both on one line, so a phone never cuts the
+           name down to a few letters to fit the balance and the button. */
+        .debt-card-row-info { display: flex; flex-direction: column; gap: 2px; }
+        @container (min-width: 480px) {
+          .debt-card-row-info { flex-direction: row; align-items: center; gap: 14px; }
+          .debt-card-row-amount { margin-left: auto; text-align: right; }
+        }
       `}</style>
       {loading ? null : !hasAccounts ? (
         <NoAccountsView />
@@ -240,6 +258,7 @@ export function Debt() {
         <HasDebtView
           debts={debts}
           paidInFullCards={paidInFullCards}
+          needsRateCards={needsRateCards}
           totalDebt={totalDebt}
           totalMonthlyPayment={totalMonthlyPayment}
           totalInterest={totalInterest}
@@ -250,8 +269,12 @@ export function Debt() {
           openChat={openChat}
           onEditDebt={setEditingDebt}
         />
-      ) : paidInFullCards.length > 0 ? (
-        <NoRevolvingDebtView cards={paidInFullCards} onEdit={setEditingDebt} />
+      ) : paidInFullCards.length > 0 || needsRateCards.length > 0 ? (
+        <NoRevolvingDebtView
+          paidInFullCards={paidInFullCards}
+          needsRateCards={needsRateCards}
+          onEdit={setEditingDebt}
+        />
       ) : (
         <DebtFreeView openChat={openChat} />
       )}
@@ -558,12 +581,13 @@ function AccountCard({
 // ── Has Debt View ─────────────────────────────────────────────────────────────
 
 function HasDebtView({
-  debts, paidInFullCards, totalDebt, totalMonthlyPayment, totalInterest,
+  debts, paidInFullCards, needsRateCards, totalDebt, totalMonthlyPayment, totalInterest,
   debtFreeDate, minOnlyDate, apr, orderedDebts,
   openChat, onEditDebt,
 }: {
   debts: DebtAccount[];
   paidInFullCards: DebtAccount[];
+  needsRateCards: DebtAccount[];
   totalDebt: number;
   totalMonthlyPayment: number;
   totalInterest: number;
@@ -586,6 +610,11 @@ function HasDebtView({
   const noNeverDate = !debtFreeDate.toLowerCase().startsWith('never');
   const sameAsMinimums = debtFreeDate === minOnlyDate;
 
+  // Cards that clear every month or have no rate on file are owed but kept
+  // off the plan, so the hero names the plan's total and says what it leaves out.
+  const excluded = [...needsRateCards, ...paidInFullCards];
+  const excludedTotal = excluded.reduce((s, d) => s + d.balance, 0);
+
   return (
     <>
       {/* ── Purpose-led header: the page's job stated up top ── */}
@@ -598,6 +627,11 @@ function HasDebtView({
             <PageMetaItem className="ui-tnum">{debts.length} account{debts.length === 1 ? '' : 's'}</PageMetaItem>
             {highRateCount > 0 && (
               <PageMetaItem tone="negative" className="ui-tnum">{highRateCount} at a punishing rate</PageMetaItem>
+            )}
+            {needsRateCards.length > 0 && (
+              <PageMetaItem tone="caution" className="ui-tnum">
+                Rate not on file for {needsRateCards.length} card{needsRateCards.length === 1 ? '' : 's'}
+              </PageMetaItem>
             )}
           </PageMeta>
         </div>
@@ -615,11 +649,18 @@ function HasDebtView({
           }}
         />
         <div className="relative">
-          <div className="text-[14px] font-semibold text-content-muted">Total debt</div>
+          <div className="text-[14px] font-semibold text-content-muted">
+            {excluded.length > 0 ? 'Debt in your payoff plan' : 'Total debt'}
+          </div>
           <div className="mt-2 font-editorial text-[40px] sm:text-[56px] font-extrabold leading-[0.9] tracking-[-0.035em] text-negative ui-tnum">
             {/* Owed by definition under this label, so red and unsigned. */}
             {isAmountsHidden() ? <HiddenAmount /> : formatCurrency(totalDebt)}
           </div>
+          {excluded.length > 0 && (
+            <div className="mt-2.5 text-[13px] font-medium text-content-muted ui-tnum">
+              <MaskedText text={formatCurrency(excludedTotal)} /> on {excluded.length} card{excluded.length === 1 ? '' : 's'} is not in the plan
+            </div>
+          )}
           <p className="mt-4 max-w-[54ch] text-[14.5px] leading-[1.55] text-content-secondary ui-tnum">
             {noNeverDate ? (
               <>
@@ -721,6 +762,8 @@ function HasDebtView({
         <h3 className="mb-2.5 mt-6 text-[15px] font-semibold text-content">Pay in this order</h3>
         <AttackList debts={orderedDebts} />
       </section>
+
+      <NeedsRateSection cards={needsRateCards} onEdit={onEditDebt} className="mt-11" />
 
       {/* ── ACCOUNTS — the ledger, two-column cards; every field visible ── */}
       <section className="mt-11">
@@ -844,7 +887,7 @@ function LoanDetailsModal({
       open
       onClose={onClose}
       title={`${debt.name}${debt.mask ? ` ••${debt.mask}` : ''}`}
-      description="Update loan details"
+      description={isCredit ? "Update card details" : "Update loan details"}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -916,7 +959,7 @@ function LoanDetailsModal({
             <Toggle
               checked={paidInFull}
               onChange={setPaidInFull}
-              label="Paid in full every month"
+              label="Clears every month"
               description="Keeps this card off your payoff plan and out of interest totals. Turn on if you clear the statement balance each month."
             />
           </div>
@@ -947,26 +990,30 @@ function PaidInFullSection({
     <section className={className}>
       <div className="flex items-center gap-2.5 pb-1">
         <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Clears every month</h2>
-        <span className="ml-auto text-[12px] font-semibold text-content-muted">
-          {cards.length} card{cards.length === 1 ? '' : 's'}
-        </span>
+        {cards.length > 1 && (
+          <span className="ml-auto text-[12px] font-semibold text-content-muted">
+            {cards.length} cards
+          </span>
+        )}
       </div>
       <p className="max-w-[60ch] pb-3.5 text-[13px] leading-[1.5] text-content-muted">
-        These cost no interest, so they sit outside your payoff plan.
+        {cards.length === 1 ? 'This card costs no interest.' : 'These cost no interest.'}
       </p>
-      <ul className="flex flex-col gap-2">
+      <ul className="cq-inline flex flex-col gap-2">
         {cards.map((d) => (
           <li key={d.id} className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-3.5 py-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-secondary">
               <CreditCard size={16} />
             </span>
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span className="truncate font-semibold text-content">{d.name}</span>
-              {d.mask && <span className="shrink-0 font-semibold text-content-muted">••{d.mask}</span>}
-              {d.liabilitySource === 'plaid' && <Badge tone="brand" size="sm">Synced</Badge>}
-            </div>
-            <div className="shrink-0 text-right font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-content ui-tnum">
-              <MaskedText text={formatCurrency(d.balance)} />
+            <div className="debt-card-row-info min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-semibold text-content">{d.name}</span>
+                {d.mask && <span className="shrink-0 font-semibold text-content-muted">••{d.mask}</span>}
+                {d.liabilitySource === 'plaid' && <Badge tone="brand" size="sm">Synced</Badge>}
+              </div>
+              <div className="debt-card-row-amount shrink-0 font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-content ui-tnum">
+                <MaskedText text={formatCurrency(d.balance)} />
+              </div>
             </div>
             {editable && (
               <button
@@ -985,13 +1032,89 @@ function PaidInFullSection({
   );
 }
 
-// ── No Revolving Debt View — every card clears each month, nothing to pay down ─
+// ── Rate not on file — a card we have never seen carry, with no rate ─────────
+// Not in the payoff plan (here or on the journey), because ranking it by a
+// guessed rate is what made the two disagree. Asked about once, here.
 
-function NoRevolvingDebtView({ cards, onEdit }: { cards: DebtAccount[]; onEdit: (debt: DebtAccount) => void }) {
+function NeedsRateSection({
+  cards, onEdit, className,
+}: {
+  cards: DebtAccount[];
+  onEdit: (debt: DebtAccount) => void;
+  className?: string;
+}) {
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
+  if (cards.length === 0) return null;
+  return (
+    <section className={className}>
+      <div className="flex items-center gap-2.5 pb-1">
+        <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Rate not on file</h2>
+        {cards.length > 1 && (
+          <span className="ml-auto text-[12px] font-semibold text-content-muted">
+            {cards.length} cards
+          </span>
+        )}
+      </div>
+      <p className="max-w-[60ch] pb-3.5 text-[13px] leading-[1.5] text-content-muted">
+        {cards.length === 1
+          ? 'We do not know what this card charges, so it is not in your payoff plan. Add the rate to see where it belongs.'
+          : 'We do not know what these cards charge, so they are not in your payoff plan. Add the rate to see where each one belongs.'}
+      </p>
+      <ul className="cq-inline flex flex-col gap-2">
+        {cards.map((d) => (
+          <li key={d.id} className="flex items-center gap-3.5 rounded-ui-lg border border-line bg-panel px-3.5 py-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-secondary">
+              <CreditCard size={16} />
+            </span>
+            <div className="debt-card-row-info min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-semibold text-content">{d.name}</span>
+                {d.mask && <span className="shrink-0 font-semibold text-content-muted">••{d.mask}</span>}
+                {d.liabilitySource === 'plaid' && <Badge tone="brand" size="sm">Synced</Badge>}
+              </div>
+              <div className="debt-card-row-amount shrink-0 font-editorial text-[15px] font-extrabold tracking-[-0.015em] text-content ui-tnum">
+                <MaskedText text={formatCurrency(d.balance)} />
+              </div>
+            </div>
+            {!isDemo && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
+                onClick={() => onEdit(d)}
+                aria-label={`Add rate for ${d.name}${d.mask ? ` ••${d.mask}` : ''}`}
+              >
+                Add rate
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ── No Revolving Debt View — nothing to pay down, every card clears or needs a rate ─
+
+function NoRevolvingDebtView({
+  paidInFullCards, needsRateCards, onEdit,
+}: {
+  paidInFullCards: DebtAccount[];
+  needsRateCards: DebtAccount[];
+  onEdit: (debt: DebtAccount) => void;
+}) {
+  const needsRate = needsRateCards.length;
   return (
     <>
-      <DebtHeader tags={<PageMetaItem tone="positive">No debt to pay down</PageMetaItem>} />
-      <PaidInFullSection cards={cards} onEdit={onEdit} className="mt-8" />
+      <DebtHeader
+        tags={needsRate > 0 ? (
+          <PageMetaItem>No payoff plan yet</PageMetaItem>
+        ) : (
+          <PageMetaItem tone="positive">No debt to pay down</PageMetaItem>
+        )}
+      />
+      <NeedsRateSection cards={needsRateCards} onEdit={onEdit} className="mt-8" />
+      <PaidInFullSection cards={paidInFullCards} onEdit={onEdit} className={needsRate > 0 ? 'mt-11' : 'mt-8'} />
       <section className="mt-12">
         <PageActions types="debt" />
       </section>

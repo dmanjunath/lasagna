@@ -43,7 +43,7 @@ import {
   type PathStepKind,
 } from './path-candidates.js';
 import { isTypedGoalCategory } from '@lasagna/core';
-import { debtBehaviour } from './debt-accounts.js';
+import { payoffStanding } from './debt-accounts.js';
 import type { PathContext } from './path-context.js';
 import { emergencyFundTarget, sizePath } from './path-sizing.js';
 import type { PathReadiness } from '../services/retirement-readiness.js';
@@ -272,7 +272,9 @@ export function buildJourneyCatalog(ctx: PathContext): PathCandidate[] {
     // the journey and /debt disagreeing about one card is worse than either of
     // them being wrong on its own. It said "pay this off first" (no rate on
     // file, so treat it as expensive) over a debt page saying it cost nothing.
-    if (debtBehaviour(account) === 'clears-monthly') continue;
+    // A card we have never seen carry and hold no rate for is off too: ranking
+    // it is a guess either way, and /debt asks for the rate instead.
+    if (payoffStanding(account) !== 'payoff') continue;
     const debtKind = classifyDebtKind(account);
     const facts: DebtFacts = {
       accountId: account.id,
@@ -559,6 +561,7 @@ You may add steps of your own where their situation calls for something the list
 - On that pair, EXACTLY ONE of the retirement goal and reaching independence is in the journey. Never both, and never neither. Leaving both out takes retirement off a journey entirely, and for somebody the simulation calls at risk that is the one thing their journey exists to say.
 - If your reason for a step is that they may simply carry it, that it is cheap, or that it is not worth doing, that step belongs in leftOut and NOT at the end of the journey. Putting it last does not resolve this: every step in the sequence is one you are telling them to work on, so a reason arguing against a step contradicts the step it is attached to wherever you place it. Move it out and give that same sentence as the reason it is not there.
 - Where the simulation and the multiple disagree about retirement, the simulation is the answer. The multiple assumes a retirement of normal length; the simulation knows how long theirs is, and for somebody stopping early it is the only one of the two that does. A household the multiple calls finished and the simulation calls at risk is at risk, and their journey has to say so.
+- A balance with no rate on file is never called expensive or cheap. Say its rate is not on file.
 - Order balances by rate, the one charging most first, every time. Two balances a rate apart are the same job done in a different order, and the more expensive one first is the one that costs them less.
 - A journey must be fundable, and you know what they have spare each month. If that figure is negative, say so on the first step and put the work that fixes it above everything else. Never hand somebody a sequence they have no money to start.
 - Every step you were given goes in "steps" or "leftOut", never both and never neither.

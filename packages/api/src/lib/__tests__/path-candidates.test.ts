@@ -8,7 +8,7 @@ import {
   taxAdvantagedChoice,
 } from '../path-candidates.js';
 import type { PathReadiness } from '../../services/retirement-readiness.js';
-import type { DebtAccount } from '../debt-accounts.js';
+import { payoffStanding, type DebtAccount } from '../debt-accounts.js';
 
 function debt(overrides: Partial<DebtAccount> & { id: string; name: string }): DebtAccount {
   return {
@@ -244,6 +244,32 @@ describe('pruning — a step whose precondition is absent is never emitted', () 
     expect(keys(ctx)).toContain('debt:unknown');
   });
 
+  it('drops the payoff step for a card with no statement and no rate', () => {
+    // Neither payment evidence nor a rate: /debt asks for the rate instead.
+    const ctx = buildPathContextDefaults({
+      debtAccounts: [debt({ id: 'unknown', name: 'Manual Card', balance: 3000, apr: null })],
+    });
+    expect(keys(ctx)).not.toContain('debt:unknown');
+  });
+
+  it('emits debt steps for exactly the accounts payoffStanding plans a payoff for', () => {
+    const accounts = [
+      debt({ id: 'clears', name: 'Clears Card', balance: 1800, apr: null, lastStatementBalance: 1600, lastPaymentAmount: 1600 }),
+      debt({ id: 'unknown', name: 'Silent Card', balance: 2000, apr: null }),
+      debt({ id: 'rated', name: 'Rated Card', balance: 2000, apr: 24.99 }),
+      debt({ id: 'carried', name: 'Carried Card', balance: 2000, apr: null, lastStatementBalance: 900, lastPaymentAmount: 25 }),
+      debt({ id: 'car', name: 'Car Loan', type: 'loan', balance: 18000, apr: null }),
+    ];
+    const ctx = buildPathContextDefaults({ debtAccounts: accounts });
+    const debtKeys = buildPathCandidates(ctx).filter((c) => c.kind === 'debt').map((c) => c.key).sort();
+    const planned = accounts
+      .filter((a) => payoffStanding(a) === 'payoff')
+      .map((a) => `debt:${a.id}`)
+      .sort();
+    expect(debtKeys).toEqual(planned);
+    expect(planned).toEqual(['debt:car', 'debt:carried', 'debt:rated']);
+  });
+
   it('no employer match on file means no match step', () => {
     const noMatch = buildPathContextDefaults({ annualIncome: 62000, employerMatchPct: 0 });
     const withMatch = buildPathContextDefaults({ annualIncome: 62000, employerMatchPct: 4 });
@@ -400,7 +426,11 @@ describe('one step per debt account', () => {
 describe('an account with no rate on file is never given one', () => {
   const ctx = buildPathContextDefaults({
     debtAccounts: [
-      debt({ id: 'unrated-card', name: 'Store Card', mask: '4242', balance: 900, apr: null }),
+      // Watched carry, so it keeps its step: the rate is what is missing.
+      debt({
+        id: 'unrated-card', name: 'Store Card', mask: '4242', balance: 900, apr: null,
+        lastStatementBalance: 900, lastPaymentAmount: 25,
+      }),
       debt({ id: 'rated-card', name: 'Promo Card', mask: '9000', balance: 3000, apr: 0 }),
     ],
   });
@@ -434,7 +464,10 @@ describe('an account with no rate on file is never given one', () => {
     const mixed = buildPathContextDefaults({
       debtAccounts: [
         debt({ id: 'auto', name: 'Auto Loan', type: 'loan', subtype: 'auto', balance: 9000, apr: 7 }),
-        debt({ id: 'card', name: 'Store Card', balance: 900, apr: null }),
+        debt({
+          id: 'card', name: 'Store Card', balance: 900, apr: null,
+          lastStatementBalance: 900, lastPaymentAmount: 25,
+        }),
       ],
     });
     const order = buildPathCandidates(mixed).filter((c) => c.kind === 'debt').map((c) => c.key);

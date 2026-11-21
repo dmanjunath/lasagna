@@ -240,6 +240,7 @@ You MUST call tools to fetch real user data before responding. NEVER answer with
 - get_spending_summary: Monthly spending by category, top merchants, and income/savings rate DERIVED FROM TRANSACTIONS (may be 0 for manual-entry users with no income transactions)
 - get_financial_profile: The user's stated annual income, filing status, age, target retirement age, employer 401(k) match %, risk tolerance, state, employment type, and dependents. For income, filing-status, and retirement-planning questions, get income and demographics from HERE — not from transactions.
 - get_accounts / get_net_worth / get_holdings: accounts and balances, net worth, and investment holdings
+- get_debts: debts with balances, rates and where each stands in the payoff plan. When a debt carries guidance, follow it. Never call a debt with no rate on file expensive, cheap, or a priority.
 - get_financial_path: the user's own financial path. Its steps in their settled order, each with its computed figures and status, and the number of the step they are on now. This is the same path their Personalized Financial Journey page shows them.
 
 ## What to do next

@@ -9,7 +9,7 @@ import {
   type JourneyAnswer,
 } from '../journey-v2.js';
 import { sizePath } from '../path-sizing.js';
-import type { DebtAccount } from '../debt-accounts.js';
+import { payoffStanding, type DebtAccount } from '../debt-accounts.js';
 
 /**
  * Every household below has connected accounts: the balances the fixtures set
@@ -147,11 +147,44 @@ describe('a card that clears every statement', () => {
     expect(keysFor([revolver])).toContain('debt:revolver');
   });
 
-  it('still emits one for a card nobody has reported on, rather than guessing', () => {
-    // No statement, no payment, no designation. Unknown is treated as carrying,
-    // which is the milder failure: it offers a step somebody may not need.
+  it('gives no payoff step to a card nobody has reported on and with no rate', () => {
+    // No statement, no payment, no designation, no rate. Ranking it is a guess
+    // either way, so it is left off and /debt asks for the rate instead.
     const unknown = debt({ id: 'unknown', name: 'Silent Card', balance: 2_000 });
-    expect(keysFor([unknown])).toContain('debt:unknown');
+    expect(keysFor([unknown])).not.toContain('debt:unknown');
+  });
+
+  it('still emits one for an unknown card whose rate is on file', () => {
+    const rated = debt({ id: 'rated', name: 'Rated Card', balance: 2_000, apr: 24.99 });
+    expect(keysFor([rated])).toContain('debt:rated');
+  });
+
+  it('emits one for a card we watched carry with no rate, saying the rate is not on file', () => {
+    const carried = debt({
+      id: 'carried', name: 'Carried Card', balance: 2_000,
+      lastStatementBalance: 900, lastPaymentAmount: 25,
+    });
+    const catalog = buildJourneyCatalog(buildPathContextDefaults({ debtAccounts: [carried] }));
+    const step = catalog.find((c) => c.key === 'debt:carried');
+    expect(step?.subtitle).toBe('No rate on file');
+  });
+
+  it('emits debt steps for exactly the accounts payoffStanding plans a payoff for', () => {
+    const accounts = [
+      transactor(),
+      debt({ id: 'own', name: 'Store Card', balance: 900, paidInFullMonthly: true }),
+      debt({ id: 'unknown', name: 'Silent Card', balance: 2_000 }),
+      debt({ id: 'rated', name: 'Rated Card', balance: 2_000, apr: 24.99 }),
+      debt({ id: 'carried', name: 'Carried Card', balance: 2_000, lastStatementBalance: 900, lastPaymentAmount: 25 }),
+      debt({ id: 'car', name: 'Car Loan', type: 'loan', balance: 18_000 }),
+    ];
+    const debtKeys = keysFor(accounts).filter((k) => k.startsWith('debt:')).sort();
+    const planned = accounts
+      .filter((a) => payoffStanding(a) === 'payoff')
+      .map((a) => `debt:${a.id}`)
+      .sort();
+    expect(debtKeys).toEqual(planned);
+    expect(planned).toEqual(['debt:car', 'debt:carried', 'debt:rated']);
   });
 
   it('is not counted at the debt-free finish line either', () => {
@@ -266,7 +299,7 @@ describe('step titles', () => {
     const before = titleFor('debt:card-1', household());
     const after = titleFor('debt:card-1', {
       ...household(),
-      debtAccounts: [debt({ id: 'card-1', name: 'Blue Card', mask: '4321', balance: 1_000 })],
+      debtAccounts: [debt({ id: 'card-1', name: 'Blue Card', mask: '4321', balance: 1_000, apr: 23.9 })],
     });
     expect(before).not.toBe(after);
     expect(after).toBe('Pay off Blue Card \u2022\u20224321 of $1,000');

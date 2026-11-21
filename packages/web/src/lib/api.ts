@@ -371,6 +371,7 @@ export const api = {
         originationDate: string | null;
         minimumPayment: number;
         payoffDate: string | null;
+        planRole: "payoff" | "clears-monthly" | "needs-rate";
         paidInFull: boolean;
         paidInFullMonthly: boolean;
         liabilitySource: "plaid" | "manual" | null;

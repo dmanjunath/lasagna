@@ -21,6 +21,7 @@ import {
   netWorthContribution,
 } from "../../lib/account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "../../lib/goal-progress.js";
+import { resolveDebtAccounts, payoffStanding, payoffPlanForChat } from "../../lib/debt-accounts.js";
 import { loadTaxonomy, UUID_RE } from "../../lib/taxonomy.js";
 
 /** Parse the account.metadata JSON blob (property details, loan terms, etc.). */
@@ -154,37 +155,47 @@ export function createFinancialTools(tenantId: string, userId: string) {
 
     get_debts: tool({
       description:
-        "Get the user's debts and liabilities (credit cards, loans, mortgages) with balances, APR, and loan details (term, payment, payoff date) from metadata. Use for debt-payoff, interest, refinance, and minimum-payment questions. Debts linked to a real-estate account include property {id, name, currentValue} — use it for home-equity and LTV questions.",
+        "Get the user's debts and liabilities (credit cards, loans, mortgages) with balances, APR, and loan details (term, payment, payoff date) from metadata. Use for debt-payoff, interest, refinance, and minimum-payment questions. Debts linked to a real-estate account include property {id, name, currentValue} — use it for home-equity and LTV questions. payoffPlan says where each debt stands in the user's payoff plan. When a debt has guidance, follow it exactly.",
       inputSchema: z.object({}),
       execute: async () => {
-        const [accts, aprRows] = await Promise.all([
+        const [accts, aprRows, resolvedDebts] = await Promise.all([
           fetchAccountsWithBalances(tenantId),
           db
             .select({ id: accounts.id, apr: accounts.apr, apy: accounts.apy })
             .from(accounts)
             .where(eq(accounts.tenantId, tenantId)),
+          resolveDebtAccounts(tenantId),
         ]);
         const aprMap = new Map(aprRows.map((r) => [r.id, r.apr]));
+        // The rate and plan role /debt and the journey read, so chat cannot
+        // call a card expensive that those pages leave off the payoff plan.
+        const resolvedById = new Map(resolvedDebts.map((d) => [d.id, d]));
         const byId = new Map(accts.map((a) => [a.id, a]));
         const liabilities = accts.filter(
           (a) => a.type === "credit" || a.type === "loan",
         );
-        const apr = liabilities.map((a) => ({
-          id: a.id,
-          name: a.name,
-          type: a.type,
-          subtype: a.subtype,
-          balance: Math.abs(a.effectiveBalance),
-          apr: aprMap.get(a.id) ? parseFloat(aprMap.get(a.id)!) : null,
-          details: parseMeta(a.metadata),
-          property: a.propertyAccountId
-            ? {
-                id: a.propertyAccountId,
-                name: byId.get(a.propertyAccountId)?.name ?? null,
-                currentValue: byId.get(a.propertyAccountId)?.effectiveBalance ?? null,
-              }
-            : null,
-        }));
+        const apr = liabilities.map((a) => {
+          const resolved = resolvedById.get(a.id);
+          return {
+            id: a.id,
+            name: a.name,
+            type: a.type,
+            subtype: a.subtype,
+            balance: Math.abs(a.effectiveBalance),
+            apr: resolved ? resolved.apr : aprMap.get(a.id) ? parseFloat(aprMap.get(a.id)!) : null,
+            ...(resolved
+              ? payoffPlanForChat(payoffStanding(resolved))
+              : { payoffPlan: null, guidance: null }),
+            details: parseMeta(a.metadata),
+            property: a.propertyAccountId
+              ? {
+                  id: a.propertyAccountId,
+                  name: byId.get(a.propertyAccountId)?.name ?? null,
+                  currentValue: byId.get(a.propertyAccountId)?.effectiveBalance ?? null,
+                }
+              : null,
+          };
+        });
         return {
           debts: apr,
           totalDebt: apr.reduce((s, d) => s + d.balance, 0),

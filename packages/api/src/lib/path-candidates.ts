@@ -1,6 +1,6 @@
 import { RETIREMENT_INCOME_MULTIPLE, type GoalDetails } from '@lasagna/core';
 import type { PathContext } from './path-context.js';
-import { creditCardPaysInFull, type DebtAccount } from './debt-accounts.js';
+import { payoffStanding, type DebtAccount } from './debt-accounts.js';
 import type { PathReadiness } from '../services/retirement-readiness.js';
 
 /**
@@ -682,7 +682,8 @@ export function buildPathCandidates(
     if (Math.round(account.balance) <= 0) continue;
     // A card paid in full each month is this month's spending, not a debt. It is
     // off the path entirely: no payoff step, and no due-date reminder either.
-    if (creditCardPaysInFull(account)) continue;
+    // So is a card with unknown behaviour and no rate: /debt asks for the rate.
+    if (payoffStanding(account) !== 'payoff') continue;
     const debtKind = classifyDebtKind(account);
     const facts: DebtFacts = {
       accountId: account.id,

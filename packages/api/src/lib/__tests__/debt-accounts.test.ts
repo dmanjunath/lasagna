@@ -40,7 +40,7 @@ vi.mock("../db.js", () => ({
   },
 }));
 
-const { resolveDebtAccounts, resolveDebtApr, creditCardPaysInFull, debtBehaviour } = await import(
+const { resolveDebtAccounts, resolveDebtApr, creditCardPaysInFull, debtBehaviour, payoffStanding, payoffPlanForChat } = await import(
   "../debt-accounts.js"
 );
 
@@ -292,6 +292,57 @@ describe("debtBehaviour separates what we watched from what we never saw", () =>
   });
 });
 
+describe("payoffStanding lets payment evidence beat a missing rate", () => {
+  it("keeps a card that clears every month off the plan, rate or no rate", () => {
+    expect(
+      payoffStanding(card({ apr: null, lastStatementBalance: 1200, lastPaymentAmount: 1200 })),
+    ).toBe("clears-monthly");
+    expect(payoffStanding(card({ apr: null, paidInFullMonthly: true }))).toBe("clears-monthly");
+  });
+
+  it("asks for the rate on a card with no rate and no payment history", () => {
+    expect(payoffStanding(card({ apr: null }))).toBe("needs-rate");
+  });
+
+  it("plans a payoff for an unknown card whose rate is on file", () => {
+    expect(payoffStanding(card({ apr: 24.99 }))).toBe("payoff");
+  });
+
+  it("plans a payoff for a card we watched carry, even with no rate", () => {
+    expect(
+      payoffStanding(card({ apr: null, lastStatementBalance: 900, lastPaymentAmount: 25 })),
+    ).toBe("payoff");
+  });
+
+  it("plans a payoff for a loan with no rate", () => {
+    expect(payoffStanding(card({ type: "loan", apr: null }))).toBe("payoff");
+  });
+});
+
+describe("chat is told where a debt stands in plain words", () => {
+  it("never hands the model a raw standing to repeat", () => {
+    for (const s of ["payoff", "clears-monthly", "needs-rate"] as const) {
+      expect(payoffPlanForChat(s).payoffPlan).not.toBe(s);
+    }
+  });
+
+  it("tells the model not to rank a card with no rate on file", () => {
+    const plan = payoffPlanForChat("needs-rate");
+    expect(plan.payoffPlan).toBe("rate not on file");
+    expect(plan.guidance).toMatch(/Do not call it expensive, cheap, or a priority/);
+    expect(plan.guidance).toMatch(/add the rate on the Debt page/);
+    expect(plan.guidance).toMatch(/Do not compare it to typical card rates/);
+  });
+
+  it("marks a card that clears every month as never a priority", () => {
+    expect(payoffPlanForChat("clears-monthly").guidance).toMatch(/Never a payoff priority/);
+  });
+
+  it("gives a planned payoff no extra guidance", () => {
+    expect(payoffPlanForChat("payoff")).toEqual({ payoffPlan: "in payoff plan", guidance: null });
+  });
+});
+
 describe("a rate we do not hold is never reported as a rate of zero", () => {
   it("reads null off metadata that names none", () => {
     expect(resolveDebtApr(null)).toBeNull();
@@ -309,6 +360,32 @@ describe("a rate we do not hold is never reported as a rate of zero", () => {
         ],
       })),
     ).toBe(22.49);
+  });
+});
+
+describe("a rate kept only in the accounts.apr column still counts", () => {
+  // Quick import writes the rate to the column and none to metadata, so reading
+  // metadata alone dropped it from /debt, the journey and chat.
+  it("resolves a column-only rate", async () => {
+    const loan = await resolveOne({ apr: "6.2500", metadata: null }, "10000");
+    expect(loan.apr).toBe(6.25);
+  });
+
+  it("prefers the metadata rate when both are on file", async () => {
+    const loan = await resolveOne(
+      { apr: "6.2500", metadata: JSON.stringify({ interestRate: 7.5 }) },
+      "10000",
+    );
+    expect(loan.apr).toBe(7.5);
+  });
+
+  it("moves an unknown card with a column rate from needs-rate to payoff", async () => {
+    const base = { name: "Credit Card", type: "credit", subtype: "credit card", paidInFullMonthly: false };
+    const noRate = await resolveOne({ ...base, apr: null, metadata: null }, "2000");
+    expect(payoffStanding(noRate)).toBe("needs-rate");
+    const withColumn = await resolveOne({ ...base, apr: "24.9900", metadata: null }, "2000");
+    expect(withColumn.apr).toBe(24.99);
+    expect(payoffStanding(withColumn)).toBe("payoff");
   });
 });
 

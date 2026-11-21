@@ -1,5 +1,5 @@
 import { RETIREMENT_INCOME_MULTIPLE } from '@lasagna/core';
-import { creditCardPaysInFull } from './debt-accounts.js';
+import { payoffStanding } from './debt-accounts.js';
 import type { PathContext } from './path-context.js';
 import type { PathStepMark } from './path-generator.js';
 import {
@@ -649,10 +649,11 @@ function measure(step: PathCandidate, ctx: PathContext): Measure {
       // that is actually owed from one month to the next. A card cleared every
       // statement is this month's spending, so counting it told a household
       // whose only cards clear to clear what they owe, beside a debt page
-      // reading "No debt to pay down".
+      // reading "No debt to pay down". A card with no rate and no payment
+      // history gets no payoff step either, so the milestone does not count it.
       const counted = step.debtScopeIds?.length
         ? ctx.debtAccounts.filter((a) => step.debtScopeIds!.includes(a.id))
-        : ctx.debtAccounts.filter((a) => !creditCardPaysInFull(a));
+        : ctx.debtAccounts.filter((a) => payoffStanding(a) === 'payoff');
       const owed = counted.reduce((sum, a) => sum + Math.max(a.balance, 0), 0);
       const clear = Math.round(owed) <= 0;
       return {

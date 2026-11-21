@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildPathContextDefaults as zeroedContext, type PathContext } from '../path-context.js';
-import { CONTRIBUTION_TAX_YEAR, buildPathCandidates, savingsRateTarget } from '../path-candidates.js';
+import { CONTRIBUTION_TAX_YEAR, buildPathCandidates, savingsRateTarget, type PathCandidate } from '../path-candidates.js';
 import { sizePath, contributionLimits, emergencyFundTarget, type StepMark } from '../path-sizing.js';
 import { currentStepKey } from '../../routes/financial-path.js';
 import type { DebtAccount } from '../debt-accounts.js';
@@ -256,6 +256,23 @@ describe('debt payoff totals', () => {
   });
 });
 
+describe('the debt-free milestone counts only balances with a payoff step', () => {
+  it('leaves out a card with no rate and no payment history', () => {
+    const ctx = buildPathContextDefaults({
+      debtAccounts: [
+        debt({ id: 'silent', name: 'Silent Card', balance: 2000, apr: null }),
+        debt({ id: 'car', name: 'Car Loan', type: 'loan', balance: 9000, apr: 6.9 }),
+      ],
+    });
+    const milestone: PathCandidate = {
+      key: 'debt-free', kind: 'debt-free', title: 'Become debt free', subtitle: '',
+      description: '', why: '', icon: 'flag', accountId: null, goalId: null,
+    };
+    const [sized] = sizePath([milestone], ctx);
+    expect(sized.current).toBe(9000);
+  });
+});
+
 // ── Estimated minimum payments ───────────────────────────────────────────────
 
 describe('an estimated minimum payment is never presented as reported', () => {
@@ -457,7 +474,7 @@ describe('monthly funding waterfalls over the surplus in path order', () => {
     const ctx2 = buildPathContextDefaults({
       monthlySurplus: 5000,
       cashTotal: 1000,
-      debtAccounts: [debt({ id: 'a', name: 'Store Card', balance: 1850, minimumPayment: 37 })],
+      debtAccounts: [debt({ id: 'a', name: 'Store Card', balance: 1850, apr: 22, minimumPayment: 37 })],
     });
     expect(size(ctx2).byKey.get('debt:a')!.action).toBe('One payment of $1,850 clears this.');
   });
