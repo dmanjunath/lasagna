@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     // Before the session ends, since removing the token needs it.
-    if (isNativeApp()) await import('./push.js').then((m) => m.unregisterPush()).catch(() => {});
+    if (isNativeApp()) await import('./push.js').then((m) => m.signOutPush()).catch(() => {});
     await api.logout();
     setNativeToken(null);
     // Face ID is device-local state tied to being signed in: leaving the lock on

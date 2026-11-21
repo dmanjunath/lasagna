@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { useBilling, startUpgrade, openPortal } from "../lib/billing";
 import { formatMoney, cn, exactSyncTime, formatInstant, formatStoredDate, latestAdultBirthDate } from "../lib/utils";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useId } from "react";
 import {
   User,
   Users,
@@ -20,6 +20,7 @@ import {
   KeyRound,
   Trash2,
   ScanFace,
+  Bell,
   Moon,
   EyeOff,
   Mail,
@@ -34,7 +35,8 @@ import {
 } from "lucide-react";
 import { useMobileHeader } from "../lib/mobile-header";
 import { useConfirm } from "../components/ds";
-import { isNativeApp, setNativeToken } from "../lib/native";
+import { isNativeApp, hasNativePlugin, setNativeToken } from "../lib/native";
+import type { PushState } from "../lib/push";
 import { hapticLight, hapticWarning } from "../lib/haptics";
 import { isLockEnabled, setLockEnabled } from "../lib/biometric-lock";
 import { isAmountsHidden, setAmountsHidden } from "../lib/hide-amounts";
@@ -462,6 +464,19 @@ export function Settings() {
         </div>
       ),
     },
+    // Native only, and only on a shell that has the plugin: anywhere else the
+    // switch could not do anything.
+    ...(hasNativePlugin("FirebaseMessaging")
+      ? [
+          {
+            id: "notifications",
+            icon: Bell,
+            title: "Notifications",
+            hint: "Alerts LasagnaFi sends to this phone",
+            body: <PushNotificationsCard />,
+          } as SettingsSection,
+        ]
+      : []),
     {
       id: "display",
       icon: Moon,
@@ -1271,6 +1286,66 @@ function FaceIdLockCard() {
   );
 }
 
+// ─── Push notifications — native-shell, per device ───────────────────────────
+
+function PushNotificationsCard() {
+  // null until the plugin answers, so the switch never flashes the wrong state.
+  const [state, setState] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // Dynamic import so the Firebase plugin never lands in the web page chunk.
+  // Read again on resume: the iOS prompt and iOS Settings both change the
+  // answer while the app is in the background.
+  useEffect(() => {
+    let cancelled = false;
+    const read = () =>
+      import("../lib/push")
+        .then((m) => m.getPushState())
+        .then((s) => { if (!cancelled) setState(s); })
+        .catch(() => { if (!cancelled) setState((prev) => prev ?? "off"); });
+    void read();
+    window.addEventListener("native:resume", read);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("native:resume", read);
+    };
+  }, []);
+
+  const toggle = async () => {
+    // Not disabled while busy: that would drop keyboard focus to the page.
+    if (busy) return;
+    setError("");
+    setBusy(true);
+    try {
+      const { setPushEnabled } = await import("../lib/push");
+      setState(await setPushEnabled(state !== "on"));
+    } catch {
+      setError("Couldn't update notifications. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Surface className="p-5">
+      <SettingRow
+        icon={<Bell className="h-5 w-5" />}
+        title="Push notifications"
+        description={state === "blocked" ? "Notifications are off for LasagnaFi in iOS. Turn them on in the Settings app." : undefined}
+        checked={state === "on"}
+        onChange={() => void toggle()}
+        disabled={state === null || state === "blocked"}
+        busy={busy}
+      />
+
+      {error && (
+        <p role="alert" className="mt-4 text-[12.5px] font-medium text-negative">{error}</p>
+      )}
+    </Surface>
+  );
+}
+
 // ─── Display — the device-local look settings ────────────────────────────────
 
 /**
@@ -1301,13 +1376,16 @@ function DisplayCard() {
   );
 }
 
-function SettingRow({ icon, title, description, checked, onChange }: {
+function SettingRow({ icon, title, description, checked, onChange, disabled, busy }: {
   icon: React.ReactNode;
   title: string;
   description?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
+  busy?: boolean;
 }) {
+  const descriptionId = useId();
   return (
     <div className="flex items-start justify-between gap-4">
       {/* The icon pairs with the TITLE, so it tops out with it once there is a
@@ -1320,11 +1398,20 @@ function SettingRow({ icon, title, description, checked, onChange }: {
         </span>
         <div className="min-w-0">
           <h3 className="text-[15px] font-bold text-content">{title}</h3>
-          {description && <p className="mt-0.5 text-[13px] font-medium text-content-muted">{description}</p>}
+          {description && <p id={descriptionId} className="mt-0.5 text-[13px] font-medium text-content-muted">{description}</p>}
         </div>
       </div>
       <div className="shrink-0">
-        <Switch checked={checked} onChange={onChange} label="" aria-label={title} title={title} />
+        <Switch
+          checked={checked}
+          onChange={onChange}
+          label=""
+          disabled={disabled}
+          aria-busy={busy}
+          aria-describedby={description ? descriptionId : undefined}
+          aria-label={title}
+          title={title}
+        />
       </div>
     </div>
   );
@@ -1849,14 +1936,16 @@ function PlanCard() {
 // ─── Switch — brand toggle ───────────────────────────────────────────────────
 
 function Switch({
-  checked, onChange, label, disabled, title, "aria-label": ariaLabel,
-}: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean; title?: string; "aria-label"?: string }) {
+  checked, onChange, label, disabled, title, "aria-label": ariaLabel, "aria-describedby": ariaDescribedBy, "aria-busy": ariaBusy,
+}: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean; title?: string; "aria-label"?: string; "aria-describedby"?: string; "aria-busy"?: boolean }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+      aria-busy={ariaBusy}
       onClick={() => { hapticLight(); onChange(!checked); }}
       disabled={disabled}
       title={title}

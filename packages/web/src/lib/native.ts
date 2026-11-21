@@ -17,6 +17,12 @@ export function isNativeApp(): boolean {
   return !!cap?.isNativePlatform?.();
 }
 
+/** False on the web, and on an installed shell built before the plugin was added. */
+export function hasNativePlugin(name: string): boolean {
+  const cap = (window as { Capacitor?: { isPluginAvailable?: (name: string) => boolean } }).Capacitor;
+  return isNativeApp() && !!cap?.isPluginAvailable?.(name);
+}
+
 export function getNativeToken(): string | null {
   if (!isNativeApp()) return null;
   try {
