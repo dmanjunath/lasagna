@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { niceTicks } from '../components/ds/TrendChart';
 import { useLocation } from 'wouter';
-import { api, type SimResult, type RetirementSimOverrides, type RetirementSimInputs, type BacktestSummary } from '../lib/api';
+import { api, type SimResult, type RetirementSimOverrides, type RetirementSimInputs, type RetirementInputCheck, type BacktestSummary } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { FinancialPlansList } from './financial-plans/index';
 import { OptionMenu } from '../components/common/OptionMenu';
 import { PlanFreshnessBanner } from '../components/common/plan-freshness-banner';
 import { planFreshness } from '../lib/plan-freshness';
 import type { FinancialPlanSummary } from '../lib/types';
 import { useChatStore } from '../lib/chat-store';
-import { cn, formatMoney } from '../lib/utils';
+import { cn, formatMoney, latestAdultBirthDate } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, maskCurrencyInText } from '../lib/hide-amounts';
-import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, Building2, GripVertical, Pencil, X } from 'lucide-react';
 import { InfoPopover } from '../components/common/InfoPopover';
 import { LegalDisclaimer } from '../components/common/legal-disclaimer';
-import { Alert, Badge, Button, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus } from '../components/uikit';
+import { Alert, Badge, Button, Input, MASK_TEXT_STYLE, MaskedText, PageMeta, PageMetaItem, SegmentedControl, Skeleton, useRevealOnFocus, useToast } from '../components/uikit';
 import { vizVar } from '../components/uikit/viz';
 import { PageTitle } from '../components/ds/PageTitle';
 import {
@@ -974,10 +975,12 @@ function Lever({ label, ariaLabel, min, max, value, onChange, testId, prefix, su
 }
 
 // ── Standalone numeric field (same commit/clamp behavior as Lever's input) ───
-function NumInput({ value, onChange, min, max, money = false, prefix, suffix, width, testId, 'aria-label': ariaLabel }: {
+function NumInput({ value, onChange, min, max, money = false, prefix, suffix, width, testId, submitOnEnter = false, 'aria-label': ariaLabel }: {
   value: number; onChange: (v: number) => void; min: number; max: number;
   money?: boolean; prefix?: string; suffix?: string; width?: string;
   testId?: string; 'aria-label': string;
+  /** Enter also submits the enclosing form (blur alone does not). */
+  submitOnEnter?: boolean;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const reveal = useRevealOnFocus();
@@ -1003,13 +1006,169 @@ function NumInput({ value, onChange, min, max, money = false, prefix, suffix, wi
           if (Number.isFinite(v) && v >= min && v <= max) onChange(v);
         }}
         onBlur={() => { reveal.onBlur(); commit(); }}
-        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        onKeyDown={e => {
+          if (e.key !== 'Enter') return;
+          const input = e.target as HTMLInputElement;
+          input.blur();
+          if (submitOnEnter) { e.preventDefault(); input.form?.requestSubmit(); }
+        }}
         aria-label={ariaLabel}
         data-testid={testId}
         style={{ width: width ?? `${fmt(max).length + 1.5}ch`, ...(masked ? MASK_TEXT_STYLE : null) }}
       />
       {suffix && <span className="rv2-pair__affix">{suffix}</span>}
     </span>
+  );
+}
+
+// ── Input check prompt ───────────────────────────────────────────────────────
+// Asks about the one doubtful input the server named (retirement-input-check.ts)
+// and fixes it in place. "Change it" saves to the profile, because the question
+// is about the saved setting, which chat and the journey read too.
+type ProfilePatch = { retirementAge?: number; dateOfBirth?: string };
+
+function yearsAwayPhrase(years: number): string {
+  if (years === 0) return 'which is this year';
+  return `which is ${years} ${years === 1 ? 'year' : 'years'} away`;
+}
+
+function RetirementCheckPrompt({ check, currentAge, retireAge, onSave, onDismiss }: {
+  check: RetirementInputCheck;
+  currentAge: number;
+  retireAge: number;
+  onSave: (patch: ProfilePatch) => Promise<void>;
+  onDismiss: () => void;
+}) {
+  const isDob = check.kind === 'missing_dob';
+  const minAge = currentAge;
+  const maxAge = Math.max(75, currentAge);
+  const [editing, setEditing] = useState(false);
+  const [ageDraft, setAgeDraft] = useState(retireAge);
+  const [dobDraft, setDobDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const rowRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (editing) rowRef.current?.querySelector('input')?.focus();
+  }, [editing]);
+
+  const open = () => {
+    setAgeDraft(Math.max(minAge, Math.min(maxAge, retireAge)));
+    setError(null);
+    setEditing(true);
+  };
+  const cancel = () => { setEditing(false); setError(null); };
+
+  const save = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    let patch: ProfilePatch;
+    if (isDob) {
+      if (!dobDraft) return;
+      patch = { dateOfBirth: dobDraft };
+    } else {
+      // Read the field itself: Enter submits before the input's own commit
+      // has reached state.
+      const typed = parseInt(e.currentTarget.querySelector('input')?.value ?? '', 10);
+      const age = Number.isFinite(typed) ? Math.max(minAge, Math.min(maxAge, typed)) : ageDraft;
+      setAgeDraft(age);
+      patch = { retirementAge: age };
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(patch);
+      setEditing(false);
+    } catch (err) {
+      const fallback = isDob
+        ? "Couldn't save your date of birth. Try again."
+        : "Couldn't save your retirement age. Try again.";
+      setError(err instanceof Error && err.message ? err.message : fallback);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  let title: string;
+  let body: string | null = null;
+  switch (check.kind) {
+    case 'soon_with_mortgage':
+      title = `You have retirement set to age ${check.retirementAge}, ${yearsAwayPhrase(check.yearsAway)}. Is that right?`;
+      body = `Your ${check.mortgageName} runs until ${check.mortgageEndYear}.`;
+      break;
+    case 'age_passed':
+      title = `You have retirement set to age ${check.retirementAge}, and you are ${check.currentAge}. Is that right?`;
+      body = 'Until you change it, this plan treats you as retiring now.';
+      break;
+    case 'missing_dob':
+      title = `This plan assumes you are ${check.assumedAge}`;
+      body = 'Add your date of birth so it starts from your real age.';
+      break;
+    case 'missing_retirement_age':
+      title = `This plan assumes you retire at ${check.assumedAge}. Is that right?`;
+      break;
+  }
+
+  const action = editing ? (
+    <form
+      ref={rowRef}
+      onSubmit={save}
+      onKeyDown={e => { if (e.key === 'Escape') cancel(); }}
+      data-testid="rv2-check-editor"
+    >
+      <fieldset disabled={saving} className="m-0 min-w-0 border-0 p-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {isDob ? (
+            <Input
+              type="date"
+              max={latestAdultBirthDate()}
+              value={dobDraft}
+              onChange={e => setDobDraft(e.target.value)}
+              aria-label="Date of birth"
+              className="h-8 w-auto"
+              data-testid="rv2-check-dob"
+            />
+          ) : (
+            <>
+              <span className="text-[13px] font-medium text-content-secondary">Retire at</span>
+              <NumInput
+                value={ageDraft} onChange={setAgeDraft}
+                min={minAge} max={maxAge}
+                aria-label="Retirement age" testId="rv2-check-age" submitOnEnter
+              />
+            </>
+          )}
+          <Button type="submit" variant="secondary" size="sm" loading={saving} data-testid="rv2-check-save">Save</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={cancel}>Cancel</Button>
+        </div>
+      </fieldset>
+      {error && (
+        <p className="mt-1.5 text-[12px] text-[rgb(var(--ui-negative))]" role="alert" data-testid="rv2-check-error">{error}</p>
+      )}
+    </form>
+  ) : (
+    <div className="flex items-center gap-1">
+      <Button variant="neutral" size="sm" onClick={open} data-testid="rv2-check-change">
+        {isDob ? 'Add date of birth' : 'Change it'}
+      </Button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        data-testid="rv2-check-dismiss"
+        className="ui-focus ml-1 grid h-8 w-8 shrink-0 place-items-center rounded-ui-sm text-content-muted hover:bg-canvas-sunken hover:text-content"
+      >
+        <X size={15} />
+      </button>
+    </div>
+  );
+
+  return (
+    <div data-testid="rv2-input-check">
+      <Alert tone="caution" className="mt-5" title={title} action={action}>
+        {body}
+      </Alert>
+    </div>
   );
 }
 
@@ -1110,6 +1269,34 @@ export function RetirementV2() {
   const [inputsFailed, setInputsFailed] = useState(false);
   const [inputsRetrying, setInputsRetrying] = useState(false);
 
+  // The one input the server asks the user to confirm, or null. A dismissal is
+  // stored per value ("kind:retirementAge"), so a different saved age or a
+  // different problem asks again.
+  const { user } = useAuth();
+  const toast = useToast();
+  const [inputCheck, setInputCheck] = useState<RetirementInputCheck | null>(null);
+  const checkKey = user ? `lasagna:retire-check:${user.id}` : null;
+  const [checkDismissed, setCheckDismissed] = useState<string | null>(() => {
+    if (!checkKey) return null;
+    try {
+      return window.localStorage.getItem(checkKey);
+    } catch {
+      return null; // storage blocked: the prompt just asks again
+    }
+  });
+  const dismissCheck = (value: string) => {
+    setCheckDismissed(value);
+    if (!checkKey) return;
+    try {
+      window.localStorage.setItem(checkKey, value);
+    } catch {
+      // Storage blocked: dismissed for this visit only.
+    }
+  };
+  // "Save N to your profile" under the Retirement age lever.
+  const [leverSaving, setLeverSaving] = useState(false);
+  const [leverSaveError, setLeverSaveError] = useState<string | null>(null);
+
   // Inputs & assumptions (collapsible; two tabbed sub-sections)
   const [inputsOpen, setInputsOpen] = useState(false);
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
@@ -1163,7 +1350,7 @@ export function RetirementV2() {
 
   // Levers start from the server-resolved plan (age, retirement age, spend,
   // savings, Social Security), the one chat and facts simulate.
-  const applySimInputs = (simInputs: RetirementSimInputs) => {
+  const applySimInputs = (simInputs: RetirementSimInputs & { inputCheck: RetirementInputCheck | null }) => {
     setCurrentAge(simInputs.currentAge);
     setRetireAge(simInputs.retirementAge);
     setLifeExp(simInputs.planThroughAge);
@@ -1174,6 +1361,51 @@ export function RetirementV2() {
     setOtherMonthly(simInputs.otherMonthly);
     setOtherStartAge(simInputs.otherStartAge);
     setSimBase(simInputs);
+    setInputCheck(simInputs.inputCheck);
+  };
+
+  // Save a profile field, then reload the server plan and rebase onto it. A
+  // lever the user has not moved takes the new server value. A lever they did
+  // move keeps their what-if, which applySimInputs would wipe.
+  const saveProfileField = async (patch: { retirementAge?: number; dateOfBirth?: string }) => {
+    await api.updateFinancialProfile(patch);
+    const next = await api.getRetirementInputs();
+    const old = simBase;
+    if (!old) {
+      applySimInputs(next);
+    } else {
+      const rebase = <T,>(current: T, key: keyof RetirementSimInputs, set: (v: T) => void) => {
+        if (current === old[key]) set(next[key] as T);
+      };
+      rebase(currentAge, 'currentAge', setCurrentAge);
+      rebase(retireAge, 'retirementAge', setRetireAge);
+      rebase(lifeExp, 'planThroughAge', setLifeExp);
+      rebase(monthlySpend, 'monthlySpend', setMonthlySpend);
+      rebase(monthlySavings, 'monthlySavings', setMonthlySavings);
+      rebase(ssClaimAge, 'ssClaimAge', setSsClaimAge);
+      rebase(ssMonthly, 'ssMonthly', setSsMonthly);
+      rebase(otherMonthly, 'otherMonthly', setOtherMonthly);
+      rebase(otherStartAge, 'otherStartAge', setOtherStartAge);
+      // The age the user just saved is the one they want to see.
+      if (patch.retirementAge !== undefined) setRetireAge(next.retirementAge);
+      setSimBase(next);
+      setInputCheck(next.inputCheck);
+    }
+    // Saving the value it asked about answers the question: do not ask again.
+    if (next.inputCheck && inputCheck && next.inputCheck.kind === inputCheck.kind) {
+      dismissCheck(`${next.inputCheck.kind}:${next.retirementAge}`);
+    }
+    toast({ tone: 'positive', title: patch.dateOfBirth !== undefined ? 'Date of birth saved' : 'Retirement age saved' });
+  };
+
+  const saveLeverAge = () => {
+    setLeverSaving(true);
+    setLeverSaveError(null);
+    saveProfileField({ retirementAge: retireAge })
+      .catch((err: unknown) => {
+        setLeverSaveError(err instanceof Error && err.message ? err.message : "Couldn't save your retirement age. Try again.");
+      })
+      .finally(() => setLeverSaving(false));
   };
 
   const retryInputs = () => {
@@ -1686,26 +1918,36 @@ export function RetirementV2() {
     ? `I want to assess my retirement plan: retiring at ${effRetireAge} with ${fmtPromptMoney(portfolioValue)} saved, spending ${fmtPromptMoney(monthlySpendEff)}/mo, planning through age ${lifeExp}. Can you walk me through what my chances look like?`
     : `I want to assess my retirement plan. The dashboard says "${shownVerdict}": a ${shownMcChance} chance my money lasts through age ${lifeExp}, retiring at ${effRetireAge} with ${fmtPromptMoney(portfolioValue)} saved and spending ${fmtPromptMoney(monthlySpendEff)}/mo. Can you walk me through what's driving that?`;
 
-  // The pencil on the Monthly spending KPI: open the inputs panel (on the "You"
-  // tab, where the spending control lives), scroll the spending field to the
-  // middle of the view, then briefly flash its border so it's obvious what to
-  // edit. Falls back to the strategy's own rate field, or the panel top.
-  const editSpending = () => {
-    setInputsTab('you');
+  // A KPI pencil: open the inputs panel on the tab that holds the control,
+  // scroll the first matching field to the middle of the view, then briefly
+  // flash it so it's obvious what to edit. Falls back to the panel top.
+  const jumpToField = (tab: 'you' | 'portfolio', selectors: string[]) => {
+    setInputsTab(tab);
     setInputsOpen(true);
     window.setTimeout(() => {
-      const field =
-        document.querySelector<HTMLElement>('[data-testid="rv2-lever-spend"] .rv2-input') ??
-        document.querySelector<HTMLElement>('[data-testid="rv2-pct-rate"] .rv2-input') ??
-        document.querySelector<HTMLElement>('[data-testid="rv2-gk-rate"] .rv2-input');
+      let field: HTMLElement | null = null;
+      for (const sel of selectors) {
+        field = document.querySelector<HTMLElement>(sel);
+        if (field) break;
+      }
       if (!field) { inputsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       field.scrollIntoView({ behavior: 'smooth', block: 'center' });
       field.classList.remove('rv2-flash');
       void field.offsetWidth; // reflow so a repeat click restarts the animation
       field.classList.add('rv2-flash');
-      window.setTimeout(() => field.classList.remove('rv2-flash'), 2200);
+      const flashed = field;
+      window.setTimeout(() => flashed.classList.remove('rv2-flash'), 2200);
     }, 70);
   };
+  // Spending falls back to the strategy's own rate field.
+  const editSpending = () => jumpToField('you', [
+    '[data-testid="rv2-lever-spend"] .rv2-input',
+    '[data-testid="rv2-pct-rate"] .rv2-input',
+    '[data-testid="rv2-gk-rate"] .rv2-input',
+  ]);
+  const editRetireAge = () => jumpToField('you', ['[data-testid="rv2-lever-retire"] .rv2-input']);
+  // The composition presets are what truthfully move the simulated return.
+  const editReturn = () => jumpToField('portfolio', ['[data-testid="rv2-comp-presets"]']);
 
   // Rendered twice: top-right on desktop, above the KPI grid on mobile — the
   // parent wrappers handle which one shows at each breakpoint.
@@ -1748,10 +1990,10 @@ export function RetirementV2() {
         .dark .rv2-accum-zone { fill-opacity: 0.10; }
         .rv2-blend-area { fill-opacity: 0.14; }
         .dark .rv2-blend-area { fill-opacity: 0.10; }
-        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 24px; }
+        .rv2-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+        @media (min-width: 1100px) { .rv2-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
         .rv2-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 40px; }
         @media (max-width: 800px) {
-          .rv2-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .rv2-grid2 { grid-template-columns: 1fr; }
         }
         .rv2-subhead {
@@ -1777,14 +2019,22 @@ export function RetirementV2() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         .rv2-input:focus-within { border-color: rgb(var(--ui-brand)); box-shadow: 0 0 0 3px var(--ui-brand-ring); }
-        /* Transient border flash when the Monthly spending pencil jumps here:
-           holds the brand ring for ~1.2s then eases off over ~1s. */
+        /* Transient border flash when a KPI pencil jumps here: holds the brand
+           ring for ~1.2s then eases off over ~1s. */
         .rv2-input.rv2-flash { animation: rv2-flash 2.2s ease-out; }
         @keyframes rv2-flash {
           0%, 55% { border-color: rgb(var(--ui-brand)); box-shadow: 0 0 0 3px var(--ui-brand-ring); }
           100%    { border-color: var(--ui-line); box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
         }
-        @media (prefers-reduced-motion: reduce) { .rv2-input.rv2-flash { animation: none; } }
+        /* The presets row has no border, so it flashes a ring set off by a
+           panel-colored gap instead. */
+        .rv2-presets { border-radius: var(--ui-r-md); }
+        .rv2-presets.rv2-flash { animation: rv2-flash-ring 2.2s ease-out; }
+        @keyframes rv2-flash-ring {
+          0%, 55% { box-shadow: 0 0 0 4px rgb(var(--ui-panel)), 0 0 0 7px var(--ui-brand-ring); }
+          100%    { box-shadow: 0 0 0 4px rgba(0, 0, 0, 0), 0 0 0 7px rgba(0, 0, 0, 0); }
+        }
+        @media (prefers-reduced-motion: reduce) { .rv2-input.rv2-flash, .rv2-presets.rv2-flash { animation: none; } }
         .rv2-input input {
           flex: 1; min-width: 0; width: 100%;
           border: 0; background: transparent; outline: none; padding: 0;
@@ -1973,11 +2223,9 @@ export function RetirementV2() {
       {pageTab === 'overview' && (<>
 
       {!hasAccounts && (
-        /* Same skeleton AND the same container-query break as the freshness
-           banner directly below: icon, then one column holding the message and
-           its action, so both strips stack together whenever the page is narrow
-           instead of one button hanging off the message and the other off the
-           container. */
+        /* Same skeleton AND the same container-query break as the Alert
+           strips: icon, then one column holding the message and its action, so
+           the action stacks under the message whenever the page is narrow. */
         <div className="alert-cq mt-5 flex items-start gap-3 rounded-ui-lg border border-line bg-canvas-sunken px-4 py-3">
           <Building2 size={20} className="mt-0.5 shrink-0 text-content-muted" />
           <div className="alert-body alert-body-center min-w-0 flex-1">
@@ -1991,30 +2239,13 @@ export function RetirementV2() {
         </div>
       )}
 
-      {planFresh && (
-        /* Radius matches the accounts strip directly above, which is the same
-           width and padding. tailwind-merge does not know the ui radius scale,
-           so it keeps both this class and the Alert's own `rounded-ui-md` and
-           source order decides the winner. `!` settles it regardless of order.
-           No planName here: this page already carries a "Financial insights"
-           section, so naming the plan read as a stale feature rather than a
-           stale document. */
-        <PlanFreshnessBanner
-          className="mt-5 !rounded-[var(--ui-r-lg)]"
-          freshness={planFresh}
-          refresh={{
-            label: 'Open plan',
-            onClick: () => {
-              if (planFresh.newest) navigate(`/financial-plans/${planFresh.newest.id}`);
-            },
-          }}
-          generate={{
-            label: 'Generate a plan',
-            onClick: () => {
-              setAutoCreatePlan(true);
-              setPageTab('reports');
-            },
-          }}
+      {inputCheck && !inputsFailed && checkDismissed !== `${inputCheck.kind}:${simBase?.retirementAge}` && (
+        <RetirementCheckPrompt
+          check={inputCheck}
+          currentAge={currentAge}
+          retireAge={retireAge}
+          onSave={saveProfileField}
+          onDismiss={() => dismissCheck(`${inputCheck.kind}:${simBase?.retirementAge}`)}
         />
       )}
 
@@ -2128,7 +2359,18 @@ export function RetirementV2() {
           {!inputsFailed && (
           <div className="rv2-kpi-grid mt-6 pt-5 border-t border-line">
             <div className="min-w-0" data-testid="rv2-kpi-years">
-              <div className="text-[12px] font-semibold text-content-muted">Years to retirement</div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] font-semibold text-content-muted">Years to retirement</span>
+                <button
+                  type="button"
+                  onClick={editRetireAge}
+                  aria-label="Edit retirement age"
+                  data-testid="rv2-kpi-retire-edit"
+                  className="inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors"
+                >
+                  <Pencil className="h-[13px] w-[13px]" />
+                </button>
+              </div>
               <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
                 {Math.max(0, effRetireAge - currentAge)}
               </div>
@@ -2158,6 +2400,34 @@ export function RetirementV2() {
                 {Math.max(0, lifeExp - effRetireAge)}<span className="text-[14px] font-bold text-content-muted"> yrs</span>
               </div>
               <div className="mt-1.5 text-[12px] font-medium text-content-muted ui-tnum">age {effRetireAge} → {lifeExp}</div>
+            </div>
+            <div className="min-w-0" data-testid="rv2-kpi-return">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] font-semibold text-content-muted">Expected return</span>
+                {/* No pencil without holdings: there is no lever yet that moves
+                    the simulated return for them. */}
+                {allocation && (
+                  <button
+                    type="button"
+                    onClick={editReturn}
+                    aria-label="Edit expected return"
+                    data-testid="rv2-kpi-return-edit"
+                    className="inline-flex items-center justify-center h-5 w-5 rounded-ui-sm text-content-muted hover:text-content hover:bg-canvas-sunken transition-colors"
+                  >
+                    <Pencil className="h-[13px] w-[13px]" />
+                  </button>
+                )}
+              </div>
+              <div className="mt-1.5 font-editorial text-[26px] sm:text-[30px] font-extrabold leading-none tracking-[-0.02em] ui-tnum text-content">
+                {expReturn.toFixed(1)}%<span className="text-[14px] font-bold text-content-muted">/yr</span>
+              </div>
+              <div className="mt-1.5 text-[12px] font-medium text-content-muted">
+                {compPreset === 'custom'
+                  ? 'custom mix'
+                  : compPreset !== 'current'
+                    ? `${COMP_PRESETS.find(p => p.id === compPreset)?.label ?? ''} mix`
+                    : allocation ? 'from your holdings' : 'no holdings on file'}
+              </div>
             </div>
           </div>
           )}
@@ -2272,7 +2542,19 @@ export function RetirementV2() {
                 <Lever
                   label="Retirement age" testId="rv2-lever-retire"
                   min={currentAge} max={Math.max(75, currentAge)} value={retireAge} onChange={setRetireAge}
-                  caption="When saving stops and withdrawals begin. Set it to your current age to retire now."
+                  caption={simBase && retireAge !== simBase.retirementAge ? (
+                    <>
+                      {inputCheck?.kind === 'missing_retirement_age'
+                        ? 'No retirement age saved yet.'
+                        : `Your profile says ${simBase.retirementAge}.`}{' '}
+                      {leverSaving ? 'Saving…' : (
+                        <><button type="button" className="rv2-reset" onClick={saveLeverAge} data-testid="rv2-lever-retire-save">
+                          Save {retireAge} to your profile
+                        </button>.</>
+                      )}
+                      {leverSaveError && <span className="block text-[rgb(var(--ui-negative))]" role="alert">{leverSaveError}</span>}
+                    </>
+                  ) : 'When saving stops and withdrawals begin. Set it to your current age to retire now.'}
                 />
                 <Lever
                   label="Plan through age" testId="rv2-adv-lifeexp"
@@ -2443,7 +2725,7 @@ export function RetirementV2() {
 
             <div className="rv2-group">
             <div className="rv2-subhead">Composition &amp; allocation</div>
-            <div className="mb-4 flex flex-wrap gap-2" data-testid="rv2-comp-presets">
+            <div className="rv2-presets mb-4 flex flex-wrap gap-2" data-testid="rv2-comp-presets">
               <button
                 type="button"
                 className={cn('rv2-preset', !isCustomComp && 'rv2-preset--active')}
@@ -2849,6 +3131,31 @@ export function RetirementV2() {
         </Card>
       </Section>
       </>)}
+
+      {planFresh && (
+        /* At the end of the overview: opening or writing the plan is the next
+           step after reading the analysis. No planName here: this page already
+           carries a "Financial insights" section, so naming the plan read as a
+           stale feature rather than a stale document. */
+        <div className="mt-8">
+          <PlanFreshnessBanner
+            freshness={planFresh}
+            refresh={{
+              label: 'Open plan',
+              onClick: () => {
+                if (planFresh.newest) navigate(`/financial-plans/${planFresh.newest.id}`);
+              },
+            }}
+            generate={{
+              label: 'Generate a plan',
+              onClick: () => {
+                setAutoCreatePlan(true);
+                setPageTab('reports');
+              },
+            }}
+          />
+        </div>
+      )}
 
       <div className="mt-8">
         <LegalDisclaimer variant="projections" />

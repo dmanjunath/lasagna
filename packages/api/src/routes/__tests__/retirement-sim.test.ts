@@ -340,9 +340,11 @@ describe("retirement chance of success — one figure", () => {
     const app = makeApp(tenantId, userId!);
     const res = await app.request("/inputs");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const { inputCheck, ...body } = await res.json();
     const resolved = await resolveSimInputs(tenantId, userId!, {});
     expect(body).toEqual(JSON.parse(JSON.stringify(resolved)));
+    // The input check rides along: one named doubt, or null.
+    expect(inputCheck === null || typeof inputCheck.kind === "string").toBe(true);
 
     // Sending the resolved plan back as overrides changes nothing, which is
     // what lets the page send only the levers the user moved.

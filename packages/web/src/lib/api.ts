@@ -1271,7 +1271,8 @@ export const api = {
     }>('/quick-import/commit', { method: 'POST', body: JSON.stringify(payload) }),
 
   // The plan the retirement sim runs on when nothing is overridden (server-resolved).
-  getRetirementInputs: () => request<RetirementSimInputs>('/retirement/inputs'),
+  getRetirementInputs: () =>
+    request<RetirementSimInputs & { inputCheck: RetirementInputCheck | null }>('/retirement/inputs'),
 
   // Retirement Monte Carlo — server engine (same runRetirementSim the chat uses).
   simulateRetirement: (overrides: RetirementSimOverrides) =>
@@ -1307,6 +1308,21 @@ export interface RetirementSimOverrides {
 // overrides only the fields the user has changed.
 export type RetirementSimInputs = Required<Omit<RetirementSimOverrides, 'strategyParams' | 'allocation'>> &
   Pick<RetirementSimOverrides, 'strategyParams' | 'allocation'>;
+
+// The one retirement input the page asks the user to confirm (server:
+// retirement-input-check.ts), or null.
+export type RetirementInputCheck =
+  | { kind: 'missing_dob'; assumedAge: number }
+  | { kind: 'age_passed'; currentAge: number; retirementAge: number }
+  | {
+      kind: 'soon_with_mortgage';
+      currentAge: number;
+      retirementAge: number;
+      yearsAway: number;
+      mortgageName: string;
+      mortgageEndYear: number;
+    }
+  | { kind: 'missing_retirement_age'; assumedAge: number };
 
 export interface SimResult {
   successRate: number; // 0..1

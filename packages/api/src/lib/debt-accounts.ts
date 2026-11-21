@@ -211,6 +211,11 @@ export function resolveDebtApr(metadata: string | null): number | null {
   }
 }
 
+/** A mortgage by its subtype, or by its name when the subtype is missing. */
+export function isMortgageAccount(account: { subtype: string | null; name: string | null }): boolean {
+  return account.subtype === "mortgage" || !!account.name?.toLowerCase().includes("mortgage");
+}
+
 /** All of a tenant's credit/loan accounts that count toward net worth. */
 export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount[]> {
   const accts = await db.query.accounts.findMany({
@@ -299,8 +304,7 @@ export async function resolveDebtAccounts(tenantId: string): Promise<DebtAccount
       // Resolve minimumPayment (3-step fallback)
       let minimumPayment: number;
       let minimumPaymentAssumedApr: number | null = null;
-      const isMortgage =
-        acct.subtype === "mortgage" || acct.name?.toLowerCase().includes("mortgage");
+      const isMortgage = isMortgageAccount(acct);
 
       let typedMinPayment: number | undefined;
       if (typedMeta) {

@@ -4,6 +4,9 @@ import { type AuthEnv } from "../middleware/auth.js";
 import { resolveSimInputs } from "../services/resolve-sim-inputs.js";
 import { runRetirementSim } from "../services/retirement-sim.js";
 import { runRetirementBacktest } from "../services/retirement-backtest.js";
+import { readUserPersonalProfile } from "../lib/profile-resolver.js";
+import { resolveDebtAccounts } from "../lib/debt-accounts.js";
+import { checkRetirementInputs } from "../lib/retirement-input-check.js";
 
 export const retirementSimRouter = new Hono<AuthEnv>();
 
@@ -116,9 +119,24 @@ async function parseOverrides(
 // same ones facts' retirementSuccess and chat's run_monte_carlo use. The page
 // prefills its levers from these and sends back only the fields the user has
 // changed, so the untouched plan is resolved here, once.
+//
+// `inputCheck` names the one input the page should ask the user to confirm
+// (see retirement-input-check.ts), or null.
 retirementSimRouter.get("/inputs", async (c) => {
   const { tenantId, userId } = c.get("session");
-  return c.json(await resolveSimInputs(tenantId, userId, {}));
+  const [inputs, profile, debts] = await Promise.all([
+    resolveSimInputs(tenantId, userId, {}),
+    readUserPersonalProfile(tenantId, userId),
+    resolveDebtAccounts(tenantId),
+  ]);
+  const inputCheck = checkRetirementInputs({
+    currentAge: inputs.currentAge,
+    retirementAge: inputs.retirementAge,
+    dobOnFile: profile?.dateOfBirth != null,
+    retirementAgeOnFile: profile?.retirementAge != null,
+    debts,
+  });
+  return c.json({ ...inputs, inputCheck });
 });
 
 retirementSimRouter.post("/simulate", async (c) => {

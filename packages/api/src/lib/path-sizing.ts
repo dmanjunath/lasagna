@@ -275,7 +275,9 @@ const ASSUMED_MORTGAGE_TERM_MONTHS = 360;
  * the kind that runs to a term. Only a mortgage gets the assumed term: thirty
  * years is a fair default for a home loan and a nonsense one for a car.
  */
-function scheduledPayoff(facts: DebtFacts): string | null {
+export function scheduledPayoff(
+  facts: Pick<DebtFacts, 'originationDate' | 'termMonths' | 'debtKind'>,
+): string | null {
   if (!facts.originationDate) return null;
   const months = facts.termMonths ?? (facts.debtKind === 'mortgage' ? ASSUMED_MORTGAGE_TERM_MONTHS : null);
   if (months === null || months <= 0) return null;
