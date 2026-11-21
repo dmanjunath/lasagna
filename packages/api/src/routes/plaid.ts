@@ -19,7 +19,7 @@ plaidRoutes.post("/link-token", async (c) => {
 
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: session.userId },
-    client_name: "Lasagna",
+    client_name: "LasagnaFi",
     // Transactions is the anchor: `products` must hold at least one entry, and
     // it is billed at Item creation whatever the user turns out to own.
     products: [Products.Transactions],
@@ -60,7 +60,7 @@ plaidRoutes.post("/link-token/update", async (c) => {
   const accessToken = await decrypt(item.accessToken, env.ENCRYPTION_KEY);
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: session.userId },
-    client_name: "Lasagna",
+    client_name: "LasagnaFi",
     country_codes: [CountryCode.Us],
     language: "en",
     access_token: accessToken,
