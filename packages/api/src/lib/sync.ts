@@ -400,9 +400,12 @@ export async function syncItem(itemId: string): Promise<void> {
       .set({ status: "success", completedAt: new Date() })
       .where(eq(syncLog.id, logEntry.id));
 
+    // A sync that got this far reached the bank, so the connection works: an
+    // item flagged by a webhook (error, login required) is healthy again once
+    // the user reconnects in update mode and this post-link sync succeeds.
     await db
       .update(plaidItems)
-      .set({ lastSyncedAt: new Date() })
+      .set({ lastSyncedAt: new Date(), status: "active" })
       .where(eq(plaidItems.id, item.id));
 
     // Enforce the tenant's institution limit (accounts at the oldest

@@ -831,13 +831,37 @@ const CUSTOM_ICON = 'layers';
  * taken as they were written. It is the one place in either engine where copy
  * on the page came from a model, which is what "free-form" costs.
  */
+/**
+ * Goal categories that aim at a milestone every journey carries. Such a goal is
+ * that milestone said a second way ("Become Debt Free" above "Become debt
+ * free"), so while the milestone is on the journey the goal is not a step.
+ */
+const GOAL_SAME_AS_MILESTONE: Record<string, string> = {
+  emergency_fund: 'emergency-fund',
+  debt_payoff: 'debt-free',
+};
+
+/** Splits off the goal steps that duplicate a milestone already in `steps`. */
+export function dropGoalsDuplicatingMilestones<T extends PathCandidate>(
+  steps: T[],
+): { kept: T[]; dropped: T[] } {
+  const keys = new Set(steps.map((s) => s.key));
+  const kept: T[] = [];
+  const dropped: T[] = [];
+  for (const s of steps) {
+    const milestone = s.kind === 'goal' && s.goal ? GOAL_SAME_AS_MILESTONE[s.goal.category] : undefined;
+    (milestone && keys.has(milestone) ? dropped : kept).push(s);
+  }
+  return { kept, dropped };
+}
+
 export function journeyCandidates(
   answer: JourneyAnswer,
   catalog: PathCandidate[],
 ): { steps: PathCandidate[]; leftOut: Array<{ candidate: PathCandidate; reason: string }> } {
   const byKey = new Map(catalog.map((c) => [c.key, c]));
   const taken = new Set<string>();
-  const steps: PathCandidate[] = [];
+  const proposedSteps: PathCandidate[] = [];
 
   for (const proposed of answer.steps) {
     const key = (proposed.key ?? '').trim();
@@ -846,7 +870,7 @@ export function journeyCandidates(
     const known = byKey.get(key);
     if (known) {
       taken.add(key);
-      steps.push({
+      proposedSteps.push({
         ...known,
         why: proposed.why?.trim() || known.why,
         targetOverride: readTargetAmount(proposed.targetAmountUsd),
@@ -862,7 +886,7 @@ export function journeyCandidates(
     const slug = key.startsWith('custom:') ? key : `custom:${key}`;
     if (taken.has(slug)) continue;
     taken.add(slug);
-    steps.push({
+    proposedSteps.push({
       key: slug,
       kind: 'custom',
       title,
@@ -876,13 +900,21 @@ export function journeyCandidates(
     });
   }
 
+  // The model is told a goal that names a milestone is the same milestone; when
+  // it puts both on anyway, the goal goes.
+  const deduped = dropGoalsDuplicatingMilestones(proposedSteps);
+  const steps = deduped.kept;
+
   // The debt-free milestone counts only the payoff steps that made it onto the
   // journey, so it can never draw a finish line through a balance the plan left
   // off. Set after the sequence is decided, because that is when it is known.
   const debtScope = steps.filter((c) => c.kind === 'debt' && c.accountId).map((c) => c.accountId!);
   for (const c of steps) if (c.kind === 'debt-free') c.debtScopeIds = debtScope;
 
-  const leftOut: Array<{ candidate: PathCandidate; reason: string }> = [];
+  const leftOut: Array<{ candidate: PathCandidate; reason: string }> = deduped.dropped.map((candidate) => ({
+    candidate,
+    reason: 'The same milestone as a step already on your journey.',
+  }));
   for (const dropped of answer.leftOut) {
     const known = byKey.get((dropped.key ?? '').trim());
     if (!known || taken.has(known.key)) continue;

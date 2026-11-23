@@ -137,7 +137,7 @@ function monthStart(d: Date, offset = 0): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + offset, 1));
 }
 
-function median(values: number[]): number {
+export function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
   return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
@@ -868,7 +868,8 @@ export function detectDuplicateServices(recurring: RecurringMerchant[]): SpendCu
  */
 const CATEGORY_MIN_MONTHS = 4;
 /** How far back the household's own baseline is read. */
-const CATEGORY_BASELINE_MONTHS = 3;
+/** Also the Spending page's per-category "usual" (lib/cash-flow.ts categoryUsual): one definition. */
+export const CATEGORY_BASELINE_MONTHS = 3;
 const CATEGORY_MIN_TXNS = 3;
 const CATEGORY_MIN_EXCESS = 40;
 /**

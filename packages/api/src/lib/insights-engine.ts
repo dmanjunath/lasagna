@@ -19,6 +19,7 @@ import {
   goals,
   goalAccounts,
   taxDocuments,
+  users,
   eq,
   and,
   desc,
@@ -30,6 +31,7 @@ import {
   fetchAccountsWithBalances,
 } from "./account-balances.js";
 import { buildGoalAccountMap, resolveGoalAmount } from "./goal-progress.js";
+import { buildPathReadiness } from "../services/retirement-readiness.js";
 import { statementPaidInFull } from "./debt-accounts.js";
 
 /**
@@ -224,6 +226,21 @@ function readHoldingRows(tenantId: string) {
     .innerJoin(securities, eq(holdings.securityId, securities.id))
     .innerJoin(accounts, eq(holdings.accountId, accounts.id))
     .where(eq(holdings.tenantId, tenantId));
+}
+
+async function ownerRetirementVerdict(
+  tenantId: string,
+  canRun: boolean,
+  monthlyIncome: number,
+): Promise<string | null> {
+  if (!canRun) return null;
+  const owner = await db.query.users.findFirst({
+    where: and(eq(users.tenantId, tenantId), eq(users.role, "owner")),
+    columns: { id: true },
+  });
+  if (!owner) return null;
+  const readiness = await buildPathReadiness(tenantId, owner.id, monthlyIncome).catch(() => null);
+  return readiness?.verdict ?? null;
 }
 
 async function gatherFinancialData(
@@ -614,6 +631,15 @@ async function gatherFinancialData(
         ) / 10
       : null;
 
+  // The retirement simulation's verdict for the owner, the same one the
+  // Retirement page and the journey state. Only when there is a birth date and a
+  // retirement age to run it on, as the journey requires.
+  const retirementVerdict = await ownerRetirementVerdict(
+    tenantId,
+    resolvedOwner.age != null && resolvedOwner.retirementAge != null,
+    (resolvedOwner.annualIncome ?? 0) / 12,
+  );
+
   // Goals
   const [goalsRows, goalLinks, goalAccts] = await Promise.all([
     db
@@ -638,7 +664,8 @@ async function gatherFinancialData(
 
     // For retirement goals, use actual invested balance if higher than stored currentAmount
     const cat = (g.category || "").toLowerCase();
-    if (cat === "retirement" || cat === "fire" || cat === "financial_independence") {
+    const isRetirementGoal = cat === "retirement" || cat === "fire" || cat === "financial_independence";
+    if (isRetirementGoal) {
       const actualInvested = totalInvestment + totalDepository;
       if (actualInvested > current) {
         current = actualInvested;
@@ -648,7 +675,11 @@ async function gatherFinancialData(
     const remaining = target - current;
     let projectedCompletion: string | null = null;
 
-    if (remaining <= 0) {
+    if (remaining > 0 && isRetirementGoal && retirementVerdict === "on_track") {
+      // The simulation counts growth and future saving; a straight-line gap
+      // to the target does not, and must not overrule it.
+      projectedCompletion = "on_track";
+    } else if (remaining <= 0) {
       projectedCompletion = "completed";
     } else if (monthlySurplus > 0) {
       const monthsToGo = Math.ceil(remaining / monthlySurplus);
@@ -852,6 +883,7 @@ IN-PROGRESS MONTH EXCEPTION: spending.inProgressMonth has the partial current mo
   - If projectedCompletionDate is "completed", the goal is ALREADY MET — do NOT flag it as behind. Instead, congratulate and suggest whether the target should be raised or the goal archived.
   - If projectedCompletionDate is "unreachable_at_current_rate", the gap is too large for a simple timeline comparison. Instead, suggest concrete actions: increase monthly contributions by $X, reduce the target, or extend the deadline. Calculate the monthly savings needed to hit the deadline.
   - If currentAmount >= targetAmount, the goal is MET regardless of projectedCompletionDate — do NOT report it as behind schedule.
+  - If projectedCompletionDate is "on_track", it is a retirement goal the retirement projection (which counts growth and future contributions) judges on track. Never call it behind or a gap, and never suggest adding money toward it.
   - Otherwise, compare projectedCompletionDate vs deadline and state the gap in months.
 - Every goal insight MUST include a specific, concrete action (e.g., "increase monthly 401(k) contribution by $500" or "move $50k from savings to index funds"). Never say "review your goal" or "adjust accordingly" — those are not actions.
 - Calculate savings rate (summary.savingsRateCurrent). ONLY report savings rate if summary.monthlyExpensesCurrent > 0 (there is actual spending data). If monthlyExpensesCurrent is 0, skip all savings rate insights — this means no transaction data is available.
@@ -1201,6 +1233,20 @@ const OBSERVATION_TITLE = new RegExp(
 /** True when the title only asks the reader to look, so the row is not an action. */
 export function observesRatherThanActs(copy: InsightCopy): boolean {
   return OBSERVATION_TITLE.test(copy.title ?? "");
+}
+
+/**
+ * True when the copy asks for more money toward a retirement goal that the
+ * retirement simulation judges on track. The simulation is the one judge of
+ * retirement, so "close its huge gap" beside an "On track" verdict is dropped.
+ * `onTrackGoalNames` are the real (descrubbed) goal names.
+ */
+export function pushesOnTrackRetirementGoal(
+  copy: Pick<InsightCopy, "title" | "description">,
+  onTrackGoalNames: string[],
+): boolean {
+  const text = `${copy.title ?? ""} ${copy.description ?? ""}`.toLowerCase();
+  return onTrackGoalNames.some((name) => name.trim() !== "" && text.includes(name.toLowerCase()));
 }
 
 // A MOVE from one figure to another, which is the opposite of a span and is
@@ -1773,6 +1819,12 @@ async function runGeneration(tenantId: string): Promise<number> {
   // filters on this, so it never pays for the query.
   const held = env.HOSTED_MODE ? await heldSecurityNames(tenantId) : NO_HELD_SECURITIES;
 
+  const onTrackGoalNames = data.goals.filter((g) => g.projectedCompletionDate === "on_track").map((g) => g.name);
+  const descrubbedCopy = (ins: GeneratedInsight) => ({
+    title: descrub(ins.title ?? "", aliasMap),
+    description: descrub(ins.description ?? "", aliasMap),
+  });
+
   let missingDataKept = 0;
   let insertCount = 0;
   for (const ins of generated) {
@@ -1783,6 +1835,12 @@ async function runGeneration(tenantId: string): Promise<number> {
       // matcher over-reaching, and the title alone never says which.
       const insText = `${ins.title ?? ""} ${ins.description ?? ""} ${ins.impact ?? ""}`;
       console.log(`[Insights] Dropping insight that prices a tax saving: ${insText.slice(0, 240)}`);
+      continue;
+    }
+
+    // The retirement simulation says on track; no action may say otherwise.
+    if (pushesOnTrackRetirementGoal(descrubbedCopy(ins), onTrackGoalNames)) {
+      console.log(`[Insights] Dropping insight that pushes an on-track retirement goal: "${ins.title?.slice(0, 120)}"`);
       continue;
     }
 

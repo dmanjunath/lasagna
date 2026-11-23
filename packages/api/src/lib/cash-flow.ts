@@ -1,6 +1,7 @@
 import { db } from "./db.js";
-import { transactions, categories, categoryGroups, eq, and, sql, notInArray } from "@lasagna/core";
-import { excludedTxnAccountIds } from "./account-balances.js";
+import { transactions, categories, categoryGroups, eq, and, sql } from "@lasagna/core";
+import { txnFilterConditions, type TxnFilter } from "./txn-filter.js";
+import { CATEGORY_BASELINE_MONTHS, median } from "./spend-cut-detector.js";
 
 /**
  * Income, spending and net cash flow for a date window. The one place this
@@ -32,17 +33,23 @@ export interface CashFlow {
 
 const cents = (n: number) => Math.round(n * 100) / 100;
 
-export async function computeCashFlow(tenantId: string, start: Date, end: Date): Promise<CashFlow> {
-  const conditions = [
-    eq(transactions.tenantId, tenantId),
-    sql`${transactions.date} >= ${start.toISOString()}::timestamptz`,
-    sql`${transactions.date} <= ${end.toISOString()}::timestamptz`,
-    sql`${transactions.excludedAt} is null`,
-  ];
-  const excludedIds = await excludedTxnAccountIds(tenantId);
-  if (excludedIds.length > 0) {
-    conditions.push(notInArray(transactions.accountId, excludedIds));
-  }
+/**
+ * `filter` narrows the rows with the universal transaction filter
+ * (lib/txn-filter.ts), the same predicate /transactions/query applies; its own
+ * dates are ignored, the window is `start`..`end`.
+ */
+export async function computeCashFlow(tenantId: string, start: Date, end: Date, filter: TxnFilter = {}): Promise<CashFlow> {
+  return cashFlowForFilter(tenantId, { ...filter, startDate: start, endDate: end });
+}
+
+/**
+ * The same math for any filter, its dates included (or none). /transactions/query
+ * reads its money totals here, so its Money in and Money out equal the Spending
+ * page's figures for the same filter.
+ */
+export async function cashFlowForFilter(tenantId: string, filter: TxnFilter): Promise<CashFlow> {
+  const conditions = await txnFilterConditions(tenantId, filter);
+  conditions.push(sql`${transactions.excludedAt} is null`);
 
   const rows = await db
     .select({
@@ -140,8 +147,53 @@ export function monthWindow(year: number, month: number): MonthWindow {
   };
 }
 
-/** The last full calendar month, the month /spending opens on. */
+/** The last full calendar month. */
 export function lastFullMonthWindow(now = new Date()): MonthWindow {
   const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   return monthWindow(d.getFullYear(), d.getMonth());
+}
+
+/**
+ * Each spending category's usual month: the median of its spending in the
+ * three complete calendar months before `month` (the same baseline the
+ * category-above-trend action uses), under the same filter and the same
+ * net-per-category math as the page's figures, so a category is compared with
+ * itself on equal terms. Empty when the household has less than three complete
+ * months of history before `month`: one or two months is not a usual. A
+ * category whose median is zero has no usual.
+ */
+export async function categoryUsual(tenantId: string, month: Date, filter: TxnFilter = {}): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const y = month.getUTCFullYear();
+  const m = month.getUTCMonth();
+  const starts = Array.from({ length: CATEGORY_BASELINE_MONTHS }, (_, i) => new Date(Date.UTC(y, m - 1 - i, 1)));
+  const oldest = starts[starts.length - 1];
+  const [first] = await db
+    .select({ earliest: sql<string | null>`min(${transactions.date})` })
+    .from(transactions)
+    .where(eq(transactions.tenantId, tenantId));
+  // History reaches the oldest baseline month when the first transaction falls in it or before.
+  const afterOldest = Date.UTC(oldest.getUTCFullYear(), oldest.getUTCMonth() + 1, 1);
+  if (!first?.earliest || new Date(first.earliest).getTime() >= afterOldest) return out;
+
+  const months = await Promise.all(
+    starts.map((start) => {
+      const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1) - 1);
+      return cashFlowForFilter(tenantId, { ...filter, startDate: start, endDate: end });
+    }),
+  );
+  const totals = new Map<string, number[]>();
+  months.forEach((flow, i) => {
+    for (const cat of flow.categories) {
+      if (!cat.id || cat.groupType === "income" || cat.groupType === "transfer") continue;
+      const list = totals.get(cat.id) ?? new Array(CATEGORY_BASELINE_MONTHS).fill(0);
+      list[i] = cat.total;
+      totals.set(cat.id, list);
+    }
+  });
+  for (const [id, list] of totals) {
+    const med = cents(median(list));
+    if (med > 0) out.set(id, med);
+  }
+  return out;
 }

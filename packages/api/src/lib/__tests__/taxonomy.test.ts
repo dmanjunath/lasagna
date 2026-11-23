@@ -66,3 +66,12 @@ describe("DEFAULT_TAXONOMY shape guard", () => {
     }
   });
 });
+
+describe("savings and investment transfers are not spending", () => {
+  it("seeds Savings & Investment in a transfer-type group", () => {
+    const group = DEFAULT_TAXONOMY.find((g) =>
+      g.categories.some((c) => c.systemKey === "savings_investment"),
+    );
+    expect(group?.type).toBe("transfer");
+  });
+});

@@ -9,7 +9,7 @@ export function createSpendingTools(tenantId: string) {
   return {
     get_spending_summary: tool({
       description:
-        "Get income, spending and net cash flow for one calendar month, with spending by category and top merchants. The same figures the Spending page shows. spending already includes every category listed in categories, including savings and investment transfers categorised as spending. netCashFlow (income minus spending) is the one monthly surplus (positive) or shortfall (negative) figure: quote it as is. Never subtract or add categories to derive another net, surplus or \"cash left over\" figure. Each field is defined in `definitions`. Always name the month (monthLabel) when you quote a figure. Use this to answer questions about spending patterns, budgets, and expenses.",
+        "Get income, spending and net cash flow for one calendar month, with spending by category and top merchants. The same figures the Spending page shows. spending already includes every category listed in categories. Transfers, including moves into the user's own savings or brokerage, are not spending and are not listed. netCashFlow (income minus spending) is the one monthly surplus (positive) or shortfall (negative) figure: quote it as is. Never subtract or add categories to derive another net, surplus or \"cash left over\" figure. Each field is defined in `definitions`. Always name the month (monthLabel) when you quote a figure. Use this to answer questions about spending patterns, budgets, and expenses.",
       inputSchema: z.object({
         month: z
           .string()
@@ -84,7 +84,7 @@ export function createSpendingTools(tenantId: string) {
           definitions: {
             income: "money received this month",
             spending:
-              "everything spent this month. It already includes every entry in categories, including savings and investment transfers categorised as spending",
+              "everything spent this month. It already includes every entry in categories. Transfers, including savings and investment deposits, are not spending",
             netCashFlow:
               "income minus spending, the one surplus (positive) or shortfall (negative) for the month. Quote it as is. Never subtract or add categories to it",
             categories: "the parts of spending. They sum to spending and are never taken out of it again",

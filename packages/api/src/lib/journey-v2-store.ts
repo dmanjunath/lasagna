@@ -18,6 +18,7 @@ import { and, eq, financialJourneys } from '@lasagna/core';
 import { db } from './db.js';
 import {
   buildJourneyCatalog,
+  dropGoalsDuplicatingMilestones,
   journeyCandidates,
   proposeJourney,
   type JourneyAnswer,
@@ -138,13 +139,17 @@ function fromStored(stored: StoredJourney, catalog: PathCandidate[]): PathCandid
       targetOverride: target,
     });
   }
+  // A journey stored before goals that repeat a milestone were dropped still
+  // holds both. Read back, the goal goes, as it would on a fresh build.
+  const { kept } = dropGoalsDuplicatingMilestones(out);
+
   // The debt-free milestone counts only the payoff steps that made it onto the
   // journey, so it can never draw a finish line through a balance the plan left
   // off. Set after the sequence is decided, because that is when it is known.
-  const scope = out.filter((c) => c.kind === 'debt' && c.accountId).map((c) => c.accountId!);
-  for (const c of out) if (c.kind === 'debt-free') c.debtScopeIds = scope;
+  const scope = kept.filter((c) => c.kind === 'debt' && c.accountId).map((c) => c.accountId!);
+  for (const c of kept) if (c.kind === 'debt-free') c.debtScopeIds = scope;
 
-  return out;
+  return kept;
 }
 
 export interface JourneyView {

@@ -6,13 +6,13 @@
  *
  *  - assets/debt: fetchAccountsWithBalances + LIABILITY_TYPES (mirrors the
  *    /accounts/debts route's totalDebt and the net-worth aggregation)
- *  - spending:    computeSpendingTotal over defaultSpendingWindow (previous
- *    calendar month, same default as the dashboard)
+ *  - spending:    readMonthlySpend().stableMonthlyExpenses (the one monthly
+ *    spending figure the retirement resolver, goals and journey read)
  *  - age/income:  readUserPersonalProfile (cheap personal-profile read)
  */
 
 import { fetchAccountsWithBalances, LIABILITY_TYPES } from "../lib/account-balances.js";
-import { computeSpendingTotal, defaultSpendingWindow } from "../lib/spending.js";
+import { readMonthlySpend } from "../lib/monthly-spend.js";
 import { readUserPersonalProfile } from "../lib/profile-resolver.js";
 import type { PropertySaleAdjustment } from "./plan-assumptions-overrides.js";
 
@@ -109,8 +109,8 @@ export async function buildFinancialSnapshot(
     ...[...debtByType].map(([type, value]) => ({ kind: "debt" as const, type, value: round2(value) })),
   ].sort((x, y) => y.value - x.value);
 
-  const { startDate, endDate } = defaultSpendingWindow();
-  const monthlySpend = await computeSpendingTotal(tenantId, startDate, endDate);
+  const { stableMonthlyExpenses } = await readMonthlySpend(tenantId);
+  const monthlySpend = Math.round((stableMonthlyExpenses ?? 0) * 100) / 100;
 
   const profile = await readUserPersonalProfile(tenantId, userId);
   const age = profile?.dateOfBirth ? ageFromDob(profile.dateOfBirth) : null;

@@ -12,12 +12,13 @@
  *                 (same pipeline as the portfolio tab and get_portfolio_summary)
  *  - balances:    fetchAccountsWithBalances (same source as /accounts/balances)
  *  - profile:     financialProfiles row (same as /settings/financial-profile)
- *  - spending:    computeSpendingTotal (mirrors /transactions/spending-summary)
+ *  - spending:    readMonthlySpend().stableMonthlyExpenses (the one monthly
+ *                 spending figure the goals and the journey price from)
  */
 
 import { readUserPersonalProfile } from "../lib/profile-resolver.js";
 import { fetchAccountsWithBalances } from "../lib/account-balances.js";
-import { computeSpendingTotal, defaultSpendingWindow } from "../lib/spending.js";
+import { readMonthlySpend } from "../lib/monthly-spend.js";
 import { getHoldingsInput } from "../routes/portfolio.js";
 import { aggregatePortfolio, extractAllocation, extractClassReturns } from "./portfolio-aggregator.js";
 import { deriveSimInputs, type RawResolverData } from "./retirement-defaults.js";
@@ -89,9 +90,9 @@ export async function resolveSimInputs(
   // scoped to their own data instead of the owner's.
   const profile = await readUserPersonalProfile(tenantId, userId);
 
-  // ── Spending total (previous calendar month, same default as the dashboard) ──
-  const { startDate, endDate } = defaultSpendingWindow();
-  const spendingTotal = await computeSpendingTotal(tenantId, startDate, endDate);
+  // ── Monthly spending: the shared 3-month average, not one month's total ──
+  const { stableMonthlyExpenses } = await readMonthlySpend(tenantId);
+  const spendingTotal = stableMonthlyExpenses ?? 0;
 
   const raw: RawResolverData = {
     age: null, // derived from dateOfBirth below, matching the profile route

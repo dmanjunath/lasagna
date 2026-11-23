@@ -25,6 +25,8 @@ const savings = {
   holdingsSyncedAt: new Date(),
 };
 const checking = { ...savings, id: "acct-checking", name: "Checking" };
+// An investment account nobody can see inside: no holdings, never synced.
+const k401 = { ...savings, id: "acct-401k", name: "401(k)", type: "investment", holdingsSyncedAt: null };
 
 // Which accounts.findMany call this is, read from its `where`.
 function isType(where: unknown, type: string): boolean {
@@ -49,7 +51,7 @@ vi.mock("../../lib/db.js", () => ({
       accounts: {
         findMany: async ({ where }: { where: unknown }) => {
           if (isType(where, "depository")) return [savings, checking];
-          if (isType(where, "investment")) return [];
+          if (isType(where, "investment")) return [k401];
           return [savings];
         },
       },
@@ -83,5 +85,13 @@ describe("getHoldingsInput", () => {
     expect(rows.filter((r) => r.account === "Checking")).toEqual([
       expect.objectContaining({ ticker: "CASH", value: 200 }),
     ]);
+  });
+
+  it("claims no share count for an assumed split (audit W-27)", async () => {
+    // It used to say 120 "shares" of VTI for $120, a $1 share price.
+    const rows = (await getHoldingsInput("tenant-1")).filter((r) => r.account === "401(k)");
+    expect(rows.map((r) => r.ticker)).toEqual(["VTI", "BND"]);
+    expect(rows.map((r) => r.value)).toEqual([120, 80]);
+    expect(rows.map((r) => r.shares)).toEqual([0, 0]);
   });
 });

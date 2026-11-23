@@ -13,6 +13,14 @@ import { recomputeFrozenAccounts } from "../lib/account-limits.js";
 
 export const plaidRoutes = new Hono<AuthEnv>();
 
+// The iOS app finishes OAuth bank sign-ins through a universal link, so its
+// link tokens carry the redirect URI. The web flow never sends one.
+function nativeRedirect(c: { req: { header(name: string): string | undefined } }): { redirect_uri?: string } {
+  return c.req.header("x-lasagna-client") === "native" && env.PLAID_REDIRECT_URI
+    ? { redirect_uri: env.PLAID_REDIRECT_URI }
+    : {};
+}
+
 // Create a link token for Plaid Link
 plaidRoutes.post("/link-token", async (c) => {
   const session = c.get("session");
@@ -35,6 +43,7 @@ plaidRoutes.post("/link-token", async (c) => {
     // schedule (1-4x/day) instead of waiting for the next cron run. Omitted in
     // local dev, where Plaid can't reach the API.
     ...(env.PLAID_WEBHOOK_URL ? { webhook: env.PLAID_WEBHOOK_URL } : {}),
+    ...nativeRedirect(c),
   });
 
   return c.json({ linkToken: response.data.link_token });
@@ -65,6 +74,7 @@ plaidRoutes.post("/link-token/update", async (c) => {
     language: "en",
     access_token: accessToken,
     update: { account_selection_enabled: true },
+    ...nativeRedirect(c),
   });
 
   return c.json({ linkToken: response.data.link_token });

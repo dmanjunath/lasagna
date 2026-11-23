@@ -812,3 +812,39 @@ describe('the model sets the target and the server does the rest', () => {
     expect(sized.current).toBeNull();
   });
 });
+
+// ── A goal that names a milestone is not a second step (audit W-9) ───────────
+
+describe('a goal aimed at a milestone the journey already has', () => {
+  const goal = (id: string, name: string, category: string) => ({
+    id, name, category, targetAmount: 8000, currentAmount: 1200, deadline: null, details: null,
+  });
+
+  it('keeps the debt-free milestone and leaves the debt payoff goal out', () => {
+    const ctx = buildPathContextDefaults({ goals: [goal('g-debt', 'Become Debt Free', 'debt_payoff')] });
+    const { steps, leftOut } = journeyCandidates(
+      answer({ steps: [{ key: 'goal:g-debt', why: 'a' }, { key: 'debt-free', why: 'b' }] }),
+      buildJourneyCatalog(ctx),
+    );
+    expect(steps.map((s) => s.key)).toEqual(['debt-free']);
+    expect(leftOut.map((o) => o.candidate.key)).toContain('goal:g-debt');
+  });
+
+  it('keeps the emergency fund step and leaves the emergency fund goal out', () => {
+    const ctx = buildPathContextDefaults({ goals: [goal('g-ef', 'Rainy day', 'emergency_fund')] });
+    const { steps } = journeyCandidates(
+      answer({ steps: [{ key: 'emergency-fund', why: 'a' }, { key: 'goal:g-ef', why: 'b' }] }),
+      buildJourneyCatalog(ctx),
+    );
+    expect(steps.map((s) => s.key)).toEqual(['emergency-fund']);
+  });
+
+  it('keeps the goal when the milestone is not on the journey', () => {
+    const ctx = buildPathContextDefaults({ goals: [goal('g-debt', 'Become Debt Free', 'debt_payoff')] });
+    const { steps } = journeyCandidates(
+      answer({ steps: [{ key: 'goal:g-debt', why: 'a' }] }),
+      buildJourneyCatalog(ctx),
+    );
+    expect(steps.map((s) => s.key)).toEqual(['goal:g-debt']);
+  });
+});

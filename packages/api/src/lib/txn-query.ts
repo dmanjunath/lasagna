@@ -5,22 +5,12 @@
 
 import { sql, transactions, type SQL } from "@lasagna/core";
 import { UUID_RE } from "./taxonomy.js";
+import { parseTxnFilter, type TxnFilter } from "./txn-filter.js";
 
 export interface Cursor { v: string; id: string }
 export interface QuerySort { field: "date" | "amount"; dir: "asc" | "desc" }
-export interface QueryFilters {
-  search?: string;
-  categoryIds?: string[];
-  excludeCategoryIds?: string[];
-  accountIds?: string[];
-  startDate?: Date;
-  endDate?: Date;
-  amountMin?: number;
-  amountMax?: number;
-  merchant?: string;
-  /** credit = money in (amount < 0), debit = money out (amount > 0). */
-  direction?: "credit" | "debit";
-}
+/** The universal filter (lib/txn-filter.ts). */
+export type QueryFilters = TxnFilter;
 export interface NormalizedQuery {
   filters: QueryFilters;
   groupBy: "category" | "group" | "merchant" | null;
@@ -54,49 +44,9 @@ export function buildKeysetPredicate(sort: QuerySort, cursor: Cursor): SQL {
 }
 
 export function validateQueryBody(body: any): { ok: NormalizedQuery } | { error: string } {
-  const f = body?.filters ?? {};
-  const filters: QueryFilters = {};
-
-  if (f.search != null && String(f.search).trim() !== "") filters.search = String(f.search).trim();
-  if (f.merchant != null && String(f.merchant).trim() !== "") filters.merchant = String(f.merchant).trim();
-  if (f.direction != null) {
-    if (f.direction !== "credit" && f.direction !== "debit") return { error: "direction must be credit or debit" };
-    filters.direction = f.direction;
-  }
-
-  for (const key of ["categories", "excludeCategories", "accountIds"] as const) {
-    const v = f[key];
-    if (v == null) continue;
-    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) return { error: `${key} must be an array of strings` };
-    if (key === "accountIds") {
-      if (v.length > 0) filters.accountIds = v;
-      continue;
-    }
-    if (v.length > 0) {
-      if (!v.every((x: string) => UUID_RE.test(x))) return { error: `${key} must be category ids` };
-      if (key === "categories") filters.categoryIds = v;
-      else filters.excludeCategoryIds = v;
-    }
-  }
-
-  for (const key of ["startDate", "endDate"] as const) {
-    const v = f[key];
-    if (v == null) continue;
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return { error: `${key} is not a valid date` };
-    filters[key] = d;
-  }
-
-  for (const key of ["amountMin", "amountMax"] as const) {
-    const v = f[key];
-    if (v == null) continue;
-    const n = Number(v);
-    if (!Number.isFinite(n) || n < 0) return { error: `${key} must be a non-negative finite number` };
-    filters[key] = n;
-  }
-  if (filters.amountMin != null && filters.amountMax != null && filters.amountMin > filters.amountMax) {
-    return { error: "amountMin must be <= amountMax" };
-  }
+  const parsedFilters = parseTxnFilter(body?.filters);
+  if ("error" in parsedFilters) return parsedFilters;
+  const filters = parsedFilters.ok;
 
   let groupBy: NormalizedQuery["groupBy"] = null;
   if (body?.groupBy != null && body.groupBy !== "date") {

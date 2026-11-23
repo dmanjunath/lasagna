@@ -1,7 +1,7 @@
 // Default category taxonomy — seeded per tenant, keyed on systemKey.
 // The 20 legacy transaction_category enum values map 1:1 (same systemKey).
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Database } from "./db.js";
 import { categories, categoryGroups } from "./schema.js";
 
@@ -63,13 +63,17 @@ export const DEFAULT_TAXONOMY: DefaultGroup[] = [
   ]},
   { systemKey: "financial", name: "Financial", type: "expense", categories: [
     { systemKey: "debt_payment", name: "Debt Payment" },
-    { systemKey: "savings_investment", name: "Savings & Investment" },
     { systemKey: "taxes", name: "Taxes" },
     { systemKey: "bank_fees", name: "Bank Fees" },
     { systemKey: "software_saas", name: "Software & SaaS" },
   ]},
+  // Money moved into the household's own savings or brokerage is saving, not
+  // spending, so it sits under a transfer-type group: every spending total
+  // classifies by group type and leaves it out. Tenants seeded before this
+  // have it under Financial; reclassifySavingsAsTransfer moves it.
   { systemKey: "transfers", name: "Transfers", type: "transfer", categories: [
     { systemKey: "transfer", name: "Transfer" },
+    { systemKey: "savings_investment", name: "Savings & Investment" },
   ]},
   { systemKey: "other", name: "Other", type: "expense", categories: [
     { systemKey: "other", name: "Other" },
@@ -127,4 +131,28 @@ export async function seedTaxonomyForTenant(db: Database, tenantId: string): Pro
       }).onConflictDoNothing();
     }
   }
+}
+
+/**
+ * Backfill for tenants seeded before Savings & Investment moved under Transfers:
+ * moves the category from the system Financial group to the tenant's Transfers
+ * group. A category the user has since moved to another group is left alone.
+ * Idempotent. Returns the tenant ids it moved (or would move, on a dry run).
+ */
+export async function reclassifySavingsAsTransfer(
+  db: Database,
+  opts: { tenantId?: string; dryRun?: boolean } = {},
+): Promise<string[]> {
+  const tenantFilter = opts.tenantId ? sql`and c.tenant_id = ${opts.tenantId}` : sql``;
+  const where = sql`
+    where c.system_key = 'savings_investment'
+      and fg.id = c.group_id and fg.system_key = 'financial'
+      and tg.tenant_id = c.tenant_id and tg.system_key = 'transfers'
+      ${tenantFilter}`;
+  const rows = opts.dryRun
+    ? await db.execute(sql`select c.tenant_id from categories c, category_groups fg, category_groups tg ${where}`)
+    : await db.execute(
+        sql`update categories c set group_id = tg.id from category_groups fg, category_groups tg ${where} returning c.tenant_id`,
+      );
+  return Array.from(rows as unknown as Array<{ tenant_id: string }>, (r) => r.tenant_id);
 }

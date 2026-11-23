@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { readStoredSteps } from "./financial-path.js";
+import { journeyDebtExtra } from "../lib/debt-plan-extra.js";
 import { z } from "zod";
 import { eq, desc, and, accounts, balanceSnapshots, plaidItems, parsePropertyMetadata, accountTypeEnum } from "@lasagna/core";
 import { db } from "../lib/db.js";
@@ -99,9 +101,10 @@ export function debtsMonthlyInterest(debts: DebtAccount[]): number {
 accountRoutes.get("/debts", async (c) => {
   const session = c.get("session");
 
-  const [debtAccounts, accountFacts] = await Promise.all([
+  const [debtAccounts, accountFacts, pathSteps] = await Promise.all([
     resolveDebtAccounts(session.tenantId),
     computeAccountFacts(session.tenantId),
+    readStoredSteps(session.tenantId, session.userId).catch(() => []),
   ]);
 
   const propertyRows = await db.query.accounts.findMany({
@@ -150,6 +153,9 @@ accountRoutes.get("/debts", async (c) => {
     // hero shows. Both from facts, so no page re-adds the balances.
     ...debtFactsFrom(accountFacts.netWorth.debt, debtAccounts),
     monthlyInterest: Math.round(monthlyInterest * 100) / 100,
+    // What the journey puts on its current debt above the minimum, so the
+    // page's payoff plan starts from the journey's plan. Null: no debt step.
+    suggestedExtra: journeyDebtExtra(pathSteps),
   });
 });
 

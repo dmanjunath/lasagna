@@ -1,35 +1,18 @@
 import { Hono } from "hono";
-import { eq, and, or, sql, desc, asc, isNull, notInArray, inArray, transactions, accounts, categories, categoryGroups, type SQL } from "@lasagna/core";
+import { eq, and, sql, desc, asc, inArray, transactions, accounts, categories, categoryGroups, type SQL } from "@lasagna/core";
 import { db } from "../lib/db.js";
 import { type AuthEnv } from "../middleware/auth.js";
-import { excludedTxnAccountIds } from "../lib/account-balances.js";
 import { buildPeriods } from "../lib/trend.js";
-import { computeCashFlow } from "../lib/cash-flow.js";
+import { categoryUsual, computeCashFlow, cashFlowForFilter } from "../lib/cash-flow.js";
 import { validateQueryBody, buildKeysetPredicate, encodeCursor, cursorForRow } from "../lib/txn-query.js";
 import { loadTaxonomy, UUID_RE } from "../lib/taxonomy.js";
+import { parseTxnFilterQuery, txnFilterConditions } from "../lib/txn-filter.js";
 
 export const transactionRoutes = new Hono<AuthEnv>();
 
-// A comma-joined category-id list from the query string. Anything that is not a
-// uuid is dropped rather than passed to Postgres, which would reject the cast.
-// A stale id surviving in a shared link is harmless: it matches no row in an
-// include list and is a no-op in an exclude list.
-function categoryIdsParam(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw.split(",").filter((id) => UUID_RE.test(id));
-}
-
-// The exclude predicate has to spell the NULL case out. `not in (...)` is NULL
-// for an uncategorized row, so a plain notInArray would silently drop every
-// uncategorized transaction — and the page keeps those under an exclude-only
-// scope, so the chart would then disagree with the hero above it.
-function categoryScopeConditions(include: string[], exclude: string[]): SQL[] {
-  const out: SQL[] = [];
-  if (include.length > 0) out.push(inArray(transactions.categoryId, include));
-  if (exclude.length > 0) {
-    out.push(or(isNull(transactions.categoryId), notInArray(transactions.categoryId, exclude))!);
-  }
-  return out;
+// The universal filter from a request's query string (lib/txn-filter.ts).
+function queryFilter(c: { req: { query: (k: string) => string | undefined; queries: (k: string) => string[] | undefined } }) {
+  return parseTxnFilterQuery((k) => c.req.query(k), (k) => c.req.queries(k));
 }
 
 // GET / - List transactions with pagination and filters
@@ -38,44 +21,16 @@ transactionRoutes.get("/", async (c) => {
   const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
   const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "50", 10)));
   const category = c.req.query("category");
-  const startDate = c.req.query("startDate");
-  const endDate = c.req.query("endDate");
-  const accountId = c.req.query("accountId");
-  const search = c.req.query("search");
-  // The spending page's category scope, in the spelling its URL already uses.
-  const scopeInclude = categoryIdsParam(c.req.query("categories"));
-  const scopeExclude = categoryIdsParam(c.req.query("excludeCategories"));
+  const parsed = queryFilter(c);
+  if ("error" in parsed) return c.json({ error: parsed.error }, 400);
 
-  const conditions = [eq(transactions.tenantId, session.tenantId)];
-  conditions.push(...categoryScopeConditions(scopeInclude, scopeExclude));
-
+  const conditions = await txnFilterConditions(session.tenantId, parsed.ok);
   if (category) {
     // Category ids only (tenant-scoped existence check keeps the 400 crisp).
     const taxonomy = await loadTaxonomy(session.tenantId);
     const target = UUID_RE.test(category) ? taxonomy.find((t) => t.id === category) : undefined;
     if (!target) return c.json({ error: "Unknown category" }, 400);
     conditions.push(eq(transactions.categoryId, target.id));
-  }
-  if (startDate) {
-    conditions.push(sql`${transactions.date} >= ${new Date(startDate).toISOString()}::timestamptz`);
-  }
-  if (endDate) {
-    conditions.push(sql`${transactions.date} <= ${new Date(endDate).toISOString()}::timestamptz`);
-  }
-  if (accountId) {
-    conditions.push(eq(transactions.accountId, accountId));
-  } else {
-    // Hide transactions from accounts the user excluded from spending views.
-    // Only when not drilling into a specific account on purpose.
-    const excludedIds = await excludedTxnAccountIds(session.tenantId);
-    if (excludedIds.length > 0) {
-      conditions.push(notInArray(transactions.accountId, excludedIds));
-    }
-  }
-  if (search) {
-    conditions.push(
-      sql`(${transactions.name} ILIKE ${"%" + search + "%"} OR ${transactions.merchantName} ILIKE ${"%" + search + "%"})`,
-    );
   }
 
   const whereClause = and(...conditions);
@@ -125,49 +80,27 @@ transactionRoutes.post("/query", async (c) => {
   if ("error" in parsed) return c.json({ error: parsed.error }, 400);
   const { filters, groupBy, sort, limit, cursor } = parsed.ok;
 
-  const conditions = [eq(transactions.tenantId, session.tenantId)];
-  if (filters.search) {
-    conditions.push(sql`(${transactions.name} ILIKE ${"%" + filters.search + "%"} OR ${transactions.merchantName} ILIKE ${"%" + filters.search + "%"})`);
-  }
-  // The same scope helper GET / applies to the same two parameter names, so a
-  // drill handed over from /spending is filtered identically whichever endpoint
-  // reads it.
-  conditions.push(...categoryScopeConditions(filters.categoryIds ?? [], filters.excludeCategoryIds ?? []));
-  if (filters.accountIds) {
-    conditions.push(inArray(transactions.accountId, filters.accountIds));
-  } else {
-    const excludedIds = await excludedTxnAccountIds(session.tenantId);
-    if (excludedIds.length > 0) conditions.push(notInArray(transactions.accountId, excludedIds));
-  }
-  if (filters.startDate) conditions.push(sql`${transactions.date} >= ${filters.startDate.toISOString()}::timestamptz`);
-  if (filters.endDate) conditions.push(sql`${transactions.date} <= ${filters.endDate.toISOString()}::timestamptz`);
-  if (filters.amountMin != null) conditions.push(sql`abs(${transactions.amount}) >= ${filters.amountMin}`);
-  if (filters.amountMax != null) conditions.push(sql`abs(${transactions.amount}) <= ${filters.amountMax}`);
-  if (filters.merchant) conditions.push(sql`coalesce(${transactions.merchantName}, ${transactions.name}) = ${filters.merchant}`);
-  if (filters.direction === "credit") conditions.push(sql`${transactions.amount} < 0`);
-  if (filters.direction === "debit") conditions.push(sql`${transactions.amount} > 0`);
+  // One predicate builder for every endpoint, so a drill handed over from
+  // /spending is filtered identically whichever endpoint reads it.
+  const conditions = await txnFilterConditions(session.tenantId, filters);
   const where = and(...conditions);
 
-  // Summary over the FULL filter match; transfers and per-transaction
-  // excluded rows stay out of the money sums (count still includes them —
-  // it mirrors what the list shows).
-  const [agg] = await db.select({
-    count: sql<number>`count(*)::int`,
-    spent: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} > 0 and coalesce(${categoryGroups.type}::text, 'expense') not in ('income', 'transfer') and ${transactions.excludedAt} is null), 0)`,
-    income: sql<string>`coalesce(sum(abs(${transactions.amount})) filter (where coalesce(${categoryGroups.type}::text, 'expense') = 'income' and ${transactions.excludedAt} is null), 0)`,
-    // Raw sign-based money flow (money out vs money in) for the browser's KPI
-    // strip — excluded rows stay out of the sums, mirroring spent/income.
-    debits: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.amount} > 0 and ${transactions.excludedAt} is null), 0)`,
-    credits: sql<string>`coalesce(sum(abs(${transactions.amount})) filter (where ${transactions.amount} < 0 and ${transactions.excludedAt} is null), 0)`,
-    // Date span of the match (all rows, incl. excluded — mirrors the list).
-    earliest: sql<string | null>`min(${transactions.date})`,
-    latest: sql<string | null>`max(${transactions.date})`,
-  }).from(transactions)
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
-    .where(where);
+  // Summary over the FULL filter match. The count and date span mirror what the
+  // list shows (excluded rows included). The money figures are the Spending
+  // page's own math (lib/cash-flow.ts): net per category, then classify, with
+  // transfers and excluded rows out. So Money out here is the same number as
+  // Spent on /spending-summary for the same filter, refunds included.
+  const notTransfer = sql`coalesce(${categoryGroups.type}::text, 'expense') != 'transfer'`;
+  const [[agg], flow] = await Promise.all([
+    db.select({
+      count: sql<number>`count(*)::int`,
+      earliest: sql<string | null>`min(${transactions.date})`,
+      latest: sql<string | null>`max(${transactions.date})`,
+    }).from(transactions).where(where),
+    cashFlowForFilter(session.tenantId, filters),
+  ]);
   // The single biggest money in and money out, under the money sums'
-  // exclusions, as whole rows so the page can open them.
+  // exclusions (transfers included), as whole rows so the page can open them.
   const rowSelect = {
     id: transactions.id,
     accountId: transactions.accountId,
@@ -184,7 +117,9 @@ transactionRoutes.post("/query", async (c) => {
   const largest = (side: SQL, order: SQL) =>
     db.select(rowSelect).from(transactions)
       .leftJoin(accounts, eq(transactions.accountId, accounts.id))
-      .where(and(where, side, sql`${transactions.excludedAt} is null`))
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+      .where(and(where, side, notTransfer, sql`${transactions.excludedAt} is null`))
       .orderBy(order, desc(transactions.id))
       .limit(1)
       .then((r) => r[0] ?? null);
@@ -196,10 +131,12 @@ transactionRoutes.post("/query", async (c) => {
       ]);
   const summary = {
     count: agg?.count ?? 0,
-    totalSpent: Math.round(parseFloat(agg?.spent ?? "0") * 100) / 100,
-    totalIncome: Math.round(parseFloat(agg?.income ?? "0") * 100) / 100,
-    totalDebits: Math.round(parseFloat(agg?.debits ?? "0") * 100) / 100,
-    totalCredits: Math.round(parseFloat(agg?.credits ?? "0") * 100) / 100,
+    totalSpent: flow.spending,
+    totalIncome: flow.income,
+    // Money out and money in: the same figures, under the names the
+    // Transactions KPI strips read.
+    totalDebits: flow.spending,
+    totalCredits: flow.income,
     largestCredit,
     largestDebit,
     earliest: agg?.earliest ?? null,
@@ -270,19 +207,30 @@ transactionRoutes.post("/query", async (c) => {
 });
 
 // PATCH /:id - Update a transaction's category, merchantName, notes, and/or excluded
-// GET /merchants - The tenant's merchant names, most used first. Feeds the
-// rename suggestions, so a user can merge a raw description into a name they
-// already use without retyping it exactly.
+// GET /merchants - The tenant's merchant names with their counts, most used
+// first. Feeds the rename suggestions and the filter sheet's merchant picker:
+// `q` narrows by name, and the universal filter params scope the counts
+// (a merchant filter itself is ignored here, or the picker could only ever
+// list what is already picked).
 transactionRoutes.get("/merchants", async (c) => {
   const session = c.get("session");
+  const parsed = queryFilter(c);
+  if ("error" in parsed) return c.json({ error: parsed.error }, 400);
+  const { merchants: _picked, ...scope } = parsed.ok;
+  const conditions = await txnFilterConditions(session.tenantId, scope);
+  const q = c.req.query("q")?.trim();
   const merchant = sql<string>`coalesce(${transactions.merchantName}, ${transactions.name})`;
-  const rows = await db.select({ name: merchant })
+  if (q) conditions.push(sql`${merchant} ILIKE ${"%" + q + "%"}`);
+  const rows = await db.select({ name: merchant, count: sql<number>`count(*)::int` })
     .from(transactions)
-    .where(eq(transactions.tenantId, session.tenantId))
+    .where(and(...conditions))
     .groupBy(merchant)
     .orderBy(sql`count(*) desc`, merchant)
     .limit(1000);
-  return c.json({ merchants: rows.map((r) => r.name) });
+  return c.json({
+    merchants: rows.map((r) => r.name),
+    counts: rows.map((r) => ({ name: r.name, count: r.count })),
+  });
 });
 
 // The editable fields of a PATCH body, validated. Shared by the single-row and
@@ -418,10 +366,24 @@ transactionRoutes.get("/spending-summary", async (c) => {
     ? new Date(c.req.query("endDate")!)
     : new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59); // Previous month end
 
-  const flow = await computeCashFlow(session.tenantId, startDate, endDate);
+  const parsed = queryFilter(c);
+  if ("error" in parsed) return c.json({ error: parsed.error }, 400);
+  // The window comes from startDate/endDate above; the rest of the filter
+  // scopes the rows the same way /transactions/query does.
+  const { startDate: _s, endDate: _e, ...scope } = parsed.ok;
+  // A one-month window also carries each spending category's usual month (the
+  // median of the three before it, same filter), for the page's pace marker.
+  const oneMonth =
+    startDate.getUTCDate() === 1 &&
+    endDate.getUTCFullYear() === startDate.getUTCFullYear() &&
+    endDate.getUTCMonth() === startDate.getUTCMonth();
+  const [flow, usual] = await Promise.all([
+    computeCashFlow(session.tenantId, startDate, endDate, scope),
+    oneMonth ? categoryUsual(session.tenantId, startDate, scope) : Promise.resolve(new Map<string, number>()),
+  ]);
 
   return c.json({
-    categories: flow.categories,
+    categories: flow.categories.map((cat) => ({ ...cat, usual: (cat.id && usual.get(cat.id)) ?? null })),
     totalSpending: flow.spending,
     totalIncome: flow.income,
     netCashFlow: flow.net,
@@ -444,22 +406,18 @@ transactionRoutes.get("/monthly-trend", async (c) => {
     : (granularity === "month" ? 13 : null);
   const bucket = granularity === "month" ? "YYYY-MM" : "YYYY";
 
-  const conditions = [
-    eq(transactions.tenantId, session.tenantId),
-    sql`${transactions.excludedAt} is null`,
-    // Same scope the spending page applies to /spending-summary's rows, so the
-    // bars and the delta pill describe the same money the hero does.
-    ...categoryScopeConditions(
-      categoryIdsParam(c.req.query("categories")),
-      categoryIdsParam(c.req.query("excludeCategories")),
-    ),
-  ];
+  const parsedFilter = queryFilter(c);
+  if ("error" in parsedFilter) return c.json({ error: parsedFilter.error }, 400);
+  // The same scope the spending page applies to /spending-summary's rows, so
+  // the bars and the delta pill describe the same money the hero does. The
+  // window is the trend's own (limit), not the filter's dates.
+  const { startDate: _s, endDate: _e, ...scope } = parsedFilter.ok;
+  const conditions = await txnFilterConditions(session.tenantId, scope);
+  conditions.push(sql`${transactions.excludedAt} is null`);
   if (granularity === "month" && limit != null) {
     const from = new Date(now.getFullYear(), now.getMonth() - (limit - 1), 1);
     conditions.push(sql`${transactions.date} >= ${from.toISOString()}::timestamptz`);
   }
-  const excludedIds = await excludedTxnAccountIds(session.tenantId);
-  if (excludedIds.length > 0) conditions.push(notInArray(transactions.accountId, excludedIds));
 
   // Net per period PER CATEGORY before classifying, exactly as
   // /spending-summary does for its own window. Summing raw transaction rows

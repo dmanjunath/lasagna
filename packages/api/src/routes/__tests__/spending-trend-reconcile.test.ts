@@ -101,7 +101,7 @@ beforeAll(async () => {
       })
       .returning({ id: accounts.id });
 
-    const group = async (name: string, type: "income" | "expense") =>
+    const group = async (name: string, type: "income" | "expense" | "transfer") =>
       (
         await db
           .insert(categoryGroups)
@@ -126,6 +126,10 @@ beforeAll(async () => {
     diningId = dining;
     const electronics = await category(expenseGroup, REFUNDED_CATEGORY);
     const salary = await category(incomeGroup, "Salary (reconcile.test)");
+    const transfer = await category(
+      await group("Test Transfers (reconcile.test)", "transfer"),
+      "To savings (reconcile.test)",
+    );
 
     const txn = (categoryId: string, name: string, amount: string) => ({
       tenantId: tid,
@@ -142,6 +146,10 @@ beforeAll(async () => {
       txn(electronics, "Headphones", "80.00"),
       txn(electronics, "Headphones returned", "-200.45"),
       txn(salary, "Paycheck", "-4000.00"),
+      // Money moved between their own accounts, both legs. Larger than any
+      // other row, so a "Largest" that let transfers in would pick it.
+      txn(transfer, "Transfer to savings", "5000.00"),
+      txn(transfer, "Transfer from checking", "-5000.00"),
     ]);
 
     dbAvailable = true;
@@ -281,9 +289,10 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
 
     // The invariant: |net| is the figure the row stated.
     expect(summary.totalCredits - summary.totalDebits).toBe(-dining.total);
-    // And the documented gross: Money out is the 300.00 charge, not the net.
-    expect(summary.totalDebits).toBe(300);
-    expect(summary.totalCredits).toBe(50);
+    // Money out is the net, the same 250.00 the Spending row stated: the 50.00
+    // refund cancelled against Dining, so it is not money in either.
+    expect(summary.totalDebits).toBe(250);
+    expect(summary.totalCredits).toBe(0);
   });
 
   /**
@@ -311,8 +320,8 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
     // The two Dining rows left the match, and only those.
     expect(excluded.summary.count).toBe(all.summary.count - 2);
     expect(excluded.transactions.some((t: any) => t.categoryId === diningId)).toBe(false);
-    expect(excluded.summary.totalDebits).toBe(all.summary.totalDebits - 300);
-    expect(excluded.summary.totalCredits).toBe(all.summary.totalCredits - 50);
+    expect(excluded.summary.totalDebits).toBe(all.summary.totalDebits - 250);
+    expect(excluded.summary.totalCredits).toBe(all.summary.totalCredits);
   });
 
   it("excludes a category refunded past zero from both the total and the breakdown", async () => {
@@ -327,5 +336,30 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
       .filter((cat: any) => cat.groupType !== "income" && cat.groupType !== "transfer")
       .reduce((sum: number, cat: any) => sum + cat.total, 0);
     expect(Math.round(breakdown * 100) / 100).toBe(summary.totalSpending);
+  });
+
+  /**
+   * Owner decision (audit W-3): Money out, Money in and Largest leave transfers
+   * out by the same group-type rule as Spent, so a month's Money out on
+   * /transactions is the Spent figure /spending states for it (no refunds).
+   */
+  it("leaves transfers out of money in, money out and largest", async () => {
+    if (!dbAvailable) {
+      console.warn("SKIP: no DB at DATABASE_URL");
+      return;
+    }
+    const app = makeApp(tenantId!);
+    const res = await app.request("/query", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ filters: { startDate: START, endDate: END } }),
+    });
+    const { summary } = await res.json();
+    // Netted per category, as Spent is: 500 + 250 (Electronics, refunded past
+    // zero, counts as neither). Money in is the salary only.
+    expect(summary.totalDebits).toBe(EXPECTED_SPENDING);
+    expect(summary.totalCredits).toBe(EXPECTED_INCOME);
+    expect(summary.largestDebit.name).toBe("Grocery run");
+    expect(summary.largestCredit.name).toBe("Paycheck");
   });
 });

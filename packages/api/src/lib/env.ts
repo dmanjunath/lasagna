@@ -71,6 +71,14 @@ export const env = {
   get PLAID_WEBHOOK_URL() {
     return optional("PLAID_WEBHOOK_URL", "");
   },
+  // HTTPS universal link the iOS app receives OAuth bank sign-ins on, e.g.
+  // https://app.example.com/plaid-oauth. Must be registered as an allowed
+  // redirect URI in the Plaid dashboard and covered by the apple-app-site-association
+  // file. Sent only on link tokens the native app requests (the web flow handles
+  // OAuth in Link's own popup). Empty = OAuth banks can't finish in the iOS app.
+  get PLAID_REDIRECT_URI() {
+    return optional("PLAID_REDIRECT_URI", "");
+  },
   get PORT() {
     return parseInt(optional("PORT", "3000"), 10);
   },

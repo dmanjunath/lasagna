@@ -42,6 +42,7 @@ const { HOLDINGS, SYNC_LOG, ACCOUNTS, SECURITIES, BALANCE_SNAPSHOTS, PLAID_ITEMS
       accountListed: true,
       balanceRows: [] as Array<{ accountId: string; balance: string | null }>,
       accountUpdates: [] as Array<Record<string, unknown>>,
+      itemUpdates: [] as Array<Record<string, unknown>>,
     },
   }));
 
@@ -157,6 +158,7 @@ vi.mock("../db.js", () => ({
       set: (values: Record<string, unknown>) => ({
         where: async () => {
           if (table === ACCOUNTS) state.accountUpdates.push(values);
+          if (table === PLAID_ITEMS) state.itemUpdates.push(values);
         },
       }),
     }),
@@ -243,6 +245,7 @@ describe("syncItem holdings write", () => {
     state.accountListed = true;
     state.balanceRows = [];
     state.accountUpdates = [];
+    state.itemUpdates = [];
   });
 
   it("keeps one row per position when the same account syncs twice", async () => {
@@ -318,5 +321,10 @@ describe("syncItem holdings write", () => {
     await syncItem("item-1");
 
     expect(state.accountUpdates).toEqual([{ holdingsSyncedAt: expect.any(Date) }]);
+  });
+
+  it("marks a flagged connection healthy again once a sync reaches the bank", async () => {
+    await syncItem("item-1");
+    expect(state.itemUpdates.at(-1)).toMatchObject({ status: "active" });
   });
 });

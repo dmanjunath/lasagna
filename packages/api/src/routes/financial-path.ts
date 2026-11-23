@@ -476,6 +476,20 @@ async function journeyEngine(): Promise<'v1' | 'v2'> {
 }
 
 /**
+ * The sized steps of the path or journey this person already has, for a reader
+ * that must never pay for a model call (the Debt page). Nothing stored, no steps.
+ */
+export async function readStoredSteps(tenantId: string, userId: string): Promise<SizedStep[]> {
+  if ((await journeyEngine()) === 'v2') {
+    return (await readJourney(tenantId, userId, { generate: false })).steps;
+  }
+  const stored = await readActivePath(tenantId);
+  if (!stored) return [];
+  const { ctx, candidates } = await pathInputs(tenantId, userId);
+  return storedPath(candidates, ctx, stored).steps;
+}
+
+/**
  * A v2 journey in the wire shape v1 already speaks.
  *
  * Identical on purpose. The page, the chat agent and the report all read this

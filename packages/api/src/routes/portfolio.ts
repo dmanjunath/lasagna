@@ -153,10 +153,12 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
     const stockValue = balance * 0.6;
     const bondValue = balance * 0.4;
 
+    // No share count: nothing is known about what this account holds, and
+    // dollars passed off as shares read as a $1 share price.
     holdingsInput.push({
       ticker: 'VTI',
       value: stockValue,
-      shares: stockValue,
+      shares: 0,
       name: `${acct.name} (assumed 60% US Stocks)`,
       account: acct.name,
       costBasis: stockValue,
@@ -165,7 +167,7 @@ export async function getHoldingsInput(tenantId: string): Promise<HoldingInput[]
     holdingsInput.push({
       ticker: 'BND',
       value: bondValue,
-      shares: bondValue,
+      shares: 0,
       name: `${acct.name} (assumed 40% Bonds)`,
       account: acct.name,
       costBasis: bondValue,
