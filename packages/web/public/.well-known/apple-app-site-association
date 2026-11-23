@@ -4,8 +4,16 @@
     "details": [
       {
         "appIDs": ["ZEMCJ3HX4F.com.lasagnafi.app"],
-        "components": [{ "/": "/billing/success*" }]
+        "components": [
+          { "/": "/billing/success*" },
+          { "/": "/reset-password*" },
+          { "/": "/accept-invite*" },
+          { "/": "/plaid-oauth*" }
+        ]
       }
     ]
+  },
+  "webcredentials": {
+    "apps": ["ZEMCJ3HX4F.com.lasagnafi.app"]
   }
 }

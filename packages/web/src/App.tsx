@@ -27,11 +27,6 @@ const TaxStrategy = lazy(() => import('./pages/tax-strategy').then(m => ({ defau
 const RetirementV2 = lazy(() => import('./pages/retirement-v2').then(m => ({ default: m.RetirementV2 })));
 const SavingsGoal = lazy(() => import('./pages/savings-goal').then(m => ({ default: m.SavingsGoal })));
 const PortfolioComposition = lazy(() => import('./pages/portfolio-composition'));
-const ProbabilityOfSuccess = lazy(() => import('./pages/probability-of-success').then(m => ({ default: m.ProbabilityOfSuccess })));
-const PlansPage = lazy(() => import('./pages/plans/index').then(m => ({ default: m.PlansPage })));
-const NewPlanPage = lazy(() => import('./pages/plans/new').then(m => ({ default: m.NewPlanPage })));
-const PlanDetailPage = lazy(() => import('./pages/plans/[id]').then(m => ({ default: m.PlanDetailPage })));
-const FinancialPlansPage = lazy(() => import('./pages/financial-plans/index').then(m => ({ default: m.FinancialPlansPage })));
 const FinancialPlanDetailPage = lazy(() => import('./pages/financial-plans/[id]').then(m => ({ default: m.FinancialPlanDetailPage })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const Debt = lazy(() => import('./pages/debt').then(m => ({ default: m.Debt })));
@@ -212,18 +207,21 @@ function AppRoutes() {
                     <Route path="/debt" component={Debt} />
                     <Route path="/portfolio" component={PortfolioComposition} />
                     <Route path="/tax" component={TaxStrategy} />
-                    <Route path="/plans" component={PlansPage} />
-                    <Route path="/plans/new" component={NewPlanPage} />
+                    {/* The legacy plan pages ran their own projection and
+                        contradicted /retirement. Retirement is the one place
+                        to plan, and its "Retirement plans" tab the one list. */}
+                    <Route path="/plans"><Redirect to="/retirement" /></Route>
+                    <Route path="/plans/new"><Redirect to="/retirement" /></Route>
                     <Route path="/plans/retirement"><Redirect to="/retirement" /></Route>
-                    <Route path="/plans/:id" component={PlanDetailPage} />
                     <Route path="/plans/savings/:id" component={SavingsGoal} />
-                    <Route path="/financial-plans" component={FinancialPlansPage} />
+                    <Route path="/plans/:id"><Redirect to="/retirement" /></Route>
+                    <Route path="/financial-plans"><Redirect to="/retirement?tab=plans" /></Route>
                     <Route path="/financial-plans/:id" component={FinancialPlanDetailPage} />
                     <Route path="/financial-level" component={FinancialLevel} />
                     <Route path="/insights" component={Insights} />
                     <Route path="/retirement" component={RetirementV2} />
                     <Route path="/retirement-v2"><Redirect to="/retirement" /></Route>
-                    <Route path="/probability" component={ProbabilityOfSuccess} />
+                    <Route path="/probability"><Redirect to="/retirement" /></Route>
                     <Route path="/profile" component={Settings} />
                     {/* One component, keyed per route: entering or leaving the
                         edit page mounts a fresh copy, so Cancel discards edits. */}

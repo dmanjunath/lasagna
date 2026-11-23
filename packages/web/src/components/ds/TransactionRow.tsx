@@ -120,4 +120,4 @@ export function TransactionRow({
 }
 
 /** Re-export so callers can use the bank icon as a generic fallback. */
-export const TransactionFallbackIcon = Banknote;
+export const TransactionFallbackIcon: typeof Banknote = Banknote;

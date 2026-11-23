@@ -438,6 +438,8 @@ export const api = {
         lastUpdated: string | null;
       }>;
       monthlyInterest: number;
+      /** The journey's extra above the minimum on its current debt. Null: none. */
+      suggestedExtra?: number | null;
     } & DebtFacts>("/accounts/debts"),
 
   patchLoanDetails: (accountId: string, body: Record<string, unknown>) =>
@@ -1456,11 +1458,11 @@ export interface TxnQuerySummary {
   count: number;
   totalSpent: number;
   totalIncome: number;
-  /** Raw money out (sum of positive amounts) over the full filtered match. */
+  /** Money out (sum of positive amounts, transfers left out) over the full filtered match. */
   totalDebits: number;
-  /** Raw money in (sum of |negative amounts|) over the full filtered match. */
+  /** Money in (sum of |negative amounts|, transfers left out) over the full filtered match. */
   totalCredits: number;
-  /** Biggest single money in / money out over the match (excluded rows left out); null when there is none. First page only. */
+  /** Biggest single money in / money out over the match (excluded rows and transfers left out); null when there is none. First page only. */
   largestCredit?: TxnQueryRow | null;
   largestDebit?: TxnQueryRow | null;
   /** Date span of the match; null when nothing matches. ISO timestamp strings. */

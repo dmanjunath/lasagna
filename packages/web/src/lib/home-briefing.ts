@@ -138,7 +138,7 @@ export type QuickLink =
 export function quickLinks(f: QuickLinkFacts): QuickLink[] {
   const goals = f.goalCategories;
   const lacksGoal = (c: string) => goals !== null && !goals.includes(c);
-  // /spending opens on the last full month, so "this month" has to say which.
+  // Named explicitly so the link keeps saying which month it means.
   const thisMonth = `${f.now.getFullYear()}-${String(f.now.getMonth() + 1).padStart(2, '0')}`;
   const links: (QuickLink | false)[] = [
     goals !== null && goals.length === 0 && { id: 'goal', label: 'Create a new goal', kind: 'page', href: '/goals/new' },

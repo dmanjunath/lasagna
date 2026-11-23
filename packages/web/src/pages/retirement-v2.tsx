@@ -23,6 +23,8 @@ import {
 } from '../lib/retirement-engine';
 import { sustainableDrawRate } from '../lib/retirement-kpi';
 import { TARGET_SUCCESS, verdictFor, verdictLabel, verdictTone } from '@lasagna/core/retirement-verdict';
+import { allocationSplitLabel } from '../lib/allocation-split';
+import { assistantName } from '../lib/assistant-name';
 
 // ── Model constants ──────────────────────────────────────────────────────────
 const INFLATION = 0.03;           // matches the engine's hardcoded MC inflation
@@ -1229,7 +1231,10 @@ export function RetirementV2() {
   const [loading, setLoading] = useState(true);
   const [hasAccounts, setHasAccounts] = useState(false);
   // Page tabs: the retirement overview vs the Retirement Plans list.
-  const [pageTab, setPageTab] = useState<'overview' | 'reports'>('overview');
+  // `?tab=plans` opens the list: the old /financial-plans URL redirects here.
+  const [pageTab, setPageTab] = useState<'overview' | 'reports'>(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'plans' ? 'reports' : 'overview',
+  );
   // The overview recommends generating a plan. Its button switches to the plans
   // tab AND opens the create modal there, so the recommendation is one click
   // from the thing it recommends.
@@ -1964,7 +1969,7 @@ export function RetirementV2() {
       onClick={() => openChat(askLasagnaPrompt, 'My retirement plan')}
       leadingIcon={<Sparkles className="h-[15px] w-[15px]" aria-hidden />}
     >
-      Ask Lasagna
+      Ask {assistantName()}
     </Button>
   );
 
@@ -2201,7 +2206,7 @@ export function RetirementV2() {
         <div className="min-w-0">
           <PageTitle className="text-[26px] leading-[1.04]">Retirement</PageTitle>
           <PageMeta className="mt-0 md:mt-1.5">
-            <PageMetaItem className="ui-tnum">{formatMoney(portfolioValue, true)} in liquid savings</PageMetaItem>
+            <PageMetaItem className="ui-tnum">{formatMoney(portfolioValue, true)} in savings and investments</PageMetaItem>
           </PageMeta>
         </div>
         <SegmentedControl
@@ -2508,7 +2513,7 @@ export function RetirementV2() {
                 <span className="flex flex-wrap gap-1.5" data-testid="rv2-inputs-chips">
                   <Chip>{expReturn.toFixed(1)}% return</Chip>
                   <Chip>retire at {retireAge}</Chip>
-                  <Chip>{equityPct}% stocks, {100 - equityPct}% bonds</Chip>
+                  <Chip>{allocationSplitLabel(effAlloc) ?? `${equityPct}% stocks, ${100 - equityPct}% bonds`}</Chip>
                   <Chip>
                     {strategy === 'percent_portfolio'
                       ? `${pctRate}%/yr withdrawal`

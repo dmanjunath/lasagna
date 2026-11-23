@@ -21,6 +21,7 @@ import { formatCurrency, goalAccent, iconFor } from './goal-shared';
 import { OnboardingResumeCard } from '../components/layout/onboarding-progress';
 import { PlanUsage } from '../components/layout/plan-usage';
 import { CONNECT_CHOICES_WIDTH, useAccountConnections } from '../components/accounts/useAccountConnections';
+import { assistantName } from '../lib/assistant-name';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1465,7 +1466,7 @@ function AskComposer({
   return (
     <section
       className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5"
-      aria-label="Ask Lasagna"
+      aria-label={`Ask ${assistantName()}`}
     >
       <div
         className="pointer-events-none absolute inset-0"
@@ -1477,7 +1478,7 @@ function AskComposer({
       />
       <div className="relative mb-3 flex items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5 shrink-0 text-[rgb(var(--ui-accent-ink))]" aria-hidden />
-        <span className="text-[15px] font-semibold text-content">Ask Lasagna</span>
+        <span className="text-[15px] font-semibold text-content">Ask {assistantName()}</span>
       </div>
       <form onSubmit={onSubmit} className="relative">
         <label className="flex items-center gap-2 h-[52px] pl-4 pr-1.5 rounded-[14px] bg-canvas-sunken border-[1.5px] border-transparent focus-within:bg-panel focus-within:border-brand focus-within:ring-4 focus-within:ring-brand-soft transition-[background,border-color,box-shadow]">
@@ -1488,12 +1489,12 @@ function AskComposer({
             placeholder="Ask about your money…"
             className="flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] font-semibold text-content placeholder:font-medium placeholder:text-content-muted"
             autoComplete="off"
-            aria-label="Ask Lasagna a question"
+            aria-label={`Ask ${assistantName()} a question`}
           />
           <button
             type="submit"
             className="shrink-0 grid place-items-center w-10 h-10 rounded-full bg-brand-soft text-[rgb(var(--ui-brand-ink))] hover:-translate-y-px hover:shadow-ui-sm transition-[transform,box-shadow]"
-            aria-label="Ask Lasagna"
+            aria-label={`Ask ${assistantName()}`}
           >
             <ArrowRight className="h-[18px] w-[18px]" />
           </button>
@@ -1603,9 +1604,8 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
 
 const SPEND_VIZ = ['var(--ui-viz-1)', 'var(--ui-viz-2)', 'var(--ui-viz-3)'];
 
-// The month the "this month" cards below count over. /spending defaults to LAST
-// month, so a link without it lands the reader on a different month's page than
-// the figure they just clicked.
+// The month the "this month" cards below count over, named in their links so
+// the page they open shows the figure they just clicked.
 function thisMonthPeriod(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;

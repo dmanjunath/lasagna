@@ -24,6 +24,7 @@ import { cn, formatInstant, localDayKey } from '../../lib/utils';
 import { MaskedText } from '../uikit/MaskedText';
 import { Button, button } from '../uikit/Button';
 import { TxnRow } from '../transactions/TransactionList';
+import { assistantName } from '../../lib/assistant-name';
 
 interface ActionItemProps {
   title: string;
@@ -535,7 +536,7 @@ function AccordionActionItem(props: ActionItemProps) {
                   leadingIcon={<Sparkles className="h-[14px] w-[14px]" />}
                   trailingIcon={<ArrowRight className="h-[14px] w-[14px]" />}
                 >
-                  Ask Lasagna about this
+                  Ask {assistantName()} about this
                 </Button>
 
                 {onContextClick && (

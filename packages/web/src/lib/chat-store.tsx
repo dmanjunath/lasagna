@@ -126,6 +126,15 @@ export function ChatStoreProvider({ children }: { children: ReactNode }) {
   const [chatReturnPath, setChatReturnPath] = useState<string | null>(null);
 
   const openChat = useCallback((initialMessage?: string, title?: string) => {
+    // Inside the iOS app this page is a web screen and chat is a native tab.
+    // The in-page store can't reach it, so hand the request over as a
+    // /chat?prompt= link, which the app opens in its Chat tab and sends once.
+    if (initialMessage && document.documentElement.dataset.shell === 'native') {
+      const params = new URLSearchParams({ prompt: initialMessage, at: String(Date.now()) });
+      if (title) params.set('title', title);
+      window.history.pushState(null, '', `/chat?${params.toString()}`);
+      return;
+    }
     if (initialMessage) {
       setPendingMessage({ text: initialMessage, nonce: Date.now(), title });
     }

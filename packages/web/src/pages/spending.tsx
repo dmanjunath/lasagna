@@ -380,8 +380,10 @@ export function Spending() {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const p = arrived.period;
     if (p && p.length === 7) return new Date(+p.slice(0, 4), +p.slice(5, 7) - 1, 1);
+    // The current month, the same month Home's "this month" cards count, so
+    // every way into this page lands on the same figure.
     const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [granularity, setGranularity] = useState<'month' | 'year'>(
     arrived.period?.length === 4 ? 'year' : 'month',
@@ -642,12 +644,16 @@ export function Spending() {
   // The insights strip describes recent activity (the default landing period).
   // Hide it when browsing history so its month-specific copy never contradicts
   // the period in view.
-  const defaultMonthPeriod = useMemo(() => {
+  // Recent = this month (where the page opens) or the last full month (the
+  // month the advice is written about).
+  const recentMonthPeriods = useMemo(() => {
     const d = new Date();
-    const m = new Date(d.getFullYear(), d.getMonth() - 1, 1);
-    return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+    return [0, 1].map((back) => {
+      const m = new Date(d.getFullYear(), d.getMonth() - back, 1);
+      return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+    });
   }, []);
-  const onDefaultPeriod = granularity === 'month' && selectedPeriod === defaultMonthPeriod;
+  const onDefaultPeriod = granularity === 'month' && recentMonthPeriods.includes(selectedPeriod);
 
   const prevMonth = useCallback(() => {
     setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
@@ -791,8 +797,7 @@ export function Spending() {
         ? monthLabel(`${hoveredPeriod.period}-01`)
         : hoveredPeriod.period)
     : stale ? loadedPeriod.label : null;
-  // The page opens on last month, the newest one with every transaction in, and
-  // says so: the picker names the month but not why it is not this one.
+  // Last month is the newest one with every transaction in, and says so.
   const lastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
   const onLastCompleteMonth = granularity === 'month'
     && selectedPeriod === `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CreditCard, Landmark, Pencil, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn, formatMoney, formatInstant, formatStoredMonth } from '../lib/utils';
+import { cn, formatInstant, formatStoredMonth } from '../lib/utils';
 import { accountTypeLabel } from '../lib/account-types';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
@@ -133,6 +133,9 @@ export function Debt() {
   const [editingDebt, setEditingDebt] = useState<DebtAccount | null>(null);
   // Null until the user types: the field then shows the suggested extra.
   const [extraText, setExtraText] = useState<string | null>(null);
+  // What the journey puts on its current debt above the minimum. Null when the
+  // journey has no debt step, and the old fixed suggestion stands in.
+  const [journeyExtra, setJourneyExtra] = useState<number | null>(null);
   const [strategy, setStrategy] = useState<PayoffStrategy>('avalanche');
 
   const handleLoanDetailsSaved = () => {
@@ -149,6 +152,7 @@ export function Debt() {
       api.getBalances().catch(() => ({ balances: [] })),
     ]).then(([debtResult, balanceData]) => {
       setHasAccounts(balanceData.balances.length > 0);
+      setJourneyExtra('suggestedExtra' in debtResult ? debtResult.suggestedExtra ?? null : null);
       const apiDebts = debtResult.debts;
       const mapped: DebtAccount[] = apiDebts.map((d) => {
         // Subtype first: a mortgage named for its lender ("Wells Fargo") was
@@ -220,10 +224,11 @@ export function Debt() {
 
   const hasDebt = debtOnPlan > 0;
 
-  // The extra field starts at what the old fixed plan suggested, so a card
-  // holder lands on the same plan as before and a loans-only household on the
-  // minimums, stated as such.
-  const suggestedExtra = Math.round(debts.reduce((s, d) => s + d.suggestedExtra, 0));
+  // The extra field starts at what the journey puts on this debt, so this plan
+  // and the journey's step (and the actions built on it) are one plan. With no
+  // journey debt step it starts at the old fixed suggestion, and a loans-only
+  // household on the minimums, stated as such.
+  const suggestedExtra = journeyExtra ?? Math.round(debts.reduce((s, d) => s + d.suggestedExtra, 0));
   const extraValue = extraText ?? (suggestedExtra > 0 ? String(suggestedExtra) : '');
   const extra = parseExtra(extraValue);
   const payoffDebts = debts.map((d) => ({ id: d.id, balance: d.balance, apr: d.apr, minPayment: d.minPayment }));
@@ -574,7 +579,7 @@ function AttackList({ debts, extra, ranked }: { debts: DebtAccount[]; extra: num
         // only the increment ($20) next to siblings showing totals ($4,075),
         // which made the column add up to $6,527 — neither KPI — and left the
         // figure the user actually pays on that card ($45) nowhere on the page.
-        const role = focus && extra > 0
+        const role = i === 0 && extra > 0
           ? `${formatCurrency(d.minPayment + extra)}/mo, ${formatCurrency(extra)} above the minimum`
           : `${formatCurrency(d.minPayment)}/mo minimum`;
         // Said on the line that wraps, not in the badge, so a phone keeps the
@@ -755,7 +760,13 @@ function HasDebtView({
   // An assumed rate is not evidence the debt is punishing, so it is not counted.
   const highRateCount = debts.filter((d) => d.apr > 20 && !d.aprAssumed).length;
   const assumed = debts.filter((d) => d.aprAssumed);
-  const totalMinPayment = debts.reduce((s, d) => s + d.minPayment, 0);
+  // Totals are sums of the whole-dollar figures the rows show, so the column
+  // below adds up to the KPIs above it ($89 + $96 is $185, not $184).
+  const totalMinPayment = debts.reduce((s, d) => s + Math.round(d.minPayment), 0);
+  const monthlyPayment = orderedDebts.reduce(
+    (s, d, i) => s + Math.round(d.minPayment + (i === 0 ? extra : 0)),
+    0,
+  );
   const maxBalance = debts.reduce((m, d) => Math.max(m, Math.abs(d.balance)), 0);
 
   const debtFreeDate = addMonths(plan.months);
@@ -858,7 +869,7 @@ function HasDebtView({
       <div className={cn('mt-7 grid grid-cols-2 gap-x-6 gap-y-6', extra > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
         <Kpi label="Blended APR" value={`${apr}%`} sub={assumed.length > 0 ? 'includes an assumed rate' : 'weighted average'} />
         {extra > 0 && (
-          <Kpi label="Monthly payment" value={formatCurrency(totalMinPayment + extra)} sub="minimums plus extra" />
+          <Kpi label="Monthly payment" value={formatCurrency(monthlyPayment)} sub="minimums plus extra" />
         )}
         <Kpi label="Minimum due" value={formatCurrency(totalMinPayment)} sub="required each month" />
         {highest && (
@@ -874,7 +885,7 @@ function HasDebtView({
       {/* ── YOUR PAYOFF PLAN — the lever (extra each month), what it does, then
           the order. Two orders are offered as a choice only when they cost
           different amounts or finish in different months. */}
-      <section className="cq-inline mt-11">
+      <section id="debt-payoff-plan" className="cq-inline mt-11 scroll-mt-[calc(env(safe-area-inset-top)+4rem)] md:scroll-mt-4">
         <div className="flex items-center gap-2.5 pb-4">
           <h2 className="font-editorial text-[19px] sm:text-[20px] font-bold tracking-[-0.02em] text-content">Your payoff plan</h2>
         </div>
@@ -987,7 +998,9 @@ function HasDebtView({
                   : undefined
               }
               onEdit={() => onEditDebt(d)}
-              onPlan={() => openChat(`Help me create a payoff plan for my ${d.name} (${d.aprAssumed ? 'rate not on file' : `${d.apr}% APR`}, ${formatMoney(d.balance, true)} balance).`, `${d.name} payoff plan`)}
+              // The plan is already computed on this page. Opening it costs
+              // nothing, where sending a chat prompt unasked was a paid call.
+              onPlan={() => document.getElementById('debt-payoff-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
             />
           ))}
         </div>

@@ -434,7 +434,7 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
                     {cleanAccountLabel(a.account)}
                   </span>
                   <span className="shrink-0 whitespace-nowrap text-right ui-tnum">
-                    {!isAmountsHidden() && <span className="text-[12px] text-content-muted">{formatShares(a.shares)} sh</span>}
+                    {!isAmountsHidden() && a.shares > 0 && <span className="text-[12px] text-content-muted">{formatShares(a.shares)} sh</span>}
                     <span className="ml-3 text-[13px] font-bold text-content">{formatMoney(a.value, true)}</span>
                     <span className="ml-2 text-[12px] font-semibold text-content-muted">{fmtPct(a.percentage)}</span>
                   </span>
@@ -450,8 +450,9 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
   );
 }
 
-// Compact share-count formatter for the per-account breakdown. Synthetic cash /
-// assumed-split rows carry dollar amounts as "shares", so keep it terse.
+// Compact share-count formatter for the per-account breakdown. Synthetic cash
+// rows carry dollar amounts as "shares", so keep it terse. An assumed split
+// carries none and shows no count.
 function formatShares(n: number): string {
   if (!Number.isFinite(n)) return '0';
   const abs = Math.abs(n);
