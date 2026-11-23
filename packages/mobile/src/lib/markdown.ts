@@ -38,7 +38,8 @@ function cells(row: string): string[] {
   let s = row.trim();
   if (s.startsWith("|")) s = s.slice(1);
   if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
-  // An escaped pipe ("\\|") is part of the cell.
+  // An escaped pipe ("\\|") is part of the cell. NUL stands in for it while splitting.
+  // eslint-disable-next-line no-control-regex
   return s.replace(/\\\|/g, "\u0000").split("|").map((c) => c.trim().replace(/\u0000/g, "|"));
 }
 

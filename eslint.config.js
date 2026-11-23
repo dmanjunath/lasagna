@@ -113,6 +113,35 @@ export default [
       "react-hooks/purity": "off",
     },
   },
+  // The React Native app. Metro bundles images and fonts through require(), so
+  // that is the idiom there, and its config files run under Node. Hooks rules
+  // match the web app's.
+  {
+    files: ["packages/mobile/**/*.ts", "packages/mobile/**/*.tsx", "packages/mobile/**/*.js"],
+    plugins: {
+      "react-hooks": reactHooksPlugin,
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
+      globals: {
+        require: "readonly",
+        module: "writable",
+        process: "readonly",
+        __dirname: "readonly",
+        console: "readonly",
+        URL: "readonly",
+        Buffer: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "no-redeclare": "off",
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "off",
+    },
+  },
   // A stored date read in the host's zone prints the day before, west of UTC —
   // so every date formatter in the web app goes through one of the two named
   // helpers, which say out loud whether the value is a calendar day or a
