@@ -1,0 +1,35 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@web/*": [
+        "../web/src/*"
+      ],
+      "@lasagna/design": [
+        "../design/src/index.ts"
+      ],
+      "@lasagna/design/build/toCss": [
+        "../design/src/build/toCss.ts"
+      ],
+      "@lasagna/core/goal-target": [
+        "../core/src/goal-target.ts"
+      ],
+      "@lasagna/core/debt-payoff": [
+        "../core/src/debt-payoff.ts"
+      ]
+    },
+    "types": [
+      "jest"
+    ]
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
+}

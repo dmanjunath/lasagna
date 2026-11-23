@@ -1,0 +1,8 @@
+{
+  "threadTitle": "Monthly Spending Check",
+  "response": {
+    "chat": "You spent **$3,210** in October, about **$240 less** than September [00000000-0000-4000-8000-000000000001].\n\nYour card balance is **$1,150** [get_debts]. You are 34 [profile, get_financial_path].\n\n## Where it went\n\n| Category | Spent |\n|:--|--:|\n| Groceries | $640 |\n| Dining | $410 |\n| Transport | $260 |\n\n- **Groceries** led the month.\n  - Two large trips on Oct 4 and Oct 18.\n- Dining fell by $90.\n\n## Next Steps\n\n1. Review [your October spending](/spending?period=2026-10).\n2. Check [dining transactions](/transactions?categories=dining&period=2026-10).\n3. Read the [savings rate guide](https://example.test/savings-rate)."
+  },
+  "toolResults": [{ "toolName": "get_spending_summary", "args": {} }],
+  "model": { "level": "medium", "slug": "example/model" }
+}
