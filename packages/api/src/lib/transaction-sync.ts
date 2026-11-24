@@ -61,6 +61,30 @@ export function mapCategory(plaidCategory: { primary?: string; detailed?: string
   return "other";
 }
 
+/** A credit's name or merchant that reads like paying the card or loan off. */
+export const PAYMENT_WORDS = /\b(payment|thank you|autopay|auto pay|e-?payment|online pmt|pymt)\b/i;
+/** Wording that marks a merchant refund or credit back, which stays money back. */
+export const REFUND_WORDS = /\b(refund|return|credit adj)/i;
+/** Plaid's categories for money moving between your own accounts or paying a loan. */
+const PAYMENT_PRIMARIES = new Set(["LOAN_PAYMENTS", "TRANSFER_IN"]);
+
+/**
+ * Money arriving on a credit card or loan that pays it off is a transfer,
+ * never income or spending. Plaid labels the card side of a payment
+ * inconsistently: LOAN_PAYMENTS, TRANSFER_IN, or INCOME_SALARY on an
+ * "AUTOMATIC PAYMENT - THANK YOU". So a credit on a debt account is a payment
+ * when Plaid files it as a payment or transfer, or when it reads like one.
+ * INCOME alone is not enough: rental payouts and statement credits do land on
+ * cards. A merchant refund keeps its category.
+ */
+export function isDebtPayment(txn: { amount: string; accountType?: string | null; name: string; merchantName: string | null }, plaid: { primary?: string } | null | undefined): boolean {
+  if (txn.accountType !== "credit" && txn.accountType !== "loan") return false;
+  if (!(parseFloat(txn.amount) < 0)) return false;
+  const text = `${txn.name} ${txn.merchantName ?? ""}`;
+  if (REFUND_WORDS.test(text)) return false;
+  return (!!plaid?.primary && PAYMENT_PRIMARIES.has(plaid.primary)) || PAYMENT_WORDS.test(text);
+}
+
 // Plaid mapping first, then the tenant's rules (first match wins).
 // The taxonomy id is the sole category output; mapCategory still produces
 // systemKeys as the resolver's input. Null id is impossible for a seeded
@@ -68,10 +92,10 @@ export function mapCategory(plaidCategory: { primary?: string; detailed?: string
 export function categorize(
   taxonomy: TenantCategory[],
   rules: RuleCriteria[],
-  txn: { name: string; merchantName: string | null; amount: string; accountId: string },
+  txn: { name: string; merchantName: string | null; amount: string; accountId: string; accountType?: string | null },
   plaidCategory: { primary?: string; detailed?: string } | null | undefined,
 ): { categoryId: string; categorySource: "auto" | "rule" } {
-  const mappedKey = mapCategory(plaidCategory);
+  const mappedKey = isDebtPayment(txn, plaidCategory) ? "transfer" : mapCategory(plaidCategory);
   const mappedId = resolveCategoryId(taxonomy, mappedKey);
   const rule = firstMatchingRule(rules, { ...txn, categoryId: mappedId });
   const finalId = rule ? activeCategoryId(taxonomy, rule.setCategoryId) : mappedId;
@@ -118,6 +142,7 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
     where: eq(accounts.plaidItemId, itemId),
   });
   const plaidAccountIdMap = new Map(itemAccounts.map(a => [a.plaidAccountId, a.id]));
+  const accountTypeById = new Map(itemAccounts.map(a => [a.id, a.type as string]));
 
   // First sync? Clean up seeded transactions for these accounts
   if (!item.transactionCursor) {
@@ -169,6 +194,7 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           merchantName: txn.merchant_name ?? null,
           amount: txn.amount.toString(),
           accountId,
+          accountType: accountTypeById.get(accountId),
         }, txn.personal_finance_category);
         // The existence check above cannot stand alone: nothing serializes a
         // sync for one item, so a second run can pass the same check before
@@ -201,6 +227,7 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           merchantName: existing.merchantName,
           amount: existing.amount,
           accountId: existing.accountId,
+          accountType: accountTypeById.get(existing.accountId),
         }, txn.personal_finance_category);
         await db.update(transactions)
           .set({
@@ -252,6 +279,7 @@ export async function syncTransactions(itemId: string): Promise<{ added: number;
           name: renamed ? existing.name : name,
           merchantName: renamed ? existing.merchantName : (txn.merchant_name ?? null),
           amount: txn.amount.toString(), accountId: existing.accountId,
+          accountType: accountTypeById.get(existing.accountId),
         }, txn.personal_finance_category);
         fields.categoryId = categoryId;
         fields.categorySource = categorySource;

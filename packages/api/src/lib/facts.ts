@@ -219,7 +219,7 @@ export interface MonthlyNetFlowFact {
  * Spending page opens on, from the same `computeCashFlow` its hero reads.
  * Transfers are excluded. Income is income-group inflows only, so a refund is
  * not income. Each category is netted first, and a refund-heavy category
- * (net negative) counts as neither income nor spending. Accounts excluded from
+ * (net negative) reduces spending. Accounts excluded from
  * transactions and transactions the user excluded are skipped.
  */
 export async function computeMonthlyNetFlow(tenantId: string, now = new Date()): Promise<MonthlyNetFlowFact> {

@@ -1,8 +1,8 @@
 // Pure aggregation for the trend endpoint: rows arrive pre-bucketed by
 // to_char(date, 'YYYY-MM' | 'YYYY') AND pre-netted per category, so one row is
 // one category's net for one period. This zero-fills the requested window and
-// sums income (income-category inflows) vs expenses (categories whose net is
-// positive), skipping transfers.
+// sums income (income-category inflows) vs expenses (every other category's
+// net, a refund-heavy negative one included), skipping transfers.
 
 export interface TrendRow {
   period: string;
@@ -52,12 +52,12 @@ export function buildPeriods(
     const amount = parseFloat(row.amount || "0");
     // Income = income-category inflows only. A refund in an expense category is
     // NOT income; it has already cancelled against its own category upstream.
-    // Spending = the categories whose net came out positive, so a category the
-    // period refunded more than it spent counts as neither. Identical to the
+    // Spending = every expense category's net, negative ones included, so
+    // refunds reduce spending for the period. Identical to the
     // /spending-summary route and computeSpendingTotal — keep all three in
     // lockstep, or the same month reads differently on two screens.
     if (row.groupType === "income") entry.income += Math.abs(amount);
-    else if (amount > 0) entry.expenses += amount;
+    else entry.expenses += amount;
   }
   return keys.map((period) => {
     const e = map.get(period)!;

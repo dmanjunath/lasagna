@@ -35,9 +35,10 @@ const PAGE_START = `${y}-${pad(m + 1)}-01`;
 const PAGE_END = `${y}-${pad(m + 1)}-${pad(new Date(y, m + 1, 0).getDate())}T23:59:59`;
 
 // Salary -5000 → income 5000. Groceries 1200. Electronics 100 - 300 refunded
-// past zero → neither. Transfer 2000 out → neither. Excluded rows and the
-// excluded account add nothing. Net = 5000 - 1200 = 3800.
-const EXPECTED = { income: 5000, spending: 1200, net: 3800 };
+// past zero → -200, money back that reduces spending (owner decision
+// 2026-11-24). Transfer 2000 out → neither. Excluded rows and the excluded
+// account add nothing. Spending = 1200 - 200 = 1000, net = 5000 - 1000 = 4000.
+const EXPECTED = { income: 5000, spending: 1000, net: 4000 };
 
 let tenantId: string | null = null;
 let dbAvailable = false;
@@ -140,7 +141,11 @@ describe("one monthly net cash flow", () => {
     });
     expect(chat.monthLabel).toBe(win.label);
     expect(chat.month).toBe(`${y}-${pad(m + 1)}`);
-    expect(chat.categories).toEqual([{ category: "Groceries", total: 1200, transactionCount: 1 }]);
+    // Signed parts that sum to spending: the money-back category is negative and last.
+    expect(chat.categories).toEqual([
+      { category: "Groceries", total: 1200, transactionCount: 1 },
+      { category: "Electronics", total: -200, transactionCount: 2 },
+    ]);
     expect(chat.topMerchants.map((r: { merchant: string }) => r.merchant)).not.toContain("Excluded grocer");
   });
 });

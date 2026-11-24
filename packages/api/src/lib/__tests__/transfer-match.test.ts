@@ -68,3 +68,21 @@ describe("findTransferPairs", () => {
     expect(findTransferPairs(linked)).toEqual([]);
   });
 });
+
+describe("card and loan payments", () => {
+  it("pair up to 5 days apart when the credit lands on a card", () => {
+    const debit = t({ amount: "3150.28", accountId: "checking", accountType: "depository", date: new Date("2026-10-13T00:00:00Z") });
+    const credit = t({ amount: "-3150.28", accountId: "card", accountType: "credit", date: new Date("2026-10-08T00:00:00Z") });
+    expect(findTransferPairs([debit, credit])).toEqual([[credit.id, debit.id]]);
+  });
+  it("still stop at 3 days between two bank accounts", () => {
+    const a = t({ amount: "500.00", accountId: "checking", accountType: "depository" });
+    const b = t({ amount: "-500.00", accountId: "savings", accountType: "depository", date: new Date("2026-06-14T06:00:00Z") });
+    expect(findTransferPairs([a, b])).toEqual([]);
+  });
+  it("never pair beyond 5 days", () => {
+    const debit = t({ amount: "200.00", accountId: "checking", accountType: "depository", date: new Date("2026-10-14T01:00:00Z") });
+    const credit = t({ amount: "-200.00", accountId: "card", accountType: "credit", date: new Date("2026-10-08T00:00:00Z") });
+    expect(findTransferPairs([debit, credit])).toEqual([]);
+  });
+});

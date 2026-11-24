@@ -159,6 +159,8 @@ export function parseTxnFilterQuery(
 const groupType = sql`coalesce((select cg.type::text from categories c join category_groups cg on cg.id = c.group_id where c.id = ${transactions.categoryId}), 'expense')`;
 /** The one transfer rule, the group-type test Spent uses. */
 export const isTransfer = sql`${groupType} = 'transfer'`;
+/** Money in: the income categories, the rule the Income total uses. */
+export const isIncome = sql`${groupType} = 'income'`;
 const merchantExpr = sql`coalesce(${transactions.merchantName}, ${transactions.name})`;
 
 /**
@@ -202,8 +204,12 @@ export async function txnFilterConditions(tenantId: string, f: TxnFilter): Promi
     out.push(sql`${merchantExpr} in (${sql.join(f.merchants.map((m) => sql`${m}`), sql`, `)})`);
   }
 
-  if (f.kind === "in") out.push(sql`${transactions.amount} < 0 and not ${isTransfer}`);
-  if (f.kind === "out") out.push(sql`${transactions.amount} > 0 and not ${isTransfer}`);
+  // One rule for the rows and the totals (lib/cash-flow.ts): Money in is the
+  // income categories, Money out everything else that is not a transfer. So a
+  // refund is a Money out row that reduces its category (never income, never
+  // lost), and the rows a side lists are the rows its total nets.
+  if (f.kind === "in") out.push(isIncome);
+  if (f.kind === "out") out.push(sql`not ${isIncome} and not ${isTransfer}`);
   if (f.kind === "transfer") out.push(isTransfer);
 
   if (f.pending != null) out.push(eq(transactions.pending, f.pending ? 1 : 0));

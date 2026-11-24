@@ -101,3 +101,46 @@ describe("categorize", () => {
     expect(result.categorySource).toBe("auto");
   });
 });
+
+describe("money arriving on a credit card or loan", () => {
+  const taxonomy: TenantCategory[] = [
+    mkCat("id-income", "income"),
+    mkCat("id-transfer", "transfer"),
+    mkCat("id-shop", "shopping"),
+    mkCat("id-other", "other"),
+  ];
+  const card = { name: "AUTOMATIC PAYMENT - THANK YOU", merchantName: null, amount: "-2840.15", accountId: "card-1", accountType: "credit" };
+  const cat = (o: Partial<typeof card>, plaid: ReturnType<typeof pc> | null) => categorize(taxonomy, [], { ...card, ...o }, plaid).categoryId;
+
+  it("a payment Plaid labels as income is a transfer", () => {
+    expect(cat({}, pc("INCOME", "INCOME_SALARY"))).toBe("id-transfer");
+    expect(cat({ accountType: "loan" }, pc("INCOME", "INCOME_WAGES"))).toBe("id-transfer");
+  });
+  it("Plaid's payment and transfer-in labels make it a transfer whatever the name", () => {
+    expect(cat({ name: "CHASE CREDIT CRD" }, pc("LOAN_PAYMENTS", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"))).toBe("id-transfer");
+    expect(cat({ name: "Online Transfer from CHK" }, pc("TRANSFER_IN", "TRANSFER_IN_ACCOUNT_TRANSFER"))).toBe("id-transfer");
+  });
+  it("payment wording makes it a transfer even with no Plaid category", () => {
+    for (const name of ["PAYMENT RECEIVED", "AUTOPAY 1234", "AUTO PAY", "ONLINE PMT", "MOBILE PYMT", "AMEX EPAYMENT", "E-PAYMENT", "THANK YOU"]) {
+      expect(cat({ name }, null)).toBe("id-transfer");
+    }
+  });
+  it("income on a card that is not a payment stays income", () => {
+    expect(cat({ name: "AIRBNB * HMTEST0001" }, pc("INCOME", "INCOME_RENTAL"))).toBe("id-income");
+  });
+  it("a refund keeps its merchant category, even if it mentions a payment", () => {
+    expect(cat({ name: "AMZN Mktp refund", amount: "-42.00" }, pc("GENERAL_MERCHANDISE"))).toBe("id-shop");
+    expect(cat({ name: "PAYMENT RETURN", amount: "-42.00" }, pc("GENERAL_MERCHANDISE"))).toBe("id-shop");
+  });
+  it("a charge (money out) on a card is never a payment", () => {
+    expect(cat({ name: "LATE PAYMENT FEE", amount: "39.00" }, pc("BANK_FEES"))).not.toBe("id-transfer");
+  });
+  it("the checking side stays a transfer and bank income stays income", () => {
+    expect(cat({ name: "AMEX EPAYMENT", amount: "2840.15", accountType: "depository" }, pc("LOAN_PAYMENTS", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"))).toBe("id-transfer");
+    expect(cat({ name: "PAYROLL", accountType: "depository" }, pc("INCOME", "INCOME_SALARY"))).toBe("id-income");
+  });
+  it("a user rule still wins", () => {
+    const rule = { ...mkRule("id-income"), merchantContains: "automatic payment" };
+    expect(categorize(taxonomy, [rule], card, pc("INCOME", "INCOME_SALARY"))).toEqual({ categoryId: "id-income", categorySource: "rule" });
+  });
+});

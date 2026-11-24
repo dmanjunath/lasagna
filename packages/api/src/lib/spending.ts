@@ -44,9 +44,8 @@ export async function computeSpendingTotal(
     conditions.push(notInArray(transactions.accountId, excludedIds));
   }
 
-  // Group per category (not per group) so a refund-heavy category that nets
-  // negative counts as neither income nor spending — matching the
-  // spending-summary route's per-category `total > 0` test exactly.
+  // Per category, netted: a category refunded more than it spent counts
+  // negative, so refunds reduce Spent, exactly as lib/cash-flow.ts counts it.
   const rows = await db
     .select({
       categoryId: categories.id,
@@ -63,7 +62,7 @@ export async function computeSpendingTotal(
   for (const row of rows) {
     const total = parseFloat(row.total || "0");
     const gt = row.groupType ?? "expense";
-    if (gt !== "income" && gt !== "transfer" && total > 0) {
+    if (gt !== "income" && gt !== "transfer") {
       totalSpending += total;
     }
   }

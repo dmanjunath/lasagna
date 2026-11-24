@@ -1,12 +1,15 @@
 // Transfer pair detection: opposite-sign equal amounts across two different
-// accounts within ±3 days. Catches internal transfers and CC payments that
+// accounts within ±3 days, or ±5 days when one side is a credit landing on a
+// credit card or loan (a payment posts to the card days after it leaves the bank). Catches internal transfers and CC payments that
 // Plaid mislabels on one side, so they never double-count in spending.
 
 import { eq, and, sql, transactions } from "@lasagna/core";
 import { db } from "./db.js";
 import { loadTaxonomy } from "./taxonomy.js";
 
-const WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WINDOW_MS = 3 * DAY_MS;
+const DEBT_PAYMENT_WINDOW_MS = 5 * DAY_MS;
 
 export interface TxnForMatch {
   id: string;
@@ -16,6 +19,17 @@ export interface TxnForMatch {
   pending: number;
   categorySource: string;
   linkedTransactionId: string | null;
+  /** The account's type. A card or loan side widens the window for payments. */
+  accountType?: string | null;
+}
+
+const onDebt = (t: TxnForMatch) => t.accountType === "credit" || t.accountType === "loan";
+
+/** A payment onto a card or loan (its credit side on the debt account) may post up to 5 days after it leaves the bank. */
+function windowFor(a: TxnForMatch, b: TxnForMatch): number {
+  const credit = parseFloat(a.amount) < 0 ? a : b;
+  const debit = credit === a ? b : a;
+  return onDebt(credit) && !onDebt(debit) ? DEBT_PAYMENT_WINDOW_MS : WINDOW_MS;
 }
 
 export function findTransferPairs(txns: TxnForMatch[]): Array<[string, string]> {
@@ -37,7 +51,7 @@ export function findTransferPairs(txns: TxnForMatch[]): Array<[string, string]> 
       if (b.accountId === a.accountId) continue;
       if (parseFloat(b.amount) !== -amountA) continue;
       const dist = Math.abs(b.date.getTime() - a.date.getTime());
-      if (dist > WINDOW_MS) continue;
+      if (dist > windowFor(a, b)) continue;
       if (dist < bestDist || (dist === bestDist && best !== null && b.id.localeCompare(best.id) < 0)) {
         best = b;
         bestDist = dist;
@@ -64,6 +78,7 @@ export async function matchTransfersForTenant(tenantId: string): Promise<number>
       pending: transactions.pending,
       categorySource: transactions.categorySource,
       linkedTransactionId: transactions.linkedTransactionId,
+      accountType: sql<string>`(select a.type::text from accounts a where a.id = ${transactions.accountId})`,
     })
     .from(transactions)
     .where(and(

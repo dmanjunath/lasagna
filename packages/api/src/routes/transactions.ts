@@ -6,7 +6,7 @@ import { buildPeriods } from "../lib/trend.js";
 import { categoryUsual, computeCashFlow, cashFlowForFilter } from "../lib/cash-flow.js";
 import { validateQueryBody, buildKeysetPredicate, encodeCursor, cursorForRow } from "../lib/txn-query.js";
 import { loadTaxonomy, UUID_RE } from "../lib/taxonomy.js";
-import { parseTxnFilterQuery, txnFilterConditions } from "../lib/txn-filter.js";
+import { isIncome, isTransfer, parseTxnFilterQuery, txnFilterConditions } from "../lib/txn-filter.js";
 
 export const transactionRoutes = new Hono<AuthEnv>();
 
@@ -96,6 +96,9 @@ transactionRoutes.post("/query", async (c) => {
       count: sql<number>`count(*)::int`,
       earliest: sql<string | null>`min(${transactions.date})`,
       latest: sql<string | null>`max(${transactions.date})`,
+      // Money moved between the user's own accounts: the outgoing side of
+      // each transfer, so a pair counts once.
+      transferred: sql<string>`coalesce(sum(case when ${isTransfer} and ${transactions.amount} > 0 and ${transactions.excludedAt} is null then ${transactions.amount} else 0 end), 0)`,
     }).from(transactions).where(where),
     cashFlowForFilter(session.tenantId, filters),
   ]);
@@ -126,8 +129,10 @@ transactionRoutes.post("/query", async (c) => {
   const [largestCredit, largestDebit] = cursor
     ? [null, null]
     : await Promise.all([
-        largest(sql`${transactions.amount} < 0`, asc(transactions.amount)),
-        largest(sql`${transactions.amount} > 0`, desc(transactions.amount)),
+        // Each side's largest follows the same rule as its total: Money in is income
+        // categories (a refund is not income), Money out is everything else.
+        largest(sql`${transactions.amount} < 0 and ${isIncome}`, asc(transactions.amount)),
+        largest(sql`${transactions.amount} > 0 and not ${isIncome}`, desc(transactions.amount)),
       ]);
   const summary = {
     count: agg?.count ?? 0,
@@ -139,6 +144,7 @@ transactionRoutes.post("/query", async (c) => {
     totalCredits: flow.income,
     largestCredit,
     largestDebit,
+    totalTransferred: Math.round(parseFloat(agg?.transferred ?? "0") * 100) / 100,
     earliest: agg?.earliest ?? null,
     latest: agg?.latest ?? null,
   };

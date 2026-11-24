@@ -118,16 +118,18 @@ const skip = () => {
 describe("POST /query, each dimension", () => {
   it("kind: in and out leave transfers out, transfer is only them", async () => {
     if (skip()) return;
-    // The list is sign-based: a refund is a money-in row (its total nets in the summary).
-    expect((await query({ kind: "in" })).names).toEqual(["Grocer refund", "Paycheck"]);
+    // One rule for rows and totals: Money in is the income categories, so a
+    // refund is a Money out row that reduces its category.
+    expect((await query({ kind: "in" })).names).toEqual(["Paycheck"]);
     expect((await query({ kind: "transfer" })).names).toEqual(["From checking", "To savings"]);
     const out = (await query({ kind: "out" })).names;
     expect(out).not.toContain("To savings");
     expect(out).toContain("Landlord");
+    expect(out).toContain("Grocer refund");
   });
   it("direction still works, as the old name for kind", async () => {
     if (skip()) return;
-    expect((await query({ direction: "credit" })).names).toEqual(["Grocer refund", "Paycheck"]);
+    expect((await query({ direction: "credit" })).names).toEqual(["Paycheck"]);
     expect((await query({ direction: "debit" })).names).toEqual((await query({ kind: "out" })).names);
   });
   it("merchants (multi) and categoryGroups (multi)", async () => {
@@ -141,8 +143,9 @@ describe("POST /query, each dimension", () => {
     expect((await query({ excluded: true })).names).toEqual(["Hidden"]);
     expect((await query({ recurring: true })).names).toEqual(["Landlord"]);
     expect((await query({ source: "manual" })).names).toEqual(["Cash lunch"]);
+    // A refund is a Money out row (it reduces Groceries), so it shows here too.
     expect((await query({ source: "bank", excluded: false, recurring: false, pending: false, kind: "out" })).names)
-      .toEqual(["Corner Cafe", "Grocer"]);
+      .toEqual(["Corner Cafe", "Grocer", "Grocer refund"]);
   });
   it("search also matches notes and the category name", async () => {
     if (skip()) return;

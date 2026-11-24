@@ -46,10 +46,11 @@ const END = new Date(Date.UTC(target.getFullYear(), target.getMonth() + 1, 0, 23
 // Electronics 80.00 + (-200.45)       → net -120.45  (refunded past zero)
 // Salary            (-4000.00)        → income 4000.00
 //
-// Netting per category: 500.00 + 250.00 = 750.00, Electronics counts as neither
-// spending nor income. Summing rows instead skips the two negatives and yields
-// 500.00 + 300.00 + 80.00 = 880.00 — the disagreement this guards against.
-const EXPECTED_SPENDING = 750;
+// Netting per category: 500.00 + 250.00 - 120.45 = 629.55. Electronics was
+// refunded past zero, so it is money back and reduces spending (owner decision
+// 2026-11-24). Summing positive rows instead yields 500.00 + 300.00 + 80.00 =
+// 880.00, the disagreement this guards against.
+const EXPECTED_SPENDING = 629.55;
 const EXPECTED_INCOME = 4000;
 const REFUNDED_CATEGORY = "Electronics (reconcile.test)";
 
@@ -198,7 +199,8 @@ function clientFilteredSpending(
     if (scope.exclude?.length && cat.id !== null && scope.exclude.includes(cat.id)) return false;
     return cat.groupType !== "income" && cat.groupType !== "transfer";
   });
-  return Math.round(rows.reduce((sum: number, cat: any) => sum + cat.total, 0) * 100) / 100;
+  // Signed: a money-back category counts negative, as the server counts it.
+  return Math.round(rows.reduce((sum: number, cat: any) => sum + (cat.moneyBack ? -cat.total : cat.total), 0) * 100) / 100;
 }
 
 describe("/monthly-trend and /spending-summary reconcile", () => {
@@ -208,7 +210,7 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
       return;
     }
     const { period, summary } = await fetchBoth();
-    // The reconciliation itself. Per-row summation makes this 880 vs 750.
+    // The reconciliation itself. Per-row summation makes this 880 vs 629.55.
     expect(period.expenses).toBe(summary.totalSpending);
     // Pin the value too, so making both endpoints wrong the same way still fails.
     expect(period.expenses).toBe(EXPECTED_SPENDING);
@@ -239,9 +241,9 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
     const include = [groceriesId!, diningId!];
     const { period, summary } = await fetchBoth(`&categories=${include.join(",")}`);
     expect(period.expenses).toBe(clientFilteredSpending(summary, { include }));
-    // Groceries 500.00 + Dining (300.00 - 50.00) = 750.00, unchanged: the two
-    // counted categories are exactly the ones named.
-    expect(period.expenses).toBe(EXPECTED_SPENDING);
+    // Groceries 500.00 + Dining (300.00 - 50.00) = 750.00: exactly the two
+    // categories named, Electronics' money back left out by the include list.
+    expect(period.expenses).toBe(750);
     expect(period.income).toBe(0);
   });
 
@@ -253,9 +255,9 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
     const exclude = [groceriesId!];
     const { period, summary } = await fetchBoth(`&excludeCategories=${exclude.join(",")}`);
     expect(period.expenses).toBe(clientFilteredSpending(summary, { exclude }));
-    // Everything but Groceries: Dining nets 250.00, Electronics still counts as
-    // neither, and income is untouched by an expense-category exclusion.
-    expect(period.expenses).toBe(250);
+    // Everything but Groceries: Dining nets 250.00, Electronics' money back
+    // (-120.45) reduces it, and income is untouched by an expense exclusion.
+    expect(period.expenses).toBe(129.55);
     expect(period.income).toBe(EXPECTED_INCOME);
   });
 
@@ -320,21 +322,24 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
     // The two Dining rows left the match, and only those.
     expect(excluded.summary.count).toBe(all.summary.count - 2);
     expect(excluded.transactions.some((t: any) => t.categoryId === diningId)).toBe(false);
-    expect(excluded.summary.totalDebits).toBe(all.summary.totalDebits - 250);
+    expect(excluded.summary.totalDebits).toBeCloseTo(all.summary.totalDebits - 250, 2);
     expect(excluded.summary.totalCredits).toBe(all.summary.totalCredits);
   });
 
-  it("excludes a category refunded past zero from both the total and the breakdown", async () => {
+  it("lists a category refunded past zero last, as money back, and counts it in the total", async () => {
     if (!dbAvailable) {
       console.warn("SKIP: no DB at DATABASE_URL");
       return;
     }
     const { summary } = await fetchBoth();
-    expect(summary.categories.map((cat: any) => cat.name)).not.toContain(REFUNDED_CATEGORY);
-    // The rows listed under the hero have to add up to the hero.
-    const breakdown = summary.categories
-      .filter((cat: any) => cat.groupType !== "income" && cat.groupType !== "transfer")
-      .reduce((sum: number, cat: any) => sum + cat.total, 0);
+    const spend = summary.categories.filter((cat: any) => cat.groupType !== "income" && cat.groupType !== "transfer");
+    const last = spend[spend.length - 1];
+    expect(last.name).toBe(REFUNDED_CATEGORY);
+    expect(last.moneyBack).toBe(true);
+    expect(last.total).toBe(120.45);
+    expect(last.percentage).toBe(0);
+    // The rows listed under the hero add up to the hero, money back included.
+    const breakdown = spend.reduce((sum: number, cat: any) => sum + (cat.moneyBack ? -cat.total : cat.total), 0);
     expect(Math.round(breakdown * 100) / 100).toBe(summary.totalSpending);
   });
 
@@ -355,8 +360,8 @@ describe("/monthly-trend and /spending-summary reconcile", () => {
       body: JSON.stringify({ filters: { startDate: START, endDate: END } }),
     });
     const { summary } = await res.json();
-    // Netted per category, as Spent is: 500 + 250 (Electronics, refunded past
-    // zero, counts as neither). Money in is the salary only.
+    // Netted per category, as Spent is: 500 + 250 - 120.45 (Electronics,
+    // refunded past zero, is money back). Money in is the salary only.
     expect(summary.totalDebits).toBe(EXPECTED_SPENDING);
     expect(summary.totalCredits).toBe(EXPECTED_INCOME);
     expect(summary.largestDebit.name).toBe("Grocery run");

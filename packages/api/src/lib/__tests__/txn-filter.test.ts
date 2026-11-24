@@ -74,10 +74,11 @@ describe("txnFilterConditions", () => {
     expect(q.sql).toContain('"transactions"."category_id" in (select c.id from categories c where c.group_id in');
   });
   it("in and out leave transfers out, transfer is only them", async () => {
-    for (const kind of ["in", "out"] as const) {
-      const q = render(and(...(await txnFilterConditions(T, { kind }))));
-      expect(q.sql).toMatch(/and not coalesce\(\(select cg\.type::text/);
-    }
+    const i = render(and(...(await txnFilterConditions(T, { kind: "in" }))));
+    expect(i.sql).toContain("= 'income'");
+    expect(i.sql).not.toContain('"amount" <');
+    const o = render(and(...(await txnFilterConditions(T, { kind: "out" }))));
+    expect(o.sql).toMatch(/not coalesce\(\(select cg\.type::text.*= 'income' and not coalesce/s);
     const t = render(and(...(await txnFilterConditions(T, { kind: "transfer" }))));
     expect(t.sql).toContain("= 'transfer'");
     expect(t.sql).not.toContain('"amount" <');

@@ -73,7 +73,9 @@ export function createSpendingTools(tenantId: string) {
             .filter((c) => c.groupType !== "income" && c.groupType !== "transfer")
             .map((c) => ({
               category: c.name,
-              total: c.total,
+              // Signed, so the parts sum to spending: a category refunded more
+              // than it spent is negative (money back).
+              total: c.moneyBack ? -c.total : c.total,
               transactionCount: c.count,
             })),
           topMerchants: merchantRows.map((r) => ({
@@ -87,7 +89,7 @@ export function createSpendingTools(tenantId: string) {
               "everything spent this month. It already includes every entry in categories. Transfers, including savings and investment deposits, are not spending",
             netCashFlow:
               "income minus spending, the one surplus (positive) or shortfall (negative) for the month. Quote it as is. Never subtract or add categories to it",
-            categories: "the parts of spending. They sum to spending and are never taken out of it again",
+            categories: "the parts of spending. They sum to spending and are never taken out of it again. A negative total is money back: that category's refunds exceeded its spending this month",
           },
         };
       },

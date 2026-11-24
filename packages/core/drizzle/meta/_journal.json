@@ -274,6 +274,13 @@
       "when": 1795454648259,
       "tag": "0038_savings_as_transfer",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795502180776,
+      "tag": "0039_card_payments_as_transfers",
+      "breakpoints": true
     }
   ]
 }

@@ -19,8 +19,14 @@ export interface CashFlowCategory {
   /** abs(net) of the category over the window, rounded to cents. */
   total: number;
   count: number;
-  /** Share of `spending`, 0 for income and transfer rows. */
+  /** Share of `spending`, 0 for income and transfer rows and for money back. */
   percentage: number;
+  /**
+   * An expense category whose refunds exceeded its spending over the window.
+   * It counts negative toward `spending` (refunds reduce Spent) and lists at
+   * the bottom of the breakdown as money back; `total` is still its absolute net.
+   */
+  moneyBack: boolean;
 }
 
 export interface CashFlow {
@@ -69,27 +75,20 @@ export async function cashFlowForFilter(tenantId: string, filter: TxnFilter): Pr
     .groupBy(categories.id, categories.name, categories.systemKey, categories.groupId, categoryGroups.name, categoryGroups.type)
     .orderBy(sql`sum(${transactions.amount}) DESC`);
 
-  // Income = income-category totals only; spending = positive totals in
-  // non-income, non-transfer categories. A refund-heavy expense category (net
-  // negative) counts as neither. Matches lib/trend.ts and the insights engine.
-  //
-  // Such a category also drops out of the BREAKDOWN, not just the total: it
-  // would otherwise render its refund as if it were spending, and the rows the
-  // page lists under the hero have to add up to the hero.
-  const countedRows = rows.filter((row) => {
-    const gt = row.groupType ?? "expense";
-    return gt === "income" || gt === "transfer" || parseFloat(row.total || "0") > 0;
-  });
-
+  // Income = income-category totals only. Spending = the NET of every
+  // non-income, non-transfer category, a negative one included: a category the
+  // window refunded more than it spent reduces Spent, so Spent and Money out
+  // equal the sum of the rows listed under them on every screen (owner
+  // decision 2026-11-24). Keep lib/spending.ts and lib/trend.ts in lockstep.
   let totalSpending = 0;
   let totalIncome = 0;
 
-  const categoryRows = countedRows.map((row) => {
+  const categoryRows = rows.map((row) => {
     const total = parseFloat(row.total || "0");
     const gt = row.groupType ?? "expense";
     if (gt === "income") {
       totalIncome += Math.abs(total);
-    } else if (gt !== "transfer" && total > 0) {
+    } else if (gt !== "transfer") {
       totalSpending += total;
     }
     return {
@@ -98,19 +97,22 @@ export async function cashFlowForFilter(tenantId: string, filter: TxnFilter): Pr
       systemKey: row.systemKey,
       groupId: row.groupId,
       groupName: row.groupName ?? "Other",
-      groupType: row.groupType ?? "expense",
+      groupType: gt,
       total: cents(Math.abs(total)),
       count: row.count,
       percentage: 0, // calculated below
+      moneyBack: gt !== "income" && gt !== "transfer" && total < 0,
     };
   });
 
-  // Calculate percentages based on spending only (exclude income)
+  // Percentages are shares of spending, for spending categories only.
   for (const cat of categoryRows) {
-    if (cat.groupType !== "income" && totalSpending > 0) {
+    if (cat.groupType !== "income" && cat.groupType !== "transfer" && !cat.moneyBack && totalSpending > 0) {
       cat.percentage = Math.round((cat.total / totalSpending) * 10000) / 100;
     }
   }
+  // Money back lists after everything else.
+  categoryRows.sort((a, b) => Number(a.moneyBack) - Number(b.moneyBack));
 
   return {
     income: cents(totalIncome),
@@ -187,7 +189,8 @@ export async function categoryUsual(tenantId: string, month: Date, filter: TxnFi
     for (const cat of flow.categories) {
       if (!cat.id || cat.groupType === "income" || cat.groupType === "transfer") continue;
       const list = totals.get(cat.id) ?? new Array(CATEGORY_BASELINE_MONTHS).fill(0);
-      list[i] = cat.total;
+      // Signed: a money-back month pulls the usual month down, never up.
+      list[i] = cat.moneyBack ? -cat.total : cat.total;
       totals.set(cat.id, list);
     }
   });
