@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { getCurrentTab, hrefFor, tabForPath } from "./routes";
+import { getCurrentTab, hrefFor, isSheetOpen, setSheetOpen, tabForPath } from "./routes";
 
 /**
  * Opens a web-app path. Every link to an app route goes through here.
@@ -12,12 +12,25 @@ import { getCurrentTab, hrefFor, tabForPath } from "./routes";
  * which go to the tab when the path is a tab's root and push otherwise.
  */
 export function openPath(path: string, mode: "push" | "replace" | "tab" = "push") {
+  closeSheet();
   const tab = getCurrentTab();
   const href = hrefFor(path, tab, { stay: mode !== "tab" });
   const root = tabForPath(path);
   if (root && (mode === "tab" || root === "(home)" || root === tab)) router.navigate(href as never);
   else if (mode === "replace") router.replace(href as never);
   else router.push(href as never);
+}
+
+/**
+ * Closes the sheet on top, if any, before going somewhere else: a destination
+ * pushed while a sheet is up lands inside the sheet. It pops just the sheet
+ * (back), never dismiss(), which can pop the page under it too, so the
+ * destination lands on the page the sheet came from and Back returns there.
+ */
+export function closeSheet() {
+  if (!isSheetOpen()) return;
+  setSheetOpen(false);
+  if (router.canGoBack()) router.back();
 }
 
 /** Pushes one of the shared screens (a sheet, a detail) inside the current tab. */

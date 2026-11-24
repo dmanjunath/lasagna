@@ -32,6 +32,7 @@ export function Chip({
   accessibilityLabel,
   onCard,
   wrap,
+  uncapped,
   tint,
 }: {
   label: string;
@@ -44,6 +45,8 @@ export function Chip({
   onCard?: boolean;
   /** A long label (a question to ask) wraps to a second line instead of being cut. */
   wrap?: boolean;
+  /** No width cap: the label always shows whole on one line (a pill in a row that scrolls sideways). */
+  uncapped?: boolean;
   /** The role a selected chip wears (Money in: income). */
   tint?: TintRole;
 }) {
@@ -75,9 +78,11 @@ export function Chip({
         raised ? pressScale(pressed) : { opacity: pressed ? 0.6 : 1 },
         raised && pressed && !selected && { backgroundColor: c.surfaceInset },
         bordered && { borderWidth: raised ? 1 : StyleSheet.hairlineWidth, borderColor: raised ? c.hairline : c.line },
-        raised && selected && { boxShadow: `0 2px 0 ${on.edge}` },
+        // A border in its own fill, so a selected pill is exactly as tall as the bordered ones beside it.
+        raised && selected && { boxShadow: `0 2px 0 ${on.edge}`, borderWidth: 1, borderColor: on.fill },
         !icon && { paddingRight: 12 },
         wrap && styles.wrap,
+        uncapped && styles.uncapped,
       ]}
     >
       <Text style={[type.subhead, weight.semibold, styles.label, { color: fg }]} numberOfLines={wrap ? 2 : 1}>
@@ -117,6 +122,7 @@ const styles = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32, maxWidth: 260, paddingLeft: 12, paddingRight: 10 },
   label: { flexShrink: 1 },
   wrap: { maxWidth: "100%", paddingVertical: 6 },
+  uncapped: { maxWidth: undefined },
 });
 
 /** A filled chip on a card: the inset fill, unless the card itself is that fill (then the plain surface). */

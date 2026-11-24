@@ -42,6 +42,7 @@ const TINT_FILLS = new Set([
   "src/ui/Chip.tsx", // a chosen pill, not a card
   "src/components/profile/SettingsParts.tsx", // a settings row's icon tile, not a card
   "src/design/tint.ts", // the role-color test
+  "src/components/transactions/ScopeRow.tsx", // a scrolling pill row's edge fade blends into the hero it sits on; paints no background
 ]);
 
 /**

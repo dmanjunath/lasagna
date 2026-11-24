@@ -221,7 +221,7 @@ export default function Home() {
                     month={monthName}
                     note={spendingNote}
                     onAll={() => openPath(`/spending?period=${period}`)}
-                    onCategory={(id) => openPath(thisMonthTransactionsHref(id, now))}
+                    onCategory={(ids) => openPath(thisMonthTransactionsHref(ids, now))}
                   />
                 )}
                 {d.goals.isError ? (

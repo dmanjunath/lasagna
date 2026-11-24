@@ -1,4 +1,4 @@
-import { chartDay, drawableRange, filterByRange, pickXLabels, signedPct, smoothLinePath, snapshotPoints, thinLabels, tickDecimals, tickLabel } from "../trend";
+import { chartDay, drawableRange, filterByRange, nearestIndex, pickXLabels, timeFractions, signedPct, smoothLinePath, snapshotPoints, thinLabels, tickDecimals, tickLabel } from "../trend";
 
 const now = new Date("2026-11-22T12:00:00Z").getTime();
 const day = (n: number) => new Date(now - n * 86_400_000).toISOString().slice(0, 10);
@@ -25,6 +25,28 @@ test("labels: distinct, thinned to fit", () => {
   const thin = thinLabels(labels, pts.length, 120, 6.1);
   expect(thin.length).toBeLessThan(labels.length);
   expect(thin[thin.length - 1]).toEqual(labels[labels.length - 1]);
+});
+
+test("points sit by date, so a missing stretch reads as its real length", () => {
+  const pts = [
+    { date: "2026-06-01", value: 1 },
+    { date: "2026-09-01", value: 2 },
+    { date: "2026-10-01", value: 3 },
+    { date: "2026-11-01", value: 4 },
+  ];
+  const f = timeFractions(pts);
+  expect(f[0]).toBe(0);
+  expect(f[3]).toBe(1);
+  // June to September is three of the five months: about 60% of the width, not a third.
+  expect(f[1]).toBeCloseTo(92 / 153, 3);
+  expect(nearestIndex(f, 0.3)).toBe(0);
+  expect(nearestIndex(f, 0.9)).toBe(3);
+  // Labels follow time: the June-to-September gap gets no invented month, and the ends are kept.
+  const labels = pickXLabels(pts, "6M");
+  expect(labels[0].idx).toBe(0);
+  expect(labels[labels.length - 1].idx).toBe(3);
+  // One day only, or bad dates: even spacing.
+  expect(timeFractions([{ date: "2026-06-01", value: 1 }, { date: "2026-06-01", value: 2 }])).toEqual([0, 1]);
 });
 
 test("ticks and percent", () => {

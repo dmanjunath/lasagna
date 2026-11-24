@@ -33,10 +33,8 @@ export default function HoldingSheet({ symbol, label, name }: { symbol: string; 
   const cash = symbol.trim().toUpperCase() === "CASH";
   const rows = q.data?.accounts ?? [];
 
-  const open = (id: string) => {
-    router.back();
-    openPath(`/accounts/${id}`);
-  };
+  // openPath closes this sheet itself, then pushes onto the page the sheet came from.
+  const open = (id: string) => openPath(`/accounts/${id}`);
 
   return (
     <>

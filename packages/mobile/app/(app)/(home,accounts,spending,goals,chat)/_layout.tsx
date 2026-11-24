@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import { useColorScheme } from "react-native";
-import type { TabGroup } from "@/lib/routes";
+import { SHEET_ROUTES, type TabGroup } from "@/lib/routes";
 import { TabContext } from "@/shell/tab-context";
 import { font, useTheme } from "@/theme";
 
@@ -64,7 +64,7 @@ export default function TabStack({ segment }: { segment: string }) {
             contentStyle: { backgroundColor: t.canvas },
           }}
         />
-        {["transaction-filters", "transaction-rule", "pick-category", "add-account", "account-edit", "goal-form", "profile-edit", "set-password", "household-invite", "delete-account", "journey-why", "holding", "tax-add", "tax-document"].map((name) => (
+        {SHEET_ROUTES.map((name) => (
           <Stack.Screen
             key={name}
             name={name}

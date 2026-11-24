@@ -186,6 +186,13 @@ describe("chartWindowStart", () => {
     expect(chartWindowStart(null, 2, 3, 6)).toBe(0);
     expect(chartWindowStart(0, 0, 3, 6)).toBe(0);
   });
+  it("opens a month on the same window however the screen got there", () => {
+    // Arriving fresh (Year to Month) on a month inside the newest window keeps that window, as stepping does.
+    expect(chartWindowStart(null, 9, 13, 6)).toBe(chartWindowStart(7, 9, 13, 6));
+    // Arriving fresh on a month before it moves the window exactly as stepping there would.
+    expect(chartWindowStart(null, 4, 13, 6)).toBe(chartWindowStart(7, 4, 13, 6));
+    expect(chartWindowStart(null, 4, 13, 6)).toBe(4);
+  });
 });
 
 test("a column label thins to fit its width instead of shrinking or wrapping", () => {
@@ -208,4 +215,52 @@ test("the stepper floors at the first month with money, not that year's January"
   expect(stepBounds({ granularity: "month", year: 2025, month: 6 }, first, NOW).canBack).toBe(true);
   expect(stepBounds({ granularity: "year", year: 2025, month: 0 }, first, NOW).canBack).toBe(false);
   expect(earliestMonthOf([])).toBeNull();
+});
+
+describe("recentScope", () => {
+  const { recentScope } = require("../spending");
+  const { filtersToQuery, EMPTY_FILTERS } = require("../txn-filters");
+  const filter = { categories: ["groceries"], excludeCategories: ["rent"] };
+  test("money out lists money going out under the page's filter", () => {
+    expect(recentScope("expenses", filter, [{ id: "salary" }])).toEqual({ kind: "out", categories: ["groceries"], excludeCategories: ["rent"] });
+  });
+  test("money in lists the income categories the Income row counts, so a card refund is left out", () => {
+    const s = recentScope("income", filter, [{ id: "salary" }, { id: "interest" }, { id: null }]);
+    expect(s).toEqual({ kind: "all", categories: ["salary", "interest"], excludeCategories: [] });
+    const q = filtersToQuery({ ...EMPTY_FILTERS, ...s });
+    expect(q.categories).toEqual(["salary", "interest"]);
+    expect(q.kind ?? "all").not.toBe("in");
+  });
+  test("with no income category to name, money in falls back to money coming in", () => {
+    expect(recentScope("income", filter, []).kind).toBe("in");
+  });
+});
+
+describe("money back (refunds reduce Spent)", () => {
+  const cat = (id: string, name: string, groupId: string, groupName: string, total: number, moneyBack = false) =>
+    ({ id, name, systemKey: null, groupId, groupName, groupType: "expense" as const, total, count: 1, percentage: 0, moneyBack });
+  const cats = [
+    cat("rent", "Rent", "housing", "Housing", 900),
+    cat("groc", "Groceries", "food", "Food & Dining", 300),
+    cat("other", "Other", "other", "Other", 267, true),
+  ];
+
+  it("lists money back last as a negative row, whatever the sort, and the rows add up to Spent", () => {
+    for (const sort of ["amount:desc", "amount:asc", "label:asc", "label:desc"] as const) {
+      const rows = breakdownRows(cats, sort);
+      expect(rows[rows.length - 1]).toMatchObject({ label: "Other", total: -267 });
+    }
+    const rows = breakdownRows(cats);
+    expect(rows.reduce((s, r) => s + r.total, 0)).toBe(933);
+  });
+
+  it("a filtered Spent counts money back negative", () => {
+    const s = { categories: cats, totalSpending: 933, totalIncome: 0, netCashFlow: -933 } as Parameters<typeof scopeSummary>[0];
+    expect(scopeSummary(s, { include: ["rent", "other"], exclude: [] }).spending).toBe(633);
+  });
+
+  it("money back has no pace", () => {
+    const row = breakdownRows([{ ...cats[2], usual: 50 }])[0];
+    expect(rowPace(row, "2026-11", new Date(2026, 10, 20))).toBeNull();
+  });
 });

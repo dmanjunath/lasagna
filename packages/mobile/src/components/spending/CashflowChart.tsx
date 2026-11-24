@@ -10,8 +10,8 @@ const PLOT_H = 150;
 /** The month labels stop growing here, like the axis: past it a label thins ("Jan" to "J") rather than shrinking. */
 const LABEL_MAX_SCALE = 1.3;
 const AXIS_W = 48;
-/** A caption figure's width, for sizing the axis to its labels (as TrendChart does). */
-const CHAR_W = 7.4;
+/** An axis figure's width (footnote figures), for sizing the axis to its labels (as TrendChart does). */
+const CHAR_W = 8;
 /** Columns in view at once. More scroll sideways, newest at the right. */
 const VISIBLE = 6;
 
@@ -50,7 +50,8 @@ function CashflowChartBase({
     [periods, spendingOnly],
   );
   // The axis is as wide as its longest gridline label, so "−$12.5K" or "$1.25M" never clips or wraps.
-  const axisW = hidden ? 0 : Math.max(AXIS_W, Math.ceil(Math.max(0, ...ticks.map((v) => shortMoney(v).length)) * CHAR_W + 10));
+  // As wide as its widest label at the text size it is drawn at (the ticks stop growing at 1.3x).
+  const axisW = hidden ? 0 : Math.max(AXIS_W, Math.ceil(Math.max(0, ...ticks.map((v) => shortMoney(v).length)) * CHAR_W * Math.min(Math.max(fontScale, 1), 1.3) + 10));
   const plotW = Math.max(0, width - axisW);
   const colW = plotW / Math.max(1, Math.min(VISIBLE, periods.length));
   const yAt = (v: number) => ((top - v) / (top - bottom)) * PLOT_H;
@@ -69,15 +70,23 @@ function CashflowChartBase({
   const selIdx = periods.findIndex((p) => p.period === selected);
   const [start, setStart] = useState(0);
   const placed = useRef<number | null>(null);
+  // A new set of columns (Year to Month, a different range) starts fresh, so a
+  // month always opens on the same window however the screen got there.
+  const series = `${unit}:${periods[0]?.period ?? ""}:${periods.length}`;
+  const placedFor = useRef(series);
   useEffect(() => {
     if (!width) return;
+    if (placedFor.current !== series) {
+      placedFor.current = series;
+      placed.current = null;
+    }
     const first = chartWindowStart(placed.current, selIdx, periods.length, visible);
     placed.current = first;
     setStart(first);
     scroll.current?.scrollTo({ x: first * colW, animated: false });
     // Only the selection and the width move the window, never a scroll of the user's own.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selIdx, colW, periods.length]);
+  }, [selIdx, colW, periods.length, series]);
   // The star's note only while the running column is on screen.
   const partialIdx = partialKey ? periods.findIndex((p) => p.period === partialKey) : -1;
   const partialShown = partialIdx >= start && partialIdx < start + visible;
@@ -88,7 +97,7 @@ function CashflowChartBase({
         {hidden ? null : (
           <View style={{ width: axisW, height: PLOT_H + labelH }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             {ticks.map((v) => (
-              <Text key={v} style={[styles.tick, { top: yAt(v) - 8, color: t.contentFaint }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>
+              <Text key={v} style={[styles.tick, { top: yAt(v) - 9, color: t.contentMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                 {shortMoney(v)}
               </Text>
             ))}
@@ -151,8 +160,8 @@ function CashflowChartBase({
         </View>
       </View>
       <View style={[styles.legend, { paddingLeft: axisW }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {spendingOnly ? null : <LegendItem color={incomeColor} label="Income" />}
-        <LegendItem color={spendColor} label="Spending" />
+        {spendingOnly ? null : <LegendItem color={incomeColor} label="Money in" />}
+        <LegendItem color={spendColor} label="Money out" />
         {partialShown ? <Text style={[styles.legendText, { color: t.contentMuted }]} numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE}>{`* This ${unit} so far`}</Text> : null}
       </View>
     </View>
@@ -173,7 +182,8 @@ export const CashflowChart = memo(CashflowChartBase);
 
 const styles = themedStyles(() =>
   StyleSheet.create({
-    tick: { ...type.caption, ...figures, position: "absolute", left: 0, right: 6, textAlign: "right" },
+    // Read, not decoration: footnote figures in the muted ink, 4.5:1 or better on the card.
+    tick: { ...type.footnote, ...weight.medium, ...figures, position: "absolute", left: 0, right: 6, textAlign: "right" },
     grid: { position: "absolute", left: 0, right: 0, height: StyleSheet.hairlineWidth },
     col: { alignItems: "center" },
     bar: { position: "absolute", left: 0, right: 0 },

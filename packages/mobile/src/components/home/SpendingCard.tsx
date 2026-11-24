@@ -1,7 +1,10 @@
 import { SymbolView } from "expo-symbols";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { categoryToneIndex } from "@/components/CategoryMedallion";
+import { useTheme as useDesign } from "@/design";
 import { HIDDEN_AMOUNT, useAmountsHidden } from "@/lib/hide-amounts";
 import { fmtUsd, pctVsPrev, type MonthFlow } from "@/lib/home";
+import { useCategoryDisplay } from "@/lib/taxonomy";
 import { figures, icon, radius, themedStyles, type, useTheme, weight } from "@/theme";
 import { Card, CardHeader } from "@/ui/Card";
 import { Note } from "@/ui/Note";
@@ -35,7 +38,8 @@ export function SpendingCard({
   month: string;
   note: boolean;
   onAll: () => void;
-  onCategory: (id: string) => void;
+  /** A row's categories (a group opens all of its own). */
+  onCategory: (ids: string[]) => void;
 }) {
   const t = useTheme();
   const hidden = useAmountsHidden();
@@ -43,7 +47,10 @@ export function SpendingCard({
   const hasFlow = flow.income > 0 || flow.spending > 0;
   const positive = flow.net >= 0;
   const signed = (sign: string, n: number) => (hidden ? HIDDEN_AMOUNT : `${sign}${fmtUsd(n)}`);
-  const colors = [t.viz[0], t.viz[1], t.viz[2]];
+  // Each row in its category's color, as Spending's breakdown draws it, never a color by rank.
+  const d = useDesign();
+  const displayOf = useCategoryDisplay();
+  const colorOf = (lead: string) => d.color.category[categoryToneIndex(displayOf(lead).label)].ink;
 
   return (
     <Card style={{ gap: 14 }}>
@@ -68,10 +75,10 @@ export function SpendingCard({
           </View>
           {flow.topCats.length > 0 ? (
             <View style={{ marginHorizontal: -8 }}>
-              {flow.topCats.map((c, i) => (
+              {flow.topCats.map((c) => (
                 <Pressable
                   key={c.id}
-                  onPress={() => onCategory(c.id)}
+                  onPress={() => onCategory(c.ids)}
                   accessibilityRole="link"
                   accessibilityLabel={`${c.name}, ${fmtUsd(c.total)}`}
                   style={({ pressed }) => [styles.cat, pressFeedback(t, pressed)]}
@@ -83,7 +90,7 @@ export function SpendingCard({
                     <Text style={[styles.catAmt, { color: t.contentSecondary }]}>{fmtUsd(c.total)}</Text>
                     <SymbolView name="chevron.right" size={icon.sm} weight="semibold" tintColor={t.contentFaint} accessibilityElementsHidden importantForAccessibility="no" />
                   </View>
-                  <Track pct={c.pct} color={colors[i % colors.length]} />
+                  <Track pct={c.pct} color={colorOf(c.lead)} />
                 </Pressable>
               ))}
             </View>

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import { FaceIdSetupPrompt } from "@/auth/FaceIdSetupPrompt";
 import { openPath, takePendingPath } from "@/lib/navigation";
-import { setCurrentTab, TABS, webPathFor } from "@/lib/routes";
+import { isSheetOnTop, setCurrentTab, setSheetOpen, TABS, webPathFor } from "@/lib/routes";
 import { paintWindows } from "@/design/ThemeProvider";
 import { DrawerShell } from "@/shell/Drawer";
 import { DrawerMenu } from "@/shell/DrawerMenu";
@@ -37,7 +37,10 @@ export default function AppLayout() {
   const activePath = webPathFor(segments, path);
   const tabBarHidden = useTabBarHidden();
 
-  useEffect(() => setCurrentTab(segments[1]), [segments]);
+  useEffect(() => {
+    setCurrentTab(segments[1]);
+    setSheetOpen(isSheetOnTop(segments));
+  }, [segments]);
 
   // Toasts float above whichever bar holds the screen's foot: the tab bar, or
   // the selection's toolbar that takes its place.

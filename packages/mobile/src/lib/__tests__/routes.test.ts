@@ -129,3 +129,17 @@ test("Debt, Portfolio and Tax are native, pushed in the current tab", () => {
   expect(hrefFor("/portfolio", "(accounts)")).toBe("/(accounts)/portfolio");
   expect(hrefFor("/tax?x=1", "(goals)")).toBe("/(goals)/tax?x=1");
 });
+
+describe("isSheetOnTop", () => {
+  const { isSheetOnTop } = require("../routes");
+  test("a sheet's own screen, or the transaction detail sheet, is a sheet on top", () => {
+    expect(isSheetOnTop(["(app)", "(spending)", "transactions", "transaction-filters"])).toBe(true);
+    expect(isSheetOnTop(["(app)", "(home)", "transaction", "[id]"])).toBe(true);
+    expect(isSheetOnTop(["(app)", "(accounts)", "account-edit"])).toBe(true);
+  });
+  test("a pushed page or a tab's root is not", () => {
+    expect(isSheetOnTop(["(app)", "(home)"])).toBe(false);
+    expect(isSheetOnTop(["(app)", "(spending)", "transactions"])).toBe(false);
+    expect(isSheetOnTop(["(app)", "(accounts)", "accounts", "[id]"])).toBe(false);
+  });
+});

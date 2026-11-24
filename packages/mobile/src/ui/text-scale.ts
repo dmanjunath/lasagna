@@ -15,3 +15,13 @@ export function textScaleKey(fontScale: number): string {
 export function useTextScaleKey(): string {
   return textScaleKey(useWindowDimensions().fontScale);
 }
+
+/** How much an icon or tile beside text grows with the text size: with it, but only so far. */
+export function iconScale(fontScale: number, max = 1.5): number {
+  return Math.min(Math.max(fontScale, 1), max);
+}
+
+/** iconScale for the current system text size. */
+export function useIconScale(max = 1.5): number {
+  return iconScale(useWindowDimensions().fontScale, max);
+}

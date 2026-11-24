@@ -141,9 +141,43 @@ export function webPathFor(segments: string[], webPath?: string | string[]): str
   return `/${screen}`;
 }
 
+/** The tab stacks' screens presented as sheets (the tab layout gives them the formSheet presentation). */
+export const SHEET_ROUTES = [
+  "transaction-filters",
+  "transaction-rule",
+  "pick-category",
+  "add-account",
+  "account-edit",
+  "goal-form",
+  "profile-edit",
+  "set-password",
+  "household-invite",
+  "delete-account",
+  "journey-why",
+  "holding",
+  "tax-add",
+  "tax-document",
+] as const;
+
+/** Whether the screen on top (the route's segments) is a sheet: a sheet's own screen, or the transaction detail sheet. */
+export function isSheetOnTop(segments: readonly string[]): boolean {
+  const last = segments[segments.length - 1];
+  const parent = segments[segments.length - 2];
+  return (SHEET_ROUTES as readonly string[]).includes(last) || (parent === "transaction" && last === "[id]");
+}
+
 // The focused tab, kept by the tab layout so imperative navigation (openPath,
 // the sheets) pushes inside it rather than jumping to another tab.
 let currentTab: TabGroup = "(home)";
+// Whether a sheet is on top, kept by the tab layout: navigating elsewhere closes it first, or the destination
+// would be pushed inside the sheet (Home drawn in a sheet, with no tab bar).
+let sheetOpen = false;
+export function setSheetOpen(open: boolean) {
+  sheetOpen = open;
+}
+export function isSheetOpen(): boolean {
+  return sheetOpen;
+}
 export function setCurrentTab(tab: string | undefined) {
   if (tab && PATH_BY_TAB.has(tab)) currentTab = tab as TabGroup;
 }

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { SymbolView, type SFSymbol } from "expo-symbols";
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authApi, billingApi } from "@/api/auth";
@@ -10,7 +10,9 @@ import { onboardingResume } from "@/lib/home";
 import { openPath } from "@/lib/navigation";
 import { icon, radius, themedStyles, type, useTheme, weight } from "@/theme";
 import { BrandLockup } from "@/ui/BrandMark";
-import { SectionHeader } from "@/ui/Form";
+import { raisedColors } from "@/ui/Chip";
+import { useTheme as useDesign } from "@/design";
+import { withAlpha } from "@lasagna/design";
 import { failed } from "@/ui/feedback";
 import { Track } from "@/ui/Track";
 import { pressFeedback } from "@/ui/press";
@@ -26,18 +28,15 @@ const ios17 = Number(Platform.Version) >= 17;
 const DRAWER_MAX_SCALE = 1.3;
 
 type NavItem = { label: string; icon: SFSymbol; path: string };
+// No section holds a single row (owner, 2026-11-24): Spending is a tab here, so the web's "Income &
+// expenses" would be Transactions alone, and it joins the everyday pages instead.
 const NAV_SECTIONS: Array<{ section: string; items: NavItem[] }> = [
   {
-    section: "Financial insights",
-    items: [
-      { label: "Actions", icon: "bolt", path: "/insights" },
-      { label: "Financial journey", icon: "square.3.layers.3d", path: "/financial-level" },
-    ],
-  },
-  {
-    section: "Income & expenses",
+    section: "Day to day",
     items: [
       { label: "Transactions", icon: "arrow.left.arrow.right", path: "/transactions" },
+      { label: "Actions", icon: "bolt", path: "/insights" },
+      { label: "Financial journey", icon: "square.3.layers.3d", path: "/financial-level" },
     ],
   },
   {
@@ -68,6 +67,7 @@ export function accountFirstName(tenantName: string | undefined | null): string 
 
 export function DrawerMenu({ activePath, close }: { activePath: string; close: () => void }) {
   const t = useTheme();
+  const d = useDesign();
   const insets = useSafeAreaInsets();
   const { user, tenant } = useAuth();
 
@@ -89,31 +89,38 @@ export function DrawerMenu({ activePath, close }: { activePath: string; close: (
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.nav} showsVerticalScrollIndicator>
-        {NAV_SECTIONS.map(({ section, items }, i) => (
-          <View key={section}>
-            {i > 0 ? <View style={[styles.sectionRule, { backgroundColor: t.line }]} /> : null}
-            <SectionHeader style={styles.sectionTitle} maxScale={DRAWER_MAX_SCALE}>
+        {NAV_SECTIONS.map(({ section, items }) => (
+          <View key={section} style={styles.section}>
+            <Text maxFontSizeMultiplier={DRAWER_MAX_SCALE} accessibilityRole="header" style={[styles.sectionTitle, { color: t.contentSecondary }]}>
               {section}
-            </SectionHeader>
-            <View style={[styles.sectionItems, { borderLeftColor: t.line }]}>
-              {items.map((item) => {
+            </Text>
+            {/* Each section is one card of rows, like the app's grouped lists. */}
+            <View style={[styles.card, { backgroundColor: t.panel, borderColor: t.hairline }]}>
+              {items.map((item, i) => {
                 const active = isActiveNav(item.path, activePath);
+                const on = raisedColors(d.color);
                 return (
-                  <Pressable
-                    key={item.path}
-                    onPress={() => go(item.path)}
-                    accessibilityRole="button"
-                    accessibilityLabel={item.label}
-                    accessibilityState={{ selected: active }}
-                    style={({ pressed }) => [styles.item, pressFeedback(t, pressed)]}
-                  >
-                    {active ? <View style={[styles.activeBar, { backgroundColor: t.brand }]} /> : null}
-                    <View style={[styles.itemIcon, { backgroundColor: active ? t.brand : t.canvasSunken }]}>
-                      <SymbolView name={item.icon} size={icon.sm} weight="semibold" tintColor={active ? t.brandFg : t.contentMuted} accessibilityElementsHidden importantForAccessibility="no" />
-                    </View>
-                    <Text maxFontSizeMultiplier={DRAWER_MAX_SCALE} style={[styles.itemLabel, active ? weight.bold : weight.semibold, { color: active ? t.brandInk : t.content }]}>{item.label}</Text>
-                    <SymbolView name="chevron.right" size={icon.sm} weight="semibold" tintColor={t.contentFaint} accessibilityElementsHidden importantForAccessibility="no" />
-                  </Pressable>
+                  <Fragment key={item.path}>
+                    {i > 0 ? <View style={[styles.rule, { backgroundColor: t.line }]} /> : null}
+                    <Pressable
+                      onPress={() => go(item.path)}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      accessibilityState={{ selected: active }}
+                      style={({ pressed }) => [
+                        styles.item,
+                        // The page you're on: filled like a selected pill, with its soft edge.
+                        active ? { backgroundColor: on.fill, boxShadow: `0 2px 0 ${on.edge}` } : pressFeedback(t, pressed),
+                      ]}
+                    >
+                      <View style={[styles.itemIcon, { backgroundColor: active ? withAlpha(on.ink, 0.18) : t.canvasSunken }]}>
+                        <SymbolView name={item.icon} size={icon.md} weight="semibold" tintColor={active ? on.ink : t.contentSecondary} accessibilityElementsHidden importantForAccessibility="no" />
+                      </View>
+                      <Text maxFontSizeMultiplier={DRAWER_MAX_SCALE} numberOfLines={1} style={[styles.itemLabel, { color: active ? on.ink : t.content }]}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  </Fragment>
                 );
               })}
             </View>
@@ -121,7 +128,7 @@ export function DrawerMenu({ activePath, close }: { activePath: string; close: (
         ))}
       </ScrollView>
 
-      <View style={[styles.foot, { borderTopColor: t.line, paddingBottom: Math.max(10, insets.bottom) }]}>
+      <View style={[styles.foot, { paddingBottom: Math.max(10, insets.bottom) }]}>
         <OnboardingProgress onNavigate={close} />
         <PlanUsage activePath={activePath} onNavigate={close} />
         {/* Profile & Settings, which holds Admin and Sign out: pushed in the current tab. */}
@@ -129,7 +136,7 @@ export function DrawerMenu({ activePath, close }: { activePath: string; close: (
           onPress={() => go("/profile")}
           accessibilityRole="button"
           accessibilityLabel={`Profile and settings, ${firstName}`}
-          style={({ pressed }) => [styles.account, pressFeedback(t, pressed)]}
+          style={({ pressed }) => [styles.account, { backgroundColor: t.panel, borderColor: t.hairline }, pressFeedback(t, pressed)]}
         >
             <View style={[styles.avatar, { backgroundColor: t.brand }]}>
               <Text maxFontSizeMultiplier={DRAWER_MAX_SCALE} style={[styles.avatarText, { color: t.brandFg }]}>{firstName[0]?.toUpperCase() || "U"}</Text>
@@ -269,17 +276,17 @@ function FootAction({ icon: symbol, title, onPress, busy }: { icon: SFSymbol; ti
 }
 
 const styles = themedStyles(() => StyleSheet.create({
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingLeft: 22, paddingRight: 12, paddingBottom: 4 },
+  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingLeft: 20, paddingRight: 10, paddingBottom: 8 },
   close: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md },
-  nav: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 8 },
-  sectionRule: { height: StyleSheet.hairlineWidth, marginHorizontal: 12, marginTop: 8 },
-  sectionTitle: { paddingTop: 10, paddingBottom: 4, marginHorizontal: -4 },
-  sectionItems: { marginLeft: 16, paddingLeft: 8, borderLeftWidth: StyleSheet.hairlineWidth, gap: 2 },
-  item: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md },
-  activeBar: { position: "absolute", left: -10, width: 3, height: 20, borderRadius: 2 },
-  itemIcon: { width: 28, height: 28, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
-  itemLabel: { ...type.subhead, flex: 1 },
-  foot: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingTop: 10, gap: 6 },
+  nav: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12, gap: 16 },
+  section: { gap: 6 },
+  sectionTitle: { ...type.footnote, ...weight.semibold, paddingHorizontal: 8 },
+  card: { borderRadius: radius.lg, borderWidth: 1, padding: 4, overflow: "hidden" },
+  rule: { height: StyleSheet.hairlineWidth, marginLeft: 56, marginRight: 8 },
+  item: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.md },
+  itemIcon: { width: 34, height: 34, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
+  itemLabel: { ...type.body, ...weight.semibold, flex: 1 },
+  foot: { paddingHorizontal: 12, paddingTop: 8, gap: 8 },
   footRow: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.md, gap: 6 },
   footLine: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
   footValueRow: { flexDirection: "row", alignItems: "center", gap: 4 },
@@ -289,9 +296,9 @@ const styles = themedStyles(() => StyleSheet.create({
   footAction: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, marginHorizontal: -8, paddingHorizontal: 8, borderRadius: radius.sm },
   footActionIcon: { width: 18, alignItems: "center" },
   footActionText: { ...type.footnote, ...weight.semibold },
-  account: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, paddingVertical: 6, minHeight: 52, borderRadius: radius.md },
+  account: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 8, minHeight: 60, borderRadius: radius.lg, borderWidth: 1 },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   avatarText: { ...type.headline },
-  accountName: { ...type.subhead, ...weight.bold },
-  accountEmail: { ...type.caption, ...weight.regular, marginTop: 2 },
+  accountName: { ...type.body, ...weight.bold },
+  accountEmail: { ...type.footnote, ...weight.regular, marginTop: 2 },
 }));

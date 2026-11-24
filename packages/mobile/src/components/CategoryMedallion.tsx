@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTheme as useDesign } from "@/design";
 import type { CategoryDisplay } from "@/lib/taxonomy";
 import { icon, themedStyles } from "@/theme";
+import { useIconScale } from "@/ui/text-scale";
 
 /** A stable tile color for a category: its name picks one of the theme's eight category tones. */
 export function categoryToneIndex(label: string): number {
@@ -21,6 +22,8 @@ export function categoryToneIndex(label: string): number {
  */
 export function CategoryMedallion({ display, income, role }: { display: CategoryDisplay; income?: boolean; role?: TintRole }) {
   const d = useDesign();
+  // The tile keeps pace with the row's text at large sizes, within reason.
+  const k = useIconScale();
   const neutral = d.skin.categoryTile === "neutral";
   const tone = income
     ? { fill: d.color.positiveSoft, ink: d.color.positive }
@@ -29,11 +32,11 @@ export function CategoryMedallion({ display, income, role }: { display: Category
         { fill: d.palette.faintFill, ink: d.color.contentSecondary }
       : d.color.category[categoryToneIndex(display.label)];
   return (
-    <View style={[styles.m, { backgroundColor: tone.fill, borderRadius: neutral ? d.radius.pill : d.radius.sm }]}>
+    <View style={[styles.m, { width: 42 * k, height: 42 * k, backgroundColor: tone.fill, borderRadius: neutral ? d.radius.pill : d.radius.sm }]}>
       {display.emoji ? (
-        <Text style={styles.emoji}>{display.emoji}</Text>
+        <Text style={[styles.emoji, { fontSize: icon.md * k }]} allowFontScaling={false}>{display.emoji}</Text>
       ) : (
-        <SymbolView name={display.symbol} size={icon.md} weight="semibold" tintColor={tone.ink} />
+        <SymbolView name={display.symbol} size={icon.md * k} weight="semibold" tintColor={tone.ink} />
       )}
     </View>
   );

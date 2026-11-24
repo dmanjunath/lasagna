@@ -1,5 +1,6 @@
 import * as WebBrowser from "expo-web-browser";
 import { hrefForLink, isPlaidOAuthReturn, webPathFromUrl } from "@/lib/deep-links";
+import { closeSheet } from "@/lib/navigation";
 
 /**
  * Every incoming link (the lasagna:// scheme or a universal link for the web
@@ -14,6 +15,8 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     if (path.includes("expo-development-client")) return path;
     // Stripe's return can land while its checkout sheet is still up.
     if (webPathFromUrl(path).startsWith("/billing/success")) void Promise.resolve(WebBrowser.dismissBrowser()).catch(() => {});
+    // A link that lands while a sheet is up would open inside the sheet: close it first.
+    if (!initial) closeSheet();
     return hrefForLink(path);
   } catch {
     return "/";

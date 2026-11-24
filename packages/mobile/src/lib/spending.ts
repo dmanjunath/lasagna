@@ -3,6 +3,7 @@
 // from @web/lib/spending-filters, which has no imports and is shared as is.
 import { spendFilterAllows, spendFilterFromQuery, type SpendFilter } from "@web/lib/spending-filters";
 import { paceVerdict } from "@web/lib/spending-pace";
+import { rankWithMoneyBackLast, signedTotal } from "@web/lib/money-back";
 
 export type Granularity = "month" | "year";
 
@@ -22,6 +23,8 @@ export interface SpendingCategory {
   percentage: number;
   /** The category's usual month (median of the three before, same filter), on a one-month window with enough history. */
   usual?: number | null;
+  /** Refunds beat spending in the window: `total` is the money back (positive), and it counts negative toward Spent. */
+  moneyBack?: boolean;
 }
 
 export interface SpendingSummaryData {
@@ -164,7 +167,7 @@ export function scopeSummary(s: SpendingSummaryData, f: SpendFilter): Scoped {
   const expenses = rows.filter((c) => c.groupType !== "income" && c.groupType !== "transfer");
   const income = rows.filter((c) => c.groupType === "income");
   if (!active) return { expenses, income, spending: s.totalSpending, incomeTotal: s.totalIncome, net: s.netCashFlow };
-  const spending = cents(expenses.reduce((a, c) => a + c.total, 0));
+  const spending = cents(expenses.reduce((a, c) => a + signedTotal(c), 0));
   const incomeTotal = cents(income.reduce((a, c) => a + c.total, 0));
   return { expenses, income, spending, incomeTotal, net: cents(incomeTotal - spending) };
 }
@@ -219,7 +222,8 @@ export const SORT_OPTIONS: Array<{ value: BreakdownSort; label: string }> = [
 export function breakdownRows(cats: SpendingCategory[], sort: BreakdownSort = "amount:desc", byCategory = false): BreakdownRow[] {
   const byGroup = new Map<string | null, BreakdownRow>();
   for (const c of cats) {
-    const child = { id: c.id, label: c.name, total: Math.abs(c.total), usual: c.usual ?? null };
+    // Signed as Spent counts it: a money-back category is negative, so a group's rows add up to the hero exactly.
+    const child = { id: c.id, label: c.name, total: c.groupType === "income" ? Math.abs(c.total) : signedTotal(c), usual: c.usual ?? null };
     if (byCategory) {
       byGroup.set(c.id, { key: c.id, label: c.name, total: child.total, children: [child] });
       continue;
@@ -231,19 +235,23 @@ export function breakdownRows(cats: SpendingCategory[], sort: BreakdownSort = "a
     } else byGroup.set(c.groupId, { key: c.groupId, label: c.groupName || "Other", total: child.total, children: [child] });
   }
   const rows = [...byGroup.values()];
-  for (const r of rows) r.children.sort((a, b) => b.total - a.total);
+  for (const r of rows) {
+    r.total = cents(r.total);
+    r.children.sort((a, b) => b.total - a.total);
+  }
   const [key, dir] = sort.split(":") as ["amount" | "label", "asc" | "desc"];
-  return rows.sort((a, b) => {
-    const cmp = key === "label" ? a.label.localeCompare(b.label) : a.total - b.total;
-    return dir === "asc" ? cmp : -cmp;
-  });
+  // Money back (a negative total) always lists last, largest back first, whatever the sort.
+  return rankWithMoneyBackLast(rows, { key, dir });
 }
 
 export { PACE_BAND, PACE_FIRST_DAY, paceVerdict } from "@web/lib/spending-pace";
+// Money back (owner, 2026-11-24, "Refunds reduce Spent"): one rule for both clients.
+export { rankWithMoneyBackLast, signedTotal } from "@web/lib/money-back";
 
 /** A row's pace: its categories that have a usual, spent against the sum of their usuals. */
 export function rowPace(row: BreakdownRow, key: string, now: Date = new Date()): "good" | "bad" | null {
-  const known = row.children.filter((c) => c.usual !== null && c.usual > 0);
+  // Money back has no pace: only categories that cost money and have a usual.
+  const known = row.children.filter((c) => c.total > 0 && c.usual !== null && c.usual > 0);
   if (known.length === 0) return null;
   return paceVerdict(
     known.reduce((s, c) => s + c.total, 0),
@@ -343,9 +351,29 @@ export function shortMoney(v: number): string {
  */
 export function chartWindowStart(prev: number | null, selIdx: number, count: number, visible: number): number {
   const last = Math.max(0, count - visible);
-  if (prev === null || selIdx < 0) return last;
-  const start = Math.min(Math.max(0, prev), last);
+  if (selIdx < 0) return last;
+  // No window yet: start from the newest columns, then apply the same rule as a
+  // step, so a month opens on the same window however the screen reached it.
+  const start = Math.min(Math.max(0, prev ?? last), last);
   if (selIdx < start) return selIdx;
   if (selIdx >= start + visible) return Math.min(last, selIdx - visible + 1);
   return start;
+}
+
+/**
+ * The scope of the Recent transactions list (and its See all) under the
+ * breakdown's side. Money out lists money going out under the page's filter.
+ * Money in lists what the Income row counts, the income categories, so a card
+ * refund (money back on a spending category) is not counted there too, as the
+ * web does (pages/spending.tsx). With no income category to name, the side
+ * falls back to money coming in.
+ */
+export function recentScope(
+  side: "expenses" | "income",
+  filter: { categories: string[]; excludeCategories: string[] },
+  incomeRows: Array<Pick<SpendingCategory, "id">>,
+): { kind: "in" | "out" | "all"; categories: string[]; excludeCategories: string[] } {
+  if (side === "expenses") return { kind: "out", categories: filter.categories, excludeCategories: filter.excludeCategories };
+  const ids = incomeRows.flatMap((r) => (r.id ? [r.id] : []));
+  return ids.length > 0 ? { kind: "all", categories: ids, excludeCategories: [] } : { kind: "in", categories: filter.categories, excludeCategories: filter.excludeCategories };
 }

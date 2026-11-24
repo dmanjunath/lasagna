@@ -81,3 +81,17 @@ test("Home's greeting intro plays once a session", () => {
   expect(takeGreetingIntro()).toBe(true);
   expect(takeGreetingIntro()).toBe(false);
 });
+
+describe("poolScale", () => {
+  const { poolScale, MASCOT_PHASE } = require("../pull-refresh");
+  test("forms with the user's pull, full in the sauce, drains as the mascot leaves", () => {
+    expect(poolScale(MASCOT_PHASE.follow, 0, 6, true, 80, 0)).toBe(0);
+    expect(poolScale(MASCOT_PHASE.follow, 46, 6, true, 80, 0)).toBeCloseTo(0.5);
+    expect(poolScale(MASCOT_PHASE.follow, 200, 6, true, 80, 0)).toBe(1);
+    expect(poolScale(MASCOT_PHASE.held, 0, 6, false, 80, 0)).toBe(1);
+    expect(poolScale(MASCOT_PHASE.leaving, 0, 6, false, 80, 0.25)).toBeCloseTo(0.75);
+  });
+  test("a settle that no drag started forms no pool", () => {
+    expect(poolScale(MASCOT_PHASE.follow, 30, 6, false, 80, 0)).toBe(0);
+  });
+});

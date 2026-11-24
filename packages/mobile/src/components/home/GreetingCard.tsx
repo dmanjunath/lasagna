@@ -5,7 +5,6 @@ import { hasRoleColor } from "@/design/tint";
 import { HIDDEN_AMOUNT, useAmountsHidden } from "@/lib/hide-amounts";
 import { radius, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { Card, heroEdge } from "@/ui/Card";
-import { Mascot } from "@/ui/Mascot";
 import { RefreshMascot } from "@/ui/PullRefresh";
 import { Note } from "@/ui/Note";
 import { Skeleton } from "@/ui/Skeleton";
@@ -115,9 +114,7 @@ export function GreetingCard({
       {speaks ? (
         <View style={[styles.mascot, stacked && { alignSelf: "flex-start", marginBottom: 0 }]}>
           {/* Home's refresh indicator where the refresh skin is the mascot. */}
-          <RefreshMascot>
-            <Mascot name="happy" width={84} />
-          </RefreshMascot>
+          <RefreshMascot width={84} />
         </View>
       ) : null}
       <View

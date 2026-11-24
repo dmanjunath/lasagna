@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTheme as useDesign } from "@/design";
 import { icon, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { Chip } from "@/ui/Chip";
-import { Mascot } from "@/ui/Mascot";
 import { RefreshMascot } from "@/ui/PullRefresh";
 
 /** What to ask first (the web's chat-thread-list.tsx DEFAULT_PROMPTS). */
@@ -22,9 +21,7 @@ export function ChatIntro({ onAsk }: { onAsk: (prompt: string) => void }) {
     <View style={styles.wrap}>
       {mascot ? (
         // The page's one mascot is also the pull to refresh's, so none comes down from the bar.
-        <RefreshMascot>
-          <Mascot name="happy" width={112} />
-        </RefreshMascot>
+        <RefreshMascot width={112} />
       ) : (
         <View style={[styles.tile, { backgroundColor: t.accentSoft, borderRadius: d.radius.lg }]}>
           <SymbolView name="sparkles" size={icon.lg} tintColor={t.accentInk} accessibilityElementsHidden importantForAccessibility="no" />

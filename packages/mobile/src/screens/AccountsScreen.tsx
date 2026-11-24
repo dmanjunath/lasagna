@@ -158,17 +158,6 @@ export default function AccountsScreen({ query, root }: { query?: string; root: 
           />
         ) : (
           <>
-            {/* 1. Scope: how the list below is grouped. */}
-            <ScopePills<GroupBy>
-              accessibilityLabel="Group accounts by"
-              value={groupBy}
-              onChange={chooseGroupBy}
-              options={[
-                { value: "category", label: "Type" },
-                { value: "institution", label: "Institution" },
-              ]}
-            />
-
             {/* Link takes a few seconds to appear after the sheet closes: say it is on its way. */}
             {plaid === "opening" ? <Banner tone="info" title="Opening your bank connection" /> : null}
             {plaid === "syncing" ? <Banner tone="info" title="Bringing in your accounts" body="This takes a few seconds." /> : null}
@@ -183,7 +172,7 @@ export default function AccountsScreen({ query, root }: { query?: string; root: 
               />
             ))}
 
-            {/* 2. Hero: net worth and its history. */}
+            {/* 1. Hero: net worth and its history. */}
             {facts.isError && !facts.data ? (
               <Card>
                 <ErrorState compact title="Couldn't load your net worth" onRetry={() => void facts.refetch()} />
@@ -205,6 +194,17 @@ export default function AccountsScreen({ query, root }: { query?: string; root: 
                 {meta ? <Text style={[styles.meta, { color: t.contentMuted }]}>{meta}</Text> : null}
               </TrendCard>
             )}
+
+            {/* 2. How the list below is grouped, right above it (owner, 2026-11-24): it scopes the list, not the net worth. */}
+            <ScopePills<GroupBy>
+              accessibilityLabel="Group accounts by"
+              value={groupBy}
+              onChange={chooseGroupBy}
+              options={[
+                { value: "category", label: "Type" },
+                { value: "institution", label: "Institution" },
+              ]}
+            />
 
             {/* 3. The groups. */}
             {groupBy === "category"

@@ -107,9 +107,40 @@ test("month flow keeps the top three expense categories and compares with last m
   const flow = monthFlowFrom(cur, { ...cur, totalSpending: 800 });
   expect(flow.topCats.map((c) => c.id)).toEqual(["a", "c", "e"]);
   expect(flow.topCats[0].pct).toBe(50);
+  expect(flow.topCats[0].ids).toEqual(["a"]);
   expect(pctVsPrev(flow)).toBe(25);
   expect(pctVsPrev(monthFlowFrom(cur, null))).toBeNull();
   expect(pctVsPrev(monthFlowFrom(cur, { ...cur, totalSpending: 0 }))).toBeNull();
+});
+
+test("Home's top rows roll categories up by group, as Spending's default view does", () => {
+  const cur = {
+    totalSpending: 1000,
+    totalIncome: 0,
+    netCashFlow: -1000,
+    categories: [
+      { id: "rent", name: "Rent", groupType: "expense" as const, total: 500, groupId: "housing", groupName: "Housing" },
+      { id: "groc", name: "Groceries", groupType: "expense" as const, total: 200, groupId: "food", groupName: "Food & Dining" },
+      { id: "dine", name: "Dining Out", groupType: "expense" as const, total: 250, groupId: "food", groupName: "Food & Dining" },
+      { id: "gas", name: "Gas", groupType: "expense" as const, total: 50, groupId: "auto", groupName: "Auto" },
+    ],
+  };
+  const top = monthFlowFrom(cur, null).topCats;
+  expect(top.map((c) => c.name)).toEqual(["Housing", "Food & Dining", "Auto"]);
+  expect(top[1]).toMatchObject({ total: 450, ids: ["dine", "groc"], lead: "dine" });
+});
+
+test("money back stays off Home's top categories", () => {
+  const cur = {
+    totalSpending: 633,
+    totalIncome: 0,
+    netCashFlow: -633,
+    categories: [
+      { id: "rent", name: "Rent", groupType: "expense" as const, total: 900, groupId: "housing", groupName: "Housing" },
+      { id: "other", name: "Other", groupType: "expense" as const, total: 267, groupId: "o", groupName: "Other", moneyBack: true },
+    ],
+  };
+  expect(monthFlowFrom(cur, null).topCats.map((c) => c.name)).toEqual(["Housing"]);
 });
 
 test("upcoming bill is the soonest big one within a week", () => {

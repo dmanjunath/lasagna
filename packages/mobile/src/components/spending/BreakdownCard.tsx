@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { SymbolView } from "expo-symbols";
 import { memo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { CategoryMedallion, categoryToneIndex } from "@/components/CategoryMedallion";
 import { formatMoney } from "@/lib/format";
 import { paceVerdict, rowIds, rowPace, type BreakdownRow } from "@/lib/spending";
@@ -11,6 +11,7 @@ import { figures, icon, radius, space, themedStyles, type, useTheme, weight } fr
 import { Card } from "@/ui/Card";
 import { SectionHeader } from "@/ui/Form";
 import { ScopePills } from "@/components/transactions/ScopeRow";
+import { useIconScale } from "@/ui/text-scale";
 import { Track } from "@/ui/Track";
 import { pressFeedback } from "@/ui/press";
 
@@ -58,12 +59,17 @@ function BreakdownCardBase({
   // Against its usual month (meaningful color, owner 2026-11-23): only running ahead of the usual pace is
   // worth a word, in sauce. Under pace is the quiet default, so it says nothing (a caption on most rows is noise).
   // Money out only, and only when amounts show (a pace is about money).
+  const arrowScale = useIconScale();
+  // At large text sizes the amount takes its own line under the name, as Transactions rows do, so a name
+  // never breaks inside a word beside it.
+  const stacked = useWindowDimensions().fontScale > 1.3;
+  const head = stacked ? styles.headStacked : styles.head;
   const ahead = (v: "good" | "bad" | null) => v === "bad" && !income && !hidden && !!periodKey;
   // An arrow and words as a caption, so it never reads as the same signal as a red category bar.
   const pace = (v: "good" | "bad" | null) =>
     ahead(v) ? (
       <View style={styles.paceRow}>
-        <SymbolView name="arrow.up.right" size={icon.xs} weight="bold" tintColor={t.negative} accessibilityElementsHidden importantForAccessibility="no" />
+        <SymbolView name="arrow.up.right" size={icon.xs * arrowScale} weight="bold" tintColor={t.negative} accessibilityElementsHidden importantForAccessibility="no" />
         <Text style={[styles.pace, { color: t.negative }]}>Above your usual pace</Text>
       </View>
     ) : null;
@@ -95,8 +101,10 @@ function BreakdownCardBase({
             // A group has no tile of its own, so it shows its largest category's, as that category's rows do.
             const display = displayOf(row.children[0]?.id ?? null);
             const color = barColor(display.label);
-            const amount = formatMoney(row.total, true);
-            const rowVerdict = periodKey ? rowPace(row, periodKey) : null;
+            // Money back (refunds beat spending): "$X back" in basil, last in the list, no share track or pace.
+            const back = !income && row.total < 0;
+            const amount = back ? `${formatMoney(-row.total, true)} back` : formatMoney(row.total, true);
+            const rowVerdict = periodKey && !back ? rowPace(row, periodKey) : null;
             return (
               <View key={row.key ?? "other"}>
                 <Pressable
@@ -118,13 +126,13 @@ function BreakdownCardBase({
                 >
                   <CategoryMedallion display={display} income={income} />
                   <View style={styles.main}>
-                    <View style={styles.head}>
-                      <Text style={[styles.name, { color: t.content }]} numberOfLines={2}>
+                    <View style={head}>
+                      <Text style={[styles.name, stacked && styles.nameStacked, { color: t.content }]} numberOfLines={stacked ? 3 : 2}>
                         {row.label}
                       </Text>
-                      <Text style={[styles.amt, { color: t.content }]} numberOfLines={1}>{amount}</Text>
+                      <Text style={[styles.amt, { color: back ? t.positive : t.content }]} numberOfLines={1}>{amount}</Text>
                     </View>
-                    {rows.length > 1 ? <Track pct={(row.total / max) * 100} color={color} /> : null}
+                    {rows.length > 1 && !back ? <Track pct={(row.total / max) * 100} color={color} /> : null}
                     {pace(rowVerdict)}
                   </View>
                   {expandable ? (
@@ -145,8 +153,9 @@ function BreakdownCardBase({
                     {(several ? row.children : []).map((c) => {
                       // A category named like its group is the group's own: say so, so it doesn't read as a repeat.
                       const label = c.label === row.label ? `${c.label} (general)` : c.label;
-                      const childAmount = formatMoney(c.total, true);
-                      const childVerdict = periodKey ? paceVerdict(c.total, c.usual, periodKey) : null;
+                      const childBack = !income && c.total < 0;
+                      const childAmount = childBack ? `${formatMoney(-c.total, true)} back` : formatMoney(c.total, true);
+                      const childVerdict = periodKey && !childBack ? paceVerdict(c.total, c.usual, periodKey) : null;
                       return (
                         <Pressable
                           key={c.id ?? "other"}
@@ -158,13 +167,13 @@ function BreakdownCardBase({
                           style={({ pressed }) => [styles.child, pressFeedback(t, pressed)]}
                         >
                           <View style={styles.main}>
-                            <View style={styles.head}>
-                              <Text style={[styles.childName, { color: t.contentSecondary }]} numberOfLines={2}>
+                            <View style={head}>
+                              <Text style={[styles.childName, stacked && styles.nameStacked, { color: t.contentSecondary }]} numberOfLines={stacked ? 3 : 2}>
                                 {label}
                               </Text>
-                              <Text style={[styles.childAmt, { color: t.content }]} numberOfLines={1}>{childAmount}</Text>
+                              <Text style={[styles.childAmt, { color: childBack ? t.positive : t.content }]} numberOfLines={1}>{childAmount}</Text>
                             </View>
-                            <Track pct={(c.total / max) * 100} color={color} height={6} />
+                            {childBack ? null : <Track pct={(c.total / max) * 100} color={color} height={6} />}
                             {pace(childVerdict)}
                           </View>
                           <SymbolView name="chevron.right" size={icon.sm} weight="semibold" tintColor={c.id ? t.contentFaint : "transparent"} accessibilityElementsHidden importantForAccessibility="no" />
@@ -198,6 +207,8 @@ const styles = themedStyles(() =>
     row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 8, paddingVertical: 9, borderRadius: radius.sm, minHeight: 56 },
     main: { flex: 1, gap: 7 },
     head: { flexDirection: "row", alignItems: "baseline", gap: 8 },
+    headStacked: { flexDirection: "column", alignItems: "flex-start", gap: 2 },
+    nameStacked: { flex: 0 },
     name: { ...type.subhead, ...weight.semibold, flex: 1 },
     amt: { ...type.subhead, ...figures },
     children: { paddingLeft: 54 + 10 },

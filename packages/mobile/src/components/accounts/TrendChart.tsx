@@ -1,20 +1,20 @@
 import { clampedDomain } from "@web/lib/chart-domain";
 import * as Haptics from "expo-haptics";
 import { memo, useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
 import { formatMoney, formatStoredDay } from "@/lib/format";
-import { pickXLabels, smoothLinePath, thinLabels, tickDecimals, tickLabel, type Range, type TrendPoint } from "@/lib/trend";
+import { nearestIndex, pickXLabels, smoothLinePath, thinLabels, tickDecimals, tickLabel, timeFractions, type Range, type TrendPoint } from "@/lib/trend";
 import { useTheme as useDesign } from "@/design";
-import { figures, themedStyles, type, useTheme } from "@/theme";
+import { figures, themedStyles, type, useTheme, weight } from "@/theme";
 
 export const CHART_H = 200;
 const TOP = 16;
-const BOTTOM = 26;
+const BOTTOM = 28;
 const RIGHT = 8;
-/** Roughly a caption figure's width, for sizing the axis and spacing the dates. */
-const CHAR_W = 7.4;
+/** Roughly an axis figure's width (footnote figures), for sizing the axis and spacing the dates. */
+const CHAR_W = 8;
 
 /**
  * A value over time as the web's NetWorthChart draws it: a smooth line over a
@@ -50,24 +50,28 @@ function TrendChartBase({
   const { min, max, ticks } = useMemo(() => clampedDomain(points.map((p) => p.value)), [points]);
   const decimals = useMemo(() => tickDecimals(ticks, 0), [ticks]);
   const tickChars = Math.max(0, ...ticks.map((v) => tickLabel(v, decimals).length));
-  const left = hidden ? 4 : Math.round(tickChars * CHAR_W + 14);
+  // The axis is as wide as its widest label at the text size it is drawn at (capped where the labels stop growing).
+  const axisScale = Math.min(Math.max(useWindowDimensions().fontScale, 1), 1.3);
+  const left = hidden ? 4 : Math.round(tickChars * CHAR_W * axisScale + 14);
   const innerW = Math.max(1, width - left - RIGHT);
   const innerH = CHART_H - TOP - BOTTOM;
-  const xAt = (i: number) => left + (i / Math.max(1, points.length - 1)) * innerW;
+  // Placed by date, so a gap in the history reads as the time it covers.
+  const fracs = useMemo(() => timeFractions(points), [points]);
+  const xAt = (i: number) => left + (fracs[i] ?? 0) * innerW;
   const yAt = (v: number) => TOP + innerH - ((v - min) / Math.max(0.0001, max - min)) * innerH;
 
   const line = useMemo(
     () => (width ? smoothLinePath(points.map((p, i) => [xAt(i), yAt(p.value)])) : ""),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [points, width, min, max, left],
+    [points, width, min, max, left, fracs],
   );
   const base = (TOP + innerH).toFixed(2);
   const area = line ? `${line} L ${xAt(points.length - 1).toFixed(2)} ${base} L ${xAt(0).toFixed(2)} ${base} Z` : "";
-  const xLabels = useMemo(() => thinLabels(pickXLabels(points, range), points.length, innerW, CHAR_W), [points, range, innerW]);
+  const xLabels = useMemo(() => thinLabels(pickXLabels(points, range, fracs), points.length, innerW, CHAR_W, fracs), [points, range, innerW, fracs]);
 
   const scrubTo = (x: number) => {
     if (points.length === 0) return;
-    const i = Math.min(points.length - 1, Math.max(0, Math.round(((x - left) / innerW) * (points.length - 1))));
+    const i = nearestIndex(fracs, Math.min(1, Math.max(0, (x - left) / innerW)));
     if (i === lastIdx.current) return;
     lastIdx.current = i;
     Haptics.selectionAsync();
@@ -133,21 +137,21 @@ function TrendChartBase({
             {hidden
               ? null
               : ticks.map((v) => (
-                  <Text key={v} style={[styles.tick, { top: yAt(v) - 8, width: left - 8, color: t.contentFaint }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>
+                  <Text key={v} style={[styles.tick, { top: yAt(v) - 9, width: left - 8, color: t.contentMuted }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                     {tickLabel(v, decimals)}
                   </Text>
                 ))}
             {xLabels.map(({ idx, label: l }) => {
               const end = idx === points.length - 1;
               const start = idx === 0;
-              const w = 64;
+              const w = 72;
               const x = xAt(idx);
               return (
                 <Text
                   key={`${idx}-${l}`}
                   style={[styles.date, { left: start ? x : end ? x - w : x - w / 2, width: w, textAlign: start ? "left" : end ? "right" : "center", color: t.contentMuted }]}
                   numberOfLines={1}
-                  maxFontSizeMultiplier={1.2}
+                  maxFontSizeMultiplier={1.3}
                 >
                   {l}
                 </Text>
@@ -164,7 +168,8 @@ export const TrendChart = memo(TrendChartBase);
 
 const styles = themedStyles(() =>
   StyleSheet.create({
-    tick: { ...type.caption, ...figures, position: "absolute", left: 0, textAlign: "right" },
-    date: { ...type.caption, ...figures, position: "absolute", bottom: 0 },
+    // The axes are read, not decoration: footnote size in the muted ink, which holds 4.5:1 on a card and on a tinted hero.
+    tick: { ...type.footnote, ...weight.medium, ...figures, position: "absolute", left: 0, textAlign: "right" },
+    date: { ...type.footnote, ...weight.medium, ...figures, position: "absolute", bottom: 0 },
   }),
 );

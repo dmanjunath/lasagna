@@ -17,7 +17,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { withAlpha } from "@lasagna/design";
 import { useTheme as useDesign } from "@/design";
-import { holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, nextArmed, pullStretch, refreshLook, takeGreetingIntro, type RefreshLook } from "@/lib/pull-refresh";
+import { DIVE_DEPTH, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, nextArmed, poolScale, pullStretch, refreshLook, takeGreetingIntro, type RefreshLook } from "@/lib/pull-refresh";
+import Svg, { Ellipse } from "react-native-svg";
 import { BrandMark } from "./BrandMark";
 import { Mascot } from "./Mascot";
 
@@ -107,43 +108,77 @@ export function usePullRefresh({
   };
 }
 
-// ── Mascot ──────────────────────────────────────────────────────────────────
+// ── Mascot: the sauce dive ──────────────────────────────────────────────────
 
 const MASCOT_WIDTH = 58;
 /** The artwork is 140 by 124. */
 const MASCOT_HEIGHT = Math.round((MASCOT_WIDTH * 124) / 140);
-/** Space above the bar's bottom edge the hop may rise into. */
+/** Space above the bar's bottom edge the splash may rise into. */
 const HOP_ROOM = 18;
 /** How far the mascot follows a long pull before it stays put. */
 const MASCOT_MAX = 36;
+/** The sauce pool: wider than the mascot, a shallow ellipse seen from just above. */
+const POOL_W = 92;
+const POOL_H = 22;
+/** The pull over which the pool forms, about where the system arms the refresh. */
+const POOL_SPAN = 80;
 
-/** The finish hop's length, before the mascot leaves. */
-const FINISH_MS = 300;
+/** The pop out of the sauce and its shake, before the mascot leaves. Short: the page is already sliding back up. */
+const FINISH_MS = 220;
 /** How long it takes to rise back under the bar and fade. */
-const EXIT_MS = 240;
+const EXIT_MS = 200;
+/** The pool drains as the mascot pops out, gone before the page's title slides back under it. */
+const DRAIN_MS = 220;
 
 /**
- * The theme's character slides down from under the nav bar with the content
- * as you pull, hops once when the pull arms the refresh, bobs while the screen
- * refetches, and when it is done gives a small happy hop and rises back under
- * the bar, fading. It stays gone until the content is back at rest, so no part
- * of it lingers under the bar.
+ * The theme's character dives into sauce. It comes down from under the nav bar
+ * with the content as you pull, while a pool of sauce forms under its feet.
+ * When the pull arms the refresh it dives in with a splash and bobs there, head
+ * above the surface, with bubbles rising, while the screen refetches. When it
+ * is done it pops out with a shake that flicks off a drop or two, and rises
+ * back under the bar as the pool drains. It stays gone until the content is
+ * back at rest, so no part of it lingers under the bar.
  */
 function PullMascot({ pull, armed, refreshing, top }: { pull: SharedValue<number>; armed: SharedValue<boolean>; refreshing: boolean; top: number }) {
-  const { hop, bob } = useHopBob(refreshing);
+  const d = useDesign();
+  const sauce = d.color.tint.spend.accent;
+  const sauceDeep = d.color.tint.spend.ink;
+  // The sauce's glossy highlight: the scheme's near-white (the card in light, the text in dark).
+  const gloss = d.scheme === "dark" ? d.color.content : d.color.surface;
   const phase = useSharedValue<number>(refreshing ? MASCOT_PHASE.held : MASCOT_PHASE.follow);
   const exit = useSharedValue(0);
+  const dive = useSharedValue(refreshing ? 1 : 0);
+  const bob = useSharedValue(0);
+  const shake = useSharedValue(0);
+  const drain = useSharedValue(0);
+  // Each splash replays its drops: a dive in, a pop out.
+  const [splash, setSplash] = useState(0);
+  const [flick, setFlick] = useState(0);
   useEffect(() => {
+    cancelAnimation(bob);
     if (refreshing) {
       cancelAnimation(exit);
       exit.value = 0;
+      drain.value = 0;
       phase.value = MASCOT_PHASE.held;
+      // In it goes: a quick crouch up, then down into the sauce.
+      dive.value = withSequence(withTiming(-0.12, { duration: 110, easing: Easing.out(Easing.quad) }), withTiming(1, { duration: 260, easing: Easing.in(Easing.quad) }));
+      const sway = { duration: 520, easing: Easing.inOut(Easing.sin) };
+      bob.value = withDelay(420, withRepeat(withSequence(withTiming(-3, sway), withTiming(0, sway)), -1));
+      setSplash((n) => n + 1);
       return;
     }
+    bob.value = withTiming(0, { duration: 120 });
     if (phase.value !== MASCOT_PHASE.held) return;
     phase.value = MASCOT_PHASE.leaving;
+    // Out it pops, gives itself a shake, and goes.
+    dive.value = withSpring(0, { damping: 12, stiffness: 260 });
+    const tilt = (deg: number, ms: number) => withTiming(deg, { duration: ms, easing: Easing.inOut(Easing.sin) });
+    shake.value = withDelay(60, withSequence(tilt(-8, 50), tilt(8, 55), tilt(-5, 50), tilt(0, 50)));
+    drain.value = withTiming(1, { duration: DRAIN_MS, easing: Easing.out(Easing.quad) });
+    setFlick((n) => n + 1);
     exit.value = withDelay(FINISH_MS, withTiming(1, { duration: EXIT_MS, easing: Easing.in(Easing.quad) }));
-  }, [refreshing, phase, exit]);
+  }, [refreshing, phase, exit, dive, bob, shake, drain]);
   // Gone and the content back at rest: follow the next pull.
   useAnimatedReaction(
     () => mascotRearms(phase.value, pull.value, exit.value, REST),
@@ -151,51 +186,110 @@ function PullMascot({ pull, armed, refreshing, top }: { pull: SharedValue<number
       if (!now) return;
       phase.value = MASCOT_PHASE.follow;
       exit.value = 0;
+      dive.value = 0;
+      drain.value = 0;
       // A finished pull is spent: only a new drag shows it again, not the content still settling at rest.
       armed.value = false;
     },
   );
-  const style = useAnimatedStyle(() => {
-    // Its feet ride just above the content's top edge, so it comes out from under the bar with the page.
-    const y = Math.min(pull.value - MASCOT_HEIGHT - 8, MASCOT_MAX) + HOP_ROOM;
+  const group = useAnimatedStyle(() => {
+    // The pool's bottom rides just above the content's top edge, so it comes out from under the bar with the page
+    // and never sits over the page's title.
+    const y = Math.min(pull.value - MASCOT_HEIGHT - POOL_H / 2 - 4, MASCOT_MAX) + HOP_ROOM;
     const rise = exit.value * (MASCOT_HEIGHT + HOP_ROOM);
-    return { opacity: mascotOpacity(phase.value, pull.value, exit.value, REST, armed.value), transform: [{ translateY: y + hop.value + bob.value - rise }] };
+    return { opacity: mascotOpacity(phase.value, pull.value, exit.value, REST, armed.value), transform: [{ translateY: y - rise }] };
+  });
+  const body = useAnimatedStyle(() => ({
+    transform: [{ translateY: dive.value * MASCOT_HEIGHT * DIVE_DEPTH + bob.value }, { rotate: `${shake.value}deg` }],
+  }));
+  const pool = useAnimatedStyle(() => {
+    const k = poolScale(phase.value, pull.value, REST, armed.value, POOL_SPAN, phase.value === MASCOT_PHASE.leaving ? drain.value : exit.value);
+    return { opacity: k > 0.02 ? 1 : 0, transform: [{ scaleX: 0.35 + 0.65 * k }, { scaleY: k }] };
   });
   return (
     <View pointerEvents="none" style={[styles.clip, { top: top - HOP_ROOM }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Animated.View style={style}>
-        <Mascot name="happy" width={MASCOT_WIDTH} />
+      <Animated.View style={[styles.diveGroup, group]}>
+        {/* The pool is behind; the mascot's box ends at the pool's middle, its surface, so below it the mascot is in the sauce. */}
+        <Animated.View style={[styles.pool, pool]}>
+          <Svg width={POOL_W} height={POOL_H}>
+            <Ellipse cx={POOL_W / 2} cy={POOL_H / 2} rx={POOL_W / 2 - 1} ry={POOL_H / 2 - 1} fill={sauce} stroke={sauceDeep} strokeWidth={1.5} />
+            <Ellipse cx={POOL_W * 0.34} cy={POOL_H * 0.36} rx={POOL_W * 0.16} ry={POOL_H * 0.16} fill={gloss} opacity={0.35} />
+          </Svg>
+        </Animated.View>
+        <View style={styles.diveBody}>
+          <Animated.View style={[styles.feet, body]}>
+            <Mascot name="happy" width={MASCOT_WIDTH} />
+          </Animated.View>
+        </View>
+        {refreshing ? <Bubbles color={sauce} /> : null}
+        {splash ? <Splash key={`in${splash}`} color={sauce} drops={DIVE_DROPS} /> : null}
+        {flick ? <Splash key={`out${flick}`} color={sauce} drops={FLICK_DROPS} /> : null}
       </Animated.View>
     </View>
   );
 }
 
-/**
- * The armed hop (once, as the refresh starts), the bob while it lasts, and a
- * finish hop when it ends, as translateY offsets. Both always end at exactly 0.
- */
-function useHopBob(refreshing: boolean) {
-  const hop = useSharedValue(0);
-  const bob = useSharedValue(0);
-  const was = useRef(refreshing);
+type Drop = { dx: number; up: number; r: number; delay: number };
+/** The dive's splash: drops thrown out to both sides. */
+const DIVE_DROPS: Drop[] = [
+  { dx: -30, up: 22, r: 3.5, delay: 0 },
+  { dx: -16, up: 30, r: 3, delay: 20 },
+  { dx: 4, up: 34, r: 2.5, delay: 10 },
+  { dx: 18, up: 28, r: 3, delay: 30 },
+  { dx: 32, up: 20, r: 3.5, delay: 15 },
+];
+/** The shake on the way out: a drop or two flicked off. */
+const FLICK_DROPS: Drop[] = [
+  { dx: -24, up: 18, r: 2.5, delay: 140 },
+  { dx: 26, up: 14, r: 2.5, delay: 190 },
+];
+
+/** Drops of sauce that arc up from the surface and fall back, fading. */
+function Splash({ color, drops }: { color: string; drops: Drop[] }) {
+  return (
+    <View pointerEvents="none" style={styles.surface}>
+      {drops.map((drop, i) => (
+        <SplashDrop key={i} color={color} {...drop} />
+      ))}
+    </View>
+  );
+}
+
+function SplashDrop({ color, dx, up, r, delay }: Drop & { color: string }) {
+  const p = useSharedValue(0);
   useEffect(() => {
-    const ended = was.current && !refreshing;
-    was.current = refreshing;
-    cancelAnimation(bob);
-    if (!refreshing) {
-      bob.value = withTiming(0, { duration: 120 });
-      if (ended) {
-        // Done: one small happy hop. It starts from wherever the armed hop is, so a refresh shorter than the hop still lands at rest.
-        cancelAnimation(hop);
-        hop.value = withSequence(withTiming(-12, { duration: 130, easing: Easing.out(Easing.quad) }), withSpring(0, { damping: 11, stiffness: 300 }));
-      }
-      return;
-    }
-    hop.value = withSequence(withTiming(-14, { duration: 140, easing: Easing.out(Easing.quad) }), withSpring(0, { damping: 9, stiffness: 320 }));
-    const sway = { duration: 480, easing: Easing.inOut(Easing.sin) };
-    bob.value = withDelay(260, withRepeat(withSequence(withTiming(-5, sway), withTiming(0, sway)), -1));
-  }, [refreshing, hop, bob]);
-  return { hop, bob };
+    p.value = withDelay(delay, withTiming(1, { duration: 460, easing: Easing.out(Easing.quad) }));
+  }, [p, delay]);
+  const style = useAnimatedStyle(() => ({
+    opacity: p.value > 0 && p.value < 1 ? 1 - p.value * p.value : 0,
+    // Out and up, then back down: a thrown drop.
+    transform: [{ translateX: dx * p.value }, { translateY: -up * 4 * p.value * (1 - p.value) }],
+  }));
+  return <Animated.View style={[{ position: "absolute", width: r * 2, height: r * 2, borderRadius: r, marginLeft: -r, marginTop: -r, backgroundColor: color }, style]} />;
+}
+
+/** While the mascot sits in the sauce, small bubbles rise from it and pop. */
+function Bubbles({ color }: { color: string }) {
+  return (
+    <View pointerEvents="none" style={styles.surface}>
+      {[-22, 20, -6].map((dx, i) => (
+        <Bubble key={i} color={color} dx={dx} delay={i * 330} />
+      ))}
+    </View>
+  );
+}
+
+function Bubble({ color, dx, delay }: { color: string; dx: number; delay: number }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(delay, withRepeat(withTiming(1, { duration: 1000, easing: Easing.out(Easing.quad) }), -1));
+    return () => cancelAnimation(p);
+  }, [p, delay]);
+  const style = useAnimatedStyle(() => ({
+    opacity: p.value < 0.85 ? 0.9 : (1 - p.value) * 6,
+    transform: [{ translateX: dx }, { translateY: -12 * p.value }, { scale: 0.5 + p.value * 0.7 }],
+  }));
+  return <Animated.View style={[styles.bubble, { borderColor: color }, style]} />;
 }
 
 /**
@@ -237,20 +331,34 @@ type Inline = {
 };
 export const PullRefreshContext = createContext<Inline | null>(null);
 
-/** How far a pull goes before the stretch is full (about where the system arms the refresh). */
+/** How far a pull goes before the lean is full (about where the system arms the refresh). */
 const STRETCH_SPAN = 90;
+/**
+ * The arm's wave, in degrees from its raised rest (positive turns clockwise,
+ * away from the body). A wide arc on the outside of the body, so it reads as a
+ * wave and not a lean: back near upright, out toward the side. The arm is drawn
+ * under the body, so it never turns far enough toward it to slip behind.
+ */
+const WAVE_OUT = 40;
+const WAVE_BACK = -18;
+/** One half of a wave (out, or back), in ms: about two waves a second. */
+const WAVE_HALF = 260;
+/** How far the body tips toward the wave at its widest, in degrees. */
+const WAVE_TILT = 3;
 
 /**
  * Wraps a mascot already on the page (Home's greeting). Where the refresh skin
- * is the mascot, it becomes the indicator: it stretches toward the finger as
- * the user pulls, hops when the pull arms the refresh, bobs while it lasts and
- * gives a finish hop when it is done, back at exactly its resting place, and
- * no second mascot comes down from the bar. The first time Home shows in a
- * session it pops in and waves. Reduce Motion: it stands still. Elsewhere it
- * draws its child as is.
+ * is the mascot, it becomes the indicator, and it waves: as the user pulls it
+ * leans in and starts waving its arm, when the pull arms the refresh it jumps
+ * for joy with a little splash of sauce at its feet, it keeps a gentle wave
+ * while the screen refetches, and when it is done it takes a small bow and
+ * settles exactly where it was. No second mascot comes down from the bar. The
+ * first time Home shows in a session it pops in and waves hello. Reduce Motion:
+ * it stands still. Elsewhere it draws its child as is.
  */
-export function RefreshMascot({ children }: { children: ReactNode }) {
+export function RefreshMascot({ children, width }: { children?: ReactNode; /** The mascot's width: given, the wrapper draws it itself with a waving arm. */ width?: number }) {
   const ctx = useContext(PullRefreshContext);
+  const d = useDesign();
   const active = ctx?.look === "mascot";
   const claim = ctx?.claim;
   const reduceMotion = useReducedMotion();
@@ -259,37 +367,97 @@ export function RefreshMascot({ children }: { children: ReactNode }) {
     claim(true);
     return () => claim(false);
   }, [active, claim]);
-  const { hop, bob } = useHopBob(active && !!ctx?.refreshing);
+  const refreshing = active && !!ctx?.refreshing;
 
-  // The intro: once a session, a pop with a little bounce, then a wave (a tilt on its feet, side to side).
+  const hop = useSharedValue(0);
+  const bow = useSharedValue(0);
+  const arm = useSharedValue(0);
+  const [splash, setSplash] = useState(0);
+  const was = useRef(refreshing);
+  // Waving while a pull is under way or the screen refetches; the arm's swing loops on the UI thread.
+  const waving = useSharedValue(0);
+  const swingArm = () => {
+    "worklet";
+    const out = { duration: WAVE_HALF, easing: Easing.inOut(Easing.sin) };
+    arm.value = withRepeat(withSequence(withTiming(WAVE_OUT, out), withTiming(WAVE_BACK, out)), -1, false);
+  };
+  const rest = () => {
+    "worklet";
+    arm.value = withTiming(0, { duration: 200 });
+  };
+  useEffect(() => {
+    const started = !was.current && refreshing;
+    const ended = was.current && !refreshing;
+    was.current = refreshing;
+    if (reduceMotion) return;
+    if (started) {
+      // The jump for joy, and a splash where it lands.
+      cancelAnimation(hop);
+      hop.value = withSequence(withTiming(-22, { duration: 170, easing: Easing.out(Easing.quad) }), withSpring(0, { damping: 10, stiffness: 300 }));
+      setSplash((n) => n + 1);
+    }
+    if (ended) {
+      // A small bow, then still.
+      const lean = (deg: number, ms: number) => withTiming(deg, { duration: ms, easing: Easing.inOut(Easing.sin) });
+      bow.value = withSequence(lean(10, 180), withDelay(120, lean(0, 220)));
+    }
+  }, [refreshing, reduceMotion, hop, bow]);
+
+  // The intro: once a session, a pop with a little bounce, then a wave hello.
   const [intro] = useState(() => !reduceMotion && takeGreetingIntro());
   const pop = useSharedValue(intro ? 0 : 1);
-  const wave = useSharedValue(0);
   useEffect(() => {
     if (!intro) return;
     pop.value = withDelay(120, withSpring(1, { damping: 9, stiffness: 220, mass: 0.8 }));
-    const swing = (deg: number, ms: number) => withTiming(deg, { duration: ms, easing: Easing.inOut(Easing.sin) });
-    wave.value = withDelay(520, withSequence(swing(-9, 140), swing(8, 160), swing(-6, 150), swing(0, 140)));
-  }, [intro, pop, wave]);
+    const out = (deg: number) => withTiming(deg, { duration: WAVE_HALF, easing: Easing.inOut(Easing.sin) });
+    arm.value = withDelay(520, withSequence(out(WAVE_OUT), out(WAVE_BACK), out(WAVE_OUT), out(WAVE_BACK), out(0)));
+  }, [intro, pop, arm]);
 
   const pull = ctx?.pull;
   const armed = ctx?.armed;
-  const stretchOn = active && !reduceMotion;
+  const moving = active && !reduceMotion;
+  useAnimatedReaction(
+    () => (moving && ((armed?.value && (pull?.value ?? 0) > REST) || refreshing) ? 1 : 0),
+    (now, prev) => {
+      if (now === prev) return;
+      waving.value = now;
+      if (now) swingArm();
+      else rest();
+    },
+    [moving, refreshing],
+  );
+
   const style = useAnimatedStyle(() => {
-    const s = stretchOn && pull && armed ? pullStretch(pull.value, REST, armed.value, STRETCH_SPAN) : 0;
+    const s = moving && pull && armed ? pullStretch(pull.value, REST, armed.value, STRETCH_SPAN) : 0;
     return {
       transform: [
-        { translateY: hop.value + bob.value + s * 6 },
-        { rotate: `${wave.value}deg` },
+        { translateY: hop.value + s * 4 },
+        // Leaning in toward the finger, a slight tip toward the waving arm, and the bow at the end.
+        { rotate: `${-6 * s + bow.value + (Math.max(0, arm.value) / WAVE_OUT) * WAVE_TILT}deg` },
         { scale: pop.value },
-        // Stretching toward the finger: a little taller and narrower, from its feet.
-        { scaleY: 1 + 0.14 * s },
-        { scaleX: 1 - 0.06 * s },
       ],
     };
   });
-  return <Animated.View style={[styles.feet, style]}>{children}</Animated.View>;
+  const content = width ? <Mascot name="happy" width={width} arm={arm} /> : children;
+  return (
+    <View>
+      <Animated.View style={[styles.feet, style]}>{content}</Animated.View>
+      {splash && width ? (
+        <View pointerEvents="none" style={[styles.feetSplash, { width }]}>
+          <Splash key={splash} color={d.color.tint.spend.accent} drops={JUMP_DROPS} />
+        </View>
+      ) : null}
+    </View>
+  );
 }
+
+/** The jump's splash at the greeting mascot's feet: small, low drops. */
+const JUMP_DROPS: Drop[] = [
+  { dx: -22, up: 14, r: 2.5, delay: 150 },
+  { dx: -10, up: 20, r: 2, delay: 160 },
+  { dx: 12, up: 18, r: 2, delay: 170 },
+  { dx: 24, up: 12, r: 2.5, delay: 155 },
+];
 
 // ── Brand mark and smoke puff (the web's pull-to-refresh.tsx and app-header.tsx) ──
 
@@ -406,7 +574,15 @@ function Wisp({ dx, dy, delay }: { dx: number; dy: number; delay: number }) {
 const styles = StyleSheet.create({
   // The intro's wave and the pull's stretch turn and grow from the mascot's feet.
   feet: { transformOrigin: "bottom" },
-  clip: { position: "absolute", left: 0, right: 0, height: MASCOT_MAX + MASCOT_HEIGHT + 40, overflow: "hidden", alignItems: "center" },
+  clip: { position: "absolute", left: 0, right: 0, height: MASCOT_MAX + MASCOT_HEIGHT + 40 + POOL_H, overflow: "hidden", alignItems: "center" },
+  // The mascot and its pool travel together; the pool's center line is the sauce's surface.
+  diveGroup: { width: POOL_W + 40, height: MASCOT_HEIGHT + POOL_H, alignItems: "center" },
+  diveBody: { width: MASCOT_WIDTH + 12, height: MASCOT_HEIGHT, overflow: "hidden", alignItems: "center" },
+  pool: { position: "absolute", top: MASCOT_HEIGHT - POOL_H / 2, width: POOL_W, height: POOL_H },
+  // Drops and bubbles start on the surface line, centered.
+  surface: { position: "absolute", top: MASCOT_HEIGHT - 4, left: 0, right: 0, height: 0, alignItems: "center" },
+  bubble: { position: "absolute", width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, marginLeft: -3, marginTop: -3 },
+  feetSplash: { position: "absolute", bottom: 4, left: 0, height: 0 },
   mark: { transformOrigin: "top" },
   // Centered just under the bar's edge, where the mark goes back in.
   puff: { position: "absolute", top: HOP_ROOM - 4, left: 0, right: 0, height: 24, alignItems: "center", justifyContent: "center" },

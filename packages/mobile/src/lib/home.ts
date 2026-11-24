@@ -144,14 +144,14 @@ export function thisMonthPeriod(now: Date): string {
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
 }
 
-/** This month to date for one category, the window the spending card counted over. */
-export function thisMonthTransactionsHref(categoryId: string, now: Date): string {
+/** This month to date for one category or a group's categories, the window the spending card counted over. */
+export function thisMonthTransactionsHref(categoryIds: string | string[], now: Date): string {
   const ym = thisMonthPeriod(now);
-  return transactionsHref({ startDate: `${ym}-01`, endDate: `${ym}-${pad2(now.getDate())}`, categories: [categoryId] });
+  return transactionsHref({ startDate: `${ym}-01`, endDate: `${ym}-${pad2(now.getDate())}`, categories: Array.isArray(categoryIds) ? categoryIds : [categoryIds] });
 }
 
 export interface SpendingSummary {
-  categories: Array<{ id: string; name: string; groupType: "income" | "expense" | "transfer"; total: number }>;
+  categories: Array<{ id: string; name: string; groupType: "income" | "expense" | "transfer"; total: number; groupId?: string | null; groupName?: string; moneyBack?: boolean }>;
   totalSpending: number;
   totalIncome: number;
   netCashFlow: number;
@@ -163,15 +163,33 @@ export interface MonthFlow {
   net: number;
   /** Spend through the same day of the previous month. */
   prevSpending: number | null;
-  topCats: { id: string; name: string; total: number; pct: number }[];
+  /**
+   * The three largest rows of Spending's default view: categories rolled up by
+   * group (Food & Dining, not Groceries and Dining Out), so a row has the same
+   * name, and with `lead` the same color, on Home and on Spending.
+   */
+  topCats: { id: string; name: string; total: number; pct: number; ids: string[]; lead: string }[];
 }
 
 export function monthFlowFrom(cur: SpendingSummary, prev: SpendingSummary | null): MonthFlow {
-  const topCats = cur.categories
-    .filter((c) => c.groupType === "expense" && c.total > 0)
+  const groups = new Map<string, { id: string; name: string; total: number; children: { id: string; total: number }[] }>();
+  for (const c of cur.categories) {
+    // Money back (refunds beat spending) is not a place money went: it stays off the top categories.
+    if (c.groupType !== "expense" || c.moneyBack || c.total <= 0) continue;
+    const key = c.groupId ?? c.id;
+    const g = groups.get(key);
+    if (g) {
+      g.total += c.total;
+      g.children.push({ id: c.id, total: c.total });
+    } else groups.set(key, { id: key, name: c.groupId ? c.groupName || "Other" : c.name, total: c.total, children: [{ id: c.id, total: c.total }] });
+  }
+  const topCats = [...groups.values()]
     .sort((a, b) => b.total - a.total)
     .slice(0, 3)
-    .map((c) => ({ id: c.id, name: c.name, total: c.total, pct: cur.totalSpending > 0 ? (c.total / cur.totalSpending) * 100 : 0 }));
+    .map((g) => {
+      const kids = [...g.children].sort((a, b) => b.total - a.total);
+      return { id: g.id, name: g.name, total: g.total, pct: cur.totalSpending > 0 ? (g.total / cur.totalSpending) * 100 : 0, ids: kids.map((k) => k.id), lead: kids[0].id };
+    });
   return {
     spending: cur.totalSpending,
     income: cur.totalIncome,

@@ -1,7 +1,7 @@
 import { SymbolView } from "expo-symbols";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { formatMoney, formatStoredDay } from "@/lib/format";
+import { formatMoney, formatStoredDate, formatStoredDay } from "@/lib/format";
 import { HIDDEN_AMOUNT } from "@/lib/hide-amounts";
 import { chartDay, drawableRange, filterByRange, signedPct, type Range, type TrendPoint } from "@/lib/trend";
 import { useTheme as useDesign } from "@/design";
@@ -87,11 +87,20 @@ export function TrendCard({
   const figure = formatMoney(owed ? Math.abs(shown) : shown, true);
 
   // One line whatever the date or amount (owner, "Charts never wrap"): short days, and the period truncates last.
-  // At large text sizes the change stays whole and the period goes ("since …"); a scrubbed day still shows, briefly.
+  // At large text sizes the change stays whole and the period takes its short form ("since Jun", "6M"),
+  // so a change always says over what time. A scrubbed day still shows, briefly.
   const large = fontScale > 1.3;
   const scrubDay = hovered && hovered.date !== start?.date ? chartDay(hovered.date) : "";
   const when = scrubDay ? (large ? scrubDay : `on ${scrubDay}, `) : "";
-  const period = large ? "" : since && start ? `since ${chartDay(start.date)}` : "over this period";
+  const period = large
+    ? scrubDay
+      ? ""
+      : since && start
+        ? `since ${formatStoredDate(start.date, { month: "short", year: "numeric" })}`
+        : "over this period"
+    : since && start
+      ? `since ${chartDay(start.date)}`
+      : "over this period";
   const deltaText = hidden ? (pct !== null ? `(${signedPct(pct)})` : "") : `${up ? "+" : "−"}${formatMoney(Math.abs(delta ?? 0), true)}${pct !== null ? ` (${signedPct(pct)})` : ""}`;
 
   return (
@@ -119,7 +128,7 @@ export function TrendCard({
         <View style={styles.deltaRow} accessible accessibilityLabel={`${up ? "Up" : "Down"} ${deltaText}, ${when}${period}`}>
           <SymbolView name={up ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill"} size={icon.xs} tintColor={tone} accessibilityElementsHidden importantForAccessibility="no" />
           {deltaText ? <Text style={[styles.delta, { color: tone }]} numberOfLines={1}>{deltaText}</Text> : null}
-          {when || period ? (
+          {(when || period) && !large ? (
             <Text style={[styles.period, styles.periodShrink, { color: t.contentMuted }]} numberOfLines={1}>
               {when ? <Text style={[weight.semibold, { color: t.content }]}>{when}</Text> : null}
               {period}
@@ -128,6 +137,14 @@ export function TrendCard({
         </View>
       ) : fallback ? (
         <Text style={[styles.period, { color: t.contentMuted }]}>{fallback}</Text>
+      ) : null}
+      {/* At large text sizes the change keeps the whole line, and its period sits on the line under it, so a change
+          always says over what time and nothing is cut. */}
+      {large && showDelta && delta !== null && (when || period) && !(historyLoading && !hasChart) ? (
+        <Text style={[styles.period, { color: t.contentMuted }]} numberOfLines={1} importantForAccessibility="no" accessibilityElementsHidden>
+          {when ? <Text style={[weight.semibold, { color: t.content }]}>{when}</Text> : null}
+          {period}
+        </Text>
       ) : null}
 
       <View style={styles.chartSlot}>

@@ -32,6 +32,7 @@ import {
   periodTitle,
   savingsRate,
   scopeFromQuery,
+  recentScope,
   scopeSummary,
   SORT_OPTIONS,
   stepBounds,
@@ -155,11 +156,12 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
   const years = useQuery({ queryKey: ["transactions", "monthly-trend", "years"], queryFn: () => spendingApi.trend({ granularity: "year" }) });
   const facts = useQuery({ queryKey: ["facts"], queryFn: homeApi.facts });
   const insights = useQuery({ queryKey: ["insights"], queryFn: insightsApi.list });
-  // The recent list follows the breakdown's side: money out, or money in.
-  const sideKind: TxnFilters["kind"] = side === "income" ? "in" : "out";
+  // The recent list follows the breakdown's side: money out, or what the Income row counts (recentScope).
+  const incomeRows = useMemo(() => (summary.data ? scopeSummary(summary.data, { include: filter.categories, exclude: filter.excludeCategories }).income : []), [summary.data, filter.categories, filter.excludeCategories]);
+  const sideScope = useMemo(() => recentScope(side, filter, incomeRows), [side, filter, incomeRows]);
   const recentFilters = useMemo(
-    () => filtersToQuery({ ...filter, kind: sideKind, datePreset: "custom", customStart: range.startDate, customEnd: range.endDate.slice(0, 10) }),
-    [filter, sideKind, range.startDate, range.endDate],
+    () => filtersToQuery({ ...filter, ...sideScope, datePreset: "custom", customStart: range.startDate, customEnd: range.endDate.slice(0, 10) }),
+    [filter, sideScope, range.startDate, range.endDate],
   );
   const recent = useQuery({
     queryKey: ["transactions", "spending-recent", recentFilters],
@@ -220,7 +222,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
   // Everything else the page is filtered by rides along, so the list shows the same money.
   const carry = { ...filter, search: "" };
   const drill = (categoryIds: string[]) => openPath(transactionsHref({ ...carry, ...range, categories: categoryIds, excludeCategories: [] }));
-  const allHref = transactionsHref({ ...filter, kind: sideKind, search: "", ...range });
+  const allHref = transactionsHref({ ...filter, ...sideScope, search: "", ...range });
   const recentCount = recent.data?.summary.count ?? 0;
 
   const chips = useMemo(() => {
@@ -333,7 +335,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
               {/* Under a category, merchant or amount filter, income, net and savings rate describe nothing: only Spent stays. */}
               {narrowsFlow ? null : (
               <View style={[styles.stats, stackStats && styles.statsStacked, { opacity: stale && !instant ? 0.5 : 1 }]}>
-                <Stat label="Income" value={money(income)} row={!stackStats} />
+                <Stat label="Money in" value={hidden || income <= 0 ? money(income) : `+${money(income)}`} color={!hidden && income > 0 ? t.positive : undefined} row={!stackStats} />
                 <Stat
                   row={!stackStats}
                   label="Net"

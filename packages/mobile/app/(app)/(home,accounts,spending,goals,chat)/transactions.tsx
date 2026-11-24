@@ -176,7 +176,8 @@ export default function Transactions() {
   const [searchOpen, setSearchOpen] = useState(params.focus === "search");
   const openSearch = useCallback(() => {
     setSearchOpen(true);
-    setTimeout(() => searchRef.current?.focus(), 80);
+    // The field mounts with searchOpen, so focus once the bar has it.
+    setTimeout(() => searchRef.current?.focus(), 250);
   }, []);
   const [searchInput, setSearchInput] = useState(filters.search);
   useEffect(() => {
@@ -424,7 +425,7 @@ export default function Transactions() {
   const selectedTitle = matchTotal > rows.length ? `${selectedIds.size} of ${matchTotal} selected` : `${selectedIds.size} selected`;
   // Selecting, the page's title counts the selection, in the content and in the bar alike.
   const title = selecting ? (selectedIds.size === 0 ? "Select transactions" : selectedTitle) : "Transactions";
-  const chrome = useCollapsingHeader({ title, refreshing: pulling, onRefresh: () => void pullToRefresh(), searchBar: !(noData || selecting) });
+  const chrome = useCollapsingHeader({ title, refreshing: pulling, onRefresh: () => void pullToRefresh(), searchBar: !(noData || selecting) && (searchOpen || !!filters.search) });
   const setKind = useCallback((kind: TxnFilters["kind"]) => setFilters({ ...filtersRef.current, kind }), [setFilters]);
   const listHeader = (
     <View style={styles.top}>
@@ -490,8 +491,10 @@ export default function Transactions() {
       <Stack.Screen
         options={{
           headerBackVisible: !selecting,
-          // With nothing to search, the field has no job either. Select mode drops it too.
-          headerSearchBarOptions: noData || selecting ? undefined : {
+          // With nothing to search, the field has no job either. Select mode drops it too. It shows only once
+          // asked for (the search button, an arrival to search) or while a search is on, so a pull to refresh
+          // never reveals it above the page title: the title comes first.
+          headerSearchBarOptions: noData || selecting || !(searchOpen || filters.search) ? undefined : {
             ref: searchRef,
             placeholder: "Search transactions",
             // An active search stays on screen: a filtered list must say it is filtered.

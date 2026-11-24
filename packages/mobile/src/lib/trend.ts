@@ -60,28 +60,55 @@ export function smoothLinePath(pts: Array<[number, number]>): string {
 }
 
 /** Up to five date labels across the points, never the same label twice in a row. */
-export function pickXLabels(points: TrendPoint[], range: Range): Array<{ idx: number; label: string }> {
+/**
+ * Where each point sits across the plot, 0 to 1, by its date: a gap of three
+ * months reads as three months, not as one step. Points on one day, or dates
+ * that do not parse, fall back to even spacing.
+ */
+export function timeFractions(points: TrendPoint[]): number[] {
+  const n = points.length;
+  if (n === 0) return [];
+  const even = points.map((_, i) => (n === 1 ? 0 : i / (n - 1)));
+  const ts = points.map((p) => Date.parse(p.date.length === 10 ? `${p.date}T00:00:00Z` : p.date));
+  if (ts.some((t) => !Number.isFinite(t))) return even;
+  const span = ts[n - 1] - ts[0];
+  if (!(span > 0)) return even;
+  return ts.map((t) => Math.min(1, Math.max(0, (t - ts[0]) / span)));
+}
+
+/** The point nearest a position across the plot (0 to 1). */
+export function nearestIndex(fracs: number[], at: number): number {
+  let best = 0;
+  for (let i = 1; i < fracs.length; i++) if (Math.abs(fracs[i] - at) < Math.abs(fracs[best] - at)) best = i;
+  return best;
+}
+
+export function pickXLabels(points: TrendPoint[], range: Range, fracs: number[] = timeFractions(points)): Array<{ idx: number; label: string }> {
   if (points.length === 0) return [];
   const fmt: Intl.DateTimeFormatOptions = range === "1M" ? { month: "short", day: "numeric" } : range === "6M" ? { month: "short" } : { month: "short", year: "2-digit" };
   const want = Math.min(5, points.length);
-  const step = (points.length - 1) / Math.max(1, want - 1);
   const out: Array<{ idx: number; label: string }> = [];
   let last = "";
+  let lastIdx = -1;
+  // Evenly spaced in time, each at the point nearest that moment.
   for (let i = 0; i < want; i++) {
-    const idx = Math.round(i * step);
+    const idx = nearestIndex(fracs, want === 1 ? 0 : i / (want - 1));
+    if (idx === lastIdx) continue;
     const label = formatStoredDate(points[idx].date, fmt);
     if (label === last) continue;
     out.push({ idx, label });
     last = label;
+    lastIdx = idx;
   }
   return out;
 }
 
 /** Drops every other label (ends kept) until neighbours are at least `need` points apart on a plot `width` wide. */
-export function thinLabels<T extends { idx: number; label: string }>(labels: T[], count: number, width: number, charWidth: number): T[] {
+export function thinLabels<T extends { idx: number; label: string }>(labels: T[], count: number, width: number, charWidth: number, fracs?: number[]): T[] {
   const span = Math.max(1, count - 1);
+  const pos = (idx: number) => (fracs ? fracs[idx] ?? idx / span : idx / span);
   const need = Math.max(0, ...labels.map((l) => l.label.length)) * charWidth * 1.5 + 6;
-  const tightest = (rows: T[]) => Math.min(...rows.slice(1).map((l, i) => ((l.idx - rows[i].idx) / span) * width));
+  const tightest = (rows: T[]) => Math.min(...rows.slice(1).map((l, i) => (pos(l.idx) - pos(rows[i].idx)) * width));
   let out = labels;
   while (out.length > 2 && tightest(out) < need) out = out.filter((_, i) => i % 2 === 0 || i === out.length - 1);
   return out;

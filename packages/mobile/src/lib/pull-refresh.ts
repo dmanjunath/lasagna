@@ -49,6 +49,20 @@ export function pullStretch(pull: number, rest: number, armed: boolean, span: nu
   return Math.min(1, (pull - rest) / span);
 }
 
+/**
+ * The sauce pool under the pull mascot, 0 to 1: it forms as the user pulls,
+ * stays full while the mascot is in it, and drains as the mascot leaves.
+ */
+export function poolScale(phase: number, pull: number, rest: number, armed: boolean, span: number, exit: number): number {
+  "worklet";
+  if (phase === MASCOT_PHASE.held) return 1;
+  if (phase === MASCOT_PHASE.leaving) return Math.max(0, 1 - exit);
+  return pullStretch(pull, rest, armed, span);
+}
+
+/** How far into the sauce the mascot sinks while the screen refetches, as a share of its height: its face stays above. */
+export const DIVE_DEPTH = 0.32;
+
 /** A refresh that finishes faster than this still shows its indicator this long, so the hop and the bob read. */
 export const MIN_REFRESH_MS = 900;
 
