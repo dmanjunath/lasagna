@@ -30,6 +30,7 @@ import { ChipBadge, transactionsHref } from '../components/transactions/Transact
 import { OptionMenu } from '../components/common/OptionMenu';
 import { RulesPanel } from '../components/rules/RulesPanel';
 import { RankedBreakdown, type Side as BreakdownSide } from '../components/spending/RankedBreakdown';
+import { rankWithMoneyBackLast, signedTotal } from '../lib/money-back';
 import { useActiveTheme } from '../components/uikit/design';
 import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../components/common/CategoryMultiSelect';
 import {
@@ -70,6 +71,14 @@ function endOfMonth(d: Date): string {
   return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
 }
 
+const DEFAULT_SORT: { key: 'label' | 'amount'; dir: 'asc' | 'desc' } = { key: 'amount', dir: 'desc' };
+const SORT_OPTIONS = [
+  { value: 'amount:desc', label: 'Largest' },
+  { value: 'amount:asc', label: 'Smallest' },
+  { value: 'label:asc', label: 'A to Z' },
+  { value: 'label:desc', label: 'Z to A' },
+];
+
 export interface RollupRow {
   key: string | null;
   label: string;
@@ -83,16 +92,17 @@ export interface RollupRow {
 // per category (key = category id, null for uncategorized). Group mode: reduced
 // by groupId, carrying the child categories for the expandable rows. Rows and
 // children are sorted largest first. Used by the donut and by both sides
-// (income + expenses) of the breakdown table.
+// (income + expenses) of the breakdown table. Totals are signed as Spent counts
+// them: money back is negative, so the rows add up to the hero.
 function buildRollupRows(cats: SpendingCategory[], rollup: 'category' | 'group'): RollupRow[] {
   if (rollup === 'category') {
     return cats
-      .map((c) => ({ key: c.id, label: c.name, total: Math.abs(c.total), usual: c.usual ?? null, children: [] as RollupRow['children'] }))
+      .map((c) => ({ key: c.id, label: c.name, total: signedTotal(c), usual: c.usual ?? null, children: [] as RollupRow['children'] }))
       .sort((a, b) => b.total - a.total);
   }
   const byGroup = new Map<string | null, RollupRow>();
   for (const c of cats) {
-    const child = { key: c.id, label: c.name, total: Math.abs(c.total), usual: c.usual ?? null };
+    const child = { key: c.id, label: c.name, total: signedTotal(c), usual: c.usual ?? null };
     const existing = byGroup.get(c.groupId);
     if (existing) {
       existing.total += child.total;
@@ -124,6 +134,8 @@ interface SpendingCategory {
   percentage: number;
   /** The category's usual month (median of the three before), on a one-month window with enough history. */
   usual?: number | null;
+  /** Refunds exceeded spending in the window: counts negative toward Spent and lists last as money back. */
+  moneyBack?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,10 +216,7 @@ function BreakdownSection({
       ? row.children.map((c) => c.key).filter((k): k is string => k !== null)
       : row.key !== null ? [row.key] : [];
 
-  const sorted = [...rows].sort((a, b) => {
-    const cmp = sort.key === 'label' ? a.label.localeCompare(b.label) : a.total - b.total;
-    return sort.dir === 'asc' ? cmp : -cmp;
-  });
+  const sorted = rankWithMoneyBackLast(rows, sort);
 
   return (
     <div className="p-3 sm:p-4">
@@ -219,7 +228,9 @@ function BreakdownSection({
           const isOpen = expandable && openGroups.has(row.key);
           const ids = idsFor(row);
           const drillable = ids.length > 0;
-          const barPct = (row.total / maxTotal) * 100;
+          // Money back (a negative total) draws no share bar and reads as money back.
+          const back = row.total < 0;
+          const barPct = back ? 0 : (row.total / maxTotal) * 100;
           // Expandable group rows toggle on row-click (mouse) with a real
           // chevron button for keyboard/AT — so the row is NOT itself a button
           // and the trailing drill button never nests inside another control.
@@ -279,7 +290,9 @@ function BreakdownSection({
                     style={{ width: `${barPct}%`, minWidth: row.total > 0 ? '1.75rem' : 0, background: fill }}
                   />
                   <span className="relative z-[1] min-w-0 flex-1 truncate pl-2.5 text-[13.5px] font-semibold" title={row.label}>{row.label}</span>
-                  <span className="relative z-[1] ui-tnum shrink-0 pl-2 text-[13.5px] font-bold tabular-nums">{formatCurrency(row.total)}</span>
+                  <span className={cn('relative z-[1] ui-tnum shrink-0 pl-2 text-[13.5px] font-bold tabular-nums', back && 'text-positive')}>
+                    {back ? `${formatCurrency(-row.total)} back` : formatCurrency(row.total)}
+                  </span>
                 </span>
                 {expandable && drillable ? (
                   // Group header: row-click toggles, so the drill needs its own
@@ -597,15 +610,15 @@ export function Spending() {
     [filteredCategories],
   );
 
-  // Re-summed ONLY while a filter is active. /spending-summary drops net-negative
-  // expense categories before it sums and emits every surviving row as abs(total),
-  // so summing the surviving rows on the same predicate reproduces its figures.
+  // Re-summed ONLY while a filter is active. /spending-summary emits each row as
+  // abs(total) with `moneyBack` on a refund-heavy expense category, which counts
+  // negative; summing the signed rows reproduces its figures.
   // Unfiltered, the server's own values are used verbatim — the page then renders
   // byte-for-byte what it renders today, with no Σ round(row) vs round(Σ) drift.
   const scopedTotals = useMemo(() => {
     if (!filterActive) return { spending: totalSpending, income: totalIncome, net: netCashFlow };
     const cents = (rows: SpendingCategory[]) =>
-      Math.round(rows.reduce((sum, c) => sum + c.total, 0) * 100) / 100;
+      Math.round(rows.reduce((sum, c) => sum + signedTotal(c), 0) * 100) / 100;
     const spending = cents(spendingCategories);
     const income = cents(incomeCategories);
     return { spending, income, net: Math.round((income - spending) * 100) / 100 };
@@ -718,7 +731,7 @@ export function Spending() {
   // Breakdown table - its own Category/Group toggle, plus a sort shared by both
   // the income and expense sections (default: largest amount first).
   const [tableRollup, setTableRollup] = useState<'category' | 'group'>('category');
-  const [sort, setSort] = useState<{ key: 'label' | 'amount'; dir: 'asc' | 'desc' }>({ key: 'amount', dir: 'desc' });
+  const [sort, setSort] = useState<{ key: 'label' | 'amount'; dir: 'asc' | 'desc' }>(DEFAULT_SORT);
   const incomeRows = useMemo(
     () => buildRollupRows(incomeCategories, tableRollup),
     [incomeCategories, tableRollup],
@@ -760,15 +773,25 @@ export function Spending() {
   // The app's ranked breakdown where the design draws it so (Noodle), else the web's own bars.
   // It has a Money in side whenever there is income, as native does.
   const ranked = useActiveTheme()?.skin.breakdown === 'ranked';
+  // Under Noodle a non-default order shows as a chip, as the app's does.
+  const sortChip =
+    ranked && (sort.key !== DEFAULT_SORT.key || sort.dir !== DEFAULT_SORT.dir)
+      ? SORT_OPTIONS.find((o) => o.value === `${sort.key}:${sort.dir}`)?.label ?? null
+      : null;
   // Under the ranked breakdown (Noodle) the Recent transactions and their See all follow the side on show, as native does.
   const [breakdownSide, setBreakdownSide] = useState<BreakdownSide>('expenses');
-  const recentDirection = ranked ? (breakdownSide === 'income' ? 'credit' : 'debit') : undefined;
+  // Money in lists what the Income row counts: the income categories, so a card
+  // refund (money back on a spending category) is not counted twice over.
+  const recentIncome = ranked && breakdownSide === 'income';
+  const recentDirection = ranked && !recentIncome ? 'debit' : undefined;
+  const recentCategories = recentIncome ? incomeCategories.flatMap((c) => (c.id ? [c.id] : [])) : filter.include;
+  const recentExclude = recentIncome ? [] : filter.exclude;
   const viewAllHref = transactionsHref({
     startDate: periodStart,
     endDate: periodEnd,
-    categories: filter.include,
-    excludeCategories: filter.exclude,
-    direction: recentDirection,
+    categories: recentCategories,
+    excludeCategories: recentExclude,
+    kind: recentDirection === 'debit' ? 'out' : undefined,
   });
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
@@ -904,8 +927,25 @@ export function Spending() {
               space (`contents`). */}
           {showScopeRow && (
             <CategoryMultiSelect
+              // Under Noodle the breakdown's sort lives in Filters, as in the app.
+              header={ranked ? (
+                <div className="mb-3">
+                  <div className="mb-1.5 text-[13px] font-semibold text-content">Sort</div>
+                  <SegmentedControl
+                    aria-label="Sort breakdown"
+                    value={`${sort.key}:${sort.dir}`}
+                    onChange={(v) => {
+                      const [key, dir] = v.split(':') as ['label' | 'amount', 'asc' | 'desc'];
+                      setSort({ key, dir });
+                    }}
+                    stretch={false}
+                    options={SORT_OPTIONS}
+                  />
+                </div>
+              ) : undefined}
               variant="filters"
-              className="max-md:contents"
+              // The app's order under Noodle: Month / Year, the period, then Filters last.
+              className={ranked ? 'max-md:contents md:order-last' : 'max-md:contents'}
               selected={selectedIds}
               onChange={setSelectedIds}
               mode={{ value: filterMode, onChange: handleModeChange }}
@@ -918,7 +958,7 @@ export function Spending() {
           )}
           <SegmentedControl
             aria-label="Granularity"
-            className="xl:order-2"
+            className={ranked ? 'order-first' : 'xl:order-2'}
             value={granularity}
             onChange={handleGranularityChange}
             options={[
@@ -987,7 +1027,7 @@ export function Spending() {
       {/* The applied filters, only when there are any. The trigger lives with
           the period controls (or in the top bar below md), so this row never
           stands empty or holds a lone button. */}
-      {showScopeRow && filterChips.length > 0 && (
+      {showScopeRow && (filterChips.length > 0 || sortChip) && (
         <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-4 sm:gap-y-2">
               {filterChips.map((chip) => (
                 <ChipBadge
@@ -996,10 +1036,13 @@ export function Spending() {
                   onClear={chip.remove}
                 />
               ))}
-              {filterChips.length >= 2 && (
+              {sortChip && (
+                <ChipBadge label={`Sort: ${sortChip}`} removeLabel="Reset the sort" onClear={() => setSort(DEFAULT_SORT)} />
+              )}
+              {filterChips.length + (sortChip ? 1 : 0) >= 2 && (
                 <button
                   type="button"
-                  onClick={clearFilter}
+                  onClick={() => { clearFilter(); setSort(DEFAULT_SORT); }}
                   className="ui-focus touch-target-inline rounded-ui-xs text-[12.5px] font-semibold text-content-muted transition-colors hover:text-content"
                 >
                   Clear all
@@ -1232,10 +1275,11 @@ export function Spending() {
                   { value: 'group', label: 'Group' },
                 ]}
               />
-              {/* The same sort control as /transactions. */}
-              <OptionMenu
+              {/* The same sort control as /transactions. Under Noodle it lives in Filters. */}
+              {!ranked && <OptionMenu
                 ariaLabel="Sort breakdown"
-                prefix="Sorted by"
+                // Under Noodle the menu's own label says the order, as the app's sort does.
+                prefix={ranked ? undefined : 'Sorted by'}
                 toolbar={{ count: 0 }}
                 value={`${sort.key}:${sort.dir}`}
                 options={[
@@ -1249,7 +1293,7 @@ export function Spending() {
                   setSort({ key, dir });
                 }}
                 panelClassName="left-auto right-0"
-              />
+              />}
             </div>
             )}
           </div>
@@ -1316,8 +1360,8 @@ export function Spending() {
         <TransactionList
           startDate={periodStart}
           endDate={periodEnd}
-          categoryIds={filter.include.length > 0 ? filter.include : undefined}
-          excludeCategoryIds={filter.exclude.length > 0 ? filter.exclude : undefined}
+          categoryIds={recentCategories.length > 0 ? recentCategories : undefined}
+          excludeCategoryIds={recentExclude.length > 0 ? recentExclude : undefined}
           refreshKey={refreshKey}
           onDataChanged={loadData}
           onCreateRule={(seed) => setRulesPanel({ open: true, seed })}

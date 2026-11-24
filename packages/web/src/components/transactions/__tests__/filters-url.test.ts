@@ -5,6 +5,9 @@ import {
   filtersFromQuery,
   filtersToQuery,
   filtersToSearchParams,
+  hasPanelFilters,
+  statusChipLabels,
+  transactionsHref,
   wholeMonthLabel,
   wholeYearLabel,
   type TxnFilters,
@@ -84,20 +87,39 @@ describe('filtersFromQuery', () => {
     expect(filtersFromQuery(`?${query}`).categories).toEqual([]);
   });
 
-  it('round-trips a merchant and accounts from a row click', () => {
-    const scoped: TxnFilters = { ...EMPTY_FILTERS, merchant: 'Blue Bottle & Co', accountIds: ['acc-1', 'acc-2'] };
+  it('round-trips merchants (one param each, so a comma in a name survives) and accounts', () => {
+    const scoped: TxnFilters = { ...EMPTY_FILTERS, merchants: ['Blue Bottle & Co', 'Smith, Jones'], accountIds: ['acc-1', 'acc-2'] };
     const query = filtersToSearchParams(scoped);
-    expect(query).toBe('merchant=Blue%20Bottle%20%26%20Co&accountIds=acc-1,acc-2');
+    expect(query).toBe('merchant=Blue%20Bottle%20%26%20Co&merchant=Smith%2C%20Jones&accountIds=acc-1,acc-2');
     expect(filtersFromQuery(`?${query}`)).toEqual(scoped);
-    expect(filtersToQuery(scoped)).toMatchObject({ merchant: 'Blue Bottle & Co', accountIds: ['acc-1', 'acc-2'] });
+    expect(filtersToQuery(scoped)).toMatchObject({ merchants: ['Blue Bottle & Co', 'Smith, Jones'], accountIds: ['acc-1', 'acc-2'] });
   });
 
-  it('round-trips the type and an amount range', () => {
-    const scoped: TxnFilters = { ...EMPTY_FILTERS, direction: 'debit', amountOp: 'between', amountMin: '20', amountMax: '100' };
+  it('round-trips the kind and an amount range', () => {
+    const scoped: TxnFilters = { ...EMPTY_FILTERS, kind: 'out', amountOp: 'between', amountMin: '20', amountMax: '100' };
     const query = filtersToSearchParams(scoped);
-    expect(query).toBe('direction=debit&amountOp=between&amountMin=20&amountMax=100');
+    expect(query).toBe('kind=out&amountOp=between&amountMin=20&amountMax=100');
     expect(filtersFromQuery(`?${query}`)).toEqual(scoped);
-    expect(filtersToQuery(scoped)).toMatchObject({ direction: 'debit', amountMin: 20, amountMax: 100 });
+    expect(filtersToQuery(scoped)).toMatchObject({ kind: 'out', amountMin: 20, amountMax: 100 });
+  });
+
+  it('reads an older direction link as money in or money out', () => {
+    expect(filtersFromQuery('?direction=credit').kind).toBe('in');
+    expect(filtersFromQuery('?direction=debit').kind).toBe('out');
+    // kind wins when a link carries both
+    expect(filtersFromQuery('?kind=transfer&direction=credit').kind).toBe('transfer');
+  });
+
+  it('round-trips the status filters and sends them as booleans', () => {
+    const scoped: TxnFilters = { ...EMPTY_FILTERS, pending: 'hide', excluded: 'only', recurring: 'only', source: 'manual' };
+    const query = filtersToSearchParams(scoped);
+    expect(query).toBe('pending=hide&excluded=only&recurring=only&source=manual');
+    expect(filtersFromQuery(`?${query}`)).toEqual(scoped);
+    expect(filtersToQuery(scoped)).toEqual({ pending: false, excluded: true, recurring: true, source: 'manual' });
+  });
+
+  it('ignores a status value it does not know', () => {
+    expect(filtersFromQuery('?pending=yes&source=other')).toEqual(EMPTY_FILTERS);
   });
 
   it('sends only the side of the range the operator uses', () => {
@@ -187,5 +209,55 @@ describe('dateRangeLabel', () => {
   it('declines a range with no readable date at all', () => {
     expect(dateRangeLabel('', '')).toBeNull();
     expect(dateRangeLabel('july', 'august')).toBeNull();
+  });
+});
+
+describe('universal filter chips', () => {
+  it('names each status filter that is set, the way its chip reads', () => {
+    expect(statusChipLabels(EMPTY_FILTERS)).toEqual([]);
+    expect(statusChipLabels({ ...EMPTY_FILTERS, pending: 'only', recurring: 'hide', source: 'bank' })).toEqual([
+      { key: 'pending', label: 'Pending only' },
+      { key: 'recurring', label: 'Hide recurring' },
+      { key: 'source', label: 'Added by bank' },
+    ]);
+    expect(statusChipLabels({ ...EMPTY_FILTERS, excluded: 'hide', source: 'manual' }).map((c) => c.label)).toEqual(['Hide excluded', 'Added by you']);
+  });
+
+  it('counts the new dimensions as panel filters', () => {
+    expect(hasPanelFilters(EMPTY_FILTERS)).toBe(false);
+    expect(hasPanelFilters({ ...EMPTY_FILTERS, merchants: ['Costco'] })).toBe(true);
+    // The kind is the page-top pills, not a panel filter.
+    expect(hasPanelFilters({ ...EMPTY_FILTERS, kind: 'transfer' })).toBe(false);
+    expect(hasPanelFilters({ ...EMPTY_FILTERS, recurring: 'only' })).toBe(true);
+  });
+
+  it('hands a kind over in a drill link', () => {
+    expect(transactionsHref({ startDate: '2026-11-01', endDate: '2026-11-30', kind: 'out' })).toBe('/transactions?kind=out&startDate=2026-11-01&endDate=2026-11-30');
+  });
+});
+
+describe('saved views', () => {
+  it('knows the view the filters match, and none for no filters', async () => {
+    const { matchingView } = await import('../FilterPickers');
+    const views = [{ name: 'Big bills', query: 'kind=out&amountOp=atLeast&amountMin=500' }];
+    expect(matchingView(views, { ...EMPTY_FILTERS, kind: 'out', amountOp: 'atLeast', amountMin: '500' })?.name).toBe('Big bills');
+    expect(matchingView(views, { ...EMPTY_FILTERS, kind: 'in' })).toBeUndefined();
+    expect(matchingView(views, EMPTY_FILTERS)).toBeUndefined();
+  });
+});
+
+describe('date presets travel by name', () => {
+  it('round-trips a relative preset through the URL, so a reload keeps "Last month"', () => {
+    const f = { ...EMPTY_FILTERS, datePreset: 'last-month' as const, merchants: ['Wegmans'] };
+    const q = filtersToSearchParams(f);
+    expect(q).toContain('datePreset=last-month');
+    expect(q).not.toContain('startDate');
+    const back = filtersFromQuery(`?${q}`);
+    expect(back.datePreset).toBe('last-month');
+    expect(back.merchants).toEqual(['Wegmans']);
+  });
+  it('ignores an unknown preset and keeps exact dates as a custom range', () => {
+    expect(filtersFromQuery('?datePreset=someday').datePreset).toBe('all');
+    expect(filtersFromQuery('?startDate=2026-10-01&endDate=2026-10-31').datePreset).toBe('custom');
   });
 });

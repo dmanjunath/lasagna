@@ -9,6 +9,7 @@ import { Button } from '../uikit';
 import { useBodyScrollLock } from '../../lib/hooks/use-body-scroll-lock';
 import { useSheetDrag } from '../../lib/hooks/use-sheet-drag';
 import { ITEM_CLASS, PANEL_CLASS, TriggerInner, triggerClass, type ToolbarField } from './OptionMenu';
+import { PickerSearch, SelectAllBar } from './PickerBits';
 
 // ---------------------------------------------------------------------------
 // AccountPicker — every account dropdown: accounts grouped by type under
@@ -47,6 +48,8 @@ export function AccountPicker(props: (Multi | Single) & {
 }) {
   const { accounts, toolbar, portal, className } = props;
   const [open, setOpen] = useState(false);
+  // Multi mode: a search over name, institution and mask, and Select all / none over what it leaves.
+  const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -93,7 +96,10 @@ export function AccountPicker(props: (Multi | Single) & {
     return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
   }, [open, portal]);
 
-  const sorted = [...accounts].sort((a, b) => accountTypeRank(a.type) - accountTypeRank(b.type));
+  const q = query.trim().toLowerCase();
+  const sorted = [...accounts]
+    .filter((a) => !props.multiple || q === '' || `${a.name} ${a.institution} ${a.mask ?? ''}`.toLowerCase().includes(q))
+    .sort((a, b) => accountTypeRank(a.type) - accountTypeRank(b.type));
   const selected = props.multiple ? props.selected : props.value ? [props.value] : [];
   // Names shared by 2+ accounts get a ••mask suffix on the trigger.
   const nameOf = (id: string) => {
@@ -154,8 +160,24 @@ export function AccountPicker(props: (Multi | Single) & {
     );
   };
 
+  const visibleIds = sorted.map((a) => a.id);
+  const multiHeader = props.multiple && (
+    <div className="sticky top-0 z-10 -mx-1 -mt-1 bg-panel-raised px-1 pt-1">
+      {accounts.length > 6 && <PickerSearch value={query} onChange={setQuery} placeholder="Search accounts" />}
+      <SelectAllBar
+        disabled={visibleIds.length === 0}
+        onAll={() => props.onChange([...new Set([...props.selected, ...visibleIds])])}
+        onNone={() => props.onChange(props.selected.filter((id) => !visibleIds.includes(id)))}
+      />
+    </div>
+  );
+
   const options = (
     <>
+      {multiHeader}
+      {props.multiple && sorted.length === 0 && (
+        <div className="px-2 py-3 text-[13px] text-content-muted">No accounts match</div>
+      )}
       {!props.multiple && (
         <button
           type="button"

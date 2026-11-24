@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Check, Search, Settings } from 'lucide-react';
+import { SelectAllBar } from './PickerBits';
 import { cn } from '../../lib/utils';
 import { Button, Skeleton } from '../uikit';
 import { categoryOptionLabel, taxonomyIcon, usePickerGroups, useTaxonomy } from '../../lib/taxonomy';
@@ -196,6 +197,14 @@ export function CategoryList({
           className="h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-3 text-[13px] text-content transition-[border-color,box-shadow] focus:border-brand focus:shadow-[0_0_0_3px_var(--ui-brand-ring)] focus:outline-none"
         />
       </div>
+      {mode === 'multi' && (
+        // Over what the search left, so "Select all" after typing "food" selects the food categories.
+        <SelectAllBar
+          disabled={flat.length === 0}
+          onAll={() => onSetSelected?.([...new Set([...selected, ...flat.map((c) => c.id)])])}
+          onNone={() => onSetSelected?.(selected.filter((id) => !flatIdxById.has(id)))}
+        />
+      )}
       <div
         ref={listRef}
         role="listbox"

@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, ChevronRight, Receipt } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTaxonomy, taxonomyIcon } from '../../lib/taxonomy';
 import { paceVerdict } from '../../lib/spending-pace';
+import { rankWithMoneyBackLast } from '../../lib/money-back';
 import { SegmentedControl } from '../uikit';
 import type { RollupRow } from '../../pages/spending';
 
@@ -24,6 +25,8 @@ export function categoryTone(label: string): number {
   return (h % 8) + 1;
 }
 
+
+const SIDE_KEY = 'lf-spending-side';
 export function RankedBreakdown({
   expenseRows,
   incomeRows,
@@ -47,7 +50,22 @@ export function RankedBreakdown({
 }) {
   const { byId } = useTaxonomy();
   const sides: Side[] = [...(expenseRows.length > 0 ? ['expenses' as const] : []), ...(incomeRows.length > 0 ? ['income' as const] : [])];
-  const [picked, setPicked] = useState<Side>('expenses');
+  // The side survives a drill and Back: returning from Money in's transactions lands on Money in.
+  const [picked, setPicked] = useState<Side>(() => {
+    try {
+      return window.sessionStorage.getItem(SIDE_KEY) === 'income' ? 'income' : 'expenses';
+    } catch {
+      return 'expenses';
+    }
+  });
+  const pick = (v: Side) => {
+    setPicked(v);
+    try {
+      window.sessionStorage.setItem(SIDE_KEY, v);
+    } catch {
+      /* storage unavailable */
+    }
+  };
   const side: Side = sides.includes(picked) ? picked : sides[0] ?? 'expenses';
   useEffect(() => {
     onSideChange?.(side);
@@ -55,10 +73,8 @@ export function RankedBreakdown({
   const income = side === 'income';
   const [open, setOpen] = useState<Set<string | null>>(() => new Set());
 
-  const rows = [...(income ? incomeRows : expenseRows)].sort((a, b) => {
-    const cmp = sort.key === 'label' ? a.label.localeCompare(b.label) : a.total - b.total;
-    return sort.dir === 'asc' ? cmp : -cmp;
-  });
+  // Money back (a refund-heavy category, negative) always lists last, as native does.
+  const rows = rankWithMoneyBackLast(income ? incomeRows : expenseRows, sort);
   const max = rows.reduce((m, r) => Math.max(m, r.total), 0) || 1;
 
   // The tile a row shows: its own category's, or a group's largest category's.
@@ -68,6 +84,7 @@ export function RankedBreakdown({
   // A row's usual: its own (category mode), else the sum over its categories that have one, against what they spent.
   const verdictOf = (row: RollupRow) => {
     if (income || !periodKey) return null;
+    if (row.total < 0) return null;
     if (rollup === 'category') return paceVerdict(row.total, row.usual, periodKey);
     const known = row.children.filter((c) => c.usual && c.usual > 0);
     if (known.length === 0) return null;
@@ -113,7 +130,7 @@ export function RankedBreakdown({
         <SegmentedControl
           aria-label="Money out or money in"
           value={side}
-          onChange={(v) => setPicked(v as Side)}
+          onChange={(v) => pick(v as Side)}
           stretch={false}
           options={[
             { value: 'expenses', label: 'Money out' },
@@ -128,7 +145,9 @@ export function RankedBreakdown({
           const several = rollup === 'group' && row.children.length > 1;
           const isOpen = several && open.has(row.key);
           const display = byId.get(catOf(row) ?? '')?.name ?? row.label;
-          const amount = formatAmount(row.total);
+          // Money back reads as money back, in basil, with no share track.
+          const back = row.total < 0;
+          const amount = back ? `${formatAmount(-row.total)} back` : formatAmount(row.total);
           const verdict = verdictOf(row);
           const act = () => {
             if (several) {
@@ -159,9 +178,9 @@ export function RankedBreakdown({
                 <span className="flex min-w-0 flex-1 flex-col gap-1.5">
                   <span className="flex items-baseline gap-2">
                     <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold text-content" title={row.label}>{row.label}</span>
-                    <span className="ui-tnum shrink-0 whitespace-nowrap text-[14.5px] font-bold tabular-nums text-content">{amount}</span>
+                    <span className={cn('ui-tnum shrink-0 whitespace-nowrap text-[14.5px] font-bold tabular-nums', back ? 'text-[rgb(var(--ui-positive))]' : 'text-content')}>{amount}</span>
                   </span>
-                  {track((row.total / max) * 100, display)}
+                  {!back && track((row.total / max) * 100, display)}
                   {pace(verdict)}
                 </span>
                 {several ? (
@@ -176,14 +195,15 @@ export function RankedBreakdown({
                 <div className="flex flex-col pb-2 pl-12">
                   {row.children.map((c) => {
                     const label = c.label === row.label ? `${c.label} (general)` : c.label;
-                    const cv = income || !periodKey ? null : paceVerdict(c.total, c.usual, periodKey);
+                    const cv = income || !periodKey || c.total < 0 ? null : paceVerdict(c.total, c.usual, periodKey);
+                    const cBack = c.total < 0;
                     const go = () => c.key && onDrill([c.key]);
                     return (
                       <div
                         key={c.key ?? 'other'}
                         role={c.key ? 'link' : undefined}
                         tabIndex={c.key ? 0 : undefined}
-                        aria-label={c.key ? `${label} transactions, ${formatAmount(c.total)}` : undefined}
+                        aria-label={c.key ? `${label} transactions, ${cBack ? `${formatAmount(-c.total)} back` : formatAmount(c.total)}` : undefined}
                         onClick={c.key ? go : undefined}
                         onKeyDown={c.key ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } } : undefined}
                         className={cn('ui-focus group flex items-center gap-3 rounded-ui-md px-2 py-2', c.key && 'cursor-pointer hover:bg-canvas-sunken')}
@@ -191,9 +211,11 @@ export function RankedBreakdown({
                         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
                           <span className="flex items-baseline gap-2">
                             <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-content-secondary" title={label}>{label}</span>
-                            <span className="ui-tnum shrink-0 whitespace-nowrap text-[13.5px] font-semibold tabular-nums text-content">{formatAmount(c.total)}</span>
+                            <span className={cn('ui-tnum shrink-0 whitespace-nowrap text-[13.5px] font-semibold tabular-nums', cBack ? 'text-[rgb(var(--ui-positive))]' : 'text-content')}>
+                              {cBack ? `${formatAmount(-c.total)} back` : formatAmount(c.total)}
+                            </span>
                           </span>
-                          {track((c.total / max) * 100, display, true)}
+                          {!cBack && track((c.total / max) * 100, display, true)}
                           {pace(cv)}
                         </span>
                         <ChevronRight size={15} className={cn('shrink-0', c.key ? 'text-content-faint' : 'text-transparent')} aria-hidden />

@@ -1097,6 +1097,11 @@ export const api = {
     }),
 
   getMerchants: () => request<{ merchants: string[] }>('/transactions/merchants'),
+  /** Merchant names with their counts, most used first, narrowed by `q`. Feeds the filter's merchant picker. */
+  getMerchantCounts: (q?: string) =>
+    request<{ merchants: string[]; counts: Array<{ name: string; count: number }> }>(
+      `/transactions/merchants${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    ),
 
   bulkUpdateTransactions: (ids: string[], body: { category?: string; merchantName?: string | null; notes?: string; excluded?: boolean }) =>
     request<{ success: boolean; updated: number }>('/transactions/bulk', {
@@ -1125,6 +1130,8 @@ export const api = {
         percentage: number;
         /** The category's usual month, on a one-month window with three months of history. */
         usual?: number | null;
+        /** Refunds exceeded spending in the window: counts negative toward Spent, lists last as money back. */
+        moneyBack?: boolean;
       }>;
       totalSpending: number;
       totalIncome: number;
@@ -1443,7 +1450,15 @@ export interface TxnQueryBody {
     search?: string; categories?: string[]; excludeCategories?: string[]; accountIds?: string[];
     startDate?: string; endDate?: string;
     amountMin?: number; amountMax?: number; merchant?: string;
+    /** Several merchants (exact names). */
+    merchants?: string[];
     direction?: 'credit' | 'debit';
+    /** in and out leave transfers out (the Spending rule), transfer is only them. */
+    kind?: 'in' | 'out' | 'transfer';
+    pending?: boolean;
+    excluded?: boolean;
+    recurring?: boolean;
+    source?: 'bank' | 'manual';
   };
   groupBy?: 'date' | 'category' | 'group' | 'merchant';
   sort?: { field: 'date' | 'amount'; dir: 'asc' | 'desc' };
@@ -1467,6 +1482,8 @@ export interface TxnQuerySummary {
   /** Biggest single money in / money out over the match (excluded rows and transfers left out); null when there is none. First page only. */
   largestCredit?: TxnQueryRow | null;
   largestDebit?: TxnQueryRow | null;
+  /** Money moved between the user's own accounts (each transfer's outgoing side). */
+  totalTransferred?: number;
   /** Date span of the match; null when nothing matches. ISO timestamp strings. */
   earliest: string | null;
   latest: string | null;

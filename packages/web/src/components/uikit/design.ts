@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { themes, type Theme } from '@lasagna/design';
-import { fontsUrl } from '@lasagna/design/build/webCss';
+import { designIcons, fontsUrl, themeColors } from '@lasagna/design/build/webCss';
 
 /**
  * The design system the app is drawn in: Classic (the web's own look in
@@ -41,9 +41,37 @@ export function currentTheme(): Theme | null {
   return byId(currentDesign()) ?? null;
 }
 
+/** The favicon and home-screen icon links index.html declares (and its first-paint script swaps). */
+export const ICON_LINK_IDS = { svg: 'lf-favicon', touch: 'lf-touch-icon' } as const;
+const CLASSIC_ICONS = { svg: '/favicon.svg', touch: '/icons/apple-touch-icon.png' };
+
+/** The theme-color metas index.html declares (and its first-paint script sets). */
+export const THEME_COLOR_IDS = { light: 'lf-theme-light', dark: 'lf-theme-dark' } as const;
+const CLASSIC_THEME_COLOR = { light: '#F7F9FC', dark: '#0D1117' };
+
+/** The browser chrome in the design's page color, or back to Classic's. */
+function applyThemeColor(theme: Theme | undefined) {
+  const colors = theme ? themeColors(theme) : CLASSIC_THEME_COLOR;
+  for (const key of ['light', 'dark'] as const) {
+    const meta = document.getElementById(THEME_COLOR_IDS[key]);
+    if (meta && meta.getAttribute('content') !== colors[key]) meta.setAttribute('content', colors[key]);
+  }
+}
+
+/** Points the tab and home-screen icons at the design's tile, or back at Classic's waves. */
+function applyIcons(theme: Theme | undefined) {
+  const icons = (theme && designIcons(theme)) ?? CLASSIC_ICONS;
+  for (const key of ['svg', 'touch'] as const) {
+    const link = document.getElementById(ICON_LINK_IDS[key]);
+    if (link && link.getAttribute('href') !== icons[key]) link.setAttribute('href', icons[key]);
+  }
+}
+
 export function applyDesign(id: string) {
   const h = document.documentElement;
   const theme = byId(id);
+  applyIcons(theme);
+  applyThemeColor(theme);
   if (!theme) {
     h.removeAttribute('data-design');
     h.removeAttribute('data-assistant');

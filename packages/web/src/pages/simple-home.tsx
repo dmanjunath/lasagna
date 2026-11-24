@@ -534,7 +534,7 @@ export function SimpleHome() {
         if (!cur) setFlowFailed(true);
         if (cur) {
           const topCats = cur.categories
-            .filter((c) => c.groupType === 'expense' && c.total > 0)
+            .filter((c) => c.groupType === 'expense' && c.total > 0 && !c.moneyBack)
             .sort((a, b) => b.total - a.total)
             .slice(0, 3)
             .map((c) => ({

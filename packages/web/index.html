@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes" />
     
     <meta name="application-name" content="LasagnaFi" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F9FC" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0D1117" />
+    <meta id="lf-theme-light" name="theme-color" media="(prefers-color-scheme: light)" content="#F7F9FC" />
+    <meta id="lf-theme-dark" name="theme-color" media="(prefers-color-scheme: dark)" content="#0D1117" />
 
     <!-- Installable web app (no service worker by design — see public/sw.js history) -->
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -25,8 +25,8 @@
     <meta property="og:type" content="website" />
     
     <!-- Icons — apple-touch-icon must be PNG; iOS ignores SVG here -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link id="lf-favicon" rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link id="lf-touch-icon" rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
     <script>
       (function () {
@@ -74,6 +74,22 @@
               fl.rel = 'stylesheet';
               fl.href = designs[dz].fonts;
               document.head.appendChild(fl);
+              // The design's icon tile in the tab and on the home screen (Classic keeps the waves).
+              var ic = designs[dz].icons;
+              if (ic) {
+                var fv = document.getElementById('lf-favicon');
+                var ti = document.getElementById('lf-touch-icon');
+                if (fv) fv.setAttribute('href', ic.svg);
+                if (ti) ti.setAttribute('href', ic.touch);
+              }
+              // The browser chrome in the design's page color, so the bar above the app matches it.
+              var tc = designs[dz].themeColor;
+              if (tc) {
+                var tl = document.getElementById('lf-theme-light');
+                var td = document.getElementById('lf-theme-dark');
+                if (tl) tl.setAttribute('content', tc.light);
+                if (td) td.setAttribute('content', tc.dark);
+              }
             }
           }
         } catch (e) {

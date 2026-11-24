@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal } from 'lucide-react';
@@ -124,7 +124,10 @@ export function CategoryMultiSelect({
   hideTriggerOnPhone = false,
   iconOnlyBelowLg = false,
   sheetBelow = 'sm',
+  header,
 }: {
+  /** Rendered at the top of the panel, above the categories (e.g. a page's Sort). */
+  header?: React.ReactNode;
   /** Controlled open state, for a page that opens the menu from elsewhere (a top-bar action). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -170,6 +173,14 @@ export function CategoryMultiSelect({
   // The sheet floats over a document that still scrolls, so a drag on a short
   // list would slide the page underneath instead.
   useBodyScrollLock(open && isPhone);
+  // A trigger near the right edge (Filters last in a row) opens the panel leftward, so it
+  // never runs past the viewport and focusing its search never scrolls the page sideways.
+  const [alignRight, setAlignRight] = useState(false);
+  useLayoutEffect(() => {
+    if (!open || isPhone) return;
+    const r = wrapRef.current?.getBoundingClientRect();
+    setAlignRight(!!r && r.left + 380 > window.innerWidth - 16);
+  }, [open, isPhone]);
   const sheetY = useSheetDrag({ enabled: open && isPhone && variant === 'filters', onClose: () => setOpen(false), rootRef: sheetRef, panelRef });
 
   // Applies live, debounced: the checkboxes answer instantly while the page
@@ -225,6 +236,7 @@ export function CategoryMultiSelect({
 
   const panelBody = (
       <>
+        {header}
         {/* "Only"/"Except" — the words the chips this switch produces use.
              Labelling the switch Include/Exclude put two vocabularies for one
              concept on screen at once, both visible together. */}
@@ -338,7 +350,7 @@ export function CategoryMultiSelect({
               ref={panelRef}
               role={variant === 'filters' ? 'dialog' : undefined}
               aria-label={variant === 'filters' ? 'Filter by category' : undefined}
-              className="absolute left-0 top-full z-50 mt-2 flex w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-ui-md border border-line-strong bg-panel-raised p-4 shadow-ui-lg"
+              className={cn('absolute top-full z-50 mt-2 flex w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-ui-md border border-line-strong bg-panel-raised p-4 shadow-ui-lg', alignRight ? 'right-0' : 'left-0')}
             >
               {panelBody}
             </div>

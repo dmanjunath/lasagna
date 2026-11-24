@@ -7,7 +7,7 @@ import { cn, formatStoredDay, storedDayKey } from '../lib/utils';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked, useAmountsHidden } from '../lib/hide-amounts';
 import { HiddenAmount } from '../components/uikit';
 import { usePageContext } from '../lib/page-context';
-import { Alert, Button, EmptyState, Skeleton, useToast } from '../components/uikit';
+import { Alert, Button, EmptyState, SegmentedControl, Skeleton, useToast } from '../components/uikit';
 import { PageTitle } from '../components/ds/PageTitle';
 import { useCategoryDisplay } from '../lib/taxonomy';
 import {
@@ -25,6 +25,7 @@ import {
   filtersToQuery,
   filtersToSearchParams,
   hasPanelFilters,
+  KIND_LABELS,
   type TxnFilters,
 } from '../components/transactions/TransactionFilters';
 import { HeaderAction, HeaderTextAction } from '../components/layout/app-header';
@@ -65,6 +66,26 @@ function dayLabel(iso: string, now: Date = new Date()): string {
 }
 
 type SortKey = 'newest' | 'oldest' | 'largest' | 'smallest';
+
+// This page's filters and sort on this device (the native app's filter-store),
+// kept until the user clears them. Storage can be missing or full: never fatal.
+const TXN_VIEW_KEY = 'lf-txn-view';
+function readStoredTxnView(): { query: string; sort: string } | null {
+  try {
+    const raw = window.localStorage.getItem(TXN_VIEW_KEY);
+    const v = raw ? JSON.parse(raw) : null;
+    return v && typeof v.query === 'string' && typeof v.sort === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+}
+function writeStoredTxnView(v: { query: string; sort: string }) {
+  try {
+    window.localStorage.setItem(TXN_VIEW_KEY, JSON.stringify(v));
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 const SORT_LABELS: Record<SortKey, string> = {
   newest: 'Newest first',
@@ -173,16 +194,17 @@ function LargestLink({ tx, onOpen }: { tx: TxnQueryRow | null | undefined; onOpe
   );
 }
 
-// Under a Credit or Debit filter the other side is always zero and Net only
-// restates the one side left, so both drop out.
-function KpiStrip({ summary, direction, onOpenTx }: {
+// Under a Money in or Money out filter the other side is always zero and Net
+// only restates the one side left, so both drop out. Transfers count neither
+// way, so they show the count and how much moved between the user's accounts.
+function KpiStrip({ summary, kind, onOpenTx }: {
   summary: TxnQuerySummary;
-  direction: TxnFilters['direction'];
+  kind: TxnFilters['kind'];
   onOpenTx: (tx: TxnQueryRow) => void;
 }) {
   const k = kpiFigures(summary);
   const range = dateRangeLabel(summary.earliest, summary.latest);
-  const both = direction === 'all';
+  const both = kind === 'all';
   return (
     <div className={cn(
       // Two by two until xl, where the row columns also switch: in a
@@ -191,10 +213,13 @@ function KpiStrip({ summary, direction, onOpenTx }: {
       both ? 'xl:grid-cols-4' : 'divide-y-0',
     )}>
       <KpiCell label="Transactions" value={k.count} sub={range || undefined} />
-      {direction !== 'debit' && (
+      {kind === 'transfer' && (
+        <KpiCell label="Moved between accounts" value={money(summary.totalTransferred ?? NaN)} />
+      )}
+      {(kind === 'all' || kind === 'in') && (
         <KpiCell label="Money in" value={k.moneyIn} tone="pos" hero="income" sub={summary.largestCredit ? <LargestLink tx={summary.largestCredit} onOpen={onOpenTx} /> : undefined} />
       )}
-      {direction !== 'credit' && (
+      {(kind === 'all' || kind === 'out') && (
         <KpiCell label="Money out" value={k.moneyOut} hero="spend" sub={summary.largestDebit ? <LargestLink tx={summary.largestDebit} onOpen={onOpenTx} /> : undefined} />
       )}
       {both && <KpiCell label="Net" value={k.net} tone={k.netTone} />}
@@ -204,7 +229,7 @@ function KpiStrip({ summary, direction, onOpenTx }: {
 
 // The same figures on one line, under the stuck toolbar once the strip above
 // has scrolled away.
-function KpiLine({ summary, direction }: { summary: TxnQuerySummary; direction: TxnFilters['direction'] }) {
+function KpiLine({ summary, kind }: { summary: TxnQuerySummary; kind: TxnFilters['kind'] }) {
   const k = kpiFigures(summary);
   const item = (label: string, value: string, tone?: 'pos' | 'neg', short?: string) => {
     const masked = isMasked(value);
@@ -228,10 +253,18 @@ function KpiLine({ summary, direction }: { summary: TxnQuerySummary; direction: 
     // Must never clip: a cut-off figure reads as a different number. Below lg
     // the count drops out and the gaps tighten so the money figures fit.
     <div className="flex h-9 items-center gap-x-3 whitespace-nowrap text-[12.5px] lg:gap-x-5">
-      <span className="hidden lg:inline">{item('Transactions', k.count)}</span>
-      {direction !== 'debit' && item('Money in', k.moneyIn, 'pos', 'In')}
-      {direction !== 'credit' && item('Money out', k.moneyOut, undefined, 'Out')}
-      {direction === 'all' && item('Net', k.net, k.netTone)}
+      {kind === 'transfer' ? (
+        // Transfers has no in or out figures: say which side this is and what moved.
+        <>
+          {item('Transfers', k.count)}
+          {item('Moved', money(summary.totalTransferred ?? NaN))}
+        </>
+      ) : (
+        <span className="hidden lg:inline">{item('Transactions', k.count)}</span>
+      )}
+      {(kind === 'all' || kind === 'in') && item('Money in', k.moneyIn, 'pos', 'In')}
+      {(kind === 'all' || kind === 'out') && item('Money out', k.moneyOut, undefined, 'Out')}
+      {kind === 'all' && item('Net', k.net, k.netTone)}
     </div>
   );
 }
@@ -250,8 +283,15 @@ export function Transactions() {
   // Hydrate the filters from the URL so a drill-in lands on the scope it
   // promised: categories, a date range, and a merchant search
   // (`/transactions?categories=<id>&startDate=2026-07-01&endDate=2026-07-31`).
-  const [filters, setFilters] = useState<TxnFilters>(() => filtersFromQuery(window.location.search));
-  const [sortKey, setSortKey] = useState<SortKey>('newest');
+  // A link that carries a scope replaces what was here; a bare visit (the
+  // sidebar, Back) picks up where the user left off on this device.
+  const [filters, setFilters] = useState<TxnFilters>(() =>
+    filtersFromQuery(window.location.search || readStoredTxnView()?.query || ''),
+  );
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    const stored = window.location.search ? null : readStoredTxnView()?.sort;
+    return stored && stored in SORTS ? (stored as SortKey) : 'newest';
+  });
 
   // Paginated list accumulation
   const [rows, setRows] = useState<TxnQueryRow[]>([]);
@@ -355,6 +395,10 @@ export function Transactions() {
     const next = filterQuery ? `/transactions?${filterQuery}` : '/transactions';
     if (`${window.location.pathname}${window.location.search}` !== next) setLocation(next, { replace: true });
   }, [filterQuery, setLocation]);
+  // The filters and sort stay on this device until cleared.
+  useEffect(() => {
+    writeStoredTxnView({ query: filterQuery, sort: sortKey });
+  }, [filterQuery, sortKey]);
 
   // One fetch pipeline: page 1 for the current filters/sort. Resets accumulation
   // and refreshes the filter-scoped summary.
@@ -648,7 +692,10 @@ export function Transactions() {
           <TxnRow
             merchant={tx.merchantName || tx.name}
             onOpenDetail={selecting ? undefined : () => setDetailTx(tx)}
-            onMerchantClick={selecting ? undefined : () => setFilters((f) => ({ ...f, merchant: tx.merchantName || tx.name }))}
+            onMerchantClick={selecting ? undefined : () => setFilters((f) => {
+              const name = tx.merchantName || tx.name;
+              return f.merchants.includes(name) ? f : { ...f, merchants: [...f.merchants, name] };
+            })}
             onAccountClick={selecting ? undefined : () => setFilters((f) => (
               f.accountIds.length === 1 && f.accountIds[0] === tx.accountId ? f : { ...f, accountIds: [tx.accountId] }
             ))}
@@ -659,7 +706,7 @@ export function Transactions() {
             selecting={selecting}
             onToggleSelect={() => toggleSelected(tx.id)}
             onRenameMerchant={(name) => handleMerchantRename(tx, name)}
-            merchantIsFilter={filters.merchant === (tx.merchantName || tx.name)}
+            merchantIsFilter={filters.merchants.includes(tx.merchantName || tx.name)}
             // Wider screens: the category is a filter pill, and its pencil
             // recategorizes. Phones show the plain label and edit in the drawer.
             categoryPill={selecting ? undefined : {
@@ -711,8 +758,12 @@ export function Transactions() {
 
   const hasActiveFilters =
     filters.search !== '' ||
-    filters.merchant !== '' ||
-    filters.direction !== 'all' ||
+    filters.merchants.length > 0 ||
+    filters.kind !== 'all' ||
+    filters.pending !== 'any' ||
+    filters.excluded !== 'any' ||
+    filters.recurring !== 'any' ||
+    filters.source !== 'any' ||
     filters.categories.length > 0 ||
     filters.excludeCategories.length > 0 ||
     filters.accountIds.length > 0 ||
@@ -731,7 +782,8 @@ export function Transactions() {
   useMobileHeader(isMobile ? {
     actions: (
       <>
-        <span data-filters-trigger className="contents">
+        {/* From sm up the page's own toolbar shows the filters, so the top bar doesn't repeat them. */}
+        <span data-filters-trigger className="contents sm:hidden">
           <HeaderAction label="Filters" active={hasPanelFilters(filters)} expanded={filtersOpen} controls="txn-filters-panel" onClick={() => setFiltersOpen((o) => !o)}>
             <SlidersHorizontal size={18} />
           </HeaderAction>
@@ -765,6 +817,16 @@ export function Transactions() {
   // Date-ordered list, chunked into consecutive-day sections when date-sorted.
   let lastDayKey: string | null = null;
 
+  const kindPills = (
+    <SegmentedControl
+      aria-label="Show"
+      value={filters.kind}
+      onChange={(kind) => setFilters({ ...filters, kind })}
+      options={(['all', 'in', 'out', 'transfer'] as const).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
+      stretch={false}
+    />
+  );
+
   return (
     <div
       className="pt-4 md:pt-7 pb-6 sm:pb-28 text-content"
@@ -774,11 +836,11 @@ export function Transactions() {
       {/* The page's column. The sticky toolbar runs full width, so the page
            is three stacked parts, each centring its own content in it. */}
       <div className="mx-auto max-w-[1180px] px-3 sm:px-11">
-      {/* ── Back — desktop only; mobile gets the shell's top-bar back ── */}
+      {/* ── Back — from md up; below that the shell's top bar has Back ── */}
       <button
         type="button"
         onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/spending'); }}
-        className="ui-focus -ml-2 mb-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content sm:mb-3 sm:ml-0 sm:inline-flex sm:min-h-0 sm:px-0"
+        className="ui-focus -ml-2 mb-2 hidden min-h-touch items-center gap-1 rounded-ui-sm px-2 text-[13px] font-semibold text-content-muted transition-colors hover:text-content md:mb-3 md:ml-0 md:inline-flex md:min-h-0 md:px-0"
       >
         <ChevronLeft size={16} /> Back
       </button>
@@ -789,6 +851,13 @@ export function Transactions() {
           <PageTitle>Transactions</PageTitle>
         </div>
       </header>
+
+      {/* Which side of the money, at the top of the page as in the app: one
+           row of pills that scrolls sideways before it ever wraps a lone pill.
+           On wide screens the same pills lead the toolbar row instead. */}
+      <div data-kind-pills className="-mx-3 mt-3 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:px-0 lg:hidden [&::-webkit-scrollbar]:hidden">
+        {kindPills}
+      </div>
 
       </div>
 
@@ -811,7 +880,7 @@ export function Transactions() {
         {showKpiLine && summary && (
           <div className="absolute inset-x-0 top-full border-b border-line bg-canvas shadow-ui-sm">
             <div className="mx-auto max-w-[1180px] px-3 sm:px-11">
-              <KpiLine summary={summary} direction={filters.direction} />
+              <KpiLine summary={summary} kind={filters.kind} />
             </div>
           </div>
         )}
@@ -826,6 +895,7 @@ export function Transactions() {
           filters={filters}
           onChange={setFilters}
           accounts={accounts}
+          leading={<div data-kind-pills className="hidden shrink-0 lg:block">{kindPills}</div>}
           filtersOpen={filtersOpen}
           onFiltersOpenChange={setFiltersOpen}
           trailing={
@@ -854,7 +924,7 @@ export function Transactions() {
       <div className="mx-auto max-w-[1180px] px-3 sm:px-11">
       {/* ════════ Filter-scoped KPI strip — money in/out, net, and count over
            the whole match (not just the loaded page). ════════ */}
-      {summary && summary.count > 0 && <div ref={kpiStripRef}><KpiStrip summary={summary} direction={filters.direction} onOpenTx={setDetailTx} /></div>}
+      {summary && summary.count > 0 && <div ref={kpiStripRef}><KpiStrip summary={summary} kind={filters.kind} onOpenTx={setDetailTx} /></div>}
 
       {/* ════════ Error strip (stale rows stay visible below) ════════ */}
       {error && (
@@ -894,7 +964,7 @@ export function Transactions() {
                 icon={<Search size={22} />}
                 title="No transactions match"
                 description="Adjust or clear your filters to see more."
-                action={<Button variant="neutral" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</Button>}
+                action={<Button variant="neutral" onClick={() => setFilters(EMPTY_FILTERS)}>Clear all</Button>}
               />
             ) : (
               <EmptyState

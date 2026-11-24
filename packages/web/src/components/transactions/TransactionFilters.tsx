@@ -8,15 +8,21 @@ import { Badge, SegmentedControl, button } from '../uikit';
 import { cn, formatStoredDay, formatStoredMonth } from '../../lib/utils';
 import { AccountPicker } from '../common/AccountPicker';
 import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../common/CategoryMultiSelect';
+import { MerchantPicker, StatusFields, StatusPicker, ViewsPicker } from './FilterPickers';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+/** Any (no filter), only those, or hide them. */
+export type TriState = 'any' | 'only' | 'hide';
+/** What a row is: money in and out leave transfers out (the Spending rule), so the numbers agree everywhere. */
+export type TxnKind = 'all' | 'in' | 'out' | 'transfer';
+
 export interface TxnFilters {
   search: string;
-  /** Exact merchant, as the row shows it. Set by clicking a row's merchant. */
-  merchant: string;
+  /** Exact merchants, as the rows show them. Picked in the Merchant list or by clicking a row's merchant. */
+  merchants: string[];
   categories: string[];
   /** Category ids to drop. Arrives from a /spending exclude scope. */
   excludeCategories: string[];
@@ -27,13 +33,18 @@ export interface TxnFilters {
   amountOp: 'any' | 'atLeast' | 'atMost' | 'between';
   amountMin: string;     // raw input; '' = unset
   amountMax: string;
-  /** credit = money in, debit = money out. */
-  direction: 'all' | 'credit' | 'debit';
+  kind: TxnKind;
+  pending: TriState;
+  /** Rows excluded from totals. */
+  excluded: TriState;
+  recurring: TriState;
+  /** Added by the bank (Plaid) or by you. */
+  source: 'any' | 'bank' | 'manual';
 }
 
 export const EMPTY_FILTERS: TxnFilters = {
   search: '',
-  merchant: '',
+  merchants: [],
   categories: [],
   excludeCategories: [],
   accountIds: [],
@@ -43,8 +54,43 @@ export const EMPTY_FILTERS: TxnFilters = {
   amountOp: 'any',
   amountMin: '',
   amountMax: '',
-  direction: 'all',
+  kind: 'all',
+  pending: 'any',
+  excluded: 'any',
+  recurring: 'any',
+  source: 'any',
 };
+
+/** The kind control's labels, the same words as the app and Spending. */
+export const KIND_LABELS: Record<TxnKind, string> = {
+  all: 'All',
+  in: 'Money in',
+  out: 'Money out',
+  transfer: 'Transfers',
+};
+
+/** The status filters, in the order the panel lists them. */
+export const STATUS_FIELDS = [
+  { key: 'pending', label: 'Pending', only: 'Pending only', hide: 'Hide pending' },
+  { key: 'excluded', label: 'Excluded from totals', only: 'Excluded only', hide: 'Hide excluded' },
+  { key: 'recurring', label: 'Recurring', only: 'Recurring only', hide: 'Hide recurring' },
+] as const;
+
+type StatusKey = 'pending' | 'excluded' | 'recurring' | 'source';
+
+/** Each status filter that is set, as its chip reads ("Pending only", "Added by you"). */
+export function statusChipLabels(f: TxnFilters): Array<{ key: StatusKey; label: string }> {
+  const out: Array<{ key: StatusKey; label: string }> = [];
+  for (const s of STATUS_FIELDS) {
+    const v = f[s.key];
+    if (v !== 'any') out.push({ key: s.key, label: v === 'only' ? s.only : s.hide });
+  }
+  if (f.source !== 'any') out.push({ key: 'source', label: f.source === 'bank' ? 'Added by bank' : 'Added by you' });
+  return out;
+}
+
+const statusSet = (f: TxnFilters) =>
+  f.pending !== 'any' || f.excluded !== 'any' || f.recurring !== 'any' || f.source !== 'any';
 
 // ---------------------------------------------------------------------------
 // filtersToQuery — converts UI filter state to TxnQueryBody['filters'].
@@ -73,10 +119,10 @@ export function hasPanelFilters(f: TxnFilters): boolean {
     f.categories.length > 0 ||
     f.excludeCategories.length > 0 ||
     f.accountIds.length > 0 ||
-    f.merchant !== '' ||
+    f.merchants.length > 0 ||
     isDateActive(f) ||
     ((f.amountMin !== '' || f.amountMax !== '') && !amountRangeInverted(f)) ||
-    f.direction !== 'all'
+    statusSet(f)
   );
 }
 
@@ -85,7 +131,7 @@ export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryB
 
   const search = f.search.trim();
   if (search) result.search = search;
-  if (f.merchant) result.merchant = f.merchant;
+  if (f.merchants.length > 0) result.merchants = f.merchants;
   if (f.categories.length > 0) result.categories = f.categories;
   if (f.excludeCategories.length > 0) result.excludeCategories = f.excludeCategories;
   if (f.accountIds.length > 0) result.accountIds = f.accountIds;
@@ -136,7 +182,9 @@ export function filtersToQuery(f: TxnFilters, now: Date = new Date()): TxnQueryB
     const max = parseFloat(f.amountMax);
     if (!isNaN(max) && (f.amountOp === 'atMost' || f.amountOp === 'between')) result.amountMax = max;
   }
-  if (f.direction !== 'all') result.direction = f.direction;
+  if (f.kind !== 'all') result.kind = f.kind;
+  for (const s of STATUS_FIELDS) if (f[s.key] !== 'any') result[s.key] = f[s.key] === 'only';
+  if (f.source !== 'any') result.source = f.source;
 
   return result;
 }
@@ -167,8 +215,9 @@ export function filtersFromQuery(queryString: string): TxnFilters {
   const search = params.get('search')?.trim();
   if (search) filters.search = search;
 
-  const merchant = params.get('merchant');
-  if (merchant) filters.merchant = merchant;
+  // Repeated, one name per param: a merchant name can hold a comma.
+  const merchants = params.getAll('merchant').filter(Boolean);
+  if (merchants.length > 0) filters.merchants = [...new Set(merchants)];
 
   const categories = params.get('categories');
   if (categories) filters.categories = categories.split(',').filter(Boolean);
@@ -179,14 +228,34 @@ export function filtersFromQuery(queryString: string): TxnFilters {
   const accountIds = params.get('accountIds');
   if (accountIds) filters.accountIds = accountIds.split(',').filter(Boolean);
 
-  const direction = params.get('direction');
-  if (direction === 'credit' || direction === 'debit') filters.direction = direction;
+  const kind = params.get('kind');
+  if (kind === 'in' || kind === 'out' || kind === 'transfer') filters.kind = kind;
+  else {
+    // Older links: direction=credit|debit, read as money in / money out.
+    const direction = params.get('direction');
+    if (direction === 'credit') filters.kind = 'in';
+    if (direction === 'debit') filters.kind = 'out';
+  }
+  for (const s of STATUS_FIELDS) {
+    const v = params.get(s.key);
+    if (v === 'only' || v === 'hide') filters[s.key] = v;
+  }
+  const source = params.get('source');
+  if (source === 'bank' || source === 'manual') filters.source = source;
 
   const amountOp = params.get('amountOp');
   if (amountOp === 'atLeast' || amountOp === 'atMost' || amountOp === 'between') {
     filters.amountOp = amountOp;
     filters.amountMin = params.get('amountMin') ?? '';
     filters.amountMax = params.get('amountMax') ?? '';
+  }
+
+  // A relative preset travels by name, so a reload or a saved view keeps
+  // "Last month" meaning last month, not the span it was on the day it was saved.
+  const preset = params.get('datePreset');
+  if (preset === 'this-month' || preset === 'last-month' || preset === 'last-3-months' || preset === 'ytd') {
+    filters.datePreset = preset;
+    return filters;
   }
 
   const start = isoDay(params.get('startDate'));
@@ -207,7 +276,7 @@ export function filtersToSearchParams(f: TxnFilters): string {
   const parts: string[] = [];
   const search = f.search.trim();
   if (search) parts.push(`search=${encodeURIComponent(search)}`);
-  if (f.merchant) parts.push(`merchant=${encodeURIComponent(f.merchant)}`);
+  for (const m of f.merchants) parts.push(`merchant=${encodeURIComponent(m)}`);
   if (f.categories.length > 0) {
     parts.push(`categories=${f.categories.map(encodeURIComponent).join(',')}`);
   }
@@ -217,12 +286,15 @@ export function filtersToSearchParams(f: TxnFilters): string {
   if (f.accountIds.length > 0) {
     parts.push(`accountIds=${f.accountIds.map(encodeURIComponent).join(',')}`);
   }
-  if (f.direction !== 'all') parts.push(`direction=${f.direction}`);
+  if (f.kind !== 'all') parts.push(`kind=${f.kind}`);
+  for (const s of STATUS_FIELDS) if (f[s.key] !== 'any') parts.push(`${s.key}=${f[s.key]}`);
+  if (f.source !== 'any') parts.push(`source=${f.source}`);
   if (f.amountOp !== 'any') {
     parts.push(`amountOp=${f.amountOp}`);
     if (f.amountMin && f.amountOp !== 'atMost') parts.push(`amountMin=${encodeURIComponent(f.amountMin)}`);
     if (f.amountMax && f.amountOp !== 'atLeast') parts.push(`amountMax=${encodeURIComponent(f.amountMax)}`);
   }
+  if (f.datePreset !== 'all' && f.datePreset !== 'custom') parts.push(`datePreset=${f.datePreset}`);
   if (f.datePreset === 'custom') {
     if (f.customStart) parts.push(`startDate=${f.customStart}`);
     if (f.customEnd) parts.push(`endDate=${f.customEnd}`);
@@ -248,11 +320,11 @@ export function transactionsHref(scope: {
   endDate: string;
   categories?: string[];
   excludeCategories?: string[];
-  direction?: 'credit' | 'debit';
+  kind?: TxnKind;
 }): string {
   const query = filtersToSearchParams({
     ...EMPTY_FILTERS,
-    direction: scope.direction ?? 'all',
+    kind: scope.kind ?? 'all',
     categories: scope.categories ?? [],
     excludeCategories: scope.excludeCategories ?? [],
     datePreset: 'custom',
@@ -376,6 +448,7 @@ export function TransactionFilters({
   filters,
   onChange,
   accounts,
+  leading,
   trailing,
   filtersOpen,
   onFiltersOpenChange,
@@ -383,6 +456,8 @@ export function TransactionFilters({
   filters: TxnFilters;
   onChange: (f: TxnFilters) => void;
   accounts: AccountIndexEntry[];
+  /** Rendered at the start of the toolbar row (e.g. the wide-screen kind pills). */
+  leading?: React.ReactNode;
   /** Rendered at the end of the toolbar row (e.g. the desktop sort select). */
   trailing?: React.ReactNode;
   /** The phone's combined panel of every filter. Its trigger is in the top
@@ -402,6 +477,22 @@ export function TransactionFilters({
   const panelOpen = openPanel !== null;
   const panelRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
+  // The panel hangs off a sticky toolbar, so the page can't scroll it into
+  // view: cap it at the space left below its top edge and let it scroll inside,
+  // so every section (Saved views last) is reachable on a phone or a short window.
+  const [panelMaxH, setPanelMaxH] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!panelOpen) return;
+    const fit = () => {
+      const el = panelRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      setPanelMaxH(Math.max(200, Math.floor(window.innerHeight - top - 12)));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [panelOpen]);
 
   // Keep a ref to the latest filters/onChange so the debounce closure isn't stale.
   const filtersRef = useRef(filters);
@@ -497,11 +588,12 @@ export function TransactionFilters({
       clear: () => { setSearchInput(''); onChange({ ...filters, search: '' }); },
     });
   }
-  if (filters.merchant) {
+  for (const m of filters.merchants) {
     chips.push({
-      key: 'merchant',
-      label: `Merchant: ${filters.merchant}`,
-      clear: () => onChange({ ...filters, merchant: '' }),
+      key: `merchant-${m}`,
+      label: m,
+      removeLabel: `Remove merchant ${m}`,
+      clear: () => onChange({ ...filters, merchants: filters.merchants.filter((x) => x !== m) }),
     });
   }
   // A fully-selected group is one chip; leftover loose categories get their own.
@@ -559,11 +651,11 @@ export function TransactionFilters({
       clear: () => onChange({ ...filters, amountOp: 'any', amountMin: '', amountMax: '' }),
     });
   }
-  if (filters.direction !== 'all') {
+  for (const st of statusChipLabels(filters)) {
     chips.push({
-      key: 'direction',
-      label: filters.direction === 'credit' ? 'Credit' : 'Debit',
-      clear: () => onChange({ ...filters, direction: 'all' }),
+      key: `status-${st.key}`,
+      label: st.label,
+      clear: () => onChange({ ...filters, [st.key]: 'any' }),
     });
   }
 
@@ -658,11 +750,7 @@ export function TransactionFilters({
     { value: 'atMost', label: 'At most' },
     { value: 'between', label: 'Between' },
   ];
-  const TYPE_OPTIONS: Array<{ value: TxnFilters['direction']; label: string }> = [
-    { value: 'all', label: 'All types' },
-    { value: 'credit', label: 'Credit' },
-    { value: 'debit', label: 'Debit' },
-  ];
+  const statusCount = statusChipLabels(filters).length;
 
   // Each filter, renderable two ways: `inline` is one compact trigger in the
   // wide toolbar row, the other is a labelled section of a stacked panel.
@@ -738,28 +826,14 @@ export function TransactionFilters({
       ),
     },
     {
-      key: 'type',
-      label: 'Type',
-      active: filters.direction !== 'all',
-      render: (inline) => inline ? (
-        <OptionMenu
-          ariaLabel="Type"
-          toolbar={{ name: 'Type', count: filters.direction !== 'all' ? 1 : 0, badge: false }}
-          value={filters.direction}
-          options={TYPE_OPTIONS}
-          onChange={(direction) => onChange({ ...filters, direction })}
-        />
-      ) : (
-        // Default size in the stacked panel, to match the fields around it.
-        <SegmentedControl
-          aria-label="Type"
-          value={filters.direction}
-          onChange={(direction) => onChange({ ...filters, direction })}
-          options={[
-            { value: 'all', label: 'All' },
-            { value: 'credit', label: 'Credit' },
-            { value: 'debit', label: 'Debit' },
-          ]}
+      key: 'merchant',
+      label: 'Merchant',
+      active: filters.merchants.length > 0,
+      render: (inline) => (
+        <MerchantPicker
+          selected={filters.merchants}
+          toolbar={inline ? { name: 'Merchant', count: filters.merchants.length } : undefined}
+          onChange={(merchants) => onChange({ ...filters, merchants })}
         />
       ),
     },
@@ -784,6 +858,20 @@ export function TransactionFilters({
         </>
       ),
     },
+    {
+      key: 'status',
+      label: 'Status',
+      active: statusCount > 0,
+      render: (inline) => inline
+        ? <StatusPicker filters={filters} onChange={onChange} toolbar={{ name: 'Status', count: statusCount }} />
+        : <StatusFields filters={filters} onChange={onChange} />,
+    },
+    {
+      key: 'views',
+      label: 'Saved views',
+      active: false,
+      render: (inline) => <ViewsPicker filters={filters} onChange={onChange} toolbar={inline ? { name: 'Views', count: 0 } : undefined} onApplied={() => setOpenPanel(null)} />,
+    },
   ];
 
   // Wide toolbar: as many filters inline as fit, the rest under "More". An
@@ -796,10 +884,13 @@ export function TransactionFilters({
     const measure = measureRef.current;
     if (!area || !measure) return;
     const GAP = 8;
+    // Room for a count badge on every trigger: picking a merchant adds one, and a
+    // trigger that then no longer fit jumped into More and closed under the pointer.
+    const BADGE = 26;
     const fit = () => {
       const kids = Array.from(measure.children) as HTMLElement[];
       const moreWidth = kids[kids.length - 1]?.offsetWidth ?? 0;
-      const widths = kids.slice(0, -1).map((k) => k.offsetWidth);
+      const widths = kids.slice(0, -1).map((k) => k.offsetWidth + BADGE);
       const available = area.clientWidth;
       const total = widths.reduce((a, w) => a + w + GAP, 0) - GAP;
       if (total <= available) { setFitCount(widths.length); return; }
@@ -828,9 +919,10 @@ export function TransactionFilters({
     <div
       ref={panelRef}
       className={cn(
-        'absolute top-full space-y-4', PANEL_CLASS, 'mt-2 p-4',
+        'absolute top-full space-y-4 overflow-y-auto overscroll-contain', PANEL_CLASS, 'mt-2 p-4',
         align === 'left' ? 'left-0 right-0 sm:right-auto sm:w-[380px]' : 'right-0 w-[380px]',
       )}
+      style={panelMaxH ? { maxHeight: panelMaxH } : undefined}
     >
       {list.map((f) => (
         <div key={f.key}>
@@ -864,13 +956,14 @@ export function TransactionFilters({
            under the toolbar on mobile. */}
       <div className="relative">
         <div className="flex items-center gap-2">
+          {leading}
           {/* Debounced search */}
           <div className="relative min-w-0 flex-1 sm:w-[200px] sm:flex-none">
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
             <input
               type="text"
-              placeholder="Search merchants…"
-              aria-label="Search merchants"
+              placeholder="Search transactions"
+              aria-label="Search transactions"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="ui-focus touch-target h-10 w-full rounded-ui-md border border-line bg-panel pl-9 pr-8 text-[13px] text-content shadow-ui-sm sm:h-9"
@@ -946,7 +1039,9 @@ export function TransactionFilters({
               onClear={chip.clear}
             />
           ))}
-          {chips.length >= 2 && (
+          {/* One Clear all: everything, search and the Money in / out / Transfers side included.
+               It shows once two things are set, a side counting as one. */}
+          {chips.length + (filters.kind !== 'all' ? 1 : 0) >= 2 && (
             <button
               type="button"
               onClick={() => { setSearchInput(''); onChange(EMPTY_FILTERS); }}

@@ -144,6 +144,9 @@ function segmentedCss(theme: Theme): string {
         (role) =>
           `${h} [data-hero="${role}"] [role="radiogroup"].bg-canvas-sunken>[role="radio"][aria-checked="true"]{background-color:var(--ui-tint-${role}-ink)!important;color:rgb(var(--ui-brand-fg))!important;box-shadow:0 2px 0 color-mix(in srgb,var(--ui-tint-${role}-ink),#000 22%),0 3px 8px rgba(0,0,0,0.08)!important}`,
       ).join("") +
+      // Transactions' page-top kind pills (All, Money in, Money out, Transfers): the two money sides wear their roles too.
+      `${h} main [data-kind-pills] [role="radiogroup"]>[role="radio"][aria-checked="true"]:nth-child(2){background-color:var(--ui-tint-income-ink)!important;box-shadow:0 2px 0 color-mix(in srgb,var(--ui-tint-income-ink),#000 22%),0 3px 8px rgba(0,0,0,0.08)!important}` +
+      `${h} main [data-kind-pills] [role="radiogroup"]>[role="radio"][aria-checked="true"]:nth-child(3){background-color:var(--ui-tint-spend-ink)!important;box-shadow:0 2px 0 color-mix(in srgb,var(--ui-tint-spend-ink),#000 22%),0 3px 8px rgba(0,0,0,0.08)!important}` +
       // The Spending Money out / Money in switch: the selected side wears its role, never the brand green on Money out.
       `${h} main [data-money-switch] [role="radiogroup"]>[role="radio"][aria-checked="true"]:nth-child(1){background-color:var(--ui-tint-spend-ink)!important;box-shadow:0 2px 0 color-mix(in srgb,var(--ui-tint-spend-ink),#000 22%),0 3px 8px rgba(0,0,0,0.08)!important}` +
       `${h} main [data-money-switch] [role="radiogroup"]>[role="radio"][aria-checked="true"]:nth-child(2){background-color:var(--ui-tint-income-ink)!important;box-shadow:0 2px 0 color-mix(in srgb,var(--ui-tint-income-ink),#000 22%),0 3px 8px rgba(0,0,0,0.08)!important}` +
@@ -349,9 +352,44 @@ export function heroCss(theme: Theme): string {
 
 // ── What the web's first-paint script needs ──────────────────────────────────
 
-/** Per design: its fonts and its assistant's name, for index.html's inline script. */
-export function designBoot(themes: readonly Theme[]): Record<string, { fonts: string; assistant: string | null }> {
-  return Object.fromEntries(themes.map((t) => [t.meta.id, { fonts: fontsUrl(t), assistant: t.mascot?.name ?? null }]));
+/** Where the web serves a design's icon tile (public/icons, generated from iconTileSvg). Null for none. */
+export function designIcons(theme: Theme): { svg: string; touch: string } | null {
+  return theme.skin.brandArt === "mascot" && theme.mascot
+    ? { svg: `/icons/${theme.meta.id}-favicon.svg`, touch: `/icons/${theme.meta.id}-apple-touch-icon.png` }
+    : null;
+}
+
+/**
+ * The app icon as one SVG: the theme's character on its brand fill, a 26%
+ * corner radius, the character at 84% of the tile (native BrandMark, web
+ * BrandMark). Null for a design whose brand art is not its character. The web
+ * serves it as the favicon and renders the touch icon from it.
+ */
+export function iconTileSvg(theme: Theme, size = 180): string | null {
+  if (theme.skin.brandArt !== "mascot" || !theme.mascot) return null;
+  const art = theme.mascot.happy;
+  const vb = /viewBox="([^"]+)"/.exec(art)?.[1] ?? "0 0 140 124";
+  const [, , w, h] = vb.split(/\s+/).map(Number);
+  const inner = art.replace(/^[\s\S]*?<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(/<!--[\s\S]*?-->/g, "");
+  const outline = theme.color.light.content;
+  const mw = size * 0.84;
+  const mh = (mw * h) / w;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+    `<rect width="${size}" height="${size}" rx="${(size * 0.26).toFixed(1)}" fill="${theme.color.light.brand}"/>` +
+    `<svg x="${((size - mw) / 2).toFixed(1)}" y="${((size - mh) / 2).toFixed(1)}" width="${mw.toFixed(1)}" height="${mh.toFixed(1)}" viewBox="${vb}" color="${outline}">${inner}</svg>` +
+    `</svg>`
+  );
+}
+
+/** Per design: its fonts, its assistant's name and its icon tile, for index.html's inline script. */
+/** The browser chrome color for each scheme (meta theme-color): the design's page canvas. */
+export function themeColors(theme: Theme): { light: string; dark: string } {
+  return { light: theme.color.light.canvas, dark: theme.color.dark.canvas };
+}
+
+export function designBoot(themes: readonly Theme[]): Record<string, { fonts: string; assistant: string | null; icons: { svg: string; touch: string } | null; themeColor: { light: string; dark: string } }> {
+  return Object.fromEntries(themes.map((t) => [t.meta.id, { fonts: fontsUrl(t), assistant: t.mascot?.name ?? null, icons: designIcons(t), themeColor: themeColors(t) }]));
 }
 
 // ── Surfaces ─────────────────────────────────────────────────────────────────

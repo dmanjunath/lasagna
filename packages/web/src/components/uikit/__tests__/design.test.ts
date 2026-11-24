@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 // ?raw so this stays typecheck-clean without pulling node types into the package.
 import html from "../../../../index.html?raw";
 import { themes } from "@lasagna/design";
-import { themeCss, designBoot } from "@lasagna/design/build/webCss";
-import { DESIGN_STORAGE_KEY, WEB_DESIGNS, CLASSIC } from "../design";
+import { themeCss, designBoot, designIcons, iconTileSvg } from "@lasagna/design/build/webCss";
+import { DESIGN_STORAGE_KEY, WEB_DESIGNS, CLASSIC, ICON_LINK_IDS, THEME_COLOR_IDS } from "../design";
+// The generated icon tiles, read raw so a stale asset fails here.
+const iconFiles = import.meta.glob("../../../../public/icons/*-favicon.svg", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 
 /**
  * The design choice is made twice, like light/dark (mode.test.ts): index.html
@@ -23,6 +25,29 @@ describe("first-paint design script", () => {
     const read = html.indexOf("getItem('lf-ui-design')");
     const script = html.slice(read - 400, read);
     expect(script).toContain("data-shell");
+  });
+
+  it("swaps the same icon links design.ts swaps", () => {
+    expect(html).toContain(`id="${ICON_LINK_IDS.svg}"`);
+    expect(html).toContain(`id="${ICON_LINK_IDS.touch}"`);
+    expect(html).toContain(`getElementById('${ICON_LINK_IDS.svg}')`);
+    expect(html).toContain(`getElementById('${ICON_LINK_IDS.touch}')`);
+  });
+
+  it("sets the same theme-color metas design.ts sets", () => {
+    for (const id of Object.values(THEME_COLOR_IDS)) {
+      expect(html).toContain(`id="${id}"`);
+      expect(html).toContain(`getElementById('${id}')`);
+    }
+  });
+
+  it("serves each design's icon tile as generated from the theme (scripts/gen-design-icons.mts)", () => {
+    for (const t of themes.filter((x) => x.meta.id !== CLASSIC)) {
+      const paths = designIcons(t);
+      if (!paths) continue;
+      const file = Object.entries(iconFiles).find(([k]) => k.endsWith(paths.svg))?.[1];
+      expect(file?.trim()).toBe(iconTileSvg(t, 180));
+    }
   });
 
   it("knows every design design.ts offers, and nothing else", () => {
