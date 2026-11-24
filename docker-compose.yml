@@ -52,6 +52,7 @@ services:
       - ./packages/web/tailwind.config.js:/app/packages/web/tailwind.config.js
       - ./packages/web/postcss.config.js:/app/packages/web/postcss.config.js
       - ./packages/web/tsconfig.json:/app/packages/web/tsconfig.json
+      - ./packages/design/src:/app/packages/design/src
     tty: true
 
 volumes:

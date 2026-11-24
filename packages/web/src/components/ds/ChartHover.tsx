@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, ReactNode } from 'react';
+import { useState, useRef, useCallback, useLayoutEffect, ReactNode } from 'react';
 
 /**
  * ChartHover — shared overlay primitive for chart hover affordance.
@@ -108,13 +108,27 @@ export function ChartHover({
   const hx = hoverIdx !== null ? xAt(hoverIdx) : null;
   const curve = hoverIdx !== null && getCurvePoint ? getCurvePoint(hoverIdx) : null;
 
-  // Pill position in chart-CSS-pixel units. Clamp so it doesn't overflow.
+  // The pill sizes to its text in real CSS pixels, never in chart units: the
+  // chart scales with its box, and a pill that scaled with it wrapped its
+  // value and date on a narrow screen. It centers on the crosshair, then
+  // shifts by a measured amount so it stays inside the chart.
   const PILL_W = 132;
   const PILL_H = 44;
-  // Position pill above the dot if possible, else just below the top edge.
-  const pillCx = hx ?? 0;
-  const pillLeftPx = Math.max(4, Math.min(width - PILL_W - 4, pillCx - PILL_W / 2));
   const pillTopPx = 4;
+  const pillRef = useRef<HTMLDivElement>(null);
+  const [pillShift, setPillShift] = useState(0);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const pill = pillRef.current;
+    if (!root || !pill || hx === null) return;
+    const r = root.getBoundingClientRect();
+    const w = pill.offsetWidth;
+    const center = r.left + (hx / width) * r.width;
+    const left = center - w / 2;
+    const clamped = Math.max(r.left + 4, Math.min(r.right - 4 - w, left));
+    const next = Math.round(clamped - left);
+    setPillShift((prev) => (prev === next ? prev : next));
+  }, [hx, width, hoverIdx]);
 
   // Convert chart-CSS pixels back to CSS % of overlay (overlay matches SVG box).
   const pct = (px: number, denom: number) => `${(px / denom) * 100}%`;
@@ -180,12 +194,16 @@ export function ChartHover({
           )}
           {!hidePill && (
           <div
+            ref={pillRef}
             data-chart-hover="pill"
             style={{
               position: 'absolute',
-              left: pct(pillLeftPx, width),
+              left: pct(hx ?? 0, width),
               top: pct(pillTopPx, height),
-              width: PILL_W,
+              transform: `translateX(calc(-50% + ${pillShift}px))`,
+              width: 'max-content',
+              minWidth: PILL_W,
+              whiteSpace: 'nowrap',
               minHeight: PILL_H,
               padding: '6px 10px',
               background: 'var(--lf-ink)',

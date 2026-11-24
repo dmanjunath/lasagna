@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Minimize2, SquarePen, Trash2, Send, Sparkles, ArrowUpRight, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Minimize2, SquarePen, Trash2, Send, ArrowUpRight, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { EmptyState } from '../uikit';
 import { useIsMobile } from '../../lib/hooks/use-mobile';
 import { useChatStore, setChatExpanded, getChatHistoryOpen, setChatHistoryOpen } from '../../lib/chat-store';
@@ -11,6 +11,7 @@ import { AdminModelPicker } from './admin-model-picker';
 import { maskCurrencyInText } from '../../lib/hide-amounts';
 import { useMobileHeader } from '../../lib/mobile-header';
 import { HeaderAction } from '../layout/app-header';
+import { AssistantMark } from '../design/AssistantMark';
 
 // Compact composer + suggested prompts shown in the conversation pane when no
 // thread is active (the "new chat" state).
@@ -44,9 +45,7 @@ function NewChatHero({ suggestions, onSend, mobile = false, autoFocus = false }:
     <div className={`flex-1 flex flex-col items-center justify-center min-h-0 overflow-y-auto ${mobile ? 'px-4 py-6' : 'px-6 py-10'}`}>
       <div className="w-full max-w-[620px] animate-fade-in">
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
-            <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-accent-ink))]" />
-          </div>
+          <AssistantMark tileClassName="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4" iconClassName="w-[22px] h-[22px] text-[rgb(var(--ui-accent-ink))]" />
           <h2 className="font-editorial font-bold text-[30px] sm:text-[34px] text-content leading-[1.05] tracking-[-0.025em]">
             Ask anything about your finances
           </h2>

@@ -15,6 +15,10 @@ export default defineConfig({
       "@lasagna/core/debt-payoff": fileURLToPath(
         new URL("../core/src/debt-payoff.ts", import.meta.url),
       ),
+      "@lasagna/design/build/webCss": fileURLToPath(
+        new URL("../design/src/build/webCss.ts", import.meta.url),
+      ),
+      "@lasagna/design": fileURLToPath(new URL("../design/src/index.ts", import.meta.url)),
     },
   },
   test: {

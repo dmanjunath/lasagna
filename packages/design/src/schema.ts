@@ -166,6 +166,10 @@ export type Skins = {
   button: "pill" | "rounded" | "chunky";
   row: "plain" | "inset" | "carded";
   chip: "filled" | "outlined";
+  /** A page-top or section pill: raised (the selected one filled in the brand or role ink with a soft edge shadow, the rest flat on the card fill with a hairline), or plain (the selected one on the selected tint). */
+  pill: "raised" | "plain";
+  /** The web Spending breakdown: ranked rows (a category tile, the name and amount over a share track, a Money out / Money in switch, as the app draws it), or the web's original proportional bars. */
+  breakdown: "ranked" | "bars";
   tabBar: "standard" | "floating" | "pill";
   header: "plain" | "blurred";
   emptyArt: "mascot" | "icon" | "none";
@@ -195,7 +199,7 @@ export type Skins = {
 };
 
 /**
- * The theme's character: its name (it names the chat tab, "Chat with Noodle")
+ * The theme's character: its name (it names the chat tab, "Chat with Lasagna")
  * and named SVG sources, as complete <svg> documents. In the artwork,
  * `currentColor` is the outline token (the silhouette and arms): the app sets
  * it per scheme so the outline shows on a dark canvas.

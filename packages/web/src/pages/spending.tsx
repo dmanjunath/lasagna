@@ -29,6 +29,8 @@ import { TransactionList } from '../components/transactions/TransactionList';
 import { ChipBadge, transactionsHref } from '../components/transactions/TransactionFilters';
 import { OptionMenu } from '../components/common/OptionMenu';
 import { RulesPanel } from '../components/rules/RulesPanel';
+import { RankedBreakdown, type Side as BreakdownSide } from '../components/spending/RankedBreakdown';
+import { useActiveTheme } from '../components/uikit/design';
 import { CategoryMultiSelect, scopeChipProps, useCategoryChips } from '../components/common/CategoryMultiSelect';
 import {
   EMPTY_SPEND_FILTER,
@@ -68,11 +70,13 @@ function endOfMonth(d: Date): string {
   return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}T23:59:59`;
 }
 
-interface RollupRow {
+export interface RollupRow {
   key: string | null;
   label: string;
   total: number;
-  children: Array<{ key: string | null; label: string; total: number }>;
+  /** The row's usual month (category mode), for the pace marker. */
+  usual?: number | null;
+  children: Array<{ key: string | null; label: string; total: number; usual?: number | null }>;
 }
 
 // Single source of truth for the category⇄group rollup. Category mode: one row
@@ -83,12 +87,12 @@ interface RollupRow {
 function buildRollupRows(cats: SpendingCategory[], rollup: 'category' | 'group'): RollupRow[] {
   if (rollup === 'category') {
     return cats
-      .map((c) => ({ key: c.id, label: c.name, total: Math.abs(c.total), children: [] as RollupRow['children'] }))
+      .map((c) => ({ key: c.id, label: c.name, total: Math.abs(c.total), usual: c.usual ?? null, children: [] as RollupRow['children'] }))
       .sort((a, b) => b.total - a.total);
   }
   const byGroup = new Map<string | null, RollupRow>();
   for (const c of cats) {
-    const child = { key: c.id, label: c.name, total: Math.abs(c.total) };
+    const child = { key: c.id, label: c.name, total: Math.abs(c.total), usual: c.usual ?? null };
     const existing = byGroup.get(c.groupId);
     if (existing) {
       existing.total += child.total;
@@ -118,6 +122,8 @@ interface SpendingCategory {
   total: number;
   count: number;
   percentage: number;
+  /** The category's usual month (median of the three before), on a one-month window with enough history. */
+  usual?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,7 +184,8 @@ function BreakdownSection({
   // track and the rest read relative to it (a ranked-bar chart). A tiny nonzero
   // row still shows a minimum nub so it never vanishes.
   const maxTotal = rows.reduce((m, r) => Math.max(m, r.total), 0) || 1;
-  const fill = tone === 'income' ? 'var(--ui-brand-soft)' : 'var(--ui-negative-soft)';
+  // A design can set its own share fill (--ui-share-in/out) where the soft tints are too pale to read.
+  const fill = tone === 'income' ? 'var(--ui-share-in, var(--ui-brand-soft))' : 'var(--ui-share-out, var(--ui-negative-soft))';
 
   // Resolve a glyph, reusing the app's taxonomy icons. Category rows resolve by
   // id; group rows have no glyph of their own, so they borrow their largest
@@ -750,11 +757,18 @@ export function Spending() {
   // "View all" carries the whole scope its own count was counted under: the
   // period, and both halves of the category filter. Handing over less widened
   // the destination past the count the link itself prints.
+  // The app's ranked breakdown where the design draws it so (Noodle), else the web's own bars.
+  // It has a Money in side whenever there is income, as native does.
+  const ranked = useActiveTheme()?.skin.breakdown === 'ranked';
+  // Under the ranked breakdown (Noodle) the Recent transactions and their See all follow the side on show, as native does.
+  const [breakdownSide, setBreakdownSide] = useState<BreakdownSide>('expenses');
+  const recentDirection = ranked ? (breakdownSide === 'income' ? 'credit' : 'debit') : undefined;
   const viewAllHref = transactionsHref({
     startDate: periodStart,
     endDate: periodEnd,
     categories: filter.include,
     excludeCategories: filter.exclude,
+    direction: recentDirection,
   });
 
   // Prior-period spending (for Δ%) — from the cashflow periods if present.
@@ -810,7 +824,7 @@ export function Spending() {
   // Whether the breakdown card has anything to put in it. A single income row
   // just restates the hero's Income KPI and is not a section, so a scope of
   // only that would otherwise render a heading over an empty card.
-  const breakdownHasRows = spendingCategories.length > 0 || incomeRows.length > 1;
+  const breakdownHasRows = spendingCategories.length > 0 || incomeRows.length > (ranked ? 0 : 1);
   // The scope row appears once there is a taxonomy worth scoping, and stays
   // whenever a filter is on so a shared link is never unexplained.
   const showScopeRow = hasLoadedSummary && !summaryError && (categories.length > 0 || filterActive);
@@ -884,7 +898,7 @@ export function Spending() {
             arrows. From `sm` up the controls are one row under the title, and
             from `xl` they move beside it. The row never wraps: beside a title
             that has to share the width, it broke into floating fragments. */}
-        <div className="flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2 lg:gap-2.5">
+        <div data-period-row className="flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2 lg:gap-2.5">
           {/* Filters first in the cluster on desktop. Below md its trigger is
               the top bar's, the menu is a sheet, and this wrapper takes no
               space (`contents`). */}
@@ -918,7 +932,7 @@ export function Spending() {
               before Month/Year: the toggle must not move from under the pointer
               when the stepper goes. */}
           {!onlyPeriod && (
-            <div className="flex items-center justify-center gap-1 sm:inline-flex sm:gap-0.5 sm:rounded-ui-md sm:border sm:border-line sm:bg-canvas-sunken sm:p-0.5 xl:order-1">
+            <div data-period-stepper className="flex items-center justify-center gap-1 sm:inline-flex sm:gap-0.5 sm:rounded-ui-md sm:border sm:border-line sm:bg-canvas-sunken sm:p-0.5 xl:order-1">
               <button
                 type="button"
                 onClick={prevPeriod}
@@ -1021,7 +1035,7 @@ export function Spending() {
            with the three KPIs (income / net / savings) inline at the top and
            the interactive trend below — a single, complete answer. ════════ */}
       {hasLoadedSummary && !noData && (
-        <section className={cn(
+        <section data-hero="spend" className={cn(
           'relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7',
           showScopeRow ? 'mt-4' : 'mt-6',
         )}>
@@ -1255,7 +1269,19 @@ export function Spending() {
                 </button>
               </div>
             )}
-            {spendingCategories.length > 0 && (
+            {ranked && !filteredEmpty && (
+              <RankedBreakdown
+                expenseRows={expenseRows}
+                incomeRows={incomeRows}
+                rollup={tableRollup}
+                sort={sort}
+                periodKey={granularity === 'month' ? selectedPeriod : undefined}
+                formatAmount={formatCurrency}
+                onDrill={drillToTransactions}
+                onSideChange={setBreakdownSide}
+              />
+            )}
+            {!ranked && spendingCategories.length > 0 && (
               <BreakdownSection
                 title="Expenses"
                 rows={expenseRows}
@@ -1269,7 +1295,7 @@ export function Spending() {
             )}
             {/* Income breakdown only when it spans multiple sources — a single
                  income row just restates the hero's Income KPI. */}
-            {incomeRows.length > 1 && (
+            {!ranked && incomeRows.length > 1 && (
               <BreakdownSection
                 title="Income"
                 rows={incomeRows}
@@ -1296,6 +1322,7 @@ export function Spending() {
           onDataChanged={loadData}
           onCreateRule={(seed) => setRulesPanel({ open: true, seed })}
           viewAllHref={viewAllHref}
+          direction={recentDirection}
           pageSize={5}
           showPagination={false}
           showSearch={false}

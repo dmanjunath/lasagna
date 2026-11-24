@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../lib/api.js";
 import { Button, Alert } from "../components/uikit";
-import { BrandMark } from "../components/common/BrandMark";
+import { BrandMark, BrandWordmark } from "../components/common/BrandMark";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
 export function WelcomeConsent() {
@@ -39,7 +39,7 @@ export function WelcomeConsent() {
           <div className="flex flex-col items-center text-center mb-7">
             <BrandMark size={54} />
             <h1 className="mt-4 font-editorial text-[26px] font-medium tracking-[-0.015em] text-content">
-              Welcome to Lasagna<span className="text-brand">Fi</span>
+              Welcome to <BrandWordmark size={26}>Lasagna<span className="text-brand">Fi</span></BrandWordmark>
             </h1>
             <p className="mt-1.5 text-[14px] text-content-secondary">
               Before you continue, please review and accept the terms below.

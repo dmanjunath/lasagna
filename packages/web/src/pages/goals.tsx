@@ -11,6 +11,9 @@ import { HeaderAction } from '../components/layout/app-header';
 import { useMobileHeader } from '../lib/mobile-header';
 import { formatCurrency, iconFor, goalAccent, GOAL_PRESETS, fetchFundableAccounts, type Account } from './goal-shared';
 import { type GoalDetails } from './goal-details';
+import { useActiveTheme } from '../components/uikit/design';
+import { Jar } from '../components/design/Jar';
+import { goalStatus, goalStatusFill } from '../lib/goal-status';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -349,8 +352,10 @@ function SummaryHero({
 }) {
   const pct = Math.min(100, Math.round((totalSaved / totalTarget) * 100));
   const remaining = Math.max(0, totalTarget - totalSaved);
+  // The design's progress skin: a jar beside the figure (Noodle) or the bar under it.
+  const jar = useActiveTheme()?.skin.progress === 'jar';
   return (
-    <section className="g-rise relative mt-2 md:mt-6 flex flex-wrap items-center gap-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
+    <section data-hero="goal" className="g-rise relative mt-2 md:mt-6 flex flex-wrap items-center gap-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -359,7 +364,9 @@ function SummaryHero({
             'radial-gradient(90% 80% at 0% 10%, var(--ui-accent-softer), transparent 60%)',
         }}
       />
-      <div className="relative min-w-[280px] flex-1">
+      <div className={cn('relative min-w-[280px] flex-1', jar && 'flex items-center gap-4')}>
+        {jar && <Jar pct={pct} fill="rgb(var(--ui-brand))" width={52} />}
+        <div className={jar ? 'min-w-0 flex-1' : 'contents'}>
         {/* A label over the figure, as on the Accounts page's net worth card. */}
         <span className="text-[14px] font-semibold text-content-muted">
           Saved toward goals
@@ -368,15 +375,19 @@ function SummaryHero({
           <MaskedText text={formatCurrency(totalSaved)} />{' '}
           <span className="text-[0.55em] font-bold text-content-muted">of <MaskedText text={formatCurrency(totalTarget)} /></span>
         </div>
-        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
-          <div
-            className="g-shine relative h-full rounded-full"
-            style={{ width: `${Math.max(pct, 2)}%`, background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' }}
-          />
-        </div>
+        {!jar && (
+          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
+            <div
+              className="g-shine relative h-full rounded-full"
+              style={{ width: `${Math.max(pct, 2)}%`, background: 'linear-gradient(90deg, var(--ui-viz-1), rgb(var(--ui-brand)))' }}
+            />
+          </div>
+        )}
         <div className="mt-2.5 flex items-center justify-between gap-3">
-          <span className="font-editorial text-[13px] font-extrabold text-[rgb(var(--ui-brand-ink))] ui-tnum">{pct}% of all targets</span>
+          {/* A share, not a verdict: neutral where the design follows the color map (Noodle, as native). */}
+          <span className={cn('font-editorial text-[13px] font-extrabold ui-tnum', jar ? 'text-content-secondary' : 'text-[rgb(var(--ui-brand-ink))]')}>{pct}% of all targets</span>
           <span className="text-[12.5px] font-semibold text-content-muted ui-tnum"><MaskedText text={formatCurrency(remaining)} /> to go</span>
+        </div>
         </div>
       </div>
       <div className="relative flex w-full gap-3.5 sm:w-auto">
@@ -416,6 +427,8 @@ function GoalCard({
   const notStarted = current <= 0;
   const accent = complete ? 'rgb(var(--ui-brand))' : goalAccent(goal.category, goal.name);
   const eta = targetDateLabel(goal.deadline);
+  // The design's progress skin: the jar in place of the icon tile and the bar (Noodle), as native.
+  const jar = useActiveTheme()?.skin.progress === 'jar';
 
   const linkedNames = goal.accountIds
     .map(id => accounts.find(a => a.id === id)?.name)
@@ -451,17 +464,19 @@ function GoalCard({
 
       {/* top: icon · name · pct */}
       <div className="relative flex items-start gap-3.5">
+        {jar ? (
+          // The jar's color is the goal's pace verdict, neutral when there is nothing to judge, never a category color.
+          <Jar pct={complete ? 100 : pct} fill={complete ? 'rgb(var(--ui-brand))' : goalStatusFill(goalStatus(goal))} width={46} />
+        ) : (
         <span
           className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-[14px] text-white"
           style={{ background: accent, boxShadow: 'var(--ui-shadow-sm), inset 0 1px 0 rgba(255,255,255,0.3)' }}
         >
           {iconFor(goal.icon, 23)}
         </span>
+        )}
         <div className="min-w-0 flex-1">
-          <div>
-            <Badge tone="neutral" size="sm">{categoryLabel}</Badge>
-          </div>
-          <div className="mt-1 flex items-center gap-1.5 font-editorial text-[18.5px] font-bold leading-[1.2] tracking-[-0.018em]">
+          <div className="flex items-center gap-1.5 font-editorial text-[18.5px] font-bold leading-[1.2] tracking-[-0.018em]">
             {complete && (
               <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-brand text-white">
                 <Check className="h-3 w-3" strokeWidth={3} />
@@ -477,6 +492,8 @@ function GoalCard({
               {goal.name}
             </button>
           </div>
+          {/* The kind of goal, under its name as a plain subtitle (never a kicker above it). */}
+          <p className="mt-0.5 text-[13px] text-content-muted">{categoryLabel}</p>
         </div>
         <span
           className="shrink-0 pt-0.5 font-editorial text-[26px] font-extrabold leading-none tracking-[-0.02em] ui-tnum"
@@ -504,6 +521,7 @@ function GoalCard({
       </div>
 
       {/* progress bar — each terminal state intentionally distinct */}
+      {!jar && (
       <div className="relative mt-3">
         {complete ? (
           <div className="h-2.5 overflow-hidden rounded-full bg-canvas-sunken">
@@ -530,6 +548,7 @@ function GoalCard({
           </div>
         )}
       </div>
+      )}
 
       {/* meta — real state + real target date only (no fabricated pace/ETA) */}
       <div className="relative mt-3.5 flex flex-wrap items-center gap-2.5">

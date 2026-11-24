@@ -18,6 +18,10 @@ import { BriefingCard, GREETING_CLS } from '../components/home/BriefingCard';
 import { actionSentence, netWorthChange, quickLinks } from '../lib/home-briefing';
 import { formatStoredDay } from '../lib/utils';
 import { formatCurrency, goalAccent, iconFor } from './goal-shared';
+import { goalStatus, goalStatusFill } from '../lib/goal-status';
+import { categoryTone } from '../components/spending/RankedBreakdown';
+import { useActiveTheme } from '../components/uikit/design';
+import { AssistantMark } from '../components/design/AssistantMark';
 import { OnboardingResumeCard } from '../components/layout/onboarding-progress';
 import { PlanUsage } from '../components/layout/plan-usage';
 import { CONNECT_CHOICES_WIDTH, useAccountConnections } from '../components/accounts/useAccountConnections';
@@ -31,6 +35,7 @@ interface Goal {
   description?: string | null;
   targetAmount: string;
   currentAmount: string;
+  monthlyContribution: string | null;
   deadline: string | null;
   icon: string | null;
   category: string;
@@ -1463,6 +1468,8 @@ function AskComposer({
   onChange: (v: string) => void;
   onSubmit: (e?: React.FormEvent) => void;
 }) {
+  const theme = useActiveTheme();
+  const mascotMark = theme?.skin.brandArt === 'mascot' && !!theme.mascot;
   return (
     <section
       className="relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-5"
@@ -1477,7 +1484,12 @@ function AskComposer({
         }}
       />
       <div className="relative mb-3 flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-[rgb(var(--ui-accent-ink))]" aria-hidden />
+        {/* The assistant's mark: the character in mascot designs (sized to read as a face), else the original sparkle. */}
+        {mascotMark ? (
+          <AssistantMark tileClassName="h-6 w-6 shrink-0" iconClassName="" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-[rgb(var(--ui-accent-ink))]" aria-hidden />
+        )}
         <span className="text-[15px] font-semibold text-content">Ask {assistantName()}</span>
       </div>
       <form onSubmit={onSubmit} className="relative">
@@ -1508,6 +1520,7 @@ function AskComposer({
 // ─── Goals rail ──────────────────────────────────────────────────────────────────
 
 function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
+  const theme = useActiveTheme();
   const active = goals.filter((g) => g.status === 'active');
 
   if (loading) {
@@ -1538,6 +1551,7 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
   }
 
   const shown = active.slice(0, 4);
+  const byStatus = theme?.skin.progress === 'jar';
 
   return (
     <Card className="p-[22px]">
@@ -1552,7 +1566,8 @@ function GoalsRail({ goals, loading }: { goals: Goal[]; loading?: boolean }) {
           const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
           const reached = target > 0 && current >= target;
           const notStarted = current <= 0;
-          const color = goalAccent(g.category, g.name);
+          // Where the design follows the color map (jar progress), a bar's color is the goal's pace verdict, as on Goals and native.
+          const color = byStatus ? goalStatusFill(goalStatus(g)) : goalAccent(g.category, g.name);
           return (
             <li
               key={g.id}
@@ -1624,6 +1639,7 @@ function thisMonthTransactionsHref(categoryId: string): string {
 }
 
 function SpendingPulse({ flow }: { flow: MonthFlow }) {
+  const byCategory = useActiveTheme()?.skin.breakdown === 'ranked';
   const pctVsPrev =
     flow.prevSpending != null && flow.prevSpending > 0
       ? ((flow.spending - flow.prevSpending) / flow.prevSpending) * 100
@@ -1660,7 +1676,8 @@ function SpendingPulse({ flow }: { flow: MonthFlow }) {
                 <span className="font-semibold text-content-muted ui-tnum shrink-0">{fmtUsd(c.total)}</span>
               </div>
               <div className="mt-1.5">
-                <Track pct={c.pct} color={SPEND_VIZ[i % SPEND_VIZ.length]} />
+                {/* The category's own color where the design draws the ranked breakdown, so a category keeps one color everywhere. */}
+                <Track pct={c.pct} color={byCategory ? `var(--ui-category-${categoryTone(c.name)}-ink)` : SPEND_VIZ[i % SPEND_VIZ.length]} />
               </div>
             </Link>
           ))}

@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { Send, Trash2, Sparkles, ArrowUpRight } from 'lucide-react';
+import { Send, Trash2, ArrowUpRight } from 'lucide-react';
 import { AdminModelPicker } from './admin-model-picker';
 import { cn } from '../../lib/utils';
 import { maskCurrencyInText } from '../../lib/hide-amounts';
+import { AssistantMark } from '../design/AssistantMark';
 
 export interface Thread {
   id: string;
@@ -110,9 +111,7 @@ export function ChatThreadList({ threads, onSelectThread, onDeleteThread, onNewM
         {threads.length === 0 ? (
           <div className="p-4 space-y-6">
             <div className="flex flex-col items-center text-center pt-8 pb-1">
-              <div className="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4">
-                <Sparkles className="w-[22px] h-[22px] text-[rgb(var(--ui-accent-ink))]" />
-              </div>
+              <AssistantMark tileClassName="w-12 h-12 rounded-ui-lg bg-[var(--ui-accent-soft)] grid place-items-center mb-4" iconClassName="w-[22px] h-[22px] text-[rgb(var(--ui-accent-ink))]" />
               <h2 className="font-editorial font-bold text-[26px] text-content leading-[1.05] tracking-[-0.025em]">Ask anything about your finances</h2>
               <p className="text-[14px] font-medium text-content-muted mt-2.5">I can analyze your accounts, spending, and plans.</p>
             </div>

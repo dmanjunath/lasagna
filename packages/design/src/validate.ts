@@ -141,6 +141,8 @@ export const themeSchema = z.strictObject({
     button: z.enum(["pill", "rounded", "chunky"]),
     row: z.enum(["plain", "inset", "carded"]),
     chip: z.enum(["filled", "outlined"]),
+    pill: z.enum(["raised", "plain"]),
+    breakdown: z.enum(["ranked", "bars"]),
     tabBar: z.enum(["standard", "floating", "pill"]),
     header: z.enum(["plain", "blurred"]),
     emptyArt: z.enum(["mascot", "icon", "none"]),

@@ -56,6 +56,29 @@
         // forced the app light on a dark phone would otherwise get a black UA
         // canvas painted before our CSS lands, then a white app.
         document.documentElement.style.colorScheme = m;
+        // The design system (lf-ui-design), also before first paint: its CSS is in
+        // the stylesheet already, scoped to data-design, so only the attribute
+        // and the design's fonts are needed here. Inside the iOS app the native
+        // shell has set the design before this runs, and it decides there.
+        // Kept in step with components/uikit/design.ts (see design.test.ts).
+        try {
+          var h = document.documentElement;
+          if (h.getAttribute('data-shell') !== 'native') {
+            var designs = __LF_DESIGNS__;
+            var dz = localStorage.getItem('lf-ui-design');
+            if (dz && Object.prototype.hasOwnProperty.call(designs, dz)) {
+              h.setAttribute('data-design', dz);
+              if (designs[dz].assistant) h.setAttribute('data-assistant', designs[dz].assistant);
+              var fl = document.createElement('link');
+              fl.id = 'lf-design-fonts';
+              fl.rel = 'stylesheet';
+              fl.href = designs[dz].fonts;
+              document.head.appendChild(fl);
+            }
+          }
+        } catch (e) {
+          /* storage unavailable: the default design */
+        }
         try {
           var t = localStorage.getItem('lasagna-theme');
           if (t === 'classic') t = 'minty';

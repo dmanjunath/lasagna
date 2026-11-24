@@ -1,7 +1,8 @@
 import { Link } from 'wouter';
 import { ArrowUpRight, MessageSquare, Plus, UserPlus } from 'lucide-react';
 import { isAmountsHidden } from '../../lib/hide-amounts';
-import { HiddenAmount, Skeleton } from '../uikit';
+import { HiddenAmount, Skeleton, useActiveTheme } from '../uikit';
+import { Mascot } from '../design/Mascot';
 import type { QuickLink } from '../../lib/home-briefing';
 
 const fmtUsd = (n: number) =>
@@ -46,6 +47,40 @@ export function BriefingCard({
   const strong = 'font-semibold text-content';
   // Whole dollars, so a change under 50 cents reads "unchanged", never "up $0".
   const delta = netWorth ? Math.round(netWorth.delta) : 0;
+  // A design with a character greets in its speech bubble, the page's hero
+  // (packages/design skin.greeting). Otherwise the greeting is the card's title.
+  const theme = useActiveTheme();
+  const bubble = theme?.skin.greeting === 'bubble' && theme.mascot ? theme : null;
+  const summary = summaryLoading ? (
+    // Lines of the real sentence's height, so nothing moves when it lands.
+    <div className="max-w-[600px] text-[16px] sm:text-[18px]" aria-hidden>
+      <div className="flex h-[1.6em] items-center"><Skeleton className="h-[0.9em] w-full" /></div>
+      {!shortSummary && <div className="flex h-[1.6em] items-center"><Skeleton className="h-[0.9em] w-full" /></div>}
+      <div className="briefing-narrow-only h-[1.6em] items-center"><Skeleton className="h-[0.9em] w-1/2" /></div>
+    </div>
+  ) : (actionSentence || netWorth) && (
+    <p className={`max-w-[600px] leading-[1.6] ${bubble ? 'text-[15px] sm:text-[17px] text-content' : 'text-[16px] sm:text-[18px] text-content-muted'}`}>
+      {actionSentence && (
+        <>
+          You have <span className={strong}>{actionSentence.count}</span>
+          {actionSentence.focus ? <>, {actionSentence.lead} <span className={strong}>{actionSentence.focus}</span>.</> : '.'}{' '}
+        </>
+      )}
+      {netWorth && (
+        <>
+          Your net worth is{' '}
+          {delta === 0 ? (
+            <span className={strong}>unchanged</span>
+          ) : (
+            <span className={`font-semibold ${delta > 0 ? 'text-positive' : 'text-negative'}`}>
+              {delta > 0 ? 'up' : 'down'} {isAmountsHidden() ? <HiddenAmount className="[&>span]:![color:inherit]" /> : fmtUsd(delta)}
+            </span>
+          )}{' '}
+          {netWorth.since}.
+        </>
+      )}
+    </p>
+  );
   return (
     <section className="cq-inline relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm animate-fade-in">
       {/* One wash over the whole card, the Ask Lasagna card's: tall ellipses,
@@ -60,41 +95,22 @@ export function BriefingCard({
         }}
         aria-hidden
       />
-      <header className="relative px-5 sm:px-8 pt-7 sm:pt-8 pb-6 flex flex-col gap-3.5">
-        <h1 className={GREETING_CLS}>
-          {greeting}
-        </h1>
-        {summaryLoading ? (
-          // Lines of the real sentence's height, so nothing moves when it lands.
-          <div className="max-w-[600px] text-[16px] sm:text-[18px]" aria-hidden>
-            <div className="flex h-[1.6em] items-center"><Skeleton className="h-[0.9em] w-full" /></div>
-            {!shortSummary && <div className="flex h-[1.6em] items-center"><Skeleton className="h-[0.9em] w-full" /></div>}
-            <div className="briefing-narrow-only h-[1.6em] items-center"><Skeleton className="h-[0.9em] w-1/2" /></div>
+      {bubble ? (
+        <header className="relative px-4 sm:px-6 pt-6 sm:pt-7 pb-5 flex items-end gap-2">
+          <Mascot theme={bubble} className="block h-[64px] w-[72px] sm:h-[78px] sm:w-[88px] shrink-0 -mb-1 text-content" />
+          <div data-hero="income" className="min-w-0 flex-1 flex flex-col gap-1.5 rounded-[22px] rounded-bl-[6px] px-4 sm:px-5 py-3.5 sm:py-4">
+            <h1 className="font-editorial text-[20px] sm:text-[24px] font-bold leading-[1.15] text-content">{greeting}</h1>
+            {summary}
           </div>
-        ) : (actionSentence || netWorth) && (
-          <p className="max-w-[600px] text-[16px] sm:text-[18px] leading-[1.6] text-content-muted">
-            {actionSentence && (
-              <>
-                You have <span className={strong}>{actionSentence.count}</span>
-                {actionSentence.focus ? <>, {actionSentence.lead} <span className={strong}>{actionSentence.focus}</span>.</> : '.'}{' '}
-              </>
-            )}
-            {netWorth && (
-              <>
-                Your net worth is{' '}
-                {delta === 0 ? (
-                  <span className={strong}>unchanged</span>
-                ) : (
-                  <span className={`font-semibold ${delta > 0 ? 'text-positive' : 'text-negative'}`}>
-                    {delta > 0 ? 'up' : 'down'} {isAmountsHidden() ? <HiddenAmount className="[&>span]:![color:inherit]" /> : fmtUsd(delta)}
-                  </span>
-                )}{' '}
-                {netWorth.since}.
-              </>
-            )}
-          </p>
-        )}
-      </header>
+        </header>
+      ) : (
+        <header className="relative px-5 sm:px-8 pt-7 sm:pt-8 pb-6 flex flex-col gap-3.5">
+          <h1 className={GREETING_CLS}>
+            {greeting}
+          </h1>
+          {summary}
+        </header>
+      )}
 
       {/* Narrower than the header's inset, so the rows get the width: two
           layers of padding plus the page's own made them read as a column. The

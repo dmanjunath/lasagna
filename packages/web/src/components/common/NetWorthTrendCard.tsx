@@ -386,6 +386,7 @@ export function NetWorthTrendCard({
 
   return (
     <section
+      data-hero="wealth"
       className={cn(
         'relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-6',
         className,
@@ -453,11 +454,13 @@ export function NetWorthTrendCard({
           // the moment history arrives.
           <Skeleton className="mt-2 h-4 w-[218px] rounded-full" />
         ) : periodDelta !== null && sinceLabel ? (
-          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] ui-tnum">
-            <DeltaText delta={periodDelta} pct={periodPct} />
+          // One line for any date or amount: the change stays whole and the
+          // dated clause trims, so scrubbing never grows the card by a line.
+          <p className="mt-1.5 flex min-w-0 flex-nowrap items-baseline gap-x-1.5 whitespace-nowrap text-[13.5px] ui-tnum">
+            <span className="shrink-0"><DeltaText delta={periodDelta} pct={periodPct} /></span>
             {/* Scrubbing the chart shows a past day, so this line says which
                 one, in full contrast: it is what re-dates the figure above. */}
-            <span className="font-medium text-content-muted">
+            <span className="min-w-0 truncate font-medium text-content-muted">
               {hoveredLabel && <span className="font-semibold text-content">on {hoveredLabel},{' '}</span>}
               since {sinceLabel}
             </span>

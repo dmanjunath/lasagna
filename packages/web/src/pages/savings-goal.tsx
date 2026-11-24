@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, type ReactElement } from 'rea
 import { useRoute, useLocation } from 'wouter';
 import { Check, ChevronLeft, Clock, Sparkles, Wallet, Flag, Trash2, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn, formatInstant, formatStoredMonth } from '../lib/utils';
+import { cn, formatInstant, formatStoredMonth, keepMonthYear } from '../lib/utils';
 import { Badge, Button, EmptyState, MaskedText, MoneyInput, PageMeta, PageMetaItem, Skeleton, Field, Input, SegmentedControl } from '../components/uikit';
 import { HeaderAction } from '../components/layout/app-header';
 import { useMobileHeader } from '../lib/mobile-header';
@@ -388,7 +388,7 @@ export function SavingsGoal() {
       const monthsNeeded = Math.ceil(remaining / monthlyPlan);
       const eta = new Date();
       eta.setMonth(eta.getMonth() + monthsNeeded);
-      const etaMonth = formatInstant(eta, { month: 'short', year: 'numeric' });
+      const etaMonth = keepMonthYear(formatInstant(eta, { month: 'short', year: 'numeric' }));
       if (goal.deadline && deadlineDaysLeft !== null && deadlineDaysLeft > 0) {
         paceLine = eta.getTime() <= new Date(goal.deadline).getTime()
           ? `${formatCurrency(monthlyPlan)}/mo planned, on track for ${deadlineMonth}`

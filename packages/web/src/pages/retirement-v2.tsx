@@ -2294,6 +2294,9 @@ export function RetirementV2() {
       <section
         ref={heroNumRef}
         data-testid="rv2-verdict"
+        // The verdict is the hero's color in a design that tints one: on track
+        // basil, needs attention the attention yellow, at risk sauce.
+        data-hero={outlook === 'on_track' ? 'income' : outlook === 'needs_attention' ? 'goal' : 'spend'}
         className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7"
       >
         <div

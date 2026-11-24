@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
-import { MessageSquare, X, Menu, Maximize2, Sparkles, ChevronLeft } from 'lucide-react';
+import { MessageSquare, X, Menu, Maximize2, ChevronLeft } from 'lucide-react';
 import { Sidebar } from './sidebar';
 import { MobileNav, drawerWidth } from './mobile-nav';
 import { hapticLight } from '../../lib/haptics';
@@ -19,6 +19,7 @@ import { setInAppDepth } from '../../lib/in-app-history';
 import { useMobileHeaderConfig } from '../../lib/mobile-header';
 import { useAmountsHidden } from '../../lib/hide-amounts';
 import { MOBILE_HEADER_STRIP } from '../uikit/PrivacyToggle';
+import { AssistantMark } from '../design/AssistantMark';
 
 // Native-only, lazy so the Capacitor plugins stay out of the web bundle.
 const FaceIdSetupPrompt = lazy(() => import('../native/FaceIdSetupPrompt'));
@@ -370,7 +371,7 @@ export function Shell({ children }: ShellProps) {
         /* Desktop: standard flex layout */
         <div className="flex-1 flex overflow-hidden">
           {/* Desktop sidebar */}
-          <aside className="w-[268px] flex-shrink-0 border-r border-line overflow-y-auto">
+          <aside data-sidebar className="w-[268px] flex-shrink-0 border-r border-line overflow-y-auto">
             <Sidebar />
           </aside>
 
@@ -387,9 +388,7 @@ export function Shell({ children }: ShellProps) {
             <aside className="w-[340px] flex-shrink-0 border-l border-line flex flex-col overflow-hidden bg-canvas">
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-line flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center">
-                    <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
-                  </div>
+                  <AssistantMark tileClassName="w-6 h-6 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center" iconClassName="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
                   <span className="text-sm font-semibold text-content">Assistant</span>
                 </div>
                 <div className="flex items-center gap-0.5">

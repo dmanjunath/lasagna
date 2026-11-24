@@ -6,7 +6,9 @@
     "paths": {
       "@lasagna/core/goal-target": ["../core/src/goal-target.ts"],
       "@lasagna/core/retirement-verdict": ["../core/src/retirement-verdict.ts"],
-      "@lasagna/core/debt-payoff": ["../core/src/debt-payoff.ts"]
+      "@lasagna/core/debt-payoff": ["../core/src/debt-payoff.ts"],
+      "@lasagna/design": ["../design/src/index.ts"],
+      "@lasagna/design/build/webCss": ["../design/src/build/webCss.ts"]
     },
     "outDir": "dist",
     "rootDir": "..",

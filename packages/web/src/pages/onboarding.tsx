@@ -18,7 +18,7 @@ import {
   RefreshCw,
   CircleHelp,
 } from 'lucide-react';
-import { BrandMark } from '../components/common/BrandMark';
+import { BrandMark, BrandWordmark } from '../components/common/BrandMark';
 import { InfoPopover } from '../components/common/InfoPopover';
 import { Button, Surface, Field, Input, Label, MoneyInput } from '../components/uikit';
 import {
@@ -949,9 +949,11 @@ export function Onboarding() {
       <header className="relative hidden items-center justify-between gap-3 px-6 py-4 md:flex">
         <div className="flex items-center gap-2">
           <BrandMark size={28} />
-          <span className="font-editorial text-lg font-medium tracking-[-0.015em] text-content">
-            Lasagna<span className="text-brand">Fi</span>
-          </span>
+          <BrandWordmark size={19}>
+            <span className="font-editorial text-lg font-medium tracking-[-0.015em] text-content">
+              Lasagna<span className="text-brand">Fi</span>
+            </span>
+          </BrandWordmark>
         </div>
         {finishLaterButton}
       </header>

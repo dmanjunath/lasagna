@@ -369,8 +369,9 @@ export function Insights() {
       {/* ════════ By when each one is worth doing ════════ */}
       {!isLoading &&
         totalActive > 0 &&
-        grouped.map((band) => (
-          <section key={band.key} className="mt-9 first:mt-8">
+        grouped.map((band, i) => (
+          // The first band is the page's hero in a design that tints one (packages/design).
+          <section key={band.key} data-hero={i === 0 ? 'action' : undefined} data-hero-frame={i === 0 ? '' : undefined} className="mt-9 first:mt-8">
             <div className="flex items-center gap-3">
               <h2 className="font-editorial text-[19px] font-bold tracking-[-0.02em] text-content">
                 {band.title}

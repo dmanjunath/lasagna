@@ -1134,11 +1134,12 @@ export function AccountDetail() {
           <span className={cn('mt-1.5 block font-editorial text-[32px] sm:text-[40px] font-extrabold leading-[1.05] tracking-[-0.035em] ui-tnum', isLiabilityAcct && 'text-negative')}>
             <MaskedText text={fmtUsd(isLiabilityAcct ? Math.abs(heroValue) : heroValue)} />
           </span>
-          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[13.5px] ui-tnum">
+          {/* One line for any date or amount: the change stays whole and the dated clause trims. */}
+          <p className="mt-1.5 flex min-w-0 flex-nowrap items-baseline gap-x-1.5 whitespace-nowrap text-[13.5px] ui-tnum">
             {chartDraws && (hoveredPoint || heroChange !== 0) ? (
               <>
-                <DeltaText delta={shownChange} base={heroFirst?.value ?? null} goodWhenDown={isLiabilityAcct} />
-                <span className="font-medium text-content-muted">
+                <span className="shrink-0"><DeltaText delta={shownChange} base={heroFirst?.value ?? null} goodWhenDown={isLiabilityAcct} /></span>
+                <span className="min-w-0 truncate font-medium text-content-muted">
                   {/* Scrubbing: the day the figure is now dated to, in full
                       contrast, as on the net worth card. A local day key,
                       converted from the snapshot instant where the points are built. */}

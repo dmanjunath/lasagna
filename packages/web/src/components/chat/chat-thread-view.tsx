@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Trash2, SquarePen, Sparkles } from 'lucide-react';
+import { ArrowLeft, Send, Trash2, SquarePen } from 'lucide-react';
 import { MessageBubble } from './message-bubble';
 import { AdminModelPicker } from './admin-model-picker';
 import { cn } from '../../lib/utils';
 import { maskCurrencyInText } from '../../lib/hide-amounts';
 import type { ChatMessage } from '../../lib/chat-store';
 import type { Thread } from './chat-thread-list';
+import { AssistantMark } from '../design/AssistantMark';
 
 const THINKING_STEPS = [
   'Thinking…',
@@ -24,9 +25,7 @@ function ThinkingIndicator() {
 
   return (
     <div className="flex gap-3 items-start animate-fade-in">
-      <div className="w-7 h-7 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center flex-shrink-0 mt-0.5">
-        <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
-      </div>
+      <AssistantMark tileClassName="w-7 h-7 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center flex-shrink-0 mt-0.5" iconClassName="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
       <div className="flex items-center gap-2.5 pt-1">
         <div className="flex items-center gap-1" aria-hidden>
           {[0, 1, 2].map((i) => (

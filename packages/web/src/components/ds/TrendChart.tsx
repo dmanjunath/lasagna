@@ -243,6 +243,8 @@ export function formatShortMoney(n: number, decimals?: number): string {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;
   const abs = Math.abs(n);
   const sign = n < 0 ? '\u2212' : '';
+  // One short token at any size, so an axis tick or readout never runs long: $1.2B, not $1235M.
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(decimals ?? (abs >= 1e10 ? 0 : 1))}B`;
   if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(decimals ?? (abs >= 1e7 ? 0 : 1))}M`;
   if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(decimals ?? (abs >= 1e4 ? 0 : 1))}K`;
   return `${sign}$${decimals != null ? abs.toFixed(decimals) : Math.round(abs)}`;

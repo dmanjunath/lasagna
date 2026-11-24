@@ -1067,7 +1067,7 @@ export const api = {
     }>("/portfolio/exposure"),
 
   // Transactions
-  getTransactions: (params?: { page?: number; limit?: number; category?: string; categories?: string[]; excludeCategories?: string[]; startDate?: string; endDate?: string; accountId?: string; search?: string }) => {
+  getTransactions: (params?: { page?: number; limit?: number; category?: string; categories?: string[]; excludeCategories?: string[]; startDate?: string; endDate?: string; accountId?: string; search?: string; direction?: 'credit' | 'debit' }) => {
     const searchParams = new URLSearchParams();
     if (params) {
       // Comma-joined, so the list the address bar carries is the list the API
@@ -1123,6 +1123,8 @@ export const api = {
         total: number;
         count: number;
         percentage: number;
+        /** The category's usual month, on a one-month window with three months of history. */
+        usual?: number | null;
       }>;
       totalSpending: number;
       totalIncome: number;

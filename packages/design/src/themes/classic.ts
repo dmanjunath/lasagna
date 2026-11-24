@@ -235,6 +235,8 @@ export const classic: Theme = {
     button: "rounded",
     row: "inset",
     chip: "outlined",
+    pill: "plain",
+    breakdown: "bars",
     tabBar: "standard",
     header: "blurred",
     emptyArt: "icon",

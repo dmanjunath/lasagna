@@ -6,7 +6,7 @@ import { api, API_BASE } from "../lib/api.js";
 import { isNativeApp } from "../lib/native.js";
 import { hasRegisteredPasskey } from "../lib/passkey-hint.js";
 import { Button, Input, Field, Alert, TextLink } from "../components/uikit";
-import { BrandMark } from "../components/common/BrandMark";
+import { BrandMark, BrandWordmark } from "../components/common/BrandMark";
 import { GoogleButton } from "../components/common/GoogleButton";
 import { ConsentCheckboxes } from "../components/common/ConsentCheckboxes";
 
@@ -269,7 +269,9 @@ export function Login({ defaultSignup = false, requireName = false }: { defaultS
             <div className="flex items-center gap-2 sm:flex-col sm:gap-0">
               <BrandMark size={34} />
               <h1 className="font-editorial text-[22px] sm:mt-4 sm:text-[26px] font-medium tracking-[-0.015em] text-content">
-                Lasagna<span className="text-brand">Fi</span>
+                <BrandWordmark size={26}>
+                  Lasagna<span className="text-brand">Fi</span>
+                </BrandWordmark>
               </h1>
             </div>
             {/* Signup carries no subtitle, and renders none rather than an

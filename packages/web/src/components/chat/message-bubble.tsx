@@ -1,18 +1,17 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChevronDown, Database, Wrench, AlertTriangle, RotateCw, Sparkles } from "lucide-react";
+import { ChevronDown, Database, Wrench, AlertTriangle, RotateCw } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 import { maskCurrencyInText } from "../../lib/hide-amounts.js";
 import type { ChatMessage } from "../../lib/chat-store.js";
+import { AssistantMark } from '../design/AssistantMark';
 
 // Small assistant identity mark — anchors every reply to the left so the
 // conversation reads as a dialogue (user bubble right, assistant prose left).
 function AssistantAvatar() {
   return (
-    <div className="w-7 h-7 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center flex-shrink-0 mt-0.5">
-      <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
-    </div>
+    <AssistantMark tileClassName="w-7 h-7 rounded-full bg-[var(--ui-accent-soft)] grid place-items-center flex-shrink-0 mt-0.5" iconClassName="w-3.5 h-3.5 text-[rgb(var(--ui-accent-ink))]" />
   );
 }
 

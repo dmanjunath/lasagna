@@ -3,7 +3,7 @@ import type { ColorRoles, Theme } from "../schema";
 
 // Noodle, clean: white space, rounded soft cards, one friendly character.
 // Palette names (for reading this file only, components use the roles):
-// basil #1DB06B, sauce #F0442E, pasta #FFC93C, blueberry #3D5AFE,
+// basil #1DB06B, sauce #F0442E, pasta #FFC93C, denim #3B6E9E,
 // cream #FBF6EC, ink #2A2420, pasta wash #FFF5D6 (the one yellow, see YELLOW).
 //
 // Every neutral is warm (owner decision 2026-11-22, "Warm cream"): cream
@@ -25,18 +25,24 @@ export const YELLOW = {
 } as const;
 
 const light: ColorRoles = {
-  canvas: "#FFFFFF",
-  // A step under cream so a track still shows inside a cream card.
+  // Warm page, white cards (owner decision 2026-11-23, "Surfaces" option A):
+  // the cream moves to the page, so cards lift off it with a warm edge and a
+  // soft shadow, and yellow only shows in chips and the yellow heroes.
+  canvas: "#F6EFE3",
+  // A step under the page, so a track still shows inside a white card and a press reads on one.
   canvasSunken: "#F2EBDD",
   surface: "#FFFFFF",
   surfaceRaised: "#FFFFFF",
-  surfaceInset: "#F5EEDF",
-  surfaceMuted: "#FBF6EC",
+  // A pill, search field or filled chip: a step deeper than the page, so it shows on the page and on a white card.
+  surfaceInset: "#ECE3D2",
+  // The soft card: white on the warm page.
+  surfaceMuted: "#FFFFFF",
   content: "#2A2420",
   contentSecondary: "#4D4339",
   contentMuted: "#75695A",
   contentFaint: "#ADA08C",
-  hairline: "#EFE6D4",
+  // The card's warm edge.
+  hairline: "#ECE2D0",
   line: "#E6DAC4",
   lineStrong: "#D3C4A9",
   brand: "#1DB06B",
@@ -48,10 +54,11 @@ const light: ColorRoles = {
   brandSofter: "#F3FBF7",
   brandRing: "rgba(14, 122, 69, 0.9)",
   brandEdge: "#0A5A33",
-  accent: "#3D5AFE",
-  accentInk: "#3D5AFE",
-  accentSoft: "#EEF1FF",
-  accentSofter: "#F6F8FF",
+  // Denim (owner, 2026-11-23): a muted blue that sits with the warm palette, replacing blueberry.
+  accent: "#3B6E9E",
+  accentInk: "#2C5A84",
+  accentSoft: "#E8EEF5",
+  accentSofter: "#F3F6F9",
   positive: "#0E7A45",
   positiveSoft: "#E6F7EE",
   negative: "#C2311E",
@@ -60,8 +67,8 @@ const light: ColorRoles = {
   onDanger: "#FFFFFF",
   caution: "#8A5A00",
   cautionSoft: YELLOW.light.chip,
-  info: "#3D5AFE",
-  infoSoft: "#EEF1FF",
+  info: "#2C5A84",
+  infoSoft: "#E8EEF5",
   sky: "#0369A1",
   skySoft: "#E3F3FC",
   violet: "#7B2CBF",
@@ -80,7 +87,7 @@ const light: ColorRoles = {
   jar: "#E3D8C3",
   category: [
     { fill: "#E6F7EE", ink: "#0E7A45" },
-    { fill: "#EEF1FF", ink: "#3D5AFE" },
+    { fill: "#E8EEF5", ink: "#2C5A84" },
     { fill: YELLOW.light.chip, ink: YELLOW.light.ink },
     { fill: "#FFE9E4", ink: "#C2311E" },
     { fill: "#E3F3FC", ink: "#0369A1" },
@@ -88,12 +95,13 @@ const light: ColorRoles = {
     { fill: "#F3EBDC", ink: "#5A4E42" },
     { fill: "#FDE8F1", ink: "#B0216A" },
   ],
-  chart: ["#1DB06B", "#3D5AFE", "#FFC93C", "#F0442E", "#0EA5E9", "#84CC16", "#8C7B66", "#A855F7"],
-  // The mockup's card colors: blueberry for net worth, sauce for spending,
+  // Slot 5 (property, "other") is a lighter Denim step, never a new hue: it sits beside Denim (slot 2) in the net worth bar.
+  chart: ["#1DB06B", "#3B6E9E", "#FFC93C", "#F0442E", "#86A8C9", "#84CC16", "#8C7B66", "#A855F7"],
+  // The mockup's card colors: denim for net worth, sauce for spending,
   // basil for money in, pasta for goals, the sticky note for actions, cream
   // for the rest. Labels take the deeper ink (basil's is the primary green).
   tint: {
-    wealth: { fill: "#EEF1FF", ink: "#3D5AFE", accent: "#3D5AFE" },
+    wealth: { fill: "#E8EEF5", ink: "#2C5A84", accent: "#3B6E9E" },
     spend: { fill: "#FFF4F1", ink: "#C2311E", accent: "#F0442E" },
     income: { fill: "#E6F7EE", ink: "#0E7A45", accent: "#1DB06B" },
     goal: { fill: YELLOW.light.fill, ink: YELLOW.light.ink, accent: "#FFC93C" },
@@ -103,7 +111,7 @@ const light: ColorRoles = {
 };
 
 // Dark: a warm charcoal canvas, surfaces raised by lightening the same warm
-// brown, and the sauce, pasta and blueberry lifted until they read on it.
+// brown, and the sauce, pasta and denim lifted until they read on it.
 const dark: ColorRoles = {
   canvas: "#171513",
   canvasSunken: "#0F0D0C",
@@ -127,11 +135,11 @@ const dark: ColorRoles = {
   brandSofter: "rgba(61, 214, 138, 0.08)",
   brandRing: "rgba(74, 222, 142, 0.55)",
   brandEdge: "#1F8F57",
-  accent: "#8C9EFF",
-  accentInk: "#9AABFF",
+  accent: "#7FA9D3",
+  accentInk: "#9CC0E3",
   // Opaque deep blues: a translucent blue on the warm charcoal lands as a slate gray.
-  accentSoft: "#262E5E",
-  accentSofter: "#1F2547",
+  accentSoft: "#1E2B38",
+  accentSofter: "#18232F",
   positive: "#4ADE8E",
   positiveSoft: "rgba(74, 222, 142, 0.14)",
   negative: "#FF8A75",
@@ -140,8 +148,8 @@ const dark: ColorRoles = {
   onDanger: "#FFFFFF",
   caution: "#FFD166",
   cautionSoft: YELLOW.dark.chip,
-  info: "#9AABFF",
-  infoSoft: "#283063",
+  info: "#9CC0E3",
+  infoSoft: "#21303F",
   sky: "#7DD3FC",
   skySoft: "#133B4D",
   violet: "#D8B4FE",
@@ -161,7 +169,7 @@ const dark: ColorRoles = {
   jar: "#6A5C48",
   category: [
     { fill: "rgba(61, 214, 138, 0.16)", ink: "#4ADE8E" },
-    { fill: "#283063", ink: "#9AABFF" },
+    { fill: "#21303F", ink: "#9CC0E3" },
     { fill: YELLOW.dark.chip, ink: YELLOW.dark.ink },
     { fill: "rgba(255, 122, 102, 0.16)", ink: "#FF8A75" },
     { fill: "#133B4D", ink: "#7DD3FC" },
@@ -169,11 +177,11 @@ const dark: ColorRoles = {
     { fill: "rgba(185, 173, 156, 0.20)", ink: "#D6CBBB" },
     { fill: "rgba(244, 114, 182, 0.18)", ink: "#F9A8D4" },
   ],
-  chart: ["#3DD68A", "#8C9EFF", "#FFD166", "#FF8A75", "#38BDF8", "#A3E635", "#B3A491", "#C084FC"],
+  chart: ["#3DD68A", "#7FA9D3", "#FFD166", "#FF8A75", "#4F7499", "#A3E635", "#B3A491", "#C084FC"],
   // Deep, opaque versions of the light tints: each a step above the card
   // surface so a tinted card still reads as a card, with the lifted inks.
   tint: {
-    wealth: { fill: "#232A55", ink: "#AAB8FF", accent: "#8C9EFF" },
+    wealth: { fill: "#1E2B38", ink: "#9CC0E3", accent: "#7FA9D3" },
     spend: { fill: "#42231F", ink: "#FF9B88", accent: "#FF7A66" },
     income: { fill: "#163A2F", ink: "#4ADE8E", accent: "#3DD68A" },
     goal: { fill: YELLOW.dark.fill, ink: YELLOW.dark.ink, accent: "#FFC93C" },
@@ -234,7 +242,8 @@ export const noodle: Theme = {
   stroke: { hairline: 1, outline: 2 },
   shadow: {
     light: {
-      sm: "0 1px 3px rgba(42, 36, 32, 0.12)",
+      // The soft card's shadow: barely there, so the edge does most of the lifting.
+      sm: "0 1px 2px rgba(42, 36, 32, 0.05), 0 4px 12px rgba(42, 36, 32, 0.04)",
       md: "0 4px 14px rgba(42, 36, 32, 0.08)",
       lg: "0 10px 28px rgba(42, 36, 32, 0.16)",
       xl: "0 24px 56px rgba(42, 36, 32, 0.20)",
@@ -257,6 +266,8 @@ export const noodle: Theme = {
     button: "chunky",
     row: "plain",
     chip: "filled",
+    pill: "raised",
+    breakdown: "ranked",
     tabBar: "standard",
     header: "plain",
     emptyArt: "mascot",
@@ -272,5 +283,5 @@ export const noodle: Theme = {
     cardAction: "link",
     emptyState: "open",
   },
-  mascot: { name: "Noodle", happy, sleepy },
+  mascot: { name: "Lasagna", happy, sleepy },
 };

@@ -32,6 +32,7 @@ export { HiddenAmount, MASK_TEXT_STYLE, useRevealOnFocus } from './HiddenAmount'
 export { MaskedText } from './MaskedText';
 export { useUiMode, applyMode, getStoredMode } from './mode';
 export type { UiMode } from './mode';
+export { useDesign, useActiveTheme, applyDesign, currentDesign, currentTheme, WEB_DESIGNS } from './design';
 export { Legend } from './Legend';
 export type { LegendItem } from './Legend';
 export { VIZ_KEYS, VIZ_CATEGORY_LABELS, vizColor, vizVar } from './viz';

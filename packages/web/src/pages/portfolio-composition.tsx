@@ -402,9 +402,10 @@ function HoldingLedgerRow({ h }: { h: HoldingRow }) {
           </div>
           <div className="mt-0.5 flex justify-end gap-2 text-[12px] font-medium text-content-muted ui-tnum">
             <span>{h.percentage.toFixed(1)}%</span>
+            {/* A past average for the asset class, not this holding's gain: a neutral fact, so muted and labeled. */}
             {h.historicalReturn !== null && (
-              <span className={cn('font-semibold', h.historicalReturn >= 0 ? 'text-positive' : 'text-negative')}>
-                {h.historicalReturn >= 0 ? '+' : '−'}{Math.abs(h.historicalReturn).toFixed(1)}%
+              <span>
+                Avg {h.historicalReturn >= 0 ? '+' : '−'}{Math.abs(h.historicalReturn).toFixed(1)}% a year
               </span>
             )}
           </div>
@@ -1030,7 +1031,7 @@ export default function PortfolioComposition() {
         />
 
         <section className="mt-6">
-          <Surface pad="lg" className="relative overflow-hidden">
+          <Surface pad="lg" data-hero="wealth" className="relative overflow-hidden">
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0"
@@ -1116,7 +1117,7 @@ export default function PortfolioComposition() {
 
       {/* ════════ ALLOCATION HERO — one full-width chart + a legible breakdown ════════ */}
       <section className="mt-0 md:mt-6">
-        <Surface pad="lg" className="relative overflow-hidden">
+        <Surface pad="lg" data-hero="wealth" className="relative overflow-hidden">
           {/* atmospheric wash — matches the primary-nav hero cards */}
           <div
             aria-hidden
@@ -1137,13 +1138,8 @@ export default function PortfolioComposition() {
                     <MaskedText text={formatMoney(filteredTotal, true)} />
                   </span>
                   {blendedReturn !== null && (
-                    <span
-                      className="inline-flex items-center gap-1 h-7 px-3 rounded-full text-[13px] font-bold ui-tnum"
-                      style={{
-                        background: blendedReturn >= 0 ? 'var(--ui-positive-soft)' : 'var(--ui-negative-soft)',
-                        color: blendedReturn >= 0 ? 'rgb(var(--ui-positive))' : 'rgb(var(--ui-negative))',
-                      }}
-                    >
+                    // The past average return of what you hold: a neutral fact, never a verdict, so it carries no good or bad color.
+                    <span className="inline-flex items-center gap-1 h-7 px-3 rounded-full bg-canvas-sunken text-[13px] font-bold text-content-secondary ui-tnum">
                       {blendedReturn >= 0 ? '+' : '−'}{Math.abs(blendedReturn).toFixed(1)}%
                       <span className="font-semibold opacity-70">/ yr</span>
                     </span>

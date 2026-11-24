@@ -25,6 +25,7 @@ import { MaskedText } from '../uikit/MaskedText';
 import { Button, button } from '../uikit/Button';
 import { TxnRow } from '../transactions/TransactionList';
 import { assistantName } from '../../lib/assistant-name';
+import { useActiveTheme } from '../uikit/design';
 
 interface ActionItemProps {
   title: string;
@@ -261,6 +262,9 @@ function DenseRowInner({
   expandable,
   expanded,
 }: ActionItemProps & { expandable?: boolean; expanded?: boolean }) {
+  // The design's action-row skin. `highlight` (Noodle) is the native row: no area
+  // colors, the value in the one yellow chip. Classic keeps its area colors.
+  const note = useActiveTheme()?.skin.actionCard === 'highlight';
   const cat = catForTag(tag);
   const Icon = cat.icon;
   const figure = rowFigure({ amount, impact, full, handsMoneyBack });
@@ -276,9 +280,11 @@ function DenseRowInner({
       <span
         className="grid place-items-center h-6 w-6 shrink-0 rounded-ui-sm"
         style={
-          area
-            ? { background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }
-            : { background: cat.tagBg, color: cat.tagFg }
+          note
+            ? { background: 'rgb(var(--ui-canvas-sunken))', color: 'rgb(var(--ui-content-secondary))' }
+            : area
+              ? { background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }
+              : { background: cat.tagBg, color: cat.tagFg }
         }
         aria-hidden
       >
@@ -304,10 +310,10 @@ function DenseRowInner({
             <MaskedText text={subtitle} />
           </p>
         )}
-        {(spendCut || areaLabel || figure || effort) && (
+        {(spendCut || (areaLabel && !note) || figure || effort) && (
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
 
-            {areaLabel && (
+            {areaLabel && !note && (
               <span
                 className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none"
                 style={{ background: TONE_STYLE[area!.tone].soft, color: TONE_STYLE[area!.tone].ink }}
@@ -321,9 +327,11 @@ function DenseRowInner({
               <span
                 className="inline-flex items-center rounded-ui-sm px-2 py-0.5 text-[12.5px] font-bold leading-none ui-tnum"
                 style={
-                  area
-                    ? { background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }
-                    : { background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }
+                  note
+                    ? { background: 'var(--ui-caution-soft)', color: 'var(--ui-tint-goal-ink)' }
+                    : area
+                      ? { background: TONE_STYLE[area.tone].soft, color: TONE_STYLE[area.tone].ink }
+                      : { background: impactSoftVar(impactColor), color: impactColorVar(impactColor) }
                 }
               >
                 <MaskedText text={figure} />
@@ -365,6 +373,7 @@ function DenseRowInner({
 // Accordion — a collapsed row that expands to reveal the description + actions.
 function AccordionActionItem(props: ActionItemProps) {
   const [open, setOpen] = useState(props.defaultOpen ?? false);
+  const note = useActiveTheme()?.skin.actionCard === 'highlight';
   const { openChat } = useChatStore();
   const cat = catForTag(props.tag);
   // The edge wears the row's colour, the same one the two pills wear. It used
@@ -407,7 +416,7 @@ function AccordionActionItem(props: ActionItemProps) {
       data-action-id={rowId}
       className="relative overflow-hidden rounded-ui-md border border-line bg-panel shadow-ui-sm transition-[box-shadow,border-color] hover:border-line-strong hover:shadow-ui-md"
     >
-      <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: edge }} aria-hidden />
+      {!note && <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: edge }} aria-hidden />}
 
       <div
         role="button"

@@ -79,6 +79,11 @@ export function formatStoredMonth(iso: string, opts?: Intl.DateTimeFormatOptions
   return formatStoredDate(iso, { month: 'short', year: 'numeric', ...opts });
 }
 
+/** "Apr 2056" with a no-break space, so a month and its year never split across lines in a sentence. For prose only: labels and filters compare the plain form. */
+export function keepMonthYear(s: string): string {
+  return s.replace(/ (\d{4})$/, '\u00a0$1');
+}
+
 /**
  * The same calendar day as a sortable `YYYY-MM-DD`, for grouping rows under one
  * heading and for comparing one against today.

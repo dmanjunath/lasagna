@@ -248,9 +248,11 @@ export function transactionsHref(scope: {
   endDate: string;
   categories?: string[];
   excludeCategories?: string[];
+  direction?: 'credit' | 'debit';
 }): string {
   const query = filtersToSearchParams({
     ...EMPTY_FILTERS,
+    direction: scope.direction ?? 'all',
     categories: scope.categories ?? [],
     excludeCategories: scope.excludeCategories ?? [],
     datePreset: 'custom',

@@ -110,18 +110,20 @@ function dateRangeLabel(earliest: string | null, latest: string | null): string 
 // spending page's StatCell idiom so the two pages read as siblings.
 // ---------------------------------------------------------------------------
 
-function KpiCell({ label, value, sub, tone }: {
+function KpiCell({ label, value, sub, tone, hero }: {
   label: string;
   value: string;
   sub?: React.ReactNode;
   tone?: 'pos' | 'neg';
+  /** A design with tinted summary tiles colors this one by direction (in, out). */
+  hero?: 'income' | 'spend';
 }) {
   // A masked figure sheds its tone AND the sign baked into its string: both
   // would still say which way the number went.
   const masked = isMasked(value);
   return (
-    <div className="px-4 py-3 sm:px-5 sm:py-3.5">
-      <div className="text-[12px] font-semibold text-content-muted">{label}</div>
+    <div data-hero={hero} className="px-4 py-3 sm:px-5 sm:py-3.5">
+      <div data-hero-label className="text-[12px] font-semibold text-content-muted">{label}</div>
       <div className={cn(
         'mt-1.5 font-editorial text-[19px] sm:text-[22px] font-extrabold leading-none tracking-[-0.02em] ui-tnum',
         !masked && tone === 'pos' && 'text-[rgb(var(--ui-brand-ink))]',
@@ -158,6 +160,7 @@ function LargestLink({ tx, onOpen }: { tx: TxnQueryRow | null | undefined; onOpe
   return (
     <button
       type="button"
+      data-hero-link
       onClick={() => onOpen(tx)}
       title={`${tx.merchantName || tx.name}, ${formatStoredDay(tx.date)}`}
       // Link-styled (brand ink and a chevron, like the chip's View link), so it
@@ -189,10 +192,10 @@ function KpiStrip({ summary, direction, onOpenTx }: {
     )}>
       <KpiCell label="Transactions" value={k.count} sub={range || undefined} />
       {direction !== 'debit' && (
-        <KpiCell label="Money in" value={k.moneyIn} tone="pos" sub={summary.largestCredit ? <LargestLink tx={summary.largestCredit} onOpen={onOpenTx} /> : undefined} />
+        <KpiCell label="Money in" value={k.moneyIn} tone="pos" hero="income" sub={summary.largestCredit ? <LargestLink tx={summary.largestCredit} onOpen={onOpenTx} /> : undefined} />
       )}
       {direction !== 'credit' && (
-        <KpiCell label="Money out" value={k.moneyOut} sub={summary.largestDebit ? <LargestLink tx={summary.largestDebit} onOpen={onOpenTx} /> : undefined} />
+        <KpiCell label="Money out" value={k.moneyOut} hero="spend" sub={summary.largestDebit ? <LargestLink tx={summary.largestDebit} onOpen={onOpenTx} /> : undefined} />
       )}
       {both && <KpiCell label="Net" value={k.net} tone={k.netTone} />}
     </div>
@@ -861,7 +864,7 @@ export function Transactions() {
       )}
 
       {/* ════════ List card ════════ */}
-      <div className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
+      <div data-txn-list className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
         {/* Mobile sort header — a tappable row on the list itself; the invisible
              native select on top opens the OS picker (field + order in one). */}
         {rows.length > 0 && (
@@ -915,7 +918,7 @@ export function Transactions() {
               return (
                 <React.Fragment key={tx.id}>
                   {needsHeader && (
-                    <div className="sticky top-[var(--txn-toolbar-h)] z-[2] bg-canvas px-4 py-1.5 text-[13px] font-semibold text-content-muted first:rounded-t-ui-xl">
+                    <div data-day-band className="sticky top-[var(--txn-toolbar-h)] z-[2] bg-canvas px-4 py-1.5 text-[13px] font-semibold text-content-muted first:rounded-t-ui-xl">
                       {dayLabel(tx.date)}
                     </div>
                   )}

@@ -1,10 +1,29 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { themes } from "../design/src/registry";
+import { designBoot, themeCss } from "../design/src/build/webCss";
+
+// The web's own look (theme.css) is the Classic design. Every other design
+// system ships as one stylesheet scoped to html[data-design="<id>"], built from
+// packages/design so it can never drift from the native app's theme, and the
+// first-paint script in index.html learns each design's fonts and assistant.
+const webDesigns = themes.filter((t) => t.meta.id !== "classic");
+const DESIGNS_CSS = "virtual:lf-designs.css";
+
+function lfDesigns(): Plugin {
+  return {
+    name: "lf-designs",
+    resolveId: (id) => (id === DESIGNS_CSS ? "\0" + DESIGNS_CSS : null),
+    load: (id) => (id === "\0" + DESIGNS_CSS ? webDesigns.map(themeCss).join("\n") : null),
+    transformIndexHtml: (html) => html.replace("__LF_DESIGNS__", JSON.stringify(designBoot(webDesigns))),
+  };
+}
 
 export default defineConfig({
   plugins: [
     react(),
+    lfDesigns(),
   ],
   resolve: {
     alias: {
@@ -21,6 +40,9 @@ export default defineConfig({
       "@lasagna/core/retirement-verdict": fileURLToPath(
         new URL("../core/src/retirement-verdict.ts", import.meta.url),
       ),
+      // The design systems (themes, mascot art) the native app is drawn with.
+      "@lasagna/design/build/webCss": fileURLToPath(new URL("../design/src/build/webCss.ts", import.meta.url)),
+      "@lasagna/design": fileURLToPath(new URL("../design/src/index.ts", import.meta.url)),
       // And the payoff math: one schedule for the debt page and the journey.
       "@lasagna/core/debt-payoff": fileURLToPath(
         new URL("../core/src/debt-payoff.ts", import.meta.url),

@@ -10,7 +10,7 @@ import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useChatStore } from '../../lib/chat-store';
 import { AmountsHiddenLabel, PrivacyToggle } from '../uikit/PrivacyToggle';
-import { BrandMark } from '../common/BrandMark';
+import { BrandMark, BrandWordmark } from '../common/BrandMark';
 import { PlanUsage } from './plan-usage';
 import { OnboardingProgress } from './onboarding-progress';
 import { useScrollFade } from './use-scroll-fade';
@@ -250,9 +250,11 @@ export function Sidebar({ className }: SidebarProps) {
             against 1.34x in the mobile nav, the heaviest lockup in the app.
             34 lands at 1.37x and matches the mark size the login screen uses. */}
         <BrandMark size={34} />
-        <div className="font-editorial text-[19px] font-semibold leading-none tracking-[-0.01em] text-content">
-          LasagnaFi
-        </div>
+        <BrandWordmark size={20}>
+          <div className="font-editorial text-[19px] font-semibold leading-none tracking-[-0.01em] text-content">
+            LasagnaFi
+          </div>
+        </BrandWordmark>
       </div>
 
       {/* Navigation. On a short viewport this list clips, and the sidebar is the

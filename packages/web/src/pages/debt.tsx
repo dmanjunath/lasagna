@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CreditCard, Landmark, Pencil, ArrowRight } from 'lucide-react';
 import { api } from '../lib/api';
-import { cn, formatInstant, formatStoredMonth } from '../lib/utils';
+import { cn, formatInstant, formatStoredMonth, keepMonthYear } from '../lib/utils';
 import { accountTypeLabel } from '../lib/account-types';
 import { HIDDEN_AMOUNT, isAmountsHidden, isMasked } from '../lib/hide-amounts';
 import { HiddenAmount, MaskedText, MoneyInput } from '../components/uikit';
@@ -61,7 +61,7 @@ function addMonths(months: number): string {
   if (!Number.isFinite(months)) return 'Never';
   const d = new Date();
   d.setMonth(d.getMonth() + months);
-  return formatInstant(d, { month: 'short', year: 'numeric' });
+  return keepMonthYear(formatInstant(d, { month: 'short', year: 'numeric' }));
 }
 
 /** "4 years 2 months", "11 months". */
@@ -105,13 +105,14 @@ function debtTypeLabel(d: DebtAccount): string {
 // Distinct hues for debt composition segments. Coral (viz-4) is the debt color,
 // so it leads; the rest alternate through the Bright categorical palette to give
 // at-a-glance separation between accounts, in both light and dark.
+// A design that follows the color map sets --ui-debt-N, one sauce ramp; without it these are the Classic hues.
 const DEBT_SHADES = [
-  'var(--ui-viz-4)',
-  'var(--ui-viz-3)',
-  'var(--ui-viz-7)',
-  'var(--ui-viz-5)',
-  'var(--ui-viz-2)',
-  'var(--ui-viz-6)',
+  'var(--ui-debt-1, var(--ui-viz-4))',
+  'var(--ui-debt-2, var(--ui-viz-3))',
+  'var(--ui-debt-3, var(--ui-viz-7))',
+  'var(--ui-debt-4, var(--ui-viz-5))',
+  'var(--ui-debt-5, var(--ui-viz-2))',
+  'var(--ui-debt-6, var(--ui-viz-6))',
 ];
 function debtColor(i: number): string {
   return DEBT_SHADES[i % DEBT_SHADES.length];
@@ -804,7 +805,7 @@ function HasDebtView({
       </header>
 
       {/* ── HERO — one confident answer: how much, how long, what it costs ── */}
-      <section className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
+      <section data-hero="spend" className="relative mt-6 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
@@ -985,7 +986,7 @@ function HasDebtView({
                 // The lender's stored date while this debt gets only its
                 // minimum, the plan's month once extra speeds it up.
                 d.payoffDate && plan.monthsById[d.id] >= minimums.monthsById[d.id]
-                  ? formatStoredMonth(d.payoffDate)
+                  ? keepMonthYear(formatStoredMonth(d.payoffDate))
                   : addMonths(plan.monthsById[d.id])
               }
               maxBalance={maxBalance}

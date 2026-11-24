@@ -940,7 +940,7 @@ export function TaxStrategy() {
 
       {/* ── HERO — what the documents on file actually say ── */}
       <section
-        data-hero
+        data-hero="wealth"
         className="relative mt-0 md:mt-7 rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-8"
       >
         {/* The wash is rounded to the card instead of the card clipping it, so
@@ -1017,23 +1017,19 @@ export function TaxStrategy() {
                           {summaryLoading ? "Retrying…" : "Try again"}
                         </Button>
                       </>
-                    ) : (
-                      /* The three one-line states share a fixed reserve. They
+                    ) : heroState === "docs-error" || heroState === "no-summary" ? (
+                      /* The two one-line states share a fixed reserve. They
                          wrap to different line counts at different column
                          widths, so a per-breakpoint min-height never converged:
-                         fixing 768 broke 834. The longest of them is rendered
+                         fixing 768 broke 834. The longer of them is rendered
                          invisibly to reserve its exact height, and the visible
                          one is laid over it, so swapping between them cannot
-                         move the card. The summary, loading and failed states
-                         are deliberately NOT in here: prose of two to four
-                         sentences would clip, and a button would break the
-                         height guarantee. */
+                         move the card. With account data and no documents the
+                         hero says nothing here: the Actions below speak for
+                         themselves. */
                       <p className="relative text-[15px] leading-[1.55] text-content-secondary">
-                        {/* All three are kept short enough to sit on ONE line
-                            down to 375, so the reserve costs no dead line under
-                            the sentence at the widths most people are on. */}
                         <span className="invisible" aria-hidden>
-                          Actions below come from your accounts.
+                          No summary until your documents load.
                         </span>
                         <span className="absolute inset-0">
                           {heroState === "docs-error" ? (
@@ -1042,14 +1038,12 @@ export function TaxStrategy() {
                                own retry, and repeating its exact sentence up
                                here put the same words on screen twice. */
                             <>No summary until your documents load.</>
-                          ) : heroState === "no-summary" ? (
-                            <>A summary is not available right now.</>
                           ) : (
-                            <>Actions below come from your accounts.</>
+                            <>A summary is not available right now.</>
                           )}
                         </span>
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>

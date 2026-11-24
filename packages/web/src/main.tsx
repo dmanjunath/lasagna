@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App.js";
 import "./index.css";
 import "./styles/theme.css";
+// Every other design system, scoped to html[data-design] (vite.config.ts).
+import "virtual:lf-designs.css";
 import { isNativeApp } from "./lib/native";
 import { loadAnalytics } from "./lib/analytics";
 

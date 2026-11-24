@@ -358,6 +358,7 @@ export function TransactionList({
   pageSize = 20,
   showPagination = true,
   showSearch = true,
+  direction,
 }: {
   accountId?: string;
   startDate?: string;
@@ -379,6 +380,8 @@ export function TransactionList({
   /** false = single fixed page; viewAllHref renders as a card footer link instead. */
   showPagination?: boolean;
   showSearch?: boolean;
+  /** Money in (credit) or money out (debit) only; transfers are neither. */
+  direction?: 'credit' | 'debit';
 }) {
   // When `category` prop is provided (even as null) the component is controlled.
   const isControlled = category !== undefined;
@@ -435,6 +438,7 @@ export function TransactionList({
       endDate,
       accountId,
       search: debouncedSearch || undefined,
+      direction,
     })
       .then((data) => {
         if (!active) return;
@@ -448,7 +452,7 @@ export function TransactionList({
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [page, pageSize, effectiveCategory, categoryIdsKey, excludeCategoryIdsKey, startDate, endDate, accountId, debouncedSearch, refreshKey]);
+  }, [page, pageSize, effectiveCategory, categoryIdsKey, excludeCategoryIdsKey, startDate, endDate, accountId, debouncedSearch, refreshKey, direction]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 

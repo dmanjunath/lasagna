@@ -22,6 +22,7 @@ import {
   ScanFace,
   Bell,
   Moon,
+  Palette,
   EyeOff,
   Mail,
   UserPlus,
@@ -54,6 +55,9 @@ import {
   Alert,
   Skeleton,
   useUiMode,
+  useDesign,
+  WEB_DESIGNS,
+  SegmentedControl,
   useToast,
 } from "../components/uikit";
 
@@ -1354,10 +1358,33 @@ function PushNotificationsCard() {
  */
 function DisplayCard() {
   const { mode, toggle: toggleMode } = useUiMode();
+  const { design, setDesign, native } = useDesign();
   const hidden = isAmountsHidden();
 
   return (
     <Surface className="p-5">
+      {/* Inside the iOS app the native Settings picks the design. */}
+      {!native && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ui-md bg-canvas-sunken text-content-muted">
+                <Palette className="h-5 w-5" />
+              </span>
+              <h3 className="text-[15px] font-bold text-content">Design</h3>
+            </div>
+            <SegmentedControl
+              value={design}
+              onChange={setDesign}
+              options={WEB_DESIGNS.map((d) => ({ value: d.id, label: d.name }))}
+              aria-label="Design"
+              // Inline beside its title on a phone too, like the switches below it.
+              stretch={false}
+            />
+          </div>
+          <div className="my-4 h-px bg-line" />
+        </>
+      )}
       <SettingRow
         icon={<Moon className="h-5 w-5" />}
         title="Dark mode"

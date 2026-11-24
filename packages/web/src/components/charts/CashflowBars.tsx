@@ -5,7 +5,7 @@ import { Legend } from '../uikit';
 
 // ---------------------------------------------------------------------------
 // CashflowBars — diverging income/expense bars on --ui-* tokens.
-// One column per period: income bar up (viz-2), expenses bar down (viz-4),
+// One column per period: income bar up (viz-2, or a design's money-in color), expenses bar down (viz-4, or its money-out color),
 // shared zero axis, named by the legend under the plot. Click selects a period;
 // hover bubbles the index up so the hero value can swap (same contract as the
 // old SpendTrendChart).
@@ -513,8 +513,8 @@ export function CashflowBars({
       className="mt-2"
       style={{ paddingLeft: chartLeft }}
       items={[
-        { key: 'income', label: 'Income', color: 'var(--ui-viz-2)' },
-        { key: 'spending', label: 'Spending', color: 'var(--ui-viz-4)' },
+        { key: 'income', label: 'Income', color: 'var(--ui-chart-in, var(--ui-viz-2))' },
+        { key: 'spending', label: 'Spending', color: 'var(--ui-chart-out, var(--ui-viz-4))' },
         // Only while the hatched column is actually on screen. Paged past it,
         // this entry keys a mark the plot no longer carries. Paging is a
         // discrete, snapped step, so the entry appears and disappears once per
@@ -669,8 +669,8 @@ export function CashflowBars({
                 const partial = ai === partialIdx;
                 return (
                   <g key={p.period} opacity={opacity} style={{ transition: 'opacity 0.15s' }}>
-                    {up.h > 0 && <rect {...upBox} fill="var(--ui-viz-2)" />}
-                    {down.h > 0 && <rect {...downBox} fill="var(--ui-viz-4)" />}
+                    {up.h > 0 && <rect {...upBox} fill="var(--ui-chart-in, var(--ui-viz-2))" />}
+                    {down.h > 0 && <rect {...downBox} fill="var(--ui-chart-out, var(--ui-viz-4))" />}
                     {/* Hatch OVER the fill, not instead of it: the column still
                         has to say income or spending, it just also has to say
                         it is not finished. The legend names the texture. */}

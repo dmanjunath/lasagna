@@ -10,7 +10,7 @@ import {
 import { useAuth } from '../../lib/auth';
 import { PlanUsage } from './plan-usage';
 import { OnboardingProgress } from './onboarding-progress';
-import { BrandMark } from '../common/BrandMark';
+import { BrandMark, BrandWordmark } from '../common/BrandMark';
 import { useScrollFade } from './use-scroll-fade';
 
 interface NavItem {
@@ -267,7 +267,9 @@ export function MobileNav({ isOpen, onClose, x, dragging = false }: MobileNavPro
             >
               <div className="flex items-center gap-2.5">
                 <BrandMark size={30} />
-                <span className="font-editorial text-[18px] font-semibold tracking-[-0.01em] text-content">LasagnaFi</span>
+                <BrandWordmark size={19}>
+                  <span className="font-editorial text-[18px] font-semibold tracking-[-0.01em] text-content">LasagnaFi</span>
+                </BrandWordmark>
               </div>
               <button
                 ref={closeRef}

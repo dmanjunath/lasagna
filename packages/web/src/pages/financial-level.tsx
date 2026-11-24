@@ -1075,7 +1075,7 @@ export function FinancialLevel() {
       </header>
 
       {/* ════════ Hero — the climb ════════ */}
-      <section className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7 animate-fade-in">
+      <section data-hero="income" className="relative mt-7 overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm p-6 sm:p-7 animate-fade-in">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
