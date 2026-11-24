@@ -21,6 +21,7 @@ import { ScreenScroll } from "@/ui/ScreenScroll";
 import { Skeleton } from "@/ui/Skeleton";
 import { ErrorState } from "@/ui/State";
 import ChatThreadScreen from "./ChatThreadScreen";
+import { pressFeedback } from "@/ui/press";
 
 type RowItem = { thread: ChatThread; first: boolean };
 
@@ -166,7 +167,7 @@ function ThreadRow({ item, hidden, onOpen, onDelete }: { item: RowItem; hidden: 
           accessibilityHint="Opens the conversation. Long press to delete."
           accessibilityActions={[{ name: "delete", label: "Delete" }]}
           onAccessibilityAction={(e) => e.nativeEvent.actionName === "delete" && onDelete(th)}
-          style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+          style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
         >
           <View style={styles.rowText}>
             <Text style={[styles.rowTitle, { color: t.content }]} numberOfLines={2}>

@@ -5,7 +5,8 @@ import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "re
 import { useTheme as useDesign } from "@/design";
 import type { TxnFilters } from "@/lib/txn-filters";
 import { space, themedStyles } from "@/theme";
-import { Chip } from "@/ui/Chip";
+import { Chip, raisedColors } from "@/ui/Chip";
+import { pressScale } from "@/ui/press";
 
 const KINDS: Array<{ value: TxnFilters["kind"]; label: string; tint?: TintRole }> = [
   { value: "all", label: "All" },
@@ -38,14 +39,16 @@ export function ScopePills<T extends string>({
   accessibilityLabel: string;
   trailing?: ReactNode;
   onCard?: boolean;
-  /** A long set (the Actions page's areas): always one line that scrolls sideways, edge to edge. */
+  /** A long set (the Actions page's areas): one line that scrolls sideways, edge to edge. At large text it wraps like every other pill row, so no pill is cut off at the edge. */
   scroll?: boolean;
 }) {
   const large = useWindowDimensions().fontScale > 1.3;
-  const pills = options.map((o) => <Chip key={o.value} label={o.label} selected={o.value === value} tint={o.tint} onCard={onCard} onPress={() => onChange(o.value)} />);
+  const scrolls = scroll && !large;
+  // At large text a chip may take the whole row (and a second line) rather than its usual cap, so a long label is never cut.
+  const pills = options.map((o) => <Chip key={o.value} label={o.label} selected={o.value === value} tint={o.tint} onCard={onCard} wrap={large} onPress={() => onChange(o.value)} />);
   return (
-    <View style={[styles.row, large && !scroll && styles.rowTop]}>
-      {scroll ? (
+    <View style={[styles.row, large && styles.rowTop]}>
+      {scrolls ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -91,6 +94,9 @@ export function FiltersButton({ on, onPress }: { on: boolean; onPress: () => voi
   const d = useDesign();
   const c = d.color;
   const filled = d.skin.chip === "filled";
+  // The raised pill skin: the same family as the pills beside it (rest on the card fill with a hairline, on in the brand with an edge shadow, press shrinks).
+  const raised = d.skin.pill === "raised";
+  const onColors = raisedColors(c);
   const k = useControlScale();
   return (
     <Pressable
@@ -99,18 +105,29 @@ export function FiltersButton({ on, onPress }: { on: boolean; onPress: () => voi
       accessibilityLabel={on ? "Filters, on" : "Filters"}
       // 32pt to look at, 44pt to touch, like the chips beside it.
       hitSlop={6}
-      style={({ pressed }) => [
-        styles.filters,
-        { width: 32 * k, height: 32 * k },
-        { backgroundColor: on ? c.brandInk : filled ? c.surfaceInset : c.surface, borderRadius: d.radius.pill, opacity: pressed ? 0.6 : 1 },
-        !filled && !on && { borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
-      ]}
+      style={({ pressed }) =>
+        raised
+          ? [
+              styles.filters,
+              { width: 32 * k, height: 32 * k, borderRadius: d.radius.pill },
+              on
+                ? { backgroundColor: onColors.fill, boxShadow: `0 2px 0 ${onColors.edge}` }
+                : { backgroundColor: pressed ? c.surfaceInset : c.surfaceMuted, borderWidth: 1, borderColor: c.hairline },
+              pressScale(pressed),
+            ]
+          : [
+              styles.filters,
+              { width: 32 * k, height: 32 * k },
+              { backgroundColor: on ? c.brandInk : filled ? c.surfaceInset : c.surface, borderRadius: d.radius.pill, opacity: pressed ? 0.6 : 1 },
+              !filled && !on && { borderWidth: StyleSheet.hairlineWidth, borderColor: c.line },
+            ]
+      }
     >
       <SymbolView
         name="line.3.horizontal.decrease"
         size={d.icon.size.sm * k}
         weight="bold"
-        tintColor={on ? c.onBrand : c.content}
+        tintColor={on ? (raised ? onColors.ink : c.onBrand) : c.content}
         accessibilityElementsHidden
         importantForAccessibility="no"
       />

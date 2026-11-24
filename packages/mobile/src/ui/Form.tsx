@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, Vi
 import { useTheme as useDesign } from "@/design";
 import { CARD_TITLE_MAX_SCALE } from "./Card";
 import { figures, icon, inputType, space, themedStyles, type, useTheme, weight } from "@/theme";
+import { pressFeedback } from "./press";
 
 /**
  * Every sheet's bar: Cancel (or a back chevron to the sheet's previous page)
@@ -112,7 +113,7 @@ export function NavRow({ label, value, onPress, accessibilityLabel, highlight }:
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? `${label}, ${value}`}
-      style={({ pressed }) => [pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [pressFeedback(t, pressed)]}
     >
       <FieldRow label={label}>
         <Text style={[styles.value, stacked && styles.valueStacked, highlight && weight.semibold, { color: highlight ? t.brandInk : t.contentSecondary }]} numberOfLines={1}>
@@ -151,7 +152,7 @@ export function CheckRow({
       accessibilityRole="checkbox"
       accessibilityState={{ checked: mixed ? "mixed" : checked }}
       accessibilityLabel={[label, value, detail].filter(Boolean).join(", ")}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
     >
       <View style={{ flex: 1, paddingVertical: detail ? 8 : 0 }}>
         <View style={styles.checkLine}>
@@ -261,7 +262,7 @@ export const formStyles = themedStyles(() => StyleSheet.create({
 }));
 
 const styles = themedStyles(() => StyleSheet.create({
-  bar: { zIndex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 56, paddingHorizontal: space.card, borderBottomWidth: StyleSheet.hairlineWidth },
+  bar: { zIndex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 56, paddingHorizontal: space.xl, borderBottomWidth: StyleSheet.hairlineWidth },
   // The sides grow to their words and never shrink. Each takes at least the
   // other's usual width, so the title stays centred in the common case.
   barSide: { flexGrow: 1, flexShrink: 0, minWidth: 72, flexDirection: "row", alignItems: "center", gap: 2 },

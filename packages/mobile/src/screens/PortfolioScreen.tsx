@@ -22,6 +22,7 @@ import { pageActions } from "@/lib/page-actions";
 import {
   accountsIn,
   allocationSlices,
+  blendedReturnOf,
   cleanAccountLabel,
   collapseSmall,
   drillFrom,
@@ -49,6 +50,7 @@ import { Divider, SectionHeader } from "@/ui/Form";
 import { HeroAmount } from "@/ui/HeroAmount";
 import { ScreenScroll } from "@/ui/ScreenScroll";
 import { EmptyState, ErrorState } from "@/ui/State";
+import { pressFeedback } from "@/ui/press";
 
 const HERE = "/portfolio";
 // Liabilities are not assets: a card or loan is never a slice of the allocation.
@@ -118,6 +120,8 @@ export default function PortfolioScreen() {
   const chips = useMemo(() => filterChips({ ...filter, accountIds: picked }, [], options.map((o) => ({ ...o, mask: null }))), [filter, picked, options]);
   const filtered = useMemo(() => filterByAccounts(classes, active), [classes, active]);
   const total = totalOf(filtered, composition.data?.totalValue ?? 0);
+  // The whole portfolio's figure comes from the API. Under an account filter it is the filtered holdings', blended the same way.
+  const pastReturn = active ? blendedReturnOf(filtered, exposure.data ?? null) : (exposure.data?.blendedReturn ?? null);
   const holdings = useMemo(() => holdingsByTicker(filtered, total, exposure.data ?? null), [filtered, total, exposure.data]);
   const sorted = useMemo(() => sortHoldings(holdings, sort), [holdings, sort]);
   const slices = useMemo(() => collapseSmall(allocationSlices(groupBy, drill, filtered, total, holdings)), [groupBy, drill, filtered, total, holdings]);
@@ -215,9 +219,9 @@ export default function PortfolioScreen() {
             <HeroAmount label={`Portfolio value, ${formatMoney(total, true)}`}>
               <Text style={[styles.hero, { color: t.content }]} numberOfLines={1} adjustsFontSizeToFit>{formatMoney(total, true)}</Text>
             </HeroAmount>
-            {exposure.data ? (
+            {pastReturn !== null ? (
               // A past average is a neutral fact, not a result (owner color map, 2026-11-23): muted, never basil or sauce.
-              <Text style={[styles.sub, { color: t.contentMuted }]}>{`${formatReturn(exposure.data.blendedReturn)} a year on average in the past`}</Text>
+              <Text style={[styles.sub, { color: t.contentMuted }]}>{`${formatReturn(pastReturn)} a year on average in the past`}</Text>
             ) : null}
             <Text style={[styles.sub, { color: t.contentMuted }]}>
               {[
@@ -327,7 +331,7 @@ function HoldingItem({ h, hidden, onPress }: { h: HoldingRow; hidden: boolean; o
       accessibilityRole="button"
       accessibilityLabel={`${h.label}, ${value}, ${h.percentage.toFixed(1)}% of the portfolio${gain ? `, ${gain.amount >= 0 ? "up" : "down"} ${gainText(gain)}` : ret !== null ? `, ${formatReturn(ret)} a year on average in the past` : ""}, ${meta}`}
       accessibilityHint="Shows the accounts that hold it"
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
     >
       <TickerIcon ticker={h.ticker} />
       <View style={{ flex: 1, gap: 2 }}>

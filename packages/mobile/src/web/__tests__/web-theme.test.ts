@@ -31,7 +31,7 @@ describe("web theme", () => {
   });
 
   it("names the assistant after the theme's mascot, and leaves the web's default otherwise", () => {
-    expect(designScript(getTheme("noodle"), "light")).toContain('"assistant":"Noodle"');
+    expect(designScript(getTheme("noodle"), "light")).toContain('"assistant":"Lasagna"');
     expect(designScript(getTheme("classic"), "light")).toContain('"assistant":null');
   });
 

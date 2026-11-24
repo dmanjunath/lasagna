@@ -9,6 +9,7 @@ import { accountsApi } from "@/api/accounts";
 import { localDayKey } from "@/lib/format";
 import { icon, inputType, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { CheckRow, Divider, FieldRow, formStyles, Group, SectionHeader, Segmented, SheetBar, useStackedRows } from "@/ui/Form";
+import { pressFeedback } from "@/ui/press";
 
 // The account sheets' fields, on the grouped-form primitives in ui/Form.
 
@@ -103,7 +104,7 @@ export function ToggleRow({ label, detail, value, onChange }: { label: string; d
       accessibilityState={{ checked: value }}
       accessibilityLabel={label}
       accessibilityHint={detail}
-      style={({ pressed }) => [styles.toggle, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.toggle, pressFeedback(t, pressed)]}
     >
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[styles.toggleLabel, { color: t.content }]}>{label}</Text>
@@ -241,7 +242,7 @@ export function AddressField({ value, onText, onPick, rejected, onReject }: { va
               onPress={() => void pick(s)}
               accessibilityRole="button"
               accessibilityLabel={`Use ${s.description}`}
-              style={({ pressed }) => [styles.suggestion, pressed && { backgroundColor: t.canvasSunken }]}
+              style={({ pressed }) => [styles.suggestion, pressFeedback(t, pressed)]}
             >
               <SymbolView name="mappin.and.ellipse" size={icon.sm} tintColor={t.contentMuted} accessibilityElementsHidden importantForAccessibility="no" />
               <Text style={[styles.suggestionText, { color: t.content }]} numberOfLines={2}>

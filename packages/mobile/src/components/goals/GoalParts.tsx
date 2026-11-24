@@ -18,11 +18,13 @@ export function goalColor(t: Palette, category: string, name = "", reached = fal
  * The color of a goal's progress (its bar, its jar's fill): the status when
  * the goal has one (on track basil, slipping yellow, off track sauce), so the
  * one in trouble stands out: meaningful color over the category colors
- * (owner, 2026-11-23). With nothing to judge, its own accent.
+ * (owner, 2026-11-23). A reached goal is basil. With nothing to judge, a
+ * neutral fill: a category accent there would read as a verdict it is not.
  */
 export function goalProgressColor(t: Palette, c: ColorRoles, g: Goal, now?: Date): string {
   const status = goalStatus(g, now);
-  return status ? verdictFill(c, status) : goalColor(t, g.category, g.name, progressOf(g).reached);
+  if (status) return verdictFill(c, status);
+  return progressOf(g).reached ? verdictFill(c, "good") : t.contentFaint;
 }
 
 /**

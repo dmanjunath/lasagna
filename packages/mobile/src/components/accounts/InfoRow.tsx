@@ -1,6 +1,7 @@
 import { SymbolView } from "expo-symbols";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { figures, icon, space, themedStyles, type, useTheme } from "@/theme";
+import { pressFeedback } from "@/ui/press";
 
 /**
  * A fact in a card: its label, its value at the trailing edge, and a chevron
@@ -45,7 +46,7 @@ export function InfoRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? `${label}, ${value}`}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
     >
       {body}
     </Pressable>

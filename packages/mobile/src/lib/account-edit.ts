@@ -64,7 +64,10 @@ export interface EditForm {
   ownValue: string;
 }
 
-export function editFormFrom(a: ItemAccount): EditForm {
+/** The figures the Debt page and Loan details use when the account's own details are empty (/accounts/debts). */
+export type DebtFallback = { interestRate: number | null; minimumPayment: number } | null | undefined;
+
+export function editFormFrom(a: ItemAccount, debt?: DebtFallback): EditForm {
   const meta = metaOf(a);
   const apr = a.apr != null ? String(a.apr) : "";
   const stored = a.balance != null ? parseFloat(a.balance) : NaN;
@@ -73,6 +76,9 @@ export function editFormFrom(a: ItemAccount): EditForm {
     : undefined;
   const ve = (meta.valueEstimate ?? {}) as Record<string, unknown>;
   const own = ve.override === true;
+  // Seeded like Loan details: the account's own figures, else the payoff plan's, so the sheet never shows empty what the page states.
+  const rateFallback = debt?.interestRate != null ? String(Math.round(debt.interestRate * 100) / 100) : "";
+  const paymentFallback = debt && debt.minimumPayment > 0 ? String(debt.minimumPayment) : "";
   return {
     name: a.name,
     typeKey: typeKey(a.type, a.subtype),
@@ -80,12 +86,12 @@ export function editFormFrom(a: ItemAccount): EditForm {
     excludeTransactions: !!a.excludeTransactions,
     invertBalance: !!a.invertBalance,
     value: Number.isNaN(stored) ? "" : (isDebtType(a.type) ? Math.abs(stored) : stored).toFixed(2),
-    interestRate: num(meta.interestRatePercentage) || apr,
-    minPayment: num(meta.minimumPaymentAmount),
+    interestRate: num(meta.interestRatePercentage) || apr || rateFallback,
+    minPayment: num(meta.minimumPaymentAmount) || paymentFallback,
     originationDate: typeof meta.originationDate === "string" ? meta.originationDate.slice(0, 10) : "",
     loanTermYears: num(meta.loanTermYears),
     repaymentPlanType: typeof meta.repaymentPlanType === "string" ? meta.repaymentPlanType : "",
-    purchaseApr: (purchase !== undefined ? String(purchase) : "") || apr,
+    purchaseApr: (purchase !== undefined ? String(purchase) : "") || apr || rateFallback,
     linkedPropertyId: a.propertyAccountId ?? "",
     address: typeof meta.address === "string" ? meta.address : "",
     placeId: typeof meta.placeId === "string" ? meta.placeId : "",
@@ -145,23 +151,29 @@ export function savePlan(a: ItemAccount, isManual: boolean, form: EditForm, init
 
   if (liability && LOAN_KEYS.some((k) => form[k] !== initial[k])) {
     const loanType = loanTypeOf(a);
-    const numOr0 = (s: string) => (s.trim() === "" ? 0 : parseFloat(s));
+    // Only what the user changed goes up: the API merges into the stored details, so an untouched
+    // field keeps its value instead of being written as 0. A field cleared to empty is left as is too.
+    const changed = (k: (typeof LOAN_KEYS)[number]) => form[k] !== initial[k];
+    const numIfSet = (s: string) => (s.trim() === "" ? undefined : parseFloat(s));
     const term = parseInt(form.loanTermYears, 10);
     const body: Record<string, unknown> = { type: loanType };
-    const dates = () => {
-      if (form.originationDate) body.originationDate = form.originationDate;
-      if (Number.isFinite(term) && term > 0) body.loanTermYears = term;
+    const put = (key: string, v: unknown) => {
+      if (v !== undefined && !(typeof v === "number" && Number.isNaN(v))) body[key] = v;
     };
     if (loanType === "credit_card") {
-      body.minimumPaymentAmount = numOr0(form.minPayment);
-      body.aprs = [{ aprType: "purchase_apr", aprPercentage: numOr0(form.purchaseApr) }];
+      if (changed("minPayment")) put("minimumPaymentAmount", numIfSet(form.minPayment));
+      if (changed("purchaseApr")) {
+        const apr = numIfSet(form.purchaseApr);
+        if (apr !== undefined && !Number.isNaN(apr)) body.aprs = [{ aprType: "purchase_apr", aprPercentage: apr }];
+      }
     } else {
-      body.interestRatePercentage = numOr0(form.interestRate);
-      if (loanType !== "mortgage") body.minimumPaymentAmount = numOr0(form.minPayment);
-      dates();
-      if (loanType === "student_loan" && form.repaymentPlanType) body.repaymentPlanType = form.repaymentPlanType;
+      if (changed("interestRate")) put("interestRatePercentage", numIfSet(form.interestRate));
+      if (loanType !== "mortgage" && changed("minPayment")) put("minimumPaymentAmount", numIfSet(form.minPayment));
+      if (changed("originationDate") && form.originationDate) body.originationDate = form.originationDate;
+      if (changed("loanTermYears") && Number.isFinite(term) && term > 0) body.loanTermYears = term;
+      if (loanType === "student_loan" && changed("repaymentPlanType") && form.repaymentPlanType) body.repaymentPlanType = form.repaymentPlanType;
     }
-    plan.loan = body;
+    if (Object.keys(body).length > 1) plan.loan = body;
   }
 
   if (property) {

@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/format";
 import { icon, radius, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { CategoryMedallion } from "@/components/CategoryMedallion";
 import { InstIcon } from "./InstIcon";
+import { pressFeedback } from "@/ui/press";
 
 /** An account type's tint: what you own is wealth, what you owe is spending, cash is money in. */
 export function accountTypeRole(type: string): TintRole {
@@ -92,7 +93,7 @@ function AccountRowBase({ row, onPress, hideIcon, hidden }: { row: AccountRowDat
       accessibilityLabel={[row.name, amount, row.owed ? "owed" : null, meta, ...row.badges, frozen ? "Frozen" : null, row.estimating ? "Estimating value" : null]
         .filter(Boolean)
         .join(", ")}
-      style={({ pressed }) => [styles.row, { opacity: frozen ? 0.7 : 1 }, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.row, { opacity: frozen ? 0.7 : 1 }, pressFeedback(t, pressed)]}
     >
       {hideIcon ? null : row.item.institutionId === "manual" ? (
         // An account entered by hand has no institution logo: its type's symbol, in the tile every list row uses.

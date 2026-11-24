@@ -1,9 +1,9 @@
 import { SymbolView } from "expo-symbols";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { formatMoney, formatStoredDay } from "@/lib/format";
 import { HIDDEN_AMOUNT } from "@/lib/hide-amounts";
-import { drawableRange, filterByRange, signedPct, type Range, type TrendPoint } from "@/lib/trend";
+import { chartDay, drawableRange, filterByRange, signedPct, type Range, type TrendPoint } from "@/lib/trend";
 import { useTheme as useDesign } from "@/design";
 import { hasRoleColor } from "@/design/tint";
 import { ScopePills } from "@/components/transactions/ScopeRow";
@@ -57,6 +57,7 @@ export function TrendCard({
   children?: ReactNode;
 }) {
   const t = useTheme();
+  const { fontScale } = useWindowDimensions();
   // What the figure is: a debt wears the spending tint, anything owned the net worth one.
   const c = useDesign().color;
   const role = owed ? "spend" : "wealth";
@@ -85,8 +86,12 @@ export function TrendCard({
   const tone = good ? t.positive : t.negative;
   const figure = formatMoney(owed ? Math.abs(shown) : shown, true);
 
-  const when = hovered && hovered.date !== start?.date ? `on ${formatStoredDay(hovered.date)}, ` : "";
-  const period = since && start ? `since ${formatStoredDay(start.date, { year: "numeric" })}` : "over this period";
+  // One line whatever the date or amount (owner, "Charts never wrap"): short days, and the period truncates last.
+  // At large text sizes the change stays whole and the period goes ("since …"); a scrubbed day still shows, briefly.
+  const large = fontScale > 1.3;
+  const scrubDay = hovered && hovered.date !== start?.date ? chartDay(hovered.date) : "";
+  const when = scrubDay ? (large ? scrubDay : `on ${scrubDay}, `) : "";
+  const period = large ? "" : since && start ? `since ${chartDay(start.date)}` : "over this period";
   const deltaText = hidden ? (pct !== null ? `(${signedPct(pct)})` : "") : `${up ? "+" : "−"}${formatMoney(Math.abs(delta ?? 0), true)}${pct !== null ? ` (${signedPct(pct)})` : ""}`;
 
   return (
@@ -113,11 +118,13 @@ export function TrendCard({
       ) : showDelta && delta !== null ? (
         <View style={styles.deltaRow} accessible accessibilityLabel={`${up ? "Up" : "Down"} ${deltaText}, ${when}${period}`}>
           <SymbolView name={up ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill"} size={icon.xs} tintColor={tone} accessibilityElementsHidden importantForAccessibility="no" />
-          {deltaText ? <Text style={[styles.delta, { color: tone }]}>{deltaText}</Text> : null}
-          <Text style={[styles.period, { color: t.contentMuted }]}>
-            {when ? <Text style={[weight.semibold, { color: t.content }]}>{when}</Text> : null}
-            {period}
-          </Text>
+          {deltaText ? <Text style={[styles.delta, { color: tone }]} numberOfLines={1}>{deltaText}</Text> : null}
+          {when || period ? (
+            <Text style={[styles.period, styles.periodShrink, { color: t.contentMuted }]} numberOfLines={1}>
+              {when ? <Text style={[weight.semibold, { color: t.content }]}>{when}</Text> : null}
+              {period}
+            </Text>
+          ) : null}
         </View>
       ) : fallback ? (
         <Text style={[styles.period, { color: t.contentMuted }]}>{fallback}</Text>
@@ -169,9 +176,10 @@ const styles = themedStyles(() =>
     labelRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
     label: { ...type.subhead, ...weight.semibold, flexShrink: 1 },
     figure: { ...type.amountXL },
-    deltaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 5, rowGap: 2 },
+    deltaRow: { flexDirection: "row", alignItems: "center", columnGap: 5 },
     delta: { ...type.subhead, ...weight.bold },
     period: { ...type.subhead, ...weight.medium },
+    periodShrink: { flexShrink: 1 },
     chartSlot: { marginTop: 12 },
     placeholder: { minHeight: 140, borderWidth: StyleSheet.hairlineWidth, borderStyle: "dashed", borderRadius: radius.md, alignItems: "center", justifyContent: "center", gap: 4, padding: 16 },
     phTitle: { ...type.subhead, ...weight.semibold, textAlign: "center" },

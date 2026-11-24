@@ -23,6 +23,7 @@ import { failed } from "@/ui/feedback";
 import { Divider, formStyles, Group, NavRow, SectionHeader, SheetBar } from "@/ui/Form";
 import { useDiscardGuard } from "@/ui/sheet";
 import { showToast } from "@/ui/Toast";
+import { pressFeedback } from "@/ui/press";
 
 type Page = "choose" | "form" | "type" | "link";
 const NEW = "__new";
@@ -352,7 +353,7 @@ function Choice({ lead, symbol, title, detail, onPress, disabled }: { lead?: Rea
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={[title, detail].filter(Boolean).join(", ")}
-      style={({ pressed }) => [styles.choice, { opacity: disabled ? 0.5 : 1 }, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.choice, { opacity: disabled ? 0.5 : 1 }, pressFeedback(t, pressed)]}
     >
       {lead ?? (
         <View style={[styles.symbolTile, { backgroundColor: t.canvasSunken }]}>

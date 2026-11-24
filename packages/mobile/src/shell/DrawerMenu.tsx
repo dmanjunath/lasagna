@@ -13,6 +13,7 @@ import { BrandLockup } from "@/ui/BrandMark";
 import { SectionHeader } from "@/ui/Form";
 import { failed } from "@/ui/feedback";
 import { Track } from "@/ui/Track";
+import { pressFeedback } from "@/ui/press";
 
 // The contents of packages/web/src/components/layout/mobile-nav.tsx: the
 // sidebar's sections minus every tab's page (Overview, and Spending, which is
@@ -82,7 +83,7 @@ export function DrawerMenu({ activePath, close }: { activePath: string; close: (
     <View style={{ flex: 1 }}>
       <View style={[styles.head, { paddingTop: Math.max(10, insets.top) }]}>
         <BrandLockup />
-        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close menu" hitSlop={6} style={({ pressed }) => [styles.close, pressed && { backgroundColor: t.canvasSunken }]}>
+        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close menu" hitSlop={6} style={({ pressed }) => [styles.close, pressFeedback(t, pressed)]}>
           <SymbolView name="xmark" size={icon.md} weight="medium" tintColor={t.contentMuted} accessibilityElementsHidden importantForAccessibility="no" />
         </Pressable>
       </View>
@@ -104,7 +105,7 @@ export function DrawerMenu({ activePath, close }: { activePath: string; close: (
                     accessibilityRole="button"
                     accessibilityLabel={item.label}
                     accessibilityState={{ selected: active }}
-                    style={({ pressed }) => [styles.item, pressed && { backgroundColor: t.canvasSunken }]}
+                    style={({ pressed }) => [styles.item, pressFeedback(t, pressed)]}
                   >
                     {active ? <View style={[styles.activeBar, { backgroundColor: t.brand }]} /> : null}
                     <View style={[styles.itemIcon, { backgroundColor: active ? t.brand : t.canvasSunken }]}>
@@ -128,7 +129,7 @@ export function DrawerMenu({ activePath, close }: { activePath: string; close: (
           onPress={() => go("/profile")}
           accessibilityRole="button"
           accessibilityLabel={`Profile and settings, ${firstName}`}
-          style={({ pressed }) => [styles.account, pressed && { backgroundColor: t.canvasSunken }]}
+          style={({ pressed }) => [styles.account, pressFeedback(t, pressed)]}
         >
             <View style={[styles.avatar, { backgroundColor: t.brand }]}>
               <Text maxFontSizeMultiplier={DRAWER_MAX_SCALE} style={[styles.avatarText, { color: t.brandFg }]}>{firstName[0]?.toUpperCase() || "U"}</Text>
@@ -257,7 +258,7 @@ function FootAction({ icon: symbol, title, onPress, busy }: { icon: SFSymbol; ti
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityState={{ busy: !!busy }}
-      style={({ pressed }) => [styles.footAction, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.footAction, pressFeedback(t, pressed)]}
     >
       <View style={styles.footActionIcon}>
         {busy ? <ActivityIndicator size="small" /> : <SymbolView name={symbol} size={icon.md} tintColor={t.brandInk} accessibilityElementsHidden importantForAccessibility="no" />}

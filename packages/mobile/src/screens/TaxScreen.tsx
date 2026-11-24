@@ -35,6 +35,7 @@ import { Divider } from "@/ui/Form";
 import { ScreenScroll } from "@/ui/ScreenScroll";
 import { Skeleton } from "@/ui/Skeleton";
 import { ErrorState } from "@/ui/State";
+import { pressFeedback } from "@/ui/press";
 
 const HERE = "/tax";
 
@@ -205,7 +206,7 @@ function DocRow({ doc, year }: { doc: TaxDocumentSummary; year: string | null })
       accessibilityRole="button"
       accessibilityLabel={[label, subtitle, year ? (year === "Undated" ? "Undated" : `Tax year ${year}`) : null].filter(Boolean).join(", ")}
       accessibilityHint="Shows its extracted fields"
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
     >
       <View style={[styles.tile, { backgroundColor: t.faintFill }]}>
         <SymbolView name="doc.text" size={icon.md} tintColor={t.contentSecondary} accessibilityElementsHidden importantForAccessibility="no" />

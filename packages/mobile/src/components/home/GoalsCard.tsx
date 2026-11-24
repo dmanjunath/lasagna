@@ -11,6 +11,7 @@ import { EmptyState } from "@/ui/State";
 import { Skeleton } from "@/ui/Skeleton";
 import { Sparkle } from "@/ui/Sparkle";
 import { Track } from "@/ui/Track";
+import { pressFeedback } from "@/ui/press";
 
 const SHOWN = 4;
 
@@ -62,7 +63,7 @@ export function GoalsCard({ goals, loading, onOpen, onAll }: { goals: Goal[]; lo
           onPress={() => onOpen(lead.id)}
           accessibilityRole="link"
           accessibilityLabel={`${lead.name}, ${leadP.reached ? "funded" : `${Math.round(leadP.pct)}%`}, ${fmtUsd(leadP.current)} of ${fmtUsd(leadP.target)}`}
-          style={({ pressed }) => [styles.lead, pressed && { backgroundColor: t.canvasSunken }]}
+          style={({ pressed }) => [styles.lead, pressFeedback(t, pressed)]}
         >
           <View style={styles.leadRow}>
             {/* The jar where the theme's progress skin is one. A bar runs under the text instead. */}
@@ -99,7 +100,7 @@ export function GoalsCard({ goals, loading, onOpen, onAll }: { goals: Goal[]; lo
             onPress={() => onOpen(g.id)}
             accessibilityRole="link"
             accessibilityLabel={`${g.name}, ${p.reached ? "funded" : `${Math.round(p.pct)}%`}, ${line}`}
-            style={({ pressed }) => [styles.goal, p.reached && { backgroundColor: t.brandSofter }, pressed && { backgroundColor: t.canvasSunken }]}
+            style={({ pressed }) => [styles.goal, p.reached && { backgroundColor: t.brandSofter }, pressFeedback(t, pressed)]}
           >
             <View style={styles.goalHead}>
               <View style={styles.nameRow}>

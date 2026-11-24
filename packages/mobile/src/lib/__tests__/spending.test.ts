@@ -1,4 +1,4 @@
-import { paceVerdict, rowPace,
+import { chartWindowStart, paceVerdict, rowPace, fitColumnLabel, earliestMonthOf,
   breakdownRows,
   changeLine,
   chartScale,
@@ -167,4 +167,45 @@ test("pace: a group row adds up its categories that have a usual", () => {
   };
   expect(rowPace(row, "2026-11", now)).toBe("bad"); // 300 against 200
   expect(rowPace({ ...row, children: [row.children[1]] }, "2026-11", now)).toBeNull();
+});
+
+describe("chartWindowStart", () => {
+  it("opens on the newest columns", () => {
+    expect(chartWindowStart(null, 12, 13, 6)).toBe(7);
+    expect(chartWindowStart(null, -1, 13, 6)).toBe(7);
+  });
+  it("marks an earlier month in place while it is in view", () => {
+    expect(chartWindowStart(7, 11, 13, 6)).toBe(7); // one month back
+    expect(chartWindowStart(7, 9, 13, 6)).toBe(7); // three back
+  });
+  it("moves only as far as needed when the month leaves the window", () => {
+    expect(chartWindowStart(7, 5, 13, 6)).toBe(5); // seven back: the month becomes the left-most
+    expect(chartWindowStart(5, 12, 13, 6)).toBe(7); // back to now: the newest at the right
+  });
+  it("fits a short history", () => {
+    expect(chartWindowStart(null, 2, 3, 6)).toBe(0);
+    expect(chartWindowStart(0, 0, 3, 6)).toBe(0);
+  });
+});
+
+test("a column label thins to fit its width instead of shrinking or wrapping", () => {
+  expect(fitColumnLabel("2026-01", true, 60, 12)).toBe("Jan ’26");
+  expect(fitColumnLabel("2026-01", true, 30, 12)).toBe("Jan");
+  expect(fitColumnLabel("2026-01", true, 10, 16)).toBe("J");
+  expect(fitColumnLabel("2026-11", false, 40, 12, "*")).toBe("Nov*");
+  expect(fitColumnLabel("2026-11", false, 20, 15, "*")).toBe("N*");
+  expect(fitColumnLabel("2026", false, 20, 15)).toBe("’26");
+});
+
+test("the stepper floors at the first month with money, not that year's January", () => {
+  const first = earliestMonthOf([
+    { period: "2025-03", income: 0, expenses: 0, net: 0 },
+    { period: "2025-06", income: 0, expenses: 40, net: -40 },
+    { period: "2025-07", income: 100, expenses: 0, net: 100 },
+  ]);
+  expect(first).toEqual({ year: 2025, month: 5 });
+  expect(stepBounds({ granularity: "month", year: 2025, month: 5 }, first, NOW).canBack).toBe(false);
+  expect(stepBounds({ granularity: "month", year: 2025, month: 6 }, first, NOW).canBack).toBe(true);
+  expect(stepBounds({ granularity: "year", year: 2025, month: 0 }, first, NOW).canBack).toBe(false);
+  expect(earliestMonthOf([])).toBeNull();
 });

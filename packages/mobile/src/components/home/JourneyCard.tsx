@@ -174,7 +174,7 @@ export function Legend({ state, label, onHero }: { state: LevelState; label: str
       <View style={[styles.swatch, { backgroundColor: segmentColor(t, state, hero) }]}>
         {state === "current" ? <View style={[styles.swatchDot, { backgroundColor: t.brandFg }]} /> : null}
       </View>
-      <Text style={[styles.legendText, { color: t.contentMuted }]}>{label}</Text>
+      <Text style={[styles.legendText, { color: t.contentMuted }]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }

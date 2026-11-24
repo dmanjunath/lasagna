@@ -64,8 +64,8 @@ function Column({ title, count, segments, total }: { title: string; count: numbe
   return (
     <View style={{ gap: 10 }}>
       <View style={styles.colHead}>
-        <Text style={[styles.colTitle, { color: t.contentMuted }]}>{title}</Text>
-        <Text style={[styles.colCount, { color: t.contentMuted }]}>{plural(count, "account")}</Text>
+        <Text style={[styles.colTitle, { color: t.contentMuted }]} numberOfLines={1}>{title}</Text>
+        <Text style={[styles.colCount, { color: t.contentMuted }]} numberOfLines={1}>{plural(count, "account")}</Text>
       </View>
       {segments.length > 0 ? <SegmentBar segments={segments} /> : null}
       <View style={{ gap: 8 }}>
@@ -77,21 +77,21 @@ function Column({ title, count, segments, total }: { title: string; count: numbe
               {stacked ? (
                 // Large text: the label gets the full width, the meta and value share the line under it.
                 <View style={styles.legendStack}>
-                  <Text style={[styles.legendLabel, { color: t.content }]}>{s.label}</Text>
+                  <Text style={[styles.legendLabel, { color: t.content }]} numberOfLines={1}>{s.label}</Text>
                   <View style={styles.legend}>
-                    <Text style={[styles.legendMeta, styles.legendGrow, { color: t.contentMuted }]}>
+                    <Text style={[styles.legendMeta, styles.legendGrow, { color: t.contentMuted }]} numberOfLines={1}>
                       {pct}%, {plural(s.count, "account")}
                     </Text>
-                    <Text style={[styles.legendValue, { color: t.content }]}>{fmtUsd(s.value)}</Text>
+                    <Text style={[styles.legendValue, { color: t.content }]} numberOfLines={1}>{fmtUsd(s.value)}</Text>
                   </View>
                 </View>
               ) : (
                 <>
-                  <Text style={[styles.legendLabel, { color: t.content }]}>{s.label}</Text>
-                  <Text style={[styles.legendMeta, styles.legendGrow, { color: t.contentMuted }]}>
+                  <Text style={[styles.legendLabel, { color: t.content }]} numberOfLines={1}>{s.label}</Text>
+                  <Text style={[styles.legendMeta, styles.legendGrow, { color: t.contentMuted }]} numberOfLines={1}>
                     {pct}%, {plural(s.count, "account")}
                   </Text>
-                  <Text style={[styles.legendValue, { color: t.content }]}>{fmtUsd(s.value)}</Text>
+                  <Text style={[styles.legendValue, { color: t.content }]} numberOfLines={1}>{fmtUsd(s.value)}</Text>
                 </>
               )}
             </View>

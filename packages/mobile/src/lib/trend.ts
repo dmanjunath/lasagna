@@ -98,6 +98,16 @@ export function tickDecimals(ticks: number[], minDecimals = 2): number {
   return Math.max(minDecimals, Math.min(5, needed));
 }
 
+/**
+ * A chart readout's day, short enough for one line: "Sep 30" this year,
+ * "Sep 30 ’25" otherwise (never "September 30, 2025").
+ */
+export function chartDay(iso: string, now: Date = new Date()): string {
+  const day = formatStoredDate(iso, { month: "short", day: "numeric" });
+  const year = iso.slice(0, 4);
+  return year === String(now.getFullYear()) ? day : `${day} ’${year.slice(2)}`;
+}
+
 /** "$98K", "$1.2M", with a true minus. */
 export function tickLabel(n: number, decimals?: number): string {
   if (isAmountsHidden()) return HIDDEN_AMOUNT;

@@ -24,6 +24,7 @@ import {
   changeLine,
   earliestYearOf,
   monthsBackTo,
+  earliestMonthOf,
   periodKey,
   periodName,
   periodRange,
@@ -169,8 +170,16 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
   const verbs = useActionVerbs();
 
   const earliestYear = years.isPending ? undefined : years.isError ? undefined : earliestYearOf(years.data);
-  const { canBack, canForward } = stepBounds(period, earliestYear);
-  const onlyPeriod = !canBack && !canForward;
+  // The stepper's floor is the first month with money, not that year's January, so it never lands on a stretch of empty months.
+  const firstMonths = useQuery({
+    queryKey: ["transactions", "monthly-trend", "first-month", earliestYear],
+    enabled: earliestYear != null,
+    queryFn: () => spendingApi.trend({ granularity: "month", limit: monthsBackTo(earliestYear!) }),
+  });
+  const earliestMonth = earliestYear == null ? earliestYear : (firstMonths.data && earliestMonthOf(firstMonths.data)) ?? earliestYear;
+  const { canBack, canForward } = stepBounds(period, earliestMonth);
+  // The period is always named, its arrows disabled when there is nowhere to go. Only a household with no history at all has no stepper.
+  const onlyPeriod = earliestYear === null;
 
   // ── The figures. While a new period loads, the hero reads it off the trend
   // (the same totals, counted the same way) when no filter applies, so the old
@@ -187,6 +196,8 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
 
   const loaded = !!summary.data && !stale;
   const noData = loaded && !filterActive && summary.data.totalSpending === 0 && summary.data.totalIncome === 0;
+  // An empty month inside the household's history keeps the page and its chart, so the way back is in view.
+  const emptyPeriod = noData && earliestYear != null;
   const filteredEmpty = loaded && filterActive && scoped!.spending === 0 && scoped!.incomeTotal === 0;
 
   // ── Breakdown: the side with rows, expenses first.
@@ -291,12 +302,8 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
           <Card>
             <ErrorState compact title="Couldn't load your spending" body="Check your connection and try again." onRetry={() => void summary.refetch()} />
           </Card>
-        ) : noData ? (
-          earliestYear != null ? (
-            <Card>
-              <EmptyState compact title={`No spending in ${periodName(period)}`} />
-            </Card>
-          ) : facts.data && facts.data.accountsConnected > 0 ? (
+        ) : noData && !emptyPeriod ? (
+          facts.data && facts.data.accountsConnected > 0 ? (
             // Linked, with no transactions yet: an estimate, and what it is based on.
             <Card style={{ gap: 6 }}>
               <CardHeader title="Estimated monthly spending" />
@@ -369,7 +376,11 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
             ) : null}
 
             {/* 4. Breakdown. */}
-            {filteredEmpty ? (
+            {emptyPeriod ? (
+              <Card>
+                <EmptyState compact title={`No spending in ${periodName(period)}`} />
+              </Card>
+            ) : filteredEmpty ? (
               <Card style={{ gap: 4 }}>
                 <EmptyState compact title={`Nothing matches these filters in ${periodName(period)}`} />
                 <Button size="compact" variant="secondary" title="Clear all" onPress={() => setFilter(EMPTY_FILTERS)} />
@@ -381,7 +392,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
             ) : null}
 
             {/* 5. Recent transactions in the same scope. */}
-            {recent.data ? (
+            {emptyPeriod ? null : recent.data ? (
               <RecentActivityCard
                 txns={recent.data.transactions}
                 title="Recent transactions"

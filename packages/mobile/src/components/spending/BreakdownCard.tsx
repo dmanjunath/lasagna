@@ -12,6 +12,7 @@ import { Card } from "@/ui/Card";
 import { SectionHeader } from "@/ui/Form";
 import { ScopePills } from "@/components/transactions/ScopeRow";
 import { Track } from "@/ui/Track";
+import { pressFeedback } from "@/ui/press";
 
 export type Side = "expenses" | "income";
 
@@ -113,7 +114,7 @@ function BreakdownCardBase({
                   accessibilityState={expandable ? { expanded: isOpen } : undefined}
                   accessibilityLabel={`${row.label}, ${amount}${paceWords(rowVerdict)}`}
                   accessibilityHint={expandable ? (isOpen ? "Hides the details" : several ? `Shows its ${row.children.length} categories` : "Shows a link to its transactions") : undefined}
-                  style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+                  style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
                 >
                   <CategoryMedallion display={display} income={income} />
                   <View style={styles.main}>
@@ -121,7 +122,7 @@ function BreakdownCardBase({
                       <Text style={[styles.name, { color: t.content }]} numberOfLines={2}>
                         {row.label}
                       </Text>
-                      <Text style={[styles.amt, { color: t.content }]}>{amount}</Text>
+                      <Text style={[styles.amt, { color: t.content }]} numberOfLines={1}>{amount}</Text>
                     </View>
                     {rows.length > 1 ? <Track pct={(row.total / max) * 100} color={color} /> : null}
                     {pace(rowVerdict)}
@@ -154,14 +155,14 @@ function BreakdownCardBase({
                           accessibilityRole={c.id ? "link" : "text"}
                           accessibilityLabel={`${label}, ${childAmount}${paceWords(childVerdict)}`}
                           accessibilityHint={c.id ? "Opens its transactions" : undefined}
-                          style={({ pressed }) => [styles.child, pressed && { backgroundColor: t.canvasSunken }]}
+                          style={({ pressed }) => [styles.child, pressFeedback(t, pressed)]}
                         >
                           <View style={styles.main}>
                             <View style={styles.head}>
                               <Text style={[styles.childName, { color: t.contentSecondary }]} numberOfLines={2}>
                                 {label}
                               </Text>
-                              <Text style={[styles.childAmt, { color: t.content }]}>{childAmount}</Text>
+                              <Text style={[styles.childAmt, { color: t.content }]} numberOfLines={1}>{childAmount}</Text>
                             </View>
                             <Track pct={(c.total / max) * 100} color={color} height={6} />
                             {pace(childVerdict)}

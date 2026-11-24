@@ -26,6 +26,7 @@ import { SavingsProgress } from "@/ui/Progress";
 import { ScreenScroll } from "@/ui/ScreenScroll";
 import { Sparkle } from "@/ui/Sparkle";
 import { EmptyState, ErrorState } from "@/ui/State";
+import { pressFeedback } from "@/ui/press";
 
 /**
  * Am I on track (/goals, goals.tsx on the web): saved toward every goal, a
@@ -174,7 +175,7 @@ export default function GoalsScreen({ root }: { root: boolean }) {
                         onPress={() => openNewGoal(p.category)}
                         accessibilityRole="button"
                         accessibilityLabel={`Add a ${p.name} goal`}
-                        style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+                        style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
                       >
                         <GoalTile iconKey={p.icon} color={goalColor(t, p.category)} size={36} variant="soft" />
                         <Text style={[styles.rowTitle, { flex: 1, color: t.content }]} numberOfLines={1}>
@@ -199,7 +200,7 @@ export default function GoalsScreen({ root }: { root: boolean }) {
                   accessibilityRole="button"
                   accessibilityState={{ expanded: showCompleted }}
                   accessibilityLabel={`Completed, ${s.completed.length} goal${s.completed.length === 1 ? "" : "s"}`}
-                  style={({ pressed }) => [styles.disclosure, pressed && { backgroundColor: t.canvasSunken }]}
+                  style={({ pressed }) => [styles.disclosure, pressFeedback(t, pressed)]}
                 >
                   <Text style={[styles.disclosureTitle, { color: t.content }]}>Completed</Text>
                   <Text style={[styles.count, { color: t.contentMuted }]}>{s.completed.length}</Text>
@@ -223,7 +224,7 @@ export default function GoalsScreen({ root }: { root: boolean }) {
                             onPress={() => open(g)}
                             accessibilityRole="button"
                             accessibilityLabel={`${g.name}, ${completedLine(g)}, ${formatMoney(p.current, true)} saved`}
-                            style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+                            style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
                           >
                             <GoalTile iconKey={g.icon} color={t.brand} size={32} variant="soft" />
                             <View style={{ flex: 1, gap: 1 }}>

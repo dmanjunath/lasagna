@@ -87,7 +87,7 @@ export type ResolvedTheme = {
   icon: Theme["icon"];
   skin: Theme["skin"];
   mascot: Theme["mascot"];
-  /** The chat screen's title (and the Ask card's): the mascot's invitation where the theme has one ("Chat with Noodle"), else "Chat". The tab itself is "Chat" in every theme. */
+  /** The chat screen's title (and the Ask card's): the mascot's invitation where the theme has one ("Chat with Lasagna"), else "Chat". The tab itself is "Chat" in every theme. */
   chatTitle: string;
 };
 

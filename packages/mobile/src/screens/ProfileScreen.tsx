@@ -94,11 +94,11 @@ export default function ProfileScreen() {
 
       <RowCard>
         <SettingsRow symbol="person" title="Personal info" detail={personal || null} onPress={() => openSection("personal")} />
-        <SettingsRow symbol="briefcase" role="income" title="Income & employment" detail={income || null} onPress={() => openSection("income")} />
+        <SettingsRow symbol="briefcase" title="Income & employment" detail={income || null} onPress={() => openSection("income")} />
       </RowCard>
 
       <RowCard>
-        {!DEMO_BUILD ? <SettingsRow symbol="person.2" role="wealth" title="Household" detail={household || null} onPress={() => openSection("household")} /> : null}
+        {!DEMO_BUILD ? <SettingsRow symbol="person.2" title="Household" detail={household || null} onPress={() => openSection("household")} /> : null}
         <SettingsRow symbol="sparkles" title="Plan & billing" detail={plan || null} onPress={() => openSection("billing")} />
         <SettingsRow symbol="key" title="Security" onPress={() => openSection("security")} />
         <SettingsRow symbol="slider.horizontal.3" title="Preferences" onPress={() => openSection("preferences")} />
@@ -106,8 +106,8 @@ export default function ProfileScreen() {
 
       {/* Still the web page's sections, opened on it. */}
       <RowCard>
-        <SettingsRow symbol="tag" role="spend" title="Categories" onPress={() => openPath("/profile#categories")} />
-        <SettingsRow symbol="line.3.horizontal.decrease" role="spend" title="Transaction rules" onPress={() => openPath("/profile#rules")} />
+        <SettingsRow symbol="tag" title="Categories" onPress={() => openPath("/profile#categories")} />
+        <SettingsRow symbol="line.3.horizontal.decrease" title="Transaction rules" onPress={() => openPath("/profile#rules")} />
       </RowCard>
 
       {user?.isAdmin ? (

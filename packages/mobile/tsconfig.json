@@ -15,6 +15,9 @@
       "@lasagna/design/build/toCss": [
         "../design/src/build/toCss.ts"
       ],
+      "@lasagna/design/build/webCss": [
+        "../design/src/build/webCss.ts"
+      ],
       "@lasagna/core/goal-target": [
         "../core/src/goal-target.ts"
       ],

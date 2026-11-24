@@ -185,6 +185,24 @@ export function totalOf(classes: AssetClass[], fallback: number): number {
   return classes.reduce((s, ac) => s + ac.value, 0) || fallback;
 }
 
+/** The API's rate for a category with no published past return (routes/portfolio.ts, /exposure). */
+const DEFAULT_CATEGORY_RETURN = 7.0;
+
+/**
+ * The past yearly return of these holdings, weighted by value the way the API
+ * blends the whole portfolio's (/exposure): each category's published rate
+ * times its share. Null when there is nothing to weigh or no rates yet.
+ */
+export function blendedReturnOf(classes: AssetClass[], exposure: Exposure | null): number | null {
+  if (!exposure) return null;
+  const total = classes.reduce((s, ac) => s + ac.value, 0);
+  if (total <= 0) return null;
+  const rate = new Map(exposure.exposures.map((e) => [e.name, e.historicalReturn]));
+  let weighted = 0;
+  for (const ac of classes) for (const sc of ac.categories ?? []) weighted += (sc.value / total) * (rate.get(sc.name) ?? DEFAULT_CATEGORY_RETURN);
+  return Math.round(weighted * 100) / 100;
+}
+
 /** Holdings grouped by ticker, largest first, with each one's share and its class's past yearly return. */
 export function holdingsByTicker(classes: AssetClass[], total: number, exposure: Exposure | null): HoldingRow[] {
   const map = new Map<string, { holdings: Holding[]; value: number; shares: number; assetClass: string; category: string }>();

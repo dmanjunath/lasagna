@@ -10,6 +10,7 @@ import { accountTypeRole, accountTypeSymbol } from "@/components/accounts/Accoun
 import { InputRow } from "@/components/accounts/FormFields";
 import { Allocation } from "@/components/allocation/Allocation";
 import { CategoryMedallion } from "@/components/CategoryMedallion";
+import { composite, withAlpha } from "@lasagna/design";
 import { useTheme as useDesign } from "@/design";
 import { openAccountEdit, openAddAccount } from "@/lib/account-sheets";
 import { openChat } from "@/lib/chat";
@@ -49,6 +50,7 @@ import { ScopePills } from "@/components/transactions/ScopeRow";
 import { HeroAmount } from "@/ui/HeroAmount";
 import { ScreenScroll } from "@/ui/ScreenScroll";
 import { EmptyState, ErrorState } from "@/ui/State";
+import { pressFeedback } from "@/ui/press";
 
 const HERE = "/debt";
 
@@ -162,6 +164,10 @@ function PlanView({
   const t = useTheme();
   const d = useDesign();
   const spendInk = d.color.tint.spend.ink;
+  // Under the ranked skin (Noodle), one sauce ramp tells the debts apart, darkest first, as the web does: a second hue
+  // would claim a meaning (yellow is attention). Classic keeps its chart palette.
+  const spend = d.color.tint.spend;
+  const debtRamp = d.skin.breakdown === "ranked" ? [1, 0.78, 0.58, 0.42, 0.3, 0.2].map((a) => composite(withAlpha(spend.accent, a), spend.fill)) : undefined;
   const stacked = useWindowDimensions().fontScale > 1.3;
   const debts = page.payoff;
   const suggested = startingExtra(page);
@@ -213,6 +219,7 @@ function PlanView({
           label="Debt by balance"
           hidden={hidden}
           wholePct
+          ramp={debtRamp}
           rows={debtSegments(debts).map((s) => ({ key: s.key, label: s.label, value: s.value, pct: s.pct, chart: s.chart, owed: true }))}
         />
       </Card>
@@ -382,7 +389,7 @@ function DebtRow({ d, hidden, meta, owed = true }: { d: DebtAccount; hidden: boo
         accessibilityRole="button"
         accessibilityLabel={`${name}, ${amount}${owed ? " owed" : ""}, ${type}, ${meta}`}
         accessibilityHint="Opens the account"
-        style={({ pressed }) => [styles.debtMain, pressed && { backgroundColor: t.canvasSunken }]}
+        style={({ pressed }) => [styles.debtMain, pressFeedback(t, pressed)]}
       >
         <CategoryMedallion role={accountTypeRole(d.type)} display={{ label: d.type, symbol: accountTypeSymbol(d.type, d.subtype), emoji: null }} />
         <View style={{ flex: 1, gap: 2 }}>

@@ -34,6 +34,7 @@ import { Divider, formStyles, Group, SectionHeader, SheetBar } from "@/ui/Form";
 import { useDiscardGuard } from "@/ui/sheet";
 import { EmptyState } from "@/ui/State";
 import { showToast } from "@/ui/Toast";
+import { pressFeedback } from "@/ui/press";
 
 type Focus = "monthly" | "accounts" | "date";
 
@@ -342,7 +343,7 @@ function Editor({ goal, initialKind, focus }: { goal?: Goal; initialKind?: strin
               onPress={() => setPage("kind")}
               accessibilityRole="button"
               accessibilityLabel={`${chosen.name}. Change the kind of goal`}
-              style={({ pressed }) => [styles.chosen, pressed && { backgroundColor: t.canvasSunken }]}
+              style={({ pressed }) => [styles.chosen, pressFeedback(t, pressed)]}
             >
               <GoalTile iconKey={chosen.icon} color={goalColor(t, chosen.category)} size={36} variant="soft" />
               <Text style={[styles.chosenName, { color: t.content }]} numberOfLines={2}>
@@ -449,7 +450,7 @@ function Editor({ goal, initialKind, focus }: { goal?: Goal; initialKind?: strin
               disabled={deleting || saving}
               accessibilityRole="button"
               accessibilityLabel="Delete goal"
-              style={({ pressed }) => [styles.delete, pressed && { backgroundColor: t.canvasSunken }]}
+              style={({ pressed }) => [styles.delete, pressFeedback(t, pressed)]}
             >
               {deleting ? <ActivityIndicator /> : <Text style={[styles.deleteText, { color: t.negative }]}>Delete goal</Text>}
             </Pressable>

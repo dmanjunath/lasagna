@@ -12,6 +12,7 @@ import { SavingsProgress } from "@/ui/Progress";
 import { Sparkle } from "@/ui/Sparkle";
 import { Track } from "@/ui/Track";
 import { goalProgressColor, GoalTile } from "./GoalParts";
+import { pressScale } from "@/ui/press";
 
 /**
  * One active goal (goals.tsx GoalCard): its tile or jar, name and percent,
@@ -71,7 +72,7 @@ function GoalCardBase({
           { name: "delete", label: "Delete" },
         ]}
         onAccessibilityAction={(e) => (e.nativeEvent.actionName === "edit" ? onEdit(g) : onDelete(g))}
-        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+        style={({ pressed }) => pressScale(pressed)}
       >
         <Card style={styles.card}>
           <View style={styles.top}>

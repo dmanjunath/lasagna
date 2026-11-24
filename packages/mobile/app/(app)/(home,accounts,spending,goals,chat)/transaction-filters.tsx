@@ -315,10 +315,9 @@ function Panel({
         {/* Saved views as pills, the one these filters match chosen. Nothing saved: only the way to save, once there is something to save. */}
         {has("views") && views.length > 0 ? (
           <View style={formStyles.section}>
-            {/* Save and Manage lead, in the header's line, so they never scroll off past the views. */}
+            {/* Manage sits in the header's line. Saving a new view is with Clear all, at the end. */}
             <View style={styles.viewsHead}>
               <SectionHeader style={{ flex: 1 }}>Views</SectionHeader>
-              {anything && !current ? <TextLink title="Save view" label="Save these filters as a view" onPress={saveView} /> : null}
               <TextLink title="Manage" label="Manage saved views" onPress={() => setPage("views")} />
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pills} accessibilityLabel="Saved views">
@@ -334,10 +333,6 @@ function Panel({
                 />
               ))}
             </ScrollView>
-          </View>
-        ) : has("views") && anything ? (
-          <View style={styles.saveLine}>
-            <TextLink title="Save view" label="Save these filters as a view" onPress={saveView} />
           </View>
         ) : null}
 
@@ -362,9 +357,10 @@ function Panel({
           </View>
         ) : null}
 
-        {/* Clear all: the same reset as the chip row's, search included. */}
+        {/* Save view and Clear all, together at the end: the two things to do with filters already set. Clear all is the chip row's reset, search included. */}
         {anything ? (
           <View style={styles.clear}>
+            {has("views") && !current ? <TextLink title="Save view" label="Save these filters as a view" onPress={saveView} /> : null}
             <TextLink
               title="Clear all"
               onPress={() => {
@@ -594,9 +590,8 @@ const styles = themedStyles(() => StyleSheet.create({
   addText: { ...type.body },
   // Pills start where the rows' text starts, and run to the sheet's edge when they scroll.
   pills: { gap: 8, paddingHorizontal: space.card },
-  saveLine: { paddingHorizontal: space.card, alignItems: "flex-start" },
   viewsHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 16, paddingRight: space.card },
-  clear: { alignItems: "center", paddingTop: 4 },
+  clear: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", columnGap: 28, rowGap: 8, paddingTop: 4 },
   viewRow: { flexDirection: "row", alignItems: "center", gap: 16, minHeight: 48, paddingHorizontal: 16 },
   viewName: { ...type.body, flex: 1 },
   del: { width: 32, height: 44, alignItems: "center", justifyContent: "center" },

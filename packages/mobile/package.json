@@ -62,6 +62,7 @@
       "^@web/(.*)$": "<rootDir>/../web/src/$1",
       "^@lasagna/design$": "<rootDir>/../design/src/index.ts",
       "^@lasagna/design/build/toCss$": "<rootDir>/../design/src/build/toCss.ts",
+      "^@lasagna/design/build/webCss$": "<rootDir>/../design/src/build/webCss.ts",
       "^@lasagna/core/goal-target$": "<rootDir>/../core/src/goal-target.ts",
       "^@lasagna/core/debt-payoff$": "<rootDir>/../core/src/debt-payoff.ts"
     }

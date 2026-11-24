@@ -39,8 +39,35 @@ test("a card's loan fields: purchase APR and minimum", () => {
   const card = { ...base, apr: "19.99" };
   const f = editFormFrom(card);
   expect(f.purchaseApr).toBe("19.99");
+  // Only the edited field goes up: the stored APR is never rewritten (the API merges).
   const plan = savePlan(card, false, { ...f, minPayment: "35" }, f);
-  expect(plan.loan).toEqual({ type: "credit_card", minimumPaymentAmount: 35, aprs: [{ aprType: "purchase_apr", aprPercentage: 19.99 }] });
+  expect(plan.loan).toEqual({ type: "credit_card", minimumPaymentAmount: 35 });
+});
+
+test("editing one loan field never zeroes the other", () => {
+  const card = { ...base, metadata: { type: "credit_card", minimumPaymentAmount: 89, aprs: [{ aprType: "purchase_apr", aprPercentage: 24.99 }] } };
+  const f = editFormFrom(card);
+  expect(f.minPayment).toBe("89");
+  expect(f.purchaseApr).toBe("24.99");
+  expect(savePlan(card, false, { ...f, purchaseApr: "21.5" }, f).loan).toEqual({ type: "credit_card", aprs: [{ aprType: "purchase_apr", aprPercentage: 21.5 }] });
+  const loan: ItemAccount = { ...base, type: "loan", subtype: "auto", name: "Auto Loan", metadata: { type: "other_loan", interestRatePercentage: 6.5, minimumPaymentAmount: 410 } };
+  const lf = editFormFrom(loan);
+  expect(savePlan(loan, false, { ...lf, minPayment: "450" }, lf).loan).toEqual({ type: "other_loan", minimumPaymentAmount: 450 });
+  // A field cleared to empty is left alone, not written as 0.
+  expect(savePlan(loan, false, { ...lf, interestRate: "" }, lf).loan).toBeUndefined();
+});
+
+test("the form is seeded from the payoff plan when the account's own details are empty", () => {
+  const f = editFormFrom(base, { interestRate: 24.99, minimumPayment: 89 });
+  expect(f.purchaseApr).toBe("24.99");
+  expect(f.minPayment).toBe("89");
+  expect(f.interestRate).toBe("24.99");
+  // Seeded figures are the starting point, not edits: saving untouched sends no loan patch.
+  expect(savePlan(base, false, f, f).loan).toBeUndefined();
+  // The account's own figures win over the plan's.
+  const own = editFormFrom({ ...base, apr: "19.99" }, { interestRate: 24.99, minimumPayment: 89 });
+  expect(own.purchaseApr).toBe("19.99");
+  expect(editFormFrom(base, null).minPayment).toBe("");
 });
 
 test("reclassifying across assets and debt is flagged, the link only when it changed", () => {

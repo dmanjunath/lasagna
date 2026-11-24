@@ -16,6 +16,8 @@ import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { Sparkle } from "@/ui/Sparkle";
 import { toneStyle } from "./tone";
+import { pressFeedback } from "@/ui/press";
+import { usePressFill } from "@/ui/Card";
 
 /** The divider between rows in a block of actions: the block sets it for the fill it sits on. */
 export const ActionRowLine = createContext<string | null>(null);
@@ -55,6 +57,7 @@ export function ActionItem({
   onDismiss: () => void;
 }) {
   const t = useTheme();
+  const pressFill = usePressFill();
   const d = useDesign();
   const line = useContext(ActionRowLine) ?? d.color.line;
   useAmountsHidden(); // re-render the masked copy on toggle
@@ -125,7 +128,7 @@ export function ActionItem({
           accessibilityState={{ expanded: open }}
           accessibilityLabel={figure ? `${title}, ${maskCurrencyInText(figure)}` : title}
           accessibilityHint={open ? "Hides the details" : "Shows the details"}
-          style={({ pressed }) => [styles.main, bar && styles.mainBar, { opacity: pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [styles.main, bar && styles.mainBar, pressFeedback(t, pressed, pressFill)]}
         >
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={[styles.title, { color: t.content }]}>{title}</Text>

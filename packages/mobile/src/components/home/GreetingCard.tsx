@@ -4,12 +4,13 @@ import { useTheme as useDesign } from "@/design";
 import { hasRoleColor } from "@/design/tint";
 import { HIDDEN_AMOUNT, useAmountsHidden } from "@/lib/hide-amounts";
 import { radius, space, themedStyles, type, useTheme, weight } from "@/theme";
-import { Card } from "@/ui/Card";
+import { Card, heroEdge } from "@/ui/Card";
 import { Mascot } from "@/ui/Mascot";
 import { RefreshMascot } from "@/ui/PullRefresh";
 import { Note } from "@/ui/Note";
 import { Skeleton } from "@/ui/Skeleton";
 import { Sparkle } from "@/ui/Sparkle";
+import { textScaleKey } from "@/ui/text-scale";
 
 const wholeUsd = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Math.abs(n));
@@ -50,9 +51,8 @@ export function GreetingCard({
   const { fontScale } = useWindowDimensions();
   const stacked = fontScale > 1.3;
   // A text-size change while the app is open leaves the sentence measured at the
-  // old size (it ran off the edge after going back to the default). Remounting
-  // just this card on a new scale lays it out again without resetting navigation.
-  const layoutKey = `scale-${fontScale}`;
+  // old size. Remounting on the new scale lays it out again (see text-scale.ts).
+  const layoutKey = textScaleKey(fontScale);
 
   const summary = loading ? (
     <View style={{ gap: 8, paddingTop: 4 }}>
@@ -124,6 +124,8 @@ export function GreetingCard({
         style={[
           styles.bubble,
           { backgroundColor: hasRoleColor(d.color, "income") ? d.color.tint.income.fill : d.color.surfaceMuted, borderRadius: radius.lg },
+          // Framed like every other card under the soft skin, in a deeper shade of its tint.
+          d.skin.card === "soft" && hasRoleColor(d.color, "income") && { borderWidth: 1, borderColor: heroEdge(d.color.tint.income, d.scheme === "dark"), boxShadow: d.shadow.sm },
           // The corner nearest the speaker is the bubble's tail.
           speaks && (stacked ? { borderTopLeftRadius: radius.xs - 2, marginBottom: 0 } : { borderBottomLeftRadius: radius.xs - 2 }),
         ]}

@@ -6,6 +6,7 @@ import { figures, icon, radius, themedStyles, type, useTheme, weight } from "@/t
 import { Card, CardHeader } from "@/ui/Card";
 import { Note } from "@/ui/Note";
 import { Track } from "@/ui/Track";
+import { pressFeedback } from "@/ui/press";
 
 /** "21% less than this point last month", the change in words, or null without a baseline. */
 export function changeWords(flow: MonthFlow): { text: string; pct: number; less: boolean } | null {
@@ -73,7 +74,7 @@ export function SpendingCard({
                   onPress={() => onCategory(c.id)}
                   accessibilityRole="link"
                   accessibilityLabel={`${c.name}, ${fmtUsd(c.total)}`}
-                  style={({ pressed }) => [styles.cat, pressed && { backgroundColor: t.canvasSunken }]}
+                  style={({ pressed }) => [styles.cat, pressFeedback(t, pressed)]}
                 >
                   <View style={styles.catHead}>
                     <Text style={[styles.catName, { color: t.content }]} numberOfLines={2}>

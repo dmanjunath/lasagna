@@ -1,14 +1,17 @@
 import * as Haptics from "expo-haptics";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { formatMoney } from "@/lib/format";
-import { chartScale, columnLabel, columnTitle, isCurrentKey, shortMoney, type TrendPeriod } from "@/lib/spending";
+import { chartScale, chartWindowStart, columnTitle, fitColumnLabel, isCurrentKey, shortMoney, type TrendPeriod } from "@/lib/spending";
 import { useTheme as useDesign } from "@/design";
 import { figures, themedStyles, type, useTheme, weight } from "@/theme";
 
 const PLOT_H = 150;
-const LABEL_H = 22;
+/** The month labels stop growing here, like the axis: past it a label thins ("Jan" to "J") rather than shrinking. */
+const LABEL_MAX_SCALE = 1.3;
 const AXIS_W = 48;
+/** A caption figure's width, for sizing the axis to its labels (as TrendChart does). */
+const CHAR_W = 7.4;
 /** Columns in view at once. More scroll sideways, newest at the right. */
 const VISIBLE = 6;
 
@@ -35,13 +38,19 @@ function CashflowChartBase({
   spendingOnly?: boolean;
 }) {
   const t = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const labelScale = Math.min(fontScale, LABEL_MAX_SCALE);
+  // The label row is as tall as its line at the text size in use, so no glyph is clipped.
+  const labelH = Math.ceil((type.caption.lineHeight ?? 16) * labelScale) + 6;
+  const labelPx = (type.caption.fontSize ?? 12) * labelScale;
   const [width, setWidth] = useState(0);
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const { top, bottom, ticks } = useMemo(
     () => chartScale(spendingOnly ? periods.map((p) => ({ ...p, income: p.expenses, expenses: 0 })) : periods),
     [periods, spendingOnly],
   );
-  const axisW = hidden ? 0 : AXIS_W;
+  // The axis is as wide as its longest gridline label, so "−$12.5K" or "$1.25M" never clips or wraps.
+  const axisW = hidden ? 0 : Math.max(AXIS_W, Math.ceil(Math.max(0, ...ticks.map((v) => shortMoney(v).length)) * CHAR_W + 10));
   const plotW = Math.max(0, width - axisW);
   const colW = plotW / Math.max(1, Math.min(VISIBLE, periods.length));
   const yAt = (v: number) => ((top - v) / (top - bottom)) * PLOT_H;
@@ -53,14 +62,17 @@ function CashflowChartBase({
   const partialKey = periods.find((p) => isCurrentKey(p.period))?.period;
   const unit = periods[0]?.period.length === 4 ? "year" : "month";
 
-  // Keep the selected column in view (else the newest): follow the stepper.
+  // Open on the newest columns, then keep the window where it is while the
+  // stepper's period is in view (an earlier month is marked in place), moving
+  // it only when the period falls outside it.
   const visible = Math.min(VISIBLE, periods.length);
   const selIdx = periods.findIndex((p) => p.period === selected);
   const [start, setStart] = useState(0);
+  const placed = useRef<number | null>(null);
   useEffect(() => {
     if (!width) return;
-    const target = selIdx < 0 ? periods.length - 1 : selIdx;
-    const first = Math.max(0, Math.min(periods.length - visible, target - visible + 1));
+    const first = chartWindowStart(placed.current, selIdx, periods.length, visible);
+    placed.current = first;
     setStart(first);
     scroll.current?.scrollTo({ x: first * colW, animated: false });
     // Only the selection and the width move the window, never a scroll of the user's own.
@@ -74,7 +86,7 @@ function CashflowChartBase({
     <View>
       <View style={{ flexDirection: "row" }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
         {hidden ? null : (
-          <View style={{ width: axisW, height: PLOT_H + LABEL_H }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <View style={{ width: axisW, height: PLOT_H + labelH }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             {ticks.map((v) => (
               <Text key={v} style={[styles.tick, { top: yAt(v) - 8, color: t.contentFaint }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>
                 {shortMoney(v)}
@@ -97,6 +109,7 @@ function CashflowChartBase({
             scrollEventThrottle={64}
             onScroll={(e) => {
               const first = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, colW));
+              if (placed.current !== null) placed.current = first;
               setStart((v) => (v === first ? v : first));
             }}
           >
@@ -106,7 +119,7 @@ function CashflowChartBase({
               const up = spendingOnly ? p.expenses : p.income;
               const upH = Math.max(up > 0 ? 2 : 0, zeroY - yAt(up));
               const downH = spendingOnly ? 0 : Math.max(p.expenses > 0 ? 2 : 0, yAt(-p.expenses) - zeroY);
-              const label = columnLabel(p.period, i === 0 || p.period.endsWith("-01"));
+              const label = fitColumnLabel(p.period, i === 0 || p.period.endsWith("-01"), colW - 6, labelPx, partial ? "*" : "");
               return (
                 <Pressable
                   key={p.period}
@@ -119,7 +132,7 @@ function CashflowChartBase({
                   accessibilityLabel={`${columnTitle(p.period)}${partial ? " so far" : ""}, ${spendingOnly ? "" : `income ${formatMoney(p.income, true)}, `}spending ${formatMoney(p.expenses, true)}`}
                   style={({ pressed }) => [
                     styles.col,
-                    { width: colW, borderRadius: 8 },
+                    { width: colW, height: PLOT_H + labelH, borderRadius: 8 },
                     on && { backgroundColor: t.faintFill },
                     pressed && !on && { backgroundColor: t.hairline },
                   ]}
@@ -128,8 +141,8 @@ function CashflowChartBase({
                     <View style={[styles.bar, { top: zeroY - upH, height: upH, backgroundColor: spendingOnly ? spendColor : incomeColor, borderTopLeftRadius: 4, borderTopRightRadius: 4 }]} />
                     <View style={[styles.bar, { top: zeroY, height: downH, backgroundColor: spendColor, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 }]} />
                   </View>
-                  <Text style={[styles.label, { color: on ? t.content : t.contentMuted }, on && weight.semibold]} numberOfLines={1} maxFontSizeMultiplier={1.2}>
-                    {partial ? `${label}*` : label}
+                  <Text style={[styles.label, { height: labelH, lineHeight: labelH, color: on ? t.content : t.contentMuted }, on && weight.semibold]} numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE}>
+                    {label}
                   </Text>
                 </Pressable>
               );
@@ -140,7 +153,7 @@ function CashflowChartBase({
       <View style={[styles.legend, { paddingLeft: axisW }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         {spendingOnly ? null : <LegendItem color={incomeColor} label="Income" />}
         <LegendItem color={spendColor} label="Spending" />
-        {partialShown ? <Text style={[styles.legendText, { color: t.contentMuted }]} maxFontSizeMultiplier={1.5}>{`* This ${unit} so far`}</Text> : null}
+        {partialShown ? <Text style={[styles.legendText, { color: t.contentMuted }]} numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE}>{`* This ${unit} so far`}</Text> : null}
       </View>
     </View>
   );
@@ -151,7 +164,7 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   return (
     <View style={styles.item}>
       <View style={[styles.swatch, { backgroundColor: color }]} />
-      <Text style={[styles.legendText, { color: t.contentSecondary }]} maxFontSizeMultiplier={1.5}>{label}</Text>
+      <Text style={[styles.legendText, { color: t.contentSecondary }]} numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE}>{label}</Text>
     </View>
   );
 }
@@ -162,9 +175,9 @@ const styles = themedStyles(() =>
   StyleSheet.create({
     tick: { ...type.caption, ...figures, position: "absolute", left: 0, right: 6, textAlign: "right" },
     grid: { position: "absolute", left: 0, right: 0, height: StyleSheet.hairlineWidth },
-    col: { alignItems: "center", height: PLOT_H + LABEL_H },
+    col: { alignItems: "center" },
     bar: { position: "absolute", left: 0, right: 0 },
-    label: { ...type.caption, height: LABEL_H, lineHeight: LABEL_H },
+    label: { ...type.caption },
     legend: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 14, rowGap: 4, marginTop: 8 },
     item: { flexDirection: "row", alignItems: "center", gap: 6 },
     swatch: { width: 10, height: 10, borderRadius: 3 },

@@ -7,6 +7,9 @@ import { font, useTheme } from "@/theme";
 // A link that opens a pushed screen still has the tab's root beneath it to go back to.
 export const unstable_settings = { anchor: "index" };
 
+/** iOS 26 rounds sheets to the display's corners, which crowds the sheet bar's Cancel and verb. A smaller radius keeps them clear. */
+const SHEET_RADIUS = 24;
+
 /**
  * Each tab's own stack, so a push stays in its tab. The five tabs share these
  * screens. Headers (the page chrome contract): no large titles. A native
@@ -57,6 +60,7 @@ export default function TabStack({ segment }: { segment: string }) {
             headerShown: false,
             sheetAllowedDetents: [0.75, 1],
             sheetGrabberVisible: true,
+            sheetCornerRadius: SHEET_RADIUS,
             contentStyle: { backgroundColor: t.canvas },
           }}
         />
@@ -78,6 +82,7 @@ export default function TabStack({ segment }: { segment: string }) {
                     ? [0.6, 1]
                     : [0.75, 1],
               sheetGrabberVisible: true,
+              sheetCornerRadius: SHEET_RADIUS,
               contentStyle: { backgroundColor: t.canvas },
             })}
           />

@@ -38,6 +38,7 @@ function AllocationBase({
   selected,
   wholePct,
   label,
+  ramp,
 }: {
   rows: AllocationRow[];
   /** Re-renders the amounts on a hide toggle. */
@@ -47,6 +48,8 @@ function AllocationBase({
   wholePct?: boolean;
   /** What the bar is of, for VoiceOver. */
   label: string;
+  /** Colors by rank in place of the chart palette (Debt's one sauce ramp: accounts read apart without new meanings). */
+  ramp?: string[];
 }) {
   const t = useTheme();
   const d = useDesign();
@@ -55,7 +58,7 @@ function AllocationBase({
   const shown = rows.filter((r) => r.value > 0);
   if (shown.length === 0) return null;
   const max = shown.reduce((m, r) => Math.max(m, r.value), 0) || 1;
-  const color = (r: AllocationRow) => t.viz[r.chart % t.viz.length];
+  const color = (r: AllocationRow) => (ramp ? ramp[Math.min(shown.indexOf(r), ramp.length - 1)] : t.viz[r.chart % t.viz.length]);
   return (
     <View style={styles.wrap}>
       <View

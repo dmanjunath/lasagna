@@ -24,6 +24,7 @@ import { Skeleton } from "@/ui/Skeleton";
 import { Sparkle } from "@/ui/Sparkle";
 import { EmptyState, ErrorState } from "@/ui/State";
 import { Track } from "@/ui/Track";
+import { pressFeedback } from "@/ui/press";
 
 /**
  * One step of the path, pushed from the journey page (the web's inline
@@ -206,7 +207,7 @@ function LinkRow({ title, detail, onPress }: { title: string; detail: string | n
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={detail ? `${title}, ${detail}` : title}
-      style={({ pressed }) => [styles.linkRow, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.linkRow, pressFeedback(t, pressed)]}
     >
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[styles.linkTitle, { color: t.content }]} numberOfLines={1}>

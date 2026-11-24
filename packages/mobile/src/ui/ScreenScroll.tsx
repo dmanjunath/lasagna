@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, type LayoutChangeEvent, type ScrollViewProps, type StyleProp, type ViewStyle } from "react-native";
 import Animated, {
   useAnimatedReaction,
@@ -20,6 +20,7 @@ import { MenuButton } from "@/shell/NavButtons";
 import { scheduleOnRN } from "react-native-worklets";
 import type { RefreshLook } from "@/lib/pull-refresh";
 import { NAV_ROW, PullRefreshContext, usePullRefresh } from "./PullRefresh";
+import { useTextScaleKey } from "./text-scale";
 import { font, space, themedStyles, type, useTheme } from "@/theme";
 
 // The page chrome contract's scaffold. A screen's title is the first thing in
@@ -50,6 +51,13 @@ type Chrome = {
   refreshControl: React.ReactElement | undefined;
   refreshOverlay: ReactNode;
   refreshLook: RefreshLook;
+  /** Refreshing, held on long enough for the indicator to read. Drives what animates. */
+  refreshOn: boolean;
+  /** How far the content sits below its rest, and whether the user started that pull (for a mascot on the page). */
+  pull: SharedValue<number>;
+  armed: SharedValue<boolean>;
+  /** Spread on the scroll view: the indicator shows only on a pull the user starts. */
+  dragHandlers: { onScrollBeginDrag: () => void; onScrollEndDrag: () => void };
 };
 
 /**
@@ -112,7 +120,23 @@ export function useCollapsingHeader({
   const barBottom = useBarBottom(headerHeight);
   const rest = barBottom + (searchBar ? SEARCH_FIELD : 0);
   const pull = useDerivedValue(() => Math.max(0, -(offset.value + rest)), [rest]);
-  const refresh = usePullRefresh({ pull, edge: barBottom, inlineMascot, refreshing, onRefresh: scrolled ? undefined : onRefresh, reduceMotion });
+  const dragging = useSharedValue(false);
+  // When the finger last lifted, for how long a finished refresh stays on (null while it is down).
+  const [releasedAt, setReleasedAt] = useState<number | null>(0);
+  const refresh = usePullRefresh({ pull, dragging, releasedAt, edge: barBottom, inlineMascot, refreshing, onRefresh: scrolled ? undefined : onRefresh, reduceMotion });
+  const dragHandlers = useMemo(
+    () => ({
+      onScrollBeginDrag: () => {
+        dragging.value = true;
+        setReleasedAt(null);
+      },
+      onScrollEndDrag: () => {
+        dragging.value = false;
+        setReleasedAt(Date.now());
+      },
+    }),
+    [dragging],
+  );
 
   const surfaceStyle = useAnimatedStyle(() => {
     const p = barOpacity(progress.value);
@@ -171,6 +195,10 @@ export function useCollapsingHeader({
     refreshControl: refresh.control,
     refreshLook: refresh.look,
     refreshOverlay: refresh.overlay,
+    refreshOn: refresh.on,
+    pull,
+    armed: refresh.armed,
+    dragHandlers,
   };
 }
 
@@ -211,7 +239,12 @@ export function ScreenScroll({ title, root = false, header, barTitle, refreshing
   // A mascot in the content (Home's greeting) claims the indicator's job.
   const [inlineMascot, setInlineMascot] = useState(false);
   const chrome = useCollapsingHeader({ title, barTitle, root, refreshing, onRefresh, inlineMascot });
-  const refreshCtx = useMemo(() => ({ refreshing: !!refreshing, look: chrome.refreshLook, claim: setInlineMascot }), [refreshing, chrome.refreshLook]);
+  const refreshCtx = useMemo(
+    () => ({ refreshing: chrome.refreshOn, look: chrome.refreshLook, claim: setInlineMascot, pull: chrome.pull, armed: chrome.armed }),
+    [chrome.refreshOn, chrome.refreshLook, chrome.pull, chrome.armed],
+  );
+  // The content is laid out again when the text size changes (see text-scale.ts).
+  const scaleKey = useTextScaleKey();
   return (
     <PullRefreshContext.Provider value={refreshCtx}>
       {chrome.bar}
@@ -221,8 +254,10 @@ export function ScreenScroll({ title, root = false, header, barTitle, refreshing
         scrollEventThrottle={16}
         contentContainerStyle={[screenStyles.body, contentContainerStyle]}
         refreshControl={chrome.refreshControl}
+        {...chrome.dragHandlers}
         {...rest}
       >
+        <Fragment key={scaleKey}>
         {header ? (
           // A tall stand-in (a greeting card) hands the bar over once its top has gone, not its whole height.
           <Animated.View onLayout={(e) => chrome.setTitleFrame(e.nativeEvent.layout.y, Math.min(e.nativeEvent.layout.height, STAND_IN_SPAN))}>{header}</Animated.View>
@@ -230,6 +265,7 @@ export function ScreenScroll({ title, root = false, header, barTitle, refreshing
           <ScreenTitle title={title} root={root} onLayout={chrome.onTitleLayout} />
         )}
         {children}
+        </Fragment>
       </Animated.ScrollView>
       {chrome.refreshOverlay}
     </PullRefreshContext.Provider>

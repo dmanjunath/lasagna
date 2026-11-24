@@ -22,7 +22,7 @@ test("the @/theme adapter follows a switch, keeping object identity", () => {
   const headline = type.headline;
   expect(type.title.fontFamily).toBe("Baloo2-ExtraBold");
   expect(radius.lg).toBe(24);
-  expect(palettes.light.canvas).toBe("#FFFFFF");
+  expect(palettes.light.canvas).toBe("#F6EFE3");
 
   setDesign("classic");
   expect(type.headline).toBe(headline);

@@ -10,6 +10,7 @@ import { icon, radius, space, themedStyles, type, useTheme, weight } from "@/the
 import { Card } from "@/ui/Card";
 import { Divider, useStackedRows } from "@/ui/Form";
 import { Skeleton } from "@/ui/Skeleton";
+import { pressFeedback } from "@/ui/press";
 
 // Settings' rows (Settings.tsx on the web): a list row that opens a section,
 // a card of label and value rows, and a switch row.
@@ -60,7 +61,7 @@ export function SettingsRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={detail ? `${title}, ${detail}` : title}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+      style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
     >
       {symbol ? <RoleTile symbol={symbol} role={role} tone={tone === "negative" ? "negative" : undefined} /> : null}
       <View style={{ flex: 1, gap: 2 }}>

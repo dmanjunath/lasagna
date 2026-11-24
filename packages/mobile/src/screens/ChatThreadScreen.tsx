@@ -15,6 +15,7 @@ import { radius, space, themedStyles } from "@/theme";
 import { ScreenTitle, useCollapsingHeader } from "@/ui/ScreenScroll";
 import { Skeleton } from "@/ui/Skeleton";
 import { ErrorState } from "@/ui/State";
+import { useTextScaleKey } from "@/ui/text-scale";
 
 type Item = { type: "turn"; turn: ChatTurn; last: boolean } | { type: "thinking" };
 
@@ -50,6 +51,7 @@ export default function ChatThreadScreen({ id, title: rootTitle, root = false }:
   const chrome = useCollapsingHeader({ title, root, refreshing: pulling, onRefresh: draft || convo?.pending ? undefined : () => void onPull() });
   const inset = useComposerInset();
   const listRef = useRef<FlashListRef<Item>>(null);
+  const scaleKey = useTextScaleKey();
 
   const send = useCallback(
     (text: string) => {
@@ -130,6 +132,8 @@ export default function ChatThreadScreen({ id, title: rootTitle, root = false }:
       {chrome.bar}
       <View ref={inset.boxRef} onLayout={inset.onLayout} style={styles.screen}>
         <FlashList<Item>
+          // Rows are measured again when the text size changes (see text-scale.ts).
+          key={scaleKey}
           ref={(r) => {
             listRef.current = r;
             chrome.scrollRef(r);
@@ -150,6 +154,7 @@ export default function ChatThreadScreen({ id, title: rootTitle, root = false }:
           onContentSizeChange={(_w, h) => (size.current.content = h)}
           onLayout={(e) => (size.current.view = e.nativeEvent.layout.height)}
           refreshControl={chrome.refreshControl}
+          {...chrome.dragHandlers}
         />
         {chrome.refreshOverlay}
         {lost || failed ? null : (

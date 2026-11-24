@@ -5,7 +5,6 @@ import { maskCurrencyInText } from "@/lib/hide-amounts";
 import { statePillLabel, type LevelState, type PathStep } from "@/lib/journey";
 import { icon, radius, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { Note } from "@/ui/Note";
-import { Sparkle } from "@/ui/Sparkle";
 
 // The journey page's pieces (pages/financial-level.tsx): a step's glyph, its
 // state pill, and its row in the steps list.
@@ -94,7 +93,6 @@ export function StepRow({ step, state, onPress }: { step: PathStep; state: Level
           <Text style={[styles.title, { color: t.content }]} numberOfLines={2}>
             {title}
           </Text>
-          {state === "done" ? <Sparkle size={14} /> : null}
         </View>
         <View style={styles.pillLine}>
           <StatePill state={state} rateShaped={step.rateShaped} onTint={current} />

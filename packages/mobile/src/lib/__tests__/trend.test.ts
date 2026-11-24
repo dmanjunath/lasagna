@@ -1,4 +1,4 @@
-import { drawableRange, filterByRange, pickXLabels, signedPct, smoothLinePath, snapshotPoints, thinLabels, tickDecimals, tickLabel } from "../trend";
+import { chartDay, drawableRange, filterByRange, pickXLabels, signedPct, smoothLinePath, snapshotPoints, thinLabels, tickDecimals, tickLabel } from "../trend";
 
 const now = new Date("2026-11-22T12:00:00Z").getTime();
 const day = (n: number) => new Date(now - n * 86_400_000).toISOString().slice(0, 10);
@@ -46,4 +46,16 @@ test("snapshots: ascending, owed unsigned", () => {
     true,
   );
   expect(pts.map((p) => p.value)).toEqual([10, 20]);
+});
+
+test("chart labels stay one short line for any date or amount", () => {
+  const today = new Date("2026-11-22T12:00:00Z");
+  expect(chartDay("2026-09-30", today)).toBe("Sep 30");
+  expect(chartDay("2025-09-30", today)).toBe("Sep 30 ’25");
+  expect(chartDay("2026-09-30", today).length).toBeLessThanOrEqual(6);
+  // Big and negative amounts compact to a few characters.
+  expect(tickLabel(1_234_567.89)).toBe("$1.2M");
+  expect(tickLabel(-98_765)).toBe("−$99K");
+  expect(tickLabel(12_345_678)).toBe("$12M");
+  for (const v of [0, 999, 1234.5, -98_765, 1_234_567.89, 99_999_999]) expect(tickLabel(v).length).toBeLessThanOrEqual(6);
 });

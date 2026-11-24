@@ -46,6 +46,7 @@ import { ScreenTitle, useCollapsingHeader } from "@/ui/ScreenScroll";
 import { Skeleton } from "@/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/ui/State";
 import { setTabBarHidden } from "@/shell/tab-bar";
+import { useTextScaleKey } from "@/ui/text-scale";
 
 const PAGE = 50;
 const SECTIONS: FilterSection[] = ["views", "sort", "date", "accounts", "categories", "merchants", "amount", "status"];
@@ -315,6 +316,7 @@ export default function Transactions() {
   // Day headers pin under the nav bar, and under the one-line summary when the strip has gone.
   const stickyOffset = barBottom + (hasStrip ? SUMMARY_LINE_HEIGHT : 0);
   const listRef = useRef<FlashListRef<TxnListItem>>(null);
+  const scaleKey = useTextScaleKey();
   const offsetRef = useRef<number | null>(null);
   // The pinned day header is pushed up by the next day's header as it arrives, as iOS lists do.
   const stickyRef = useRef(-1);
@@ -536,6 +538,8 @@ export default function Transactions() {
         onLayout={() => containerRef.current?.measureInWindow((_x: number, y: number) => setContainerTop((v) => (Math.abs(v - y) < 0.5 ? v : y)))}
       >
         <FlashList<TxnListItem>
+          // Rows are measured again when the text size changes (see text-scale.ts).
+          key={scaleKey}
           ref={(r) => {
             listRef.current = r;
             chrome.scrollRef(r);
@@ -558,7 +562,9 @@ export default function Transactions() {
           ListHeaderComponentStyle={{ marginBottom: -stickyOffset }}
           onScroll={onScroll}
           // A scroll with nothing typed puts an opened search field away again, as it does on a normal entry.
+          onScrollEndDrag={chrome.dragHandlers.onScrollEndDrag}
           onScrollBeginDrag={() => {
+            chrome.dragHandlers.onScrollBeginDrag();
             if (!searchOpen || searchInput.trim()) return;
             // An active (focused) search field stays out whatever the setting, so it is closed first.
             searchRef.current?.cancelSearch();

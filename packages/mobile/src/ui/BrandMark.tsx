@@ -1,6 +1,6 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 import { useTheme as useDesign } from "@/design";
-import { themedStyles, type, useTheme } from "@/theme";
+import { font, themedStyles, type, useTheme } from "@/theme";
 import { Mascot } from "./Mascot";
 
 /**
@@ -24,13 +24,26 @@ export function BrandMark({ size = 38 }: { size?: number }) {
   );
 }
 
-/** The name in the theme's display face, "Fi" in the brand ink. Home's nav bar shows it in place of a title. */
+/**
+ * The name in the theme's display face. Home's nav bar shows it in place of a
+ * title. Under a character theme it is the heavy wordmark with "Fi" in the
+ * brand ink. Without one (Classic) it is the web's: the display face at its
+ * semibold, "Fi" in the brand color on the large signed-out lockup and plain
+ * beside the mark in the drawer, as the web's login and sidebar draw it.
+ */
 export function BrandWordmark({ large }: { large?: boolean }) {
   const t = useTheme();
+  const d = useDesign();
+  const fi = d.mascot ? t.brandInk : large ? d.color.brand : t.content;
   return (
     // Bar chrome: like the system's own bar titles it stops growing early with the text size.
-    <Text style={[large ? type.largeTitle : type.title, { color: t.content }]} maxFontSizeMultiplier={1.2} accessibilityRole="header" accessibilityLabel="LasagnaFi">
-      Lasagna<Text style={{ color: t.brandInk }}>Fi</Text>
+    <Text
+      style={[large ? type.largeTitle : type.title, !d.mascot && { fontFamily: font.headingSemibold }, { color: t.content }]}
+      maxFontSizeMultiplier={1.2}
+      accessibilityRole="header"
+      accessibilityLabel="LasagnaFi"
+    >
+      Lasagna<Text style={{ color: fi }}>Fi</Text>
     </Text>
   );
 }

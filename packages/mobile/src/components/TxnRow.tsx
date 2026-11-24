@@ -7,6 +7,7 @@ import type { CategoryDisplay } from "@/lib/taxonomy";
 import { txnRowTone } from "@/lib/txn-row";
 import { icon, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { CategoryMedallion } from "./CategoryMedallion";
+import { pressScale } from "@/ui/press";
 
 // Income (amount < 0) reads positive with a leading "+", as on the web.
 function TxnRowBase({
@@ -75,6 +76,7 @@ function TxnRowBase({
         styles.row,
         { backgroundColor: selected ? t.brandSofter : pressed ? t.canvasSunken : surface === "card" ? "transparent" : t.canvas },
         tone.faded && !selecting && styles.dim,
+        !selected && pressScale(pressed),
       ]}
       accessibilityRole={selecting ? "checkbox" : "button"}
       accessibilityState={selecting ? { checked: !!selected } : undefined}

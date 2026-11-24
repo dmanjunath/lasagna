@@ -1,11 +1,12 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { accountsApi, invalidateAccounts, useItems } from "@/api/accounts";
+import { debtApi } from "@/api/debt";
 import { saveErrorText } from "@/api/client";
 import { AddressField, ChoicePage, DateRow, InputRow, ToggleRow, ValueSourceSection } from "@/components/accounts/FormFields";
-import { editFormFrom, loanFields, loanTypeOf, savePlan, typeKey, typeOptionsFor, type EditForm } from "@/lib/account-edit";
+import { editFormFrom, loanFields, type DebtFallback, loanTypeOf, savePlan, typeKey, typeOptionsFor, type EditForm } from "@/lib/account-edit";
 import { displayName, effectiveBalance, findAccount, isDebtType, isManualItem, type Item, type ItemAccount } from "@/lib/account-list";
 import { markAccountDeleted } from "@/lib/account-sheets";
 import { moneyInput } from "@/lib/add-account";
@@ -15,6 +16,7 @@ import { committed, failed } from "@/ui/feedback";
 import { Divider, formStyles, Group, NavRow, SectionHeader, SheetBar } from "@/ui/Form";
 import { useDiscardGuard } from "@/ui/sheet";
 import { EmptyState } from "@/ui/State";
+import { pressFeedback } from "@/ui/press";
 
 /**
  * An account's settings (the web's /accounts/:id/edit), as a sheet: address
@@ -25,7 +27,9 @@ import { EmptyState } from "@/ui/State";
 export default function AccountEditSheet({ id }: { id: string }) {
   const items = useItems();
   const found = items.data ? findAccount(items.data.items, id) : null;
-  if (items.isPending) {
+  // The payoff plan's rate and minimum, so the form starts from the figures Loan details shows.
+  const debts = useQuery({ queryKey: ["debts"], queryFn: debtApi.list, enabled: !!found && isDebtType(found.account.type) });
+  if (items.isPending || (debts.fetchStatus === "fetching" && !debts.data)) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator />
@@ -33,18 +37,18 @@ export default function AccountEditSheet({ id }: { id: string }) {
     );
   }
   if (!found) return <EmptyState gutter title="This account isn't available" action={{ title: "Close", onPress: () => router.back() }} />;
-  return <Editor key={id} account={found.account} item={found.item} items={items.data!.items} />;
+  return <Editor key={id} account={found.account} item={found.item} items={items.data!.items} debt={debts.data?.debts.find((x) => x.id === id) ?? null} />;
 }
 
 type Page = "form" | "type" | "property";
 
-function Editor({ account: a, item, items }: { account: ItemAccount; item: Item; items: Item[] }) {
+function Editor({ account: a, item, items, debt }: { account: ItemAccount; item: Item; items: Item[]; debt: DebtFallback }) {
   const t = useTheme();
   const qc = useQueryClient();
   const manual = isManualItem(item);
   const liability = isDebtType(a.type);
   const property = a.type === "real_estate";
-  const [initial] = useState(() => editFormFrom(a));
+  const [initial] = useState(() => editFormFrom(a, debt));
   const [form, setForm] = useState<EditForm>(initial);
   const set = (patch: Partial<EditForm>) => setForm((f) => ({ ...f, ...patch }));
   const [page, setPage] = useState<Page>("form");
@@ -303,7 +307,7 @@ function Editor({ account: a, item, items }: { account: ItemAccount; item: Item;
               disabled={deleting || saving}
               accessibilityRole="button"
               accessibilityLabel="Delete account"
-              style={({ pressed }) => [styles.delete, pressed && { backgroundColor: t.canvasSunken }]}
+              style={({ pressed }) => [styles.delete, pressFeedback(t, pressed)]}
             >
               {deleting ? <ActivityIndicator /> : <Text style={[styles.deleteText, { color: t.negative }]}>Delete account</Text>}
             </Pressable>

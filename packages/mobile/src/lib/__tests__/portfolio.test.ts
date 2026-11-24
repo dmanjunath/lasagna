@@ -2,6 +2,7 @@ import { holdingGain,
   accountIdFor,
   accountsIn,
   allocationSlices,
+  blendedReturnOf,
   cleanAccountLabel,
   collapseSmall,
   drillFrom,
@@ -162,4 +163,13 @@ test("a holding's gain needs real cost basis on every lot, never cash or an esti
   expect(holdingGain({ ticker: "VTI", holdings: [lot({ costBasis: 2500 })] })).toBeNull(); // basis equal to the balance
   expect(holdingGain({ ticker: "CASH", holdings: [lot({ ticker: "CASH" })] })).toBeNull();
   expect(holdingGain({ ticker: "VTI", holdings: [lot({ value: 2000.4 })] })).toBeNull(); // under a dollar is no gain
+});
+
+test("blendedReturnOf: the past yearly return follows the account filter, weighted like the API's", () => {
+  // Total Bond has no published rate, so it takes the API's 7% default.
+  expect(blendedReturnOf(classes, exposure)).toBe(7.2);
+  expect(blendedReturnOf(filterByAccounts(classes, new Set(["401(k)"])), exposure)).toBe(9.25);
+  expect(blendedReturnOf(filterByAccounts(classes, new Set(["Savings Account"])), exposure)).toBe(1.5);
+  expect(blendedReturnOf(classes, null)).toBeNull();
+  expect(blendedReturnOf([], exposure)).toBeNull();
 });

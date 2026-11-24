@@ -28,6 +28,7 @@ import { Skeleton } from "@/ui/Skeleton";
 import { Sparkle } from "@/ui/Sparkle";
 import { EmptyState, ErrorState } from "@/ui/State";
 import { Track } from "@/ui/Track";
+import { pressFeedback } from "@/ui/press";
 
 /**
  * One goal (/goals/:id, savings-goal.tsx on the web): the hero (jar or bar,
@@ -199,7 +200,7 @@ export default function GoalDetailScreen({ id, edit }: { id: string; edit: boole
                   onPress={() => openPath(`/accounts/${a.accountId}`)}
                   accessibilityRole="button"
                   accessibilityLabel={`${a.name}${a.mask ? ` ending ${a.mask}` : ""}, ${formatMoney(parseFloat(a.balance ?? "0"), true)}`}
-                  style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+                  style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
                 >
                   <InstIcon institution={a.institutionName ?? a.name} manual={a.institutionId === "manual" || !a.institutionName} size={36} />
                   <View style={{ flex: 1, gap: 1 }}>

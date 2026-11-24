@@ -2,6 +2,7 @@
 // (a React module, so it cannot be imported at runtime). The URL scope comes
 // from @web/lib/spending-filters, which has no imports and is shared as is.
 import { spendFilterAllows, spendFilterFromQuery, type SpendFilter } from "@web/lib/spending-filters";
+import { paceVerdict } from "@web/lib/spending-pace";
 
 export type Granularity = "month" | "year";
 
@@ -109,10 +110,24 @@ export function isCurrentKey(key: string, now: Date = new Date()): boolean {
  * with any money in or out: undefined while it loads (no floor yet), null when
  * there is none at all.
  */
-export function stepBounds(p: Period, earliestYear: number | null | undefined, now: Date = new Date()): { canBack: boolean; canForward: boolean } {
+export function stepBounds(
+  p: Period,
+  earliest: number | { year: number; month: number } | null | undefined,
+  now: Date = new Date(),
+): { canBack: boolean; canForward: boolean } {
   const canForward = !isCurrent(p, now);
-  const floor = earliestYear === null ? true : earliestYear === undefined ? false : p.granularity === "month" ? p.year * 12 + p.month <= earliestYear * 12 : p.year <= earliestYear;
+  if (earliest === null) return { canBack: false, canForward };
+  if (earliest === undefined) return { canBack: true, canForward };
+  // A year alone floors months at its January. The first month with money floors them there.
+  const first = typeof earliest === "number" ? { year: earliest, month: 0 } : earliest;
+  const floor = p.granularity === "month" ? p.year * 12 + p.month <= first.year * 12 + first.month : p.year <= first.year;
   return { canBack: !floor, canForward };
+}
+
+/** The first month with any income or spending in a monthly trend, or null when there is none. */
+export function earliestMonthOf(periods: TrendPeriod[]): { year: number; month: number } | null {
+  const keys = periods.filter((p) => p.period.length === 7 && (p.income || p.expenses)).map((p) => p.period).sort();
+  return keys.length > 0 ? { year: Number(keys[0].slice(0, 4)), month: Number(keys[0].slice(5, 7)) - 1 } : null;
 }
 
 /** Switching granularity keeps the selection sensible: to a year, the year of the month in view. */
@@ -224,31 +239,7 @@ export function breakdownRows(cats: SpendingCategory[], sort: BreakdownSort = "a
   });
 }
 
-/** Before this day of the running month, a pace says more about payday than about spending. */
-export const PACE_FIRST_DAY = 7;
-/** Within a tenth of the usual pace is no verdict: that is the usual. */
-export const PACE_BAND = 0.1;
-
-/**
- * A spending row against its usual (meaningful color, owner 2026-11-23):
- * "bad" (sauce) when it runs more than a tenth ahead of its usual month,
- * prorated by the days gone in the running month, "good" (basil) when more
- * than a tenth under. Nothing for a year, before the 7th, or without a usual
- * (less than three months of history).
- */
-export function paceVerdict(spent: number, usual: number | null | undefined, key: string, now: Date = new Date()): "good" | "bad" | null {
-  if (!usual || usual <= 0 || key.length !== 7) return null;
-  let fraction = 1;
-  if (isCurrentKey(key, now)) {
-    const day = now.getDate();
-    if (day < PACE_FIRST_DAY) return null;
-    fraction = day / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  }
-  const expected = usual * fraction;
-  if (spent > expected * (1 + PACE_BAND)) return "bad";
-  if (spent < expected * (1 - PACE_BAND)) return "good";
-  return null;
-}
+export { PACE_BAND, PACE_FIRST_DAY, paceVerdict } from "@web/lib/spending-pace";
 
 /** A row's pace: its categories that have a usual, spent against the sum of their usuals. */
 export function rowPace(row: BreakdownRow, key: string, now: Date = new Date()): "good" | "bad" | null {
@@ -281,6 +272,23 @@ export function columnLabel(key: string, withYear: boolean): string {
   if (key.length === 4) return key;
   const short = MONTHS[Number(key.slice(5, 7)) - 1] ?? key;
   return withYear ? `${short} ’${key.slice(2, 4)}` : short;
+}
+
+/** A caption glyph's average width, as a share of its font size (figures and capitals run wider). */
+const GLYPH_W = 0.62;
+
+/**
+ * The longest form of a column's label that fits its width on one line at the
+ * text size in use: "Jan ’26", then "Jan", then "J". Never shrinks the type
+ * and never wraps, so a large text size thins the label instead.
+ */
+export function fitColumnLabel(key: string, withYear: boolean, width: number, fontPx: number, suffix = ""): string {
+  const fits = (s: string) => (s.length + suffix.length) * fontPx * GLYPH_W <= width;
+  const full = columnLabel(key, withYear);
+  if (fits(full)) return full + suffix;
+  const short = columnLabel(key, false);
+  if (fits(short)) return short + suffix;
+  return (key.length === 4 ? `’${key.slice(2)}` : short.slice(0, 1)) + suffix;
 }
 
 /** "November 2026" or "2026", for a column's spoken label. */
@@ -324,4 +332,20 @@ export function shortMoney(v: number): string {
   if (a >= 1_000_000) return `${sign}$${fmt(a / 1_000_000)}M`;
   if (a >= 1000) return `${sign}$${fmt(a / 1000)}K`;
   return `${sign}$${Math.round(a)}`;
+}
+
+/**
+ * The first column of the cashflow chart's visible window. With no window yet
+ * (`prev` null) it opens on the newest columns. Stepping to another period
+ * keeps the window where it is while that period is in view, so an earlier
+ * month is marked in place instead of becoming the right-most column, and
+ * moves it only as far as needed when the period falls outside it.
+ */
+export function chartWindowStart(prev: number | null, selIdx: number, count: number, visible: number): number {
+  const last = Math.max(0, count - visible);
+  if (prev === null || selIdx < 0) return last;
+  const start = Math.min(Math.max(0, prev), last);
+  if (selIdx < start) return selIdx;
+  if (selIdx >= start + visible) return Math.min(last, selIdx - visible + 1);
+  return start;
 }

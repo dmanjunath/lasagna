@@ -14,6 +14,7 @@ import { Card } from "@/ui/Card";
 import { Divider, formStyles, SheetBar } from "@/ui/Form";
 import { Skeleton } from "@/ui/Skeleton";
 import { ErrorState } from "@/ui/State";
+import { pressFeedback } from "@/ui/press";
 
 /**
  * One holding's breakdown (the web's expanded holdings row): the fund's name
@@ -80,7 +81,7 @@ export default function HoldingSheet({ symbol, label, name }: { symbol: string; 
                         accessibilityRole={id ? "button" : "text"}
                         accessibilityLabel={`${name}, ${value}, ${line}`}
                         accessibilityHint={id ? "Opens the account" : undefined}
-                        style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.canvasSunken }]}
+                        style={({ pressed }) => [styles.row, pressFeedback(t, pressed)]}
                       >
                         <View style={{ flex: 1, gap: 2 }}>
                           <Text style={[styles.name, { color: t.content }]} numberOfLines={stacked ? 3 : 1}>

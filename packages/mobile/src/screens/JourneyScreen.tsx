@@ -23,6 +23,7 @@ import { Divider, SectionHeader } from "@/ui/Form";
 import { ScreenScroll } from "@/ui/ScreenScroll";
 import { Skeleton } from "@/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/ui/State";
+import { pressFeedback } from "@/ui/press";
 
 /** A step's own screen, pushed in the current tab. */
 export const openStep = (id: string) => pushInTab(`/financial-level/${encodeURIComponent(id)}`);
@@ -215,7 +216,7 @@ function Path({
             accessibilityRole="button"
             accessibilityState={{ expanded: offOpen }}
             accessibilityLabel={`Not on your path, ${offPath.length} ${offPath.length === 1 ? "step" : "steps"}`}
-            style={({ pressed }) => [styles.disclosure, pressed && { backgroundColor: t.canvasSunken }]}
+            style={({ pressed }) => [styles.disclosure, pressFeedback(t, pressed)]}
           >
             <Text style={[styles.disclosureTitle, { color: t.content }]}>Not on your path</Text>
             <Text style={[styles.count, { color: t.contentMuted }]}>{offPath.length}</Text>
