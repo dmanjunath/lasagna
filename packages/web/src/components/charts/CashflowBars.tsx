@@ -65,6 +65,9 @@ export function periodLabel(period: string, granularity: 'month' | 'year'): stri
  * calendar, the same clock the page's "no stepping into the future" ceiling
  * uses.
  */
+/** The thinnest a bar for a non-zero figure is drawn, so it is never lost beside a much bigger one. */
+const MIN_BAR = 3;
+
 export function isCurrentPeriod(period: string, granularity: 'month' | 'year'): boolean {
   const now = new Date();
   return period === (granularity === 'year'
@@ -465,8 +468,9 @@ export function CashflowBars({
     // zero axis keeps the two blocks distinct and the axis line visible.
     const inset = 0.75;
     return {
-      up: { x: cx - barW / 2, y: zeroY - upH, w: barW, h: Math.max(0, upH - inset) },
-      down: { x: cx - barW / 2, y: zeroY + inset, w: barW, h: Math.max(0, downH - inset) },
+      // A month dwarfed by a big one (spending beside a large income) still draws a visible bar.
+      up: { x: cx - barW / 2, y: zeroY - Math.max(upH, p.income > 0 ? MIN_BAR : 0), w: barW, h: p.income > 0 ? Math.max(MIN_BAR - inset, upH - inset) : 0 },
+      down: { x: cx - barW / 2, y: zeroY + inset, w: barW, h: p.expenses > 0 ? Math.max(MIN_BAR - inset, downH - inset) : 0 },
     };
   };
 
@@ -572,7 +576,7 @@ export function CashflowBars({
                   colour, so it lightens the bar in light mode and darkens it in
                   dark, and the bar keeps the hue that says income or spending. */}
               <pattern id={hatchId} width={7} height={7} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                <line x1={0} y1={0} x2={0} y2={7} stroke="rgb(var(--ui-panel))" strokeOpacity={0.62} strokeWidth={3.5} />
+                <line x1={0} y1={0} x2={0} y2={7} stroke="rgb(var(--ui-panel))" strokeOpacity={0.45} strokeWidth={3} />
               </pattern>
             </defs>
           )}
@@ -676,6 +680,10 @@ export function CashflowBars({
                         it is not finished. The legend names the texture. */}
                     {partial && up.h > 0 && <rect {...upBox} fill={`url(#${hatchId})`} />}
                     {partial && down.h > 0 && <rect {...downBox} fill={`url(#${hatchId})`} />}
+                    {/* An outline in the full colour keeps the unfinished bar clearly income or
+                        spending on any background, a tinted hero included, where the hatch alone washed it out. */}
+                    {partial && up.h > 0 && <rect {...upBox} fill="none" stroke="var(--ui-chart-in, var(--ui-viz-2))" strokeWidth={1.5} />}
+                    {partial && down.h > 0 && <rect {...downBox} fill="none" stroke="var(--ui-chart-out, var(--ui-viz-4))" strokeWidth={1.5} />}
                   </g>
                 );
               })}

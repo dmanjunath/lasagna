@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { RefreshControl, StyleSheet, View } from "react-native";
 import Animated, {
   cancelAnimation,
@@ -15,9 +15,11 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
-import { HELLO_WAVE, INTRO_DELAY, WAVE_BACK, WAVE_HALF, WAVE_OUT, withAlpha } from "@lasagna/design";
+import { HELLO_WAVE, INTRO_DELAY, WAVE_HALF, withAlpha } from "@lasagna/design";
 import { useTheme as useDesign } from "@/design";
-import { DIVE_DEPTH, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, nextArmed, nextPrimed, poolScale, PULL_TRIGGER, pullStretch, refreshLook, shouldFire, takeGreetingIntro, type RefreshLook } from "@/lib/pull-refresh";
+import { DIVE_DEPTH, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, nextArmed, nextPrimed, poolScale, PULL_TRIGGER, refreshLook, shouldFire, type RefreshLook } from "@/lib/pull-refresh";
+import { openCount, subscribeOpens } from "@/lib/app-open";
+import { useFocusEffect } from "expo-router";
 import { scheduleOnRN } from "react-native-worklets";
 import Svg, { Ellipse } from "react-native-svg";
 import { BrandMark } from "./BrandMark";
@@ -57,7 +59,6 @@ export function usePullRefresh({
   refreshing,
   onRefresh,
   reduceMotion,
-  inlineMascot = false,
 }: {
   pull: SharedValue<number>;
   /** Whether the user's finger is dragging the content (the scroll view's begin and end drag). */
@@ -69,9 +70,7 @@ export function usePullRefresh({
   refreshing?: boolean;
   onRefresh?: () => void;
   reduceMotion: boolean;
-  /** A mascot on the page is the indicator (RefreshMascot), so none comes down from the bar. */
-  inlineMascot?: boolean;
-}): PullRefresh & { armed: SharedValue<boolean>; on: boolean; release: () => void } {
+}): PullRefresh & { armed: SharedValue<boolean>; diveShown: SharedValue<number>; on: boolean; release: () => void } {
   const d = useDesign();
   const look = refreshLook(d.skin.refresh, { reduceMotion, hasMascot: !!d.mascot });
   // A refresh that finishes in a blink still shows its indicator long enough for the hop and the bob to read.
@@ -80,6 +79,9 @@ export function usePullRefresh({
   // Only a pull the user started shows the indicator: a tab appearing settles its content a few points
   // past rest for a moment, which the offset alone would read as a pull.
   const armed = useSharedValue(false);
+  // Whether the dive mascot is on screen (0 or 1), written by it every frame, so a mascot already on the page
+  // (Home's greeting) steps aside while it shows: never two of them at once.
+  const diveShown = useSharedValue(0);
   useAnimatedReaction(
     () => nextArmed(armed.value, dragging.value, pull.value, REST),
     (now) => {
@@ -136,13 +138,14 @@ export function usePullRefresh({
   const on = held || primedOn;
   // Kept stable between refreshes: the bar's copy rides in its options, which rebuild when it changes.
   const overlay = useMemo(
-    () => (!enabled ? null : look === "mascot" ? (inlineMascot ? null : <PullMascot pull={pull} armed={armed} refreshing={on} top={edge} />) : look === "brandPuff" ? <PullMark pull={pull} armed={armed} refreshing={on} top={edge} /> : null),
-    [enabled, look, pull, armed, on, edge, inlineMascot],
+    () => (!enabled ? null : look === "mascot" ? <PullMascot pull={pull} armed={armed} refreshing={on} top={edge} shown={diveShown} /> : look === "brandPuff" ? <PullMark pull={pull} armed={armed} refreshing={on} top={edge} /> : null),
+    [enabled, look, pull, armed, on, edge, diveShown],
   );
-  if (!onRefresh) return { look, control: undefined, overlay: null, barOverlay: null, armed, on, release: () => {} };
+  if (!onRefresh) return { look, control: undefined, overlay: null, barOverlay: null, armed, diveShown, on, release: () => {} };
   return {
     look,
     armed,
+    diveShown,
     on,
     release: fire,
     // Holds the gap open while the screen refetches. Its own trigger sits past ours, so it only ever re-asks
@@ -187,7 +190,7 @@ const DRAIN_MS = 220;
  * back under the bar as the pool drains. It stays gone until the content is
  * back at rest, so no part of it lingers under the bar.
  */
-function PullMascot({ pull, armed, refreshing, top }: { pull: SharedValue<number>; armed: SharedValue<boolean>; refreshing: boolean; top: number }) {
+function PullMascot({ pull, armed, refreshing, top, shown }: { pull: SharedValue<number>; armed: SharedValue<boolean>; refreshing: boolean; top: number; shown: SharedValue<number> }) {
   const d = useDesign();
   const sauce = d.color.tint.spend.accent;
   const sauceDeep = d.color.tint.spend.ink;
@@ -238,6 +241,13 @@ function PullMascot({ pull, armed, refreshing, top }: { pull: SharedValue<number
       drain.value = 0;
       // A finished pull is spent: only a new drag shows it again, not the content still settling at rest.
       armed.value = false;
+    },
+  );
+  // On screen or not, in the same frame as its own opacity below.
+  useAnimatedReaction(
+    () => (mascotOpacity(phase.value, pull.value, exit.value, REST, armed.value) > 0 ? 1 : 0),
+    (now, prev) => {
+      if (now !== prev) shown.value = now;
     },
   );
   const group = useAnimatedStyle(() => {
@@ -367,141 +377,70 @@ function useHeldOn(refreshing: boolean, hold: boolean, releasedAt: number | null
   return on;
 }
 
-// ── The page's own mascot as the indicator (Home's greeting) ─────────────────
+// ── A mascot already on the page (Home's greeting) ─────────────────────────
 
 type Inline = {
-  refreshing: boolean;
   look: RefreshLook;
-  claim: (on: boolean) => void;
-  /** How far the content sits below its rest, and whether the user started that pull. */
-  pull?: SharedValue<number>;
-  armed?: SharedValue<boolean>;
+  /** Whether the dive mascot is on screen (0 or 1). */
+  diveShown?: SharedValue<number>;
 };
 export const PullRefreshContext = createContext<Inline | null>(null);
 
-/** How far a pull goes before the lean is full: the trigger, where the jump and the refresh happen. */
-const STRETCH_SPAN = PULL_TRIGGER;
-// The wave's arc and beat (WAVE_OUT, WAVE_BACK, WAVE_HALF) and the hello (HELLO_WAVE, INTRO_DELAY) come from
-// @lasagna/design, so the web and the app wave the same arm the same way: a wide arc on the outside of the body,
-// back near upright and out toward the side, about two waves a second.
-/** How far the body tips toward the wave at its widest, in degrees. */
-const WAVE_TILT = 3;
+/** How long the page's mascot takes to come back once the dive mascot has gone. */
+const RETURN_MS = 220;
 
 /**
- * Wraps a mascot already on the page (Home's greeting). Where the refresh skin
- * is the mascot, it becomes the indicator, and it waves: as the user pulls it
- * leans in and starts waving its arm, when the pull arms the refresh it jumps
- * for joy with a little splash of sauce at its feet, it keeps a gentle wave
- * while the screen refetches, and when it is done it takes a small bow and
- * settles exactly where it was. No second mascot comes down from the bar. The
- * first time Home shows in a session it waves hello with its arm alone. Reduce Motion:
- * it stands still. Elsewhere it draws its child as is.
+ * Wraps a mascot already on the page (Home's greeting). The pull's indicator is
+ * the same sauce dive as on every other page (owner, 2026-11-24), so this one
+ * steps aside while that one shows: gone in the frame the dive mascot appears,
+ * back with a short fade once it has left, so the two are never on screen
+ * together. Each time the user sees the app open (a fresh launch, or a return
+ * from the background, once Face ID and the launch screen are gone) it waves
+ * hello with its raised arm alone, three times, while Home is the screen in
+ * view; never on a tab switch. Reduce Motion: no wave.
  */
 export function RefreshMascot({ children, width }: { children?: ReactNode; /** The mascot's width: given, the wrapper draws it itself with a waving arm. */ width?: number }) {
   const ctx = useContext(PullRefreshContext);
-  const d = useDesign();
-  const active = ctx?.look === "mascot";
-  const claim = ctx?.claim;
   const reduceMotion = useReducedMotion();
-  useEffect(() => {
-    if (!active || !claim) return;
-    claim(true);
-    return () => claim(false);
-  }, [active, claim]);
-  const refreshing = active && !!ctx?.refreshing;
-
-  const hop = useSharedValue(0);
-  const bow = useSharedValue(0);
   const arm = useSharedValue(0);
-  const [splash, setSplash] = useState(0);
-  const was = useRef(refreshing);
-  // Waving while a pull is under way or the screen refetches; the arm's swing loops on the UI thread.
-  const waving = useSharedValue(0);
-  const swingArm = () => {
-    "worklet";
-    const out = { duration: WAVE_HALF, easing: Easing.inOut(Easing.sin) };
-    arm.value = withRepeat(withSequence(withTiming(WAVE_OUT, out), withTiming(WAVE_BACK, out)), -1, false);
-  };
-  const rest = () => {
-    "worklet";
-    arm.value = withTiming(0, { duration: 200 });
-  };
-  useEffect(() => {
-    const started = !was.current && refreshing;
-    const ended = was.current && !refreshing;
-    was.current = refreshing;
-    if (reduceMotion) return;
-    if (started) {
-      // The jump for joy, and a splash where it lands.
-      cancelAnimation(hop);
-      hop.value = withSequence(withTiming(-22, { duration: 170, easing: Easing.out(Easing.quad) }), withSpring(0, { damping: 10, stiffness: 300 }));
-      setSplash((n) => n + 1);
-    }
-    if (ended) {
-      // A small bow, then still.
-      const lean = (deg: number, ms: number) => withTiming(deg, { duration: ms, easing: Easing.inOut(Easing.sin) });
-      bow.value = withSequence(lean(10, 180), withDelay(120, lean(0, 220)));
-    }
-  }, [refreshing, reduceMotion, hop, bow]);
 
-  // The intro: once a session, Noodle waves hello with its arm alone (owner, 2026-11-24): three
-  // waves, then rest. The body stays put, so the arm's tilt is held off until the wave is done.
-  const [intro] = useState(() => !reduceMotion && takeGreetingIntro());
-  const tiltOn = useSharedValue(intro ? 0 : 1);
+  // The hello: one per open the user sees, only while Home is in view.
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      return () => {
+        focused.current = false;
+      };
+    }, []),
+  );
+  const opens = useSyncExternalStore(subscribeOpens, openCount);
   useEffect(() => {
-    if (!intro) return;
+    if (reduceMotion || !width || opens === 0 || opens <= lastWaved || !focused.current) return;
+    lastWaved = opens;
     const out = (deg: number) => withTiming(deg, { duration: WAVE_HALF, easing: Easing.inOut(Easing.sin) });
     const [first, ...rest] = HELLO_WAVE.map(out);
     arm.value = withDelay(INTRO_DELAY, withSequence(first, ...rest));
-    // A margin past the last swing, so the arm is fully at rest before the tilt is allowed again.
-    tiltOn.value = withDelay(INTRO_DELAY + HELLO_WAVE.length * WAVE_HALF + 500, withTiming(1, { duration: 0 }));
-  }, [intro, tiltOn, arm]);
+  }, [opens, reduceMotion, width, arm]);
 
-  const pull = ctx?.pull;
-  const armed = ctx?.armed;
-  const moving = active && !reduceMotion;
+  // Out of the way while the dive mascot shows.
+  const diveShown = ctx?.look === "mascot" ? ctx.diveShown : undefined;
+  const present = useSharedValue(1);
   useAnimatedReaction(
-    () => (moving && ((armed?.value && (pull?.value ?? 0) > REST) || refreshing) ? 1 : 0),
+    () => diveShown?.value ?? 0,
     (now, prev) => {
-      // The first run is the mount, not a change: resting the arm there would cancel the hello wave.
-      if (now === prev || prev === null) return;
-      waving.value = now;
-      if (now) swingArm();
-      else rest();
+      if (now === prev) return;
+      cancelAnimation(present);
+      present.value = now ? 0 : withTiming(1, { duration: RETURN_MS, easing: Easing.out(Easing.quad) });
     },
-    [moving, refreshing],
   );
-
-  const style = useAnimatedStyle(() => {
-    const s = moving && pull && armed ? pullStretch(pull.value, REST, armed.value, STRETCH_SPAN) : 0;
-    return {
-      transform: [
-        { translateY: hop.value + s * 4 },
-        // Leaning in toward the finger, a slight tip toward the waving arm, and the bow at the end.
-        { rotate: `${-6 * s + bow.value + tiltOn.value * (Math.max(0, arm.value) / WAVE_OUT) * WAVE_TILT}deg` },
-      ],
-    };
-  });
+  const style = useAnimatedStyle(() => ({ opacity: present.value }));
   const content = width ? <Mascot name="happy" width={width} arm={arm} /> : children;
-  return (
-    <View>
-      <Animated.View style={[styles.feet, style]}>{content}</Animated.View>
-      {splash && width ? (
-        <View pointerEvents="none" style={[styles.feetSplash, { width }]}>
-          <Splash key={splash} color={d.color.tint.spend.accent} drops={JUMP_DROPS} />
-        </View>
-      ) : null}
-    </View>
-  );
+  return <Animated.View style={[styles.feet, style]}>{content}</Animated.View>;
 }
 
-/** The jump's splash at the greeting mascot's feet: small, low drops. */
-const JUMP_DROPS: Drop[] = [
-  { dx: -22, up: 14, r: 2.5, delay: 150 },
-  { dx: -10, up: 20, r: 2, delay: 160 },
-  { dx: 12, up: 18, r: 2, delay: 170 },
-  { dx: 24, up: 12, r: 2.5, delay: 155 },
-];
+/** The last open the page's mascot waved for, so a remount (a text-size change) never waves twice for one. */
+let lastWaved = 0;
 
 // ── Brand mark and smoke puff (the web's pull-to-refresh.tsx and app-header.tsx) ──
 
@@ -616,7 +555,7 @@ function Wisp({ dx, dy, delay }: { dx: number; dy: number; delay: number }) {
 }
 
 const styles = StyleSheet.create({
-  // The intro's wave and the pull's stretch turn and grow from the mascot's feet.
+  // The page mascot's box, its wave turning from its feet.
   feet: { transformOrigin: "bottom" },
   clip: { position: "absolute", left: 0, right: 0, height: MASCOT_MAX + MASCOT_HEIGHT + 40 + POOL_H, overflow: "hidden", alignItems: "center" },
   // The mascot and its pool travel together; the pool's center line is the sauce's surface.
@@ -626,7 +565,6 @@ const styles = StyleSheet.create({
   // Drops and bubbles start on the surface line, centered.
   surface: { position: "absolute", top: MASCOT_HEIGHT - 4, left: 0, right: 0, height: 0, alignItems: "center" },
   bubble: { position: "absolute", width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, marginLeft: -3, marginTop: -3 },
-  feetSplash: { position: "absolute", bottom: 4, left: 0, height: 0 },
   mark: { transformOrigin: "top" },
   // Centered just under the bar's edge, where the mark goes back in.
   puff: { position: "absolute", top: HOP_ROOM - 4, left: 0, right: 0, height: 24, alignItems: "center", justifyContent: "center" },

@@ -79,6 +79,22 @@ export function tabForPath(path: string): TabGroup | null {
   return TAB_BY_PATH.get(splitPath(path).pathname) ?? null;
 }
 
+/**
+ * The tab a page belongs to (owner, 2026-11-24): where the side menu and an
+ * incoming link open it, so the tab bar always shows where you are. A tab's
+ * root is its own tab; anything not listed lives under Home.
+ */
+const HOME_TAB: Record<string, TabGroup> = {
+  "/transactions": "(spending)",
+  "/debt": "(accounts)",
+  "/portfolio": "(accounts)",
+  "/tax": "(accounts)",
+};
+export function homeTabFor(path: string): TabGroup {
+  const { pathname } = splitPath(path);
+  return TAB_BY_PATH.get(pathname) ?? HOME_TAB[pathname] ?? "(home)";
+}
+
 export function pathForTab(group: string): string | null {
   return PATH_BY_TAB.get(group) ?? null;
 }

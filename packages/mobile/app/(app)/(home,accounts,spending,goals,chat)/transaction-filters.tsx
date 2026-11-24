@@ -589,7 +589,8 @@ const styles = themedStyles(() => StyleSheet.create({
   add: { minHeight: 44, justifyContent: "center" },
   addText: { ...type.body },
   // Pills start where the rows' text starts, and run to the sheet's edge when they scroll.
-  pills: { gap: 8, paddingHorizontal: space.card },
+  // Vertical room so a raised (selected) view pill's edge shadow is not clipped by the scroll view.
+  pills: { gap: 8, paddingHorizontal: space.card, paddingVertical: 4 },
   viewsHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 16, paddingRight: space.card },
   clear: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", columnGap: 28, rowGap: 8, paddingTop: 4 },
   viewRow: { flexDirection: "row", alignItems: "center", gap: 16, minHeight: 48, paddingHorizontal: 16 },

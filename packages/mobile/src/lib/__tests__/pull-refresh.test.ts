@@ -1,4 +1,4 @@
-import { AFTER_RELEASE_MS, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, MIN_REFRESH_MS, nextArmed, nextPrimed, PULL_TRIGGER, pullStretch, refreshLook, resetGreetingIntro, shouldFire, takeGreetingIntro } from "../pull-refresh";
+import { AFTER_RELEASE_MS, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, MIN_REFRESH_MS, nextArmed, nextPrimed, PULL_TRIGGER, pullStretch, refreshLook, shouldFire } from "../pull-refresh";
 
 test("each theme's skin draws its own indicator", () => {
   expect(refreshLook("mascot", { reduceMotion: false, hasMascot: true })).toBe("mascot");
@@ -54,7 +54,7 @@ test("the indicator arms only on a drag the user starts", () => {
   expect(mascotOpacity(MASCOT_PHASE.held, 0, 0, REST, false)).toBe(1);
 });
 
-test("the stretch follows only a user's pull, capped at 1", () => {
+test("the pool's fill follows only a user's pull, capped at 1", () => {
   expect(pullStretch(40, REST, false, 80)).toBe(0);
   expect(pullStretch(REST, REST, true, 80)).toBe(0);
   expect(pullStretch(REST + 40, REST, true, 80)).toBe(0.5);
@@ -74,12 +74,6 @@ test("a refresh done while the finger is still down holds until after it lifts",
   expect(holdRemaining(1000, 2500 + AFTER_RELEASE_MS, 2500)).toBe(0);
   // A lift before the refresh started (a flick that armed on the way back) adds nothing.
   expect(holdRemaining(1000, 1500, 900)).toBe(MIN_REFRESH_MS - 500);
-});
-
-test("Home's greeting intro plays once a session", () => {
-  resetGreetingIntro();
-  expect(takeGreetingIntro()).toBe(true);
-  expect(takeGreetingIntro()).toBe(false);
 });
 
 describe("poolScale", () => {

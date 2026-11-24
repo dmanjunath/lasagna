@@ -185,17 +185,22 @@ export function FiltersButton({ on, onPress }: { on: boolean; onPress: () => voi
   );
 }
 
+/** The raised pill's edge shadow (2pt) and border, plus a point of air, kept inside the scroll view's bounds. */
+const PILL_BLEED = 4;
+
 const styles = themedStyles(() =>
   StyleSheet.create({
     // Top-aligned: when the pills wrap, the trailing control stays beside the first line, not centered on the block.
     row: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
     trailing: { flexDirection: "row", alignItems: "center", gap: 8 },
-    line: { flexDirection: "row", gap: 8 },
+    // Room above and below for a raised pill's edge shadow and border, which a horizontal scroll view would
+    // otherwise clip; the box gives it back with a matching negative margin, so the row sits where it did.
+    line: { flexDirection: "row", gap: 8, paddingVertical: PILL_BLEED },
     // Runs to the screen's edges, past the page's gutter.
-    edge: { flex: 1, marginHorizontal: -space.screen, flexGrow: 1 },
+    edge: { flex: 1, marginHorizontal: -space.screen, marginVertical: -PILL_BLEED, flexGrow: 1 },
     edgeLine: { paddingHorizontal: space.screen },
     // Beside a trailing control: runs from the page's left edge up to the control.
-    scrollBox: { flex: 1, marginLeft: -space.screen },
+    scrollBox: { flex: 1, marginLeft: -space.screen, marginVertical: -PILL_BLEED },
     tailLine: { paddingLeft: space.screen, paddingRight: 8 },
     // Beside a trailing control: a little tighter, so the page-top row fits one line on a 390pt phone.
     denseLine: { gap: 6 },

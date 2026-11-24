@@ -609,6 +609,135 @@ function simulatePlan(opts: {
   return rows;
 }
 
+// The year-by-year projection, grouped by phase. Each phase shows only the
+// columns that change in it (saving: what you add; retired: guaranteed income
+// and what you withdraw), so no column is a run of dashes, and the year the
+// plan turns (retirement, Social Security, other income, money running out)
+// is marked on its row. A row's start balance is the row above's balance; the
+// phase header carries the first one. Phones get a two-line list instead of a
+// wide table.
+function YearByYear({ rows, retireAge, ssAnnual, ssClaimAge, otherAnnual, otherStartAge }: {
+  rows: PlanRow[]; retireAge: number; ssAnnual: number; ssClaimAge: number; otherAnnual: number; otherStartAge: number;
+}) {
+  const hide = isAmountsHidden();
+  // Shown in today's dollars, like the growth chart: each future amount is
+  // deflated by the same inflation assumption. Display only, the plan is unchanged.
+  const age0 = rows[0]?.age ?? 0;
+  const today = (r: PlanRow): PlanRow => {
+    const f = Math.pow(1 + INFLATION, r.age - age0);
+    return { ...r, start: Math.round(r.start / f), contribution: Math.round(r.contribution / f), gi: Math.round(r.gi / f), withdrawal: Math.round(r.withdrawal / f), end: Math.round(r.end / f) };
+  };
+  const saving = rows.filter(r => r.phase === 'saving').map(today);
+  const retired = rows.filter(r => r.phase === 'retired').map(today);
+  const [open, setOpen] = useState<{ saving: boolean; retired: boolean }>({ saving: retired.length === 0, retired: true });
+  const money = (n: number) => formatMoney(n, true);
+  const milestones = (r: PlanRow): { label: string; tone: 'brand' | 'neutral' | 'negative' }[] => {
+    const m: { label: string; tone: 'brand' | 'neutral' | 'negative' }[] = [];
+    if (r.phase === 'retired' && r.age === retireAge && saving.length > 0) m.push({ label: 'Retire', tone: 'brand' });
+    if (ssAnnual > 0 && r.age === ssClaimAge && r.phase === 'retired') m.push({ label: 'Social Security starts', tone: 'neutral' });
+    if (otherAnnual > 0 && r.age === otherStartAge && r.phase === 'retired') m.push({ label: 'Other income starts', tone: 'neutral' });
+    if (r.phase === 'retired' && r.end <= 0) m.push({ label: 'Money runs out', tone: 'negative' });
+    return m;
+  };
+  const Marks = ({ r }: { r: PlanRow }) => {
+    const m = milestones(r);
+    return m.length ? (
+      <span className="flex flex-wrap gap-1">
+        {m.map(x => <Badge key={x.label} tone={x.tone} size="sm">{x.label}</Badge>)}
+      </span>
+    ) : null;
+  };
+  const balance = (r: PlanRow) => (
+    <span className={cn('font-semibold ui-tnum', r.end <= 0 && !hide ? 'text-negative' : 'text-content')}>{money(r.end)}</span>
+  );
+
+  const group = (key: 'saving' | 'retired', list: PlanRow[]) => {
+    if (list.length === 0) return null;
+    const first = list[0]; const last = list[list.length - 1];
+    const isOpen = open[key];
+    const title = key === 'saving' ? 'Saving' : 'Retired';
+    const span = first.age === last.age ? `age ${first.age}` : `age ${first.age} to ${last.age}`;
+    const summary = key === 'saving' || last.end > 0
+      ? `From ${money(first.start)} to ${money(last.end)}`
+      : `From ${money(first.start)}, runs out at ${last.age}`;
+    return (
+      <div key={key} data-testid={`rv2-years-${key}`}>
+        <button
+          type="button"
+          onClick={() => setOpen(o => ({ ...o, [key]: !o[key] }))}
+          aria-expanded={isOpen}
+          data-testid="rv2-year-expand"
+          className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left border-t border-line hover:bg-canvas-sunken/60 transition-colors"
+        >
+          <span className="min-w-0">
+            <span className="block text-[13.5px] font-semibold text-content">{title}, {span}</span>
+            <span className="block text-[12.5px] text-content-muted ui-tnum">{summary}</span>
+          </span>
+          <ChevronDown size={16} className={cn('shrink-0 text-content-muted transition-transform', isOpen && 'rotate-180')} />
+        </button>
+        {isOpen && (
+          <>
+            {/* Phones: a two-line list, nothing to scroll sideways. */}
+            <ul className="sm:hidden" data-testid="rv2-year-list">
+              {list.map(r => (
+                <li key={r.age} data-testid="rv2-year-row" className="flex items-start justify-between gap-3 px-5 py-2.5 border-t border-hairline">
+                  <span className="min-w-0 flex flex-col gap-1">
+                    <span className="text-[14px] text-content">
+                      <span className="font-semibold ui-tnum">Age {r.age}</span>
+                      <span className="ml-2 text-[12.5px] text-content-muted ui-tnum">{r.year}</span>
+                    </span>
+                    <span className="text-[12.5px] text-content-secondary ui-tnum">
+                      {key === 'saving'
+                        ? r.contribution > 0 ? `Saved ${hide ? money(r.contribution) : `+${money(r.contribution)}`}` : 'Nothing saved'
+                        : [r.withdrawal > 0 ? `Withdrew ${money(r.withdrawal)}` : null, r.gi > 0 ? `Guaranteed income ${money(r.gi)}` : null].filter(Boolean).join('. ') || 'Nothing withdrawn'}
+                    </span>
+                    <Marks r={r} />
+                  </span>
+                  <span className="shrink-0 text-[14px]">{balance(r)}</span>
+                </li>
+              ))}
+            </ul>
+            {/* Wider screens: a table with only this phase's columns. */}
+            <table className="rv2-table hidden sm:table w-full" style={{ borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th>Age</th><th>Year</th>
+                  {key === 'saving' ? <th>Saved</th> : <><th>Guaranteed income</th><th>Withdrawn</th></>}
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map(r => (
+                  <tr key={r.age} data-testid="rv2-year-row">
+                    <td>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-content">{r.age}</span>
+                        <Marks r={r} />
+                      </span>
+                    </td>
+                    <td>{r.year}</td>
+                    {key === 'saving'
+                      ? <td>{r.contribution > 0 ? (hide ? money(r.contribution) : `+${money(r.contribution)}`) : '—'}</td>
+                      : <><td>{r.gi > 0 ? money(r.gi) : '—'}</td><td>{r.withdrawal > 0 ? money(r.withdrawal) : '—'}</td></>}
+                    <td>{balance(r)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div data-testid="rv2-table">
+      {group('saving', saving)}
+      {group('retired', retired)}
+    </div>
+  );
+}
+
 // Swatches for the growth-chart legends: the two fan bands at the opacity the
 // band reads at, and the median or single path as a line.
 const FAN_OUTER_SWATCH = { width: 12, height: 6, borderRadius: 1.5, opacity: 0.3 };
@@ -1523,6 +1652,19 @@ export function RetirementV2() {
     return () => obs.disconnect();
   }, [loading, hasAccounts]);
 
+  // The year-by-year card carries the outcome row by row and its own phase
+  // headers, so the pinned pill steps aside while the card is on screen
+  // instead of floating over its titles.
+  const yearsRef = useRef<HTMLDivElement>(null);
+  const [yearsVisible, setYearsVisible] = useState(false);
+  useEffect(() => {
+    const el = yearsRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => setYearsVisible(entry.isIntersecting), { rootMargin: '-60px 0px 0px 0px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loading, hasAccounts]);
+
   useEffect(() => {
     let cancelled = false;
     api
@@ -2120,9 +2262,9 @@ export function RetirementV2() {
           background: rgb(var(--ui-canvas-sunken)); color: rgb(var(--ui-content-muted));
         }
         .rv2-comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px 24px; }
-        .rv2-table th { text-align: right; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: rgb(var(--ui-content-muted)); border-bottom: 1px solid var(--ui-line); white-space: nowrap; }
+        .rv2-table th { text-align: right; padding: 8px 12px; font-size: 12px; font-weight: 600; color: rgb(var(--ui-content-muted)); border-bottom: 1px solid var(--ui-line); white-space: nowrap; }
         .rv2-table th:first-child, .rv2-table td:first-child { text-align: left; }
-        .rv2-table td { text-align: right; padding: 6px 12px; font-variant-numeric: tabular-nums; font-size: 12.5px; border-top: 1px solid var(--ui-hairline); color: rgb(var(--ui-content-secondary)); white-space: nowrap; }
+        .rv2-table td { text-align: right; padding: 8px 12px; font-variant-numeric: tabular-nums; font-size: 13px; border-top: 1px solid var(--ui-hairline); color: rgb(var(--ui-content-secondary)); white-space: nowrap; }
         /* "Checked against": the backtest and the sustainable draw, side by
            side on desktop and stacked on narrow phones. */
         .rv2-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; }
@@ -2245,8 +2387,8 @@ export function RetirementV2() {
       <div
         className="ret-pin"
         data-testid="rv2-pinned-chance"
-        data-hidden={heroNumVisible ? 'true' : 'false'}
-        aria-hidden={heroNumVisible}
+        data-hidden={heroNumVisible || yearsVisible ? 'true' : 'false'}
+        aria-hidden={heroNumVisible || yearsVisible}
       >
         <div className="ret-pin__bar">
           <span className="ret-pin__verdict font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>
@@ -3069,6 +3211,7 @@ export function RetirementV2() {
         </Card>
 
         <Card className="mt-4" style={{ padding: 0 }}>
+          <div ref={yearsRef}>
           <div className="w-full flex items-center justify-between gap-3 px-5 py-4">
             <button
               type="button"
@@ -3077,38 +3220,17 @@ export function RetirementV2() {
               aria-expanded={tableOpen}
               className="flex-1 flex items-center justify-between gap-3 cursor-pointer text-left"
             >
-              <span className="text-[13.5px] font-semibold text-content">
-                Year by year projection
-                <span className="ml-2.5 text-[12px] font-medium text-content-muted ui-tnum">deterministic at {expReturn.toFixed(1)}%/yr, nominal $</span>
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-semibold text-content">Year by year</span>
+                <span className="block text-[12.5px] font-medium text-content-muted ui-tnum">One steady path at {expReturn.toFixed(1)}% a year, in today's dollars</span>
               </span>
               <ChevronDown size={16} className={cn('text-content-muted transition-transform', tableOpen && 'rotate-180')} />
             </button>
           </div>
           {tableOpen && (
-            <div className="border-t border-line overflow-x-auto" style={{ maxHeight: 420, overflowY: 'auto' }} data-testid="rv2-table">
-              <table className="rv2-table w-full" style={{ borderCollapse: 'collapse' }}>
-                <thead style={{ position: 'sticky', top: 0, background: 'rgb(var(--ui-panel))', zIndex: 1 }}>
-                  <tr>
-                    <th>Age</th><th>Year</th><th>Phase</th><th>Start</th><th>Saved</th><th>Guaranteed income</th><th>Withdrawal</th><th>End</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {planRows.map(r => (
-                    <tr key={r.age} style={r.phase === 'saving' ? { background: 'var(--ui-brand-softer)' } : undefined}>
-                      <td style={{ fontWeight: 600, color: 'rgb(var(--ui-content))' }}>{r.age}</td>
-                      <td>{r.year}</td>
-                      <td style={{ fontSize: 11.5, color: r.phase === 'saving' ? 'rgb(var(--ui-brand-ink))' : 'rgb(var(--ui-content-muted))' }}>{r.phase}</td>
-                      <td>{formatMoney(r.start, true)}</td>
-                      <td>{r.contribution > 0 ? (hideAmounts ? formatMoney(r.contribution, true) : `+${formatMoney(r.contribution, true)}`) : '—'}</td>
-                      <td>{r.gi > 0 ? formatMoney(r.gi, true) : '—'}</td>
-                      <td style={{ color: r.withdrawal > 0 && !hideAmounts ? 'rgb(var(--ui-caution))' : undefined }}>{r.withdrawal > 0 ? (hideAmounts ? formatMoney(r.withdrawal, true) : `−${formatMoney(r.withdrawal, true)}`) : '—'}</td>
-                      <td style={{ fontWeight: 600, color: r.end <= 0 && !hideAmounts ? 'rgb(var(--ui-negative))' : 'rgb(var(--ui-content))' }}>{formatMoney(r.end, true)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <YearByYear rows={planRows} retireAge={effRetireAge} ssAnnual={ssAnnual} ssClaimAge={ssClaimAge} otherAnnual={otherAnnual} otherStartAge={otherStartAge} />
           )}
+          </div>
         </Card>
       </Section>
       </>)}

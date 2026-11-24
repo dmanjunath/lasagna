@@ -189,7 +189,6 @@ const UPPERCASE_ALLOWED: Record<string, number> = {
   'pages/admin-spend.tsx': 1,
   'pages/admin.tsx': 2,
   'pages/probability-of-success.tsx': 2,
-  'pages/retirement-v2.tsx': 1,
   // Column headers in the plan report.
   'pages/financial-plans/[id].tsx': 7,
   // Status badges on admin screens.

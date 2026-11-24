@@ -143,3 +143,25 @@ describe("isSheetOnTop", () => {
     expect(isSheetOnTop(["(app)", "(accounts)", "accounts", "[id]"])).toBe(false);
   });
 });
+
+describe("homeTabFor", () => {
+  const { homeTabFor, hrefFor } = require("../routes");
+  it("opens a page in the tab it belongs to", () => {
+    expect(homeTabFor("/transactions?kind=out")).toBe("(spending)");
+    expect(homeTabFor("/debt")).toBe("(accounts)");
+    expect(homeTabFor("/portfolio")).toBe("(accounts)");
+    expect(homeTabFor("/tax")).toBe("(accounts)");
+    expect(homeTabFor("/insights")).toBe("(home)");
+    expect(homeTabFor("/financial-level")).toBe("(home)");
+    expect(homeTabFor("/profile")).toBe("(home)");
+    expect(homeTabFor("/retirement")).toBe("(home)");
+  });
+  it("a tab's root is its own tab", () => {
+    expect(homeTabFor("/accounts")).toBe("(accounts)");
+    expect(homeTabFor("/goals")).toBe("(goals)");
+  });
+  it("the drawer's href lands inside that tab", () => {
+    expect(hrefFor("/transactions", homeTabFor("/transactions"))).toBe("/(spending)/transactions");
+    expect(hrefFor("/debt", homeTabFor("/debt"))).toBe("/(accounts)/debt");
+  });
+});

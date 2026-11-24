@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { formatMoney } from "@/lib/format";
 import { chartScale, chartWindowStart, columnTitle, fitColumnLabel, isCurrentKey, shortMoney, type TrendPeriod } from "@/lib/spending";
+import { withAlpha } from "@lasagna/design";
 import { useTheme as useDesign } from "@/design";
 import { figures, themedStyles, type, useTheme, weight } from "@/theme";
 
@@ -126,8 +127,8 @@ function CashflowChartBase({
               const on = p.period === selected;
               const partial = p.period === partialKey;
               const up = spendingOnly ? p.expenses : p.income;
-              const upH = Math.max(up > 0 ? 2 : 0, zeroY - yAt(up));
-              const downH = spendingOnly ? 0 : Math.max(p.expenses > 0 ? 2 : 0, yAt(-p.expenses) - zeroY);
+              const upH = Math.max(up > 0 ? MIN_BAR : 0, zeroY - yAt(up));
+              const downH = spendingOnly ? 0 : Math.max(p.expenses > 0 ? MIN_BAR : 0, yAt(-p.expenses) - zeroY);
               const label = fitColumnLabel(p.period, i === 0 || p.period.endsWith("-01"), colW - 6, labelPx, partial ? "*" : "");
               return (
                 <Pressable
@@ -146,9 +147,9 @@ function CashflowChartBase({
                     pressed && !on && { backgroundColor: t.hairline },
                   ]}
                 >
-                  <View style={{ height: PLOT_H, width: barW, opacity: partial ? 0.5 : 1 }}>
-                    <View style={[styles.bar, { top: zeroY - upH, height: upH, backgroundColor: spendingOnly ? spendColor : incomeColor, borderTopLeftRadius: 4, borderTopRightRadius: 4 }]} />
-                    <View style={[styles.bar, { top: zeroY, height: downH, backgroundColor: spendColor, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 }]} />
+                  <View style={{ height: PLOT_H, width: barW }}>
+                    <View style={[styles.bar, barFill(spendingOnly ? spendColor : incomeColor, partial), { top: zeroY - upH, height: upH, borderTopLeftRadius: 4, borderTopRightRadius: 4 }]} />
+                    <View style={[styles.bar, barFill(spendColor, partial), { top: zeroY, height: downH, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 }]} />
                   </View>
                   <Text style={[styles.label, { height: labelH, lineHeight: labelH, color: on ? t.content : t.contentMuted }, on && weight.semibold]} numberOfLines={1} maxFontSizeMultiplier={LABEL_MAX_SCALE}>
                     {label}
@@ -179,6 +180,19 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 }
 
 export const CashflowChart = memo(CashflowChartBase);
+
+/** A bar never thinner than this, so a small month (or one dwarfed by a big income) still shows. */
+const MIN_BAR = 4;
+
+/**
+ * A bar's fill. The current period, still under way, is drawn "so far": a
+ * lighter fill inside an outline of the full color, so it reads as unfinished
+ * and stays clearly visible on any card or hero tint (a faded bar vanished on
+ * the basil hero).
+ */
+export function barFill(color: string, soFar: boolean) {
+  return soFar ? { backgroundColor: withAlpha(color, 0.35), borderWidth: 1.5, borderColor: color } : { backgroundColor: color };
+}
 
 const styles = themedStyles(() =>
   StyleSheet.create({

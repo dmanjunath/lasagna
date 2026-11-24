@@ -56,6 +56,8 @@ type Chrome = {
   /** How far the content sits below its rest, and whether the user started that pull (for a mascot on the page). */
   pull: SharedValue<number>;
   armed: SharedValue<boolean>;
+  /** Whether the dive mascot is on screen (0 or 1). */
+  diveShown: SharedValue<number>;
   /** Spread on the scroll view: the indicator shows only on a pull the user starts. */
   dragHandlers: { onScrollBeginDrag: () => void; onScrollEndDrag: () => void };
 };
@@ -74,7 +76,6 @@ export function useCollapsingHeader({
   refreshing,
   onRefresh,
   searchBar = false,
-  inlineMascot = false,
 }: {
   title: string;
   barTitle?: ReactNode;
@@ -86,8 +87,6 @@ export function useCollapsingHeader({
   onRefresh?: () => void;
   /** The bar has a search field that hides on scroll (a pull reveals it before it refreshes). */
   searchBar?: boolean;
-  /** A mascot on the page is the refresh indicator (RefreshMascot). */
-  inlineMascot?: boolean;
 }): Chrome {
   const t = useTheme();
   const d = useDesign();
@@ -123,7 +122,7 @@ export function useCollapsingHeader({
   const dragging = useSharedValue(false);
   // When the finger last lifted, for how long a finished refresh stays on (null while it is down).
   const [releasedAt, setReleasedAt] = useState<number | null>(0);
-  const refresh = usePullRefresh({ pull, dragging, releasedAt, edge: barBottom, inlineMascot, refreshing, onRefresh: scrolled ? undefined : onRefresh, reduceMotion });
+  const refresh = usePullRefresh({ pull, dragging, releasedAt, edge: barBottom, refreshing, onRefresh: scrolled ? undefined : onRefresh, reduceMotion });
   const dragHandlers = useMemo(
     () => ({
       onScrollBeginDrag: () => {
@@ -200,6 +199,7 @@ export function useCollapsingHeader({
     refreshOn: refresh.on,
     pull,
     armed: refresh.armed,
+    diveShown: refresh.diveShown,
     dragHandlers,
   };
 }
@@ -238,12 +238,11 @@ type Props = Omit<ScrollViewProps, "refreshControl" | "contentContainerStyle"> &
 
 /** A scrolling screen on the scaffold: the bar, the in-content title, the theme's gutter, pull to refresh. */
 export function ScreenScroll({ title, root = false, header, barTitle, refreshing, onRefresh, contentContainerStyle, children, ...rest }: Props) {
-  // A mascot in the content (Home's greeting) claims the indicator's job.
-  const [inlineMascot, setInlineMascot] = useState(false);
-  const chrome = useCollapsingHeader({ title, barTitle, root, refreshing, onRefresh, inlineMascot });
+  const chrome = useCollapsingHeader({ title, barTitle, root, refreshing, onRefresh });
+  // A mascot in the content (Home's greeting) steps aside while the dive mascot shows.
   const refreshCtx = useMemo(
-    () => ({ refreshing: chrome.refreshOn, look: chrome.refreshLook, claim: setInlineMascot, pull: chrome.pull, armed: chrome.armed }),
-    [chrome.refreshOn, chrome.refreshLook, chrome.pull, chrome.armed],
+    () => ({ look: chrome.refreshLook, diveShown: chrome.diveShown }),
+    [chrome.refreshLook, chrome.diveShown],
   );
   // The content is laid out again when the text size changes (see text-scale.ts).
   const scaleKey = useTextScaleKey();

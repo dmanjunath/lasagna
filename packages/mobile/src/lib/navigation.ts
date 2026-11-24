@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { getCurrentTab, hrefFor, isSheetOpen, setSheetOpen, tabForPath } from "./routes";
+import { getCurrentTab, homeTabFor, hrefFor, isSheetOpen, setSheetOpen, tabForPath } from "./routes";
 
 /**
  * Opens a web-app path. Every link to an app route goes through here.
@@ -9,14 +9,19 @@ import { getCurrentTab, hrefFor, isSheetOpen, setSheetOpen, tabForPath } from ".
  * link to another tab's root (Home's "View all" to Spending pushes the
  * Spending page in Home). Tabs are switched only by the tab bar, and by "tab":
  * the drawer, and a destination the app chose itself (onboarding's hand-off),
- * which go to the tab when the path is a tab's root and push otherwise.
+ * which open the page in the tab it belongs to (homeTabFor: Transactions in
+ * Spending, Debt in Accounts), so that tab lights up and Back returns to it.
  */
 export function openPath(path: string, mode: "push" | "replace" | "tab" = "push") {
   closeSheet();
+  if (mode === "tab") {
+    router.navigate(hrefFor(path, homeTabFor(path)) as never);
+    return;
+  }
   const tab = getCurrentTab();
-  const href = hrefFor(path, tab, { stay: mode !== "tab" });
+  const href = hrefFor(path, tab, { stay: true });
   const root = tabForPath(path);
-  if (root && (mode === "tab" || root === "(home)" || root === tab)) router.navigate(href as never);
+  if (root && (root === "(home)" || root === tab)) router.navigate(href as never);
   else if (mode === "replace") router.replace(href as never);
   else router.push(href as never);
 }

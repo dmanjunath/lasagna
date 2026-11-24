@@ -19,7 +19,7 @@ test("auth links open their root screens with the token intact", () => {
 test("app links open a tab, a native screen, or the fallback", () => {
   expect(hrefForLink("https://app.example.test/")).toBe("/(home)");
   expect(hrefForLink("https://app.example.test/goals")).toBe("/(goals)");
-  expect(hrefForLink("lasagna://transactions?categories=food")).toBe("/(home)/transactions?categories=food");
+  expect(hrefForLink("lasagna://transactions?categories=food")).toBe("/(spending)/transactions?categories=food");
   expect(hrefForLink("https://app.example.test/plans/savings/g1")).toBe("/(home)/goals/g1");
 });
 

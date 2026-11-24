@@ -74,7 +74,7 @@ export function mascotOpacity(phase: number, pull: number, exit: number, rest: n
   return armed && pull > rest ? 1 : 0;
 }
 
-/** How far a pull has gone toward arming the refresh, 0 to 1, for the stretch that follows the finger. Only a user's pull counts. */
+/** How far a pull has gone toward arming the refresh, 0 to 1, for the pool that forms with the finger. Only a user's pull counts. */
 export function pullStretch(pull: number, rest: number, armed: boolean, span: number): number {
   "worklet";
   if (!armed || pull <= rest) return 0;
@@ -119,16 +119,4 @@ export function holdRemaining(startedAt: number, now: number, releasedAt: number
   const fromStart = min - (now - startedAt);
   const fromRelease = releasedAt >= startedAt ? after - (now - releasedAt) : 0;
   return Math.max(0, fromStart, fromRelease);
-}
-
-let greeted = false;
-/** True only the first time it is asked in an app session: Home's mascot pops in and waves once, not on every tab switch or remount. */
-export function takeGreetingIntro(): boolean {
-  if (greeted) return false;
-  greeted = true;
-  return true;
-}
-/** For tests. */
-export function resetGreetingIntro() {
-  greeted = false;
 }

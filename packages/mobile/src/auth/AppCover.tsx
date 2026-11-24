@@ -4,6 +4,7 @@ import { AppState, Image, StyleSheet, useColorScheme, useWindowDimensions, View 
 import { useTheme as useDesign } from "@/design";
 import { useTheme } from "@/theme";
 import { Button } from "@/ui/Button";
+import { reportOpen } from "@/lib/app-open";
 import { isLockEnabled, shouldLock } from "./biometric";
 
 // The cover's art per the theme's brandArt skin, each a 2732px square drawn
@@ -89,7 +90,11 @@ export function AppCover({ signedIn }: { signedIn: boolean }) {
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
-      if (s === "background") backgroundedAt.current = Date.now();
+      if (s === "background") {
+        backgroundedAt.current = Date.now();
+        // Coming back from here is an open the user sees, so Home's mascot says hello again.
+        reportOpen({ type: "background" });
+      }
       if (s === "active") {
         const at = backgroundedAt.current;
         backgroundedAt.current = undefined;
@@ -106,6 +111,11 @@ export function AppCover({ signedIn }: { signedIn: boolean }) {
   useEffect(() => {
     if (locked) autoPrompt.current = true;
   }, [locked]);
+
+  // Whether anything covers the app, for the hello wave: it plays once the user can actually see Home.
+  useEffect(() => {
+    reportOpen({ type: "covered", covered: locked || inactive });
+  }, [locked, inactive]);
 
   useEffect(() => {
     if (!locked || inactive || !autoPrompt.current) return;

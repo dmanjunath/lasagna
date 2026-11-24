@@ -1,4 +1,4 @@
-import { hrefFor, splitPath } from "./routes";
+import { homeTabFor, hrefFor, splitPath } from "./routes";
 
 /**
  * The web-app path an incoming link names. Universal links carry it as the
@@ -35,5 +35,6 @@ export function hrefForLink(url: string): string {
   if (ROOT_SCREENS.has(pathname)) return `${pathname}${search}`;
   if (pathname === "/signup") return "/sign-in?mode=signup";
   if (pathname === "/login" || pathname === "/verify-email") return "/sign-in";
-  return hrefFor(path, "(home)");
+  // A page opens in the tab it belongs to, so the tab bar shows where the link landed.
+  return hrefFor(path, homeTabFor(path));
 }
