@@ -173,6 +173,16 @@ export function scopeSummary(s: SpendingSummaryData, f: SpendFilter): Scoped {
 }
 
 /** Percent of income kept, or null without income. */
+/**
+ * The Spending hero's tint (owner, 2026-11-24): the period's net, not the spend role. Money in
+ * at or above money out is basil; below it, sauce. Under a category, merchant or amount filter
+ * the hero shows only Spent, and net describes nothing, so it stays the spend tint.
+ */
+export function spendingHeroRole(net: number, narrowsFlow: boolean): "income" | "spend" {
+  if (narrowsFlow) return "spend";
+  return net >= 0 ? "income" : "spend";
+}
+
 export function savingsRate(income: number, spending: number): number | null {
   return income > 0 ? ((income - spending) / income) * 100 : null;
 }

@@ -31,6 +31,7 @@ import {
   periodShort,
   periodTitle,
   savingsRate,
+  spendingHeroRole,
   scopeFromQuery,
   recentScope,
   scopeSummary,
@@ -194,6 +195,8 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
   const income = instant ? trendRow.income : (scoped?.incomeTotal ?? 0);
   const net = instant ? trendRow.net : (scoped?.net ?? 0);
   const rate = savingsRate(income, spent);
+  // The hero's tint follows the period's net: basil when money in covers money out, else sauce.
+  const heroRole = spendingHeroRole(net, narrowsFlow);
   const change = trend.data && !trend.isPlaceholderData ? changeLine(trend.data, key, spent, period.granularity) : null;
 
   const loaded = !!summary.data && !stale;
@@ -323,7 +326,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
         ) : (
           <>
             {/* 2. Hero: what went out, the change in words, then income, net and savings rate, over the cash flow chart (a year's as its months). */}
-            <Card hero="spend" style={{ gap: 14 }}>
+            <Card hero={heroRole} style={{ gap: 14 }}>
               <View style={{ gap: 2, opacity: stale && !instant ? 0.5 : 1 }}>
                 <Text style={[styles.caption, { color: spendInk }]}>Spent</Text>
                 {/* The hero figure: a tap hides or shows every amount. */}

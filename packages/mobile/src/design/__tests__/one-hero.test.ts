@@ -30,7 +30,8 @@ const HEROES: Record<string, string[]> = {
   "src/screens/GoalsScreen.tsx": ["goal"],
   "src/screens/JourneyScreen.tsx": ["income"],
   "src/screens/PortfolioScreen.tsx": ["wealth", "wealth"], // by account, or the holdings value
-  "src/screens/SpendingScreen.tsx": ["spend"],
+  // The period's net decides it: income (basil) at or above zero, spend (sauce) below (owner, 2026-11-24).
+  "src/screens/SpendingScreen.tsx": ["{heroRole}"],
   "src/screens/TaxScreen.tsx": ["wealth"],
 };
 

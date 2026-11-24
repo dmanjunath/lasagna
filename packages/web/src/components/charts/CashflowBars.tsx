@@ -513,8 +513,8 @@ export function CashflowBars({
       className="mt-2"
       style={{ paddingLeft: chartLeft }}
       items={[
-        { key: 'income', label: 'Income', color: 'var(--ui-chart-in, var(--ui-viz-2))' },
-        { key: 'spending', label: 'Spending', color: 'var(--ui-chart-out, var(--ui-viz-4))' },
+        { key: 'income', label: 'Money in', color: 'var(--ui-chart-in, var(--ui-viz-2))' },
+        { key: 'spending', label: 'Money out', color: 'var(--ui-chart-out, var(--ui-viz-4))' },
         // Only while the hatched column is actually on screen. Paged past it,
         // this entry keys a mark the plot no longer carries. Paging is a
         // discrete, snapped step, so the entry appears and disappears once per

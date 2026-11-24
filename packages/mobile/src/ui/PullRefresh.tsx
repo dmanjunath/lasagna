@@ -345,6 +345,8 @@ const WAVE_BACK = -18;
 const WAVE_HALF = 260;
 /** How far the body tips toward the wave at its widest, in degrees. */
 const WAVE_TILT = 3;
+/** The first-load hello waits for the screen to settle before the arm starts. */
+const INTRO_DELAY = 400;
 
 /**
  * Wraps a mascot already on the page (Home's greeting). Where the refresh skin
@@ -353,7 +355,7 @@ const WAVE_TILT = 3;
  * for joy with a little splash of sauce at its feet, it keeps a gentle wave
  * while the screen refetches, and when it is done it takes a small bow and
  * settles exactly where it was. No second mascot comes down from the bar. The
- * first time Home shows in a session it pops in and waves hello. Reduce Motion:
+ * first time Home shows in a session it waves hello with its arm alone. Reduce Motion:
  * it stands still. Elsewhere it draws its child as is.
  */
 export function RefreshMascot({ children, width }: { children?: ReactNode; /** The mascot's width: given, the wrapper draws it itself with a waving arm. */ width?: number }) {
@@ -403,15 +405,17 @@ export function RefreshMascot({ children, width }: { children?: ReactNode; /** T
     }
   }, [refreshing, reduceMotion, hop, bow]);
 
-  // The intro: once a session, a pop with a little bounce, then a wave hello.
+  // The intro: once a session, Noodle waves hello with its arm alone (owner, 2026-11-24): three
+  // waves, then rest. The body stays put, so the arm's tilt is held off until the wave is done.
   const [intro] = useState(() => !reduceMotion && takeGreetingIntro());
-  const pop = useSharedValue(intro ? 0 : 1);
+  const tiltOn = useSharedValue(intro ? 0 : 1);
   useEffect(() => {
     if (!intro) return;
-    pop.value = withDelay(120, withSpring(1, { damping: 9, stiffness: 220, mass: 0.8 }));
     const out = (deg: number) => withTiming(deg, { duration: WAVE_HALF, easing: Easing.inOut(Easing.sin) });
-    arm.value = withDelay(520, withSequence(out(WAVE_OUT), out(WAVE_BACK), out(WAVE_OUT), out(WAVE_BACK), out(0)));
-  }, [intro, pop, arm]);
+    arm.value = withDelay(INTRO_DELAY, withSequence(out(WAVE_OUT), out(WAVE_BACK), out(WAVE_OUT), out(WAVE_BACK), out(WAVE_OUT), out(0)));
+    // A margin past the last swing, so the arm is fully at rest before the tilt is allowed again.
+    tiltOn.value = withDelay(INTRO_DELAY + 6 * WAVE_HALF + 500, withTiming(1, { duration: 0 }));
+  }, [intro, tiltOn, arm]);
 
   const pull = ctx?.pull;
   const armed = ctx?.armed;
@@ -419,7 +423,8 @@ export function RefreshMascot({ children, width }: { children?: ReactNode; /** T
   useAnimatedReaction(
     () => (moving && ((armed?.value && (pull?.value ?? 0) > REST) || refreshing) ? 1 : 0),
     (now, prev) => {
-      if (now === prev) return;
+      // The first run is the mount, not a change: resting the arm there would cancel the hello wave.
+      if (now === prev || prev === null) return;
       waving.value = now;
       if (now) swingArm();
       else rest();
@@ -433,8 +438,7 @@ export function RefreshMascot({ children, width }: { children?: ReactNode; /** T
       transform: [
         { translateY: hop.value + s * 4 },
         // Leaning in toward the finger, a slight tip toward the waving arm, and the bow at the end.
-        { rotate: `${-6 * s + bow.value + (Math.max(0, arm.value) / WAVE_OUT) * WAVE_TILT}deg` },
-        { scale: pop.value },
+        { rotate: `${-6 * s + bow.value + tiltOn.value * (Math.max(0, arm.value) / WAVE_OUT) * WAVE_TILT}deg` },
       ],
     };
   });

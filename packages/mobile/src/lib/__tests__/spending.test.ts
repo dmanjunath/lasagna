@@ -1,4 +1,4 @@
-import { chartWindowStart, paceVerdict, rowPace, fitColumnLabel, earliestMonthOf,
+import { spendingHeroRole, chartWindowStart, paceVerdict, rowPace, fitColumnLabel, earliestMonthOf,
   breakdownRows,
   changeLine,
   chartScale,
@@ -262,5 +262,19 @@ describe("money back (refunds reduce Spent)", () => {
   it("money back has no pace", () => {
     const row = breakdownRows([{ ...cats[2], usual: 50 }])[0];
     expect(rowPace(row, "2026-11", new Date(2026, 10, 20))).toBeNull();
+  });
+});
+
+describe("spendingHeroRole", () => {
+  it("is basil when money in covers money out", () => {
+    expect(spendingHeroRole(5176, false)).toBe("income");
+    expect(spendingHeroRole(0, false)).toBe("income");
+  });
+  it("is sauce when money out exceeds money in", () => {
+    expect(spendingHeroRole(-0.01, false)).toBe("spend");
+    expect(spendingHeroRole(-1200, false)).toBe("spend");
+  });
+  it("stays sauce under a filter that narrows the flow to Spent", () => {
+    expect(spendingHeroRole(5176, true)).toBe("spend");
   });
 });

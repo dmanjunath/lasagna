@@ -656,6 +656,9 @@ export function Spending() {
   const displaySpending = hoveredPeriod ? hoveredPeriod.expenses : baseSpending;
   const displayIncome = hoveredPeriod ? hoveredPeriod.income : baseIncome;
   const displayNet = hoveredPeriod ? hoveredPeriod.net : baseNet;
+  // The hero's tint (under a design that tints heroes) follows the selected period's net, not the
+  // spend role: basil when money in covers money out, else sauce (owner, 2026-11-24). Hovering a
+  // bar changes the figures, not the tint, so the card never flickers.
   const savingsRate = displayIncome > 0 ? ((displayIncome - displaySpending) / displayIncome) * 100 : null;
   // No money either way in the scope on screen. "+$0 surplus" in positive green
   // claims a surplus out of nothing, so Net flow says what the savings rate
@@ -1078,7 +1081,7 @@ export function Spending() {
            with the three KPIs (income / net / savings) inline at the top and
            the interactive trend below — a single, complete answer. ════════ */}
       {hasLoadedSummary && !noData && (
-        <section data-hero="spend" className={cn(
+        <section data-hero={baseNet >= 0 ? 'income' : 'spend'} className={cn(
           'relative overflow-hidden rounded-ui-xl border border-line bg-panel shadow-ui-sm px-3.5 py-4 sm:p-7',
           showScopeRow ? 'mt-4' : 'mt-6',
         )}>
@@ -1151,7 +1154,7 @@ export function Spending() {
                  right-aligned on the same row on desktop, wrapping below the
                  Spent block on narrow screens. */}
             <div className="flex flex-wrap gap-x-8 gap-y-5 text-left">
-              <StatCell label="Income" value={formatCurrency(displayIncome)} sub="received" />
+              <StatCell label="Money in" value={formatCurrency(displayIncome)} sub="received" />
               <StatCell
                 label="Net flow"
                 value={noFlow ? '—' : `${displayNet >= 0 ? '+' : ''}${formatCurrency(displayNet)}`}
@@ -1327,7 +1330,7 @@ export function Spending() {
             )}
             {!ranked && spendingCategories.length > 0 && (
               <BreakdownSection
-                title="Expenses"
+                title="Money out"
                 rows={expenseRows}
                 rollup={tableRollup}
                 tone="expense"
@@ -1341,7 +1344,7 @@ export function Spending() {
                  income row just restates the hero's Income KPI. */}
             {!ranked && incomeRows.length > 1 && (
               <BreakdownSection
-                title="Income"
+                title="Money in"
                 rows={incomeRows}
                 rollup={tableRollup}
                 tone="income"
