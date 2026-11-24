@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RefreshControl, StyleSheet, View } from "react-native";
 import Animated, {
   cancelAnimation,
@@ -15,17 +15,20 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
-import { withAlpha } from "@lasagna/design";
+import { HELLO_WAVE, INTRO_DELAY, WAVE_BACK, WAVE_HALF, WAVE_OUT, withAlpha } from "@lasagna/design";
 import { useTheme as useDesign } from "@/design";
-import { DIVE_DEPTH, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, nextArmed, poolScale, pullStretch, refreshLook, takeGreetingIntro, type RefreshLook } from "@/lib/pull-refresh";
+import { DIVE_DEPTH, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, nextArmed, nextPrimed, poolScale, PULL_TRIGGER, pullStretch, refreshLook, shouldFire, takeGreetingIntro, type RefreshLook } from "@/lib/pull-refresh";
+import { scheduleOnRN } from "react-native-worklets";
 import Svg, { Ellipse } from "react-native-svg";
 import { BrandMark } from "./BrandMark";
 import { Mascot } from "./Mascot";
 
 // Pull to refresh in the theme's skin (`skin.refresh`), one implementation for
-// every scrolling screen. The system's refresh control still owns the gesture
-// and holds the gap open while the screen refetches, but draws nothing (its
-// tint is clear), so only the theme's indicator shows. That indicator runs on
+// every scrolling screen. The trigger is ours (PULL_TRIGGER): crossing it is the
+// one moment the mascot dives in and the haptic fires, and letting go any time
+// after that refreshes. The system's refresh control only holds the gap open
+// while the screen refetches, and draws nothing (its tint is clear), so only the
+// theme's indicator shows. That indicator runs on
 // the UI thread from the scroll offset: `pull` is how far the content sits
 // below its rest. Reduce Motion: the system spinner in the brand ink, alone.
 
@@ -68,11 +71,11 @@ export function usePullRefresh({
   reduceMotion: boolean;
   /** A mascot on the page is the indicator (RefreshMascot), so none comes down from the bar. */
   inlineMascot?: boolean;
-}): PullRefresh & { armed: SharedValue<boolean>; on: boolean } {
+}): PullRefresh & { armed: SharedValue<boolean>; on: boolean; release: () => void } {
   const d = useDesign();
   const look = refreshLook(d.skin.refresh, { reduceMotion, hasMascot: !!d.mascot });
   // A refresh that finishes in a blink still shows its indicator long enough for the hop and the bob to read.
-  const on = useHeldOn(!!refreshing, look !== "spinner", releasedAt);
+  const held = useHeldOn(!!refreshing, look !== "spinner", releasedAt);
 
   // Only a pull the user started shows the indicator: a tab appearing settles its content a few points
   // past rest for a moment, which the offset alone would read as a pull.
@@ -83,23 +86,68 @@ export function usePullRefresh({
       if (now !== armed.value) armed.value = now;
     },
   );
-  // One light tap when a pull arms the refresh (the system control fires as the pull passes its threshold).
-  useEffect(() => {
-    if (on && look !== "spinner") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [on, look]);
-  // The bar's row. A search field under it travels down with the content, so the gap opens here.
+  // The trigger: a user's pull crossing PULL_TRIGGER primes it. That is the moment the mascot dives in and the
+  // one light tap fires; letting go any time after it refreshes (release).
   const enabled = !!onRefresh;
+  const primed = useSharedValue(false);
+  const [primedOn, setPrimedOn] = useState(false);
+  const inFlight = useRef(false);
+  const onPrime = useCallback(() => {
+    setPrimedOn(true);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+  useAnimatedReaction(
+    () => enabled && nextPrimed(primed.value, armed.value, dragging.value, pull.value, PULL_TRIGGER),
+    (now, prev) => {
+      if (now && !prev && !primed.value) {
+        primed.value = true;
+        scheduleOnRN(onPrime);
+      }
+    },
+    [enabled, onPrime],
+  );
+  // One refresh per pull: from our release, or the system control's own trigger on a very long pull.
+  const fire = useCallback(() => {
+    if (!onRefresh || !shouldFire(primed.value, inFlight.current)) return;
+    inFlight.current = true;
+    onRefresh();
+  }, [onRefresh, primed]);
+  // A primed pull that never got a refresh going (the screen ignored it) lets go of the dive.
+  useEffect(() => {
+    if (!primedOn || held) return;
+    const id = setTimeout(() => {
+      if (inFlight.current) return;
+      primed.value = false;
+      setPrimedOn(false);
+    }, 1500);
+    return () => clearTimeout(id);
+  }, [primedOn, held, primed]);
+  // The refresh it started is over: the next pull primes afresh.
+  const wasHeld = useRef(held);
+  useEffect(() => {
+    if (wasHeld.current && !held) {
+      inFlight.current = false;
+      primed.value = false;
+      setPrimedOn(false);
+    }
+    wasHeld.current = held;
+  }, [held, primed]);
+  // The indicator is in the sauce from the moment the pull primes until the refresh is done.
+  const on = held || primedOn;
   // Kept stable between refreshes: the bar's copy rides in its options, which rebuild when it changes.
   const overlay = useMemo(
     () => (!enabled ? null : look === "mascot" ? (inlineMascot ? null : <PullMascot pull={pull} armed={armed} refreshing={on} top={edge} />) : look === "brandPuff" ? <PullMark pull={pull} armed={armed} refreshing={on} top={edge} /> : null),
     [enabled, look, pull, armed, on, edge, inlineMascot],
   );
-  if (!onRefresh) return { look, control: undefined, overlay: null, barOverlay: null, armed, on };
+  if (!onRefresh) return { look, control: undefined, overlay: null, barOverlay: null, armed, on, release: () => {} };
   return {
     look,
     armed,
     on,
-    control: <RefreshControl refreshing={on} onRefresh={onRefresh} tintColor={look === "spinner" ? d.color.brandInk : CLEAR} />,
+    release: fire,
+    // Holds the gap open while the screen refetches. Its own trigger sits past ours, so it only ever re-asks
+    // for the refresh a primed pull already started, which fire ignores.
+    control: <RefreshControl refreshing={held} onRefresh={fire} tintColor={look === "spinner" ? d.color.brandInk : CLEAR} />,
     overlay,
     // The mark comes out of the bar. Where the gap opens inside the bar (a search field travels down with the
     // content) the bar's material would cover the screen's copy, so a second copy draws in the bar's background.
@@ -120,8 +168,8 @@ const MASCOT_MAX = 36;
 /** The sauce pool: wider than the mascot, a shallow ellipse seen from just above. */
 const POOL_W = 92;
 const POOL_H = 22;
-/** The pull over which the pool forms, about where the system arms the refresh. */
-const POOL_SPAN = 80;
+/** The pull over which the pool forms: full exactly at the trigger, where the mascot dives in. */
+const POOL_SPAN = PULL_TRIGGER;
 
 /** The pop out of the sauce and its shake, before the mascot leaves. Short: the page is already sliding back up. */
 const FINISH_MS = 220;
@@ -331,22 +379,13 @@ type Inline = {
 };
 export const PullRefreshContext = createContext<Inline | null>(null);
 
-/** How far a pull goes before the lean is full (about where the system arms the refresh). */
-const STRETCH_SPAN = 90;
-/**
- * The arm's wave, in degrees from its raised rest (positive turns clockwise,
- * away from the body). A wide arc on the outside of the body, so it reads as a
- * wave and not a lean: back near upright, out toward the side. The arm is drawn
- * under the body, so it never turns far enough toward it to slip behind.
- */
-const WAVE_OUT = 40;
-const WAVE_BACK = -18;
-/** One half of a wave (out, or back), in ms: about two waves a second. */
-const WAVE_HALF = 260;
+/** How far a pull goes before the lean is full: the trigger, where the jump and the refresh happen. */
+const STRETCH_SPAN = PULL_TRIGGER;
+// The wave's arc and beat (WAVE_OUT, WAVE_BACK, WAVE_HALF) and the hello (HELLO_WAVE, INTRO_DELAY) come from
+// @lasagna/design, so the web and the app wave the same arm the same way: a wide arc on the outside of the body,
+// back near upright and out toward the side, about two waves a second.
 /** How far the body tips toward the wave at its widest, in degrees. */
 const WAVE_TILT = 3;
-/** The first-load hello waits for the screen to settle before the arm starts. */
-const INTRO_DELAY = 400;
 
 /**
  * Wraps a mascot already on the page (Home's greeting). Where the refresh skin
@@ -412,9 +451,10 @@ export function RefreshMascot({ children, width }: { children?: ReactNode; /** T
   useEffect(() => {
     if (!intro) return;
     const out = (deg: number) => withTiming(deg, { duration: WAVE_HALF, easing: Easing.inOut(Easing.sin) });
-    arm.value = withDelay(INTRO_DELAY, withSequence(out(WAVE_OUT), out(WAVE_BACK), out(WAVE_OUT), out(WAVE_BACK), out(WAVE_OUT), out(0)));
+    const [first, ...rest] = HELLO_WAVE.map(out);
+    arm.value = withDelay(INTRO_DELAY, withSequence(first, ...rest));
     // A margin past the last swing, so the arm is fully at rest before the tilt is allowed again.
-    tiltOn.value = withDelay(INTRO_DELAY + 6 * WAVE_HALF + 500, withTiming(1, { duration: 0 }));
+    tiltOn.value = withDelay(INTRO_DELAY + HELLO_WAVE.length * WAVE_HALF + 500, withTiming(1, { duration: 0 }));
   }, [intro, tiltOn, arm]);
 
   const pull = ctx?.pull;

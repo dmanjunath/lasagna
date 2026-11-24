@@ -34,6 +34,38 @@ export function nextArmed(armed: boolean, dragging: boolean, pull: number, rest:
   return armed;
 }
 
+/**
+ * The one point a pull refreshes at, in points past rest. Crossing it is the
+ * moment: the mascot dives into the sauce (or Home's waves and jumps), the
+ * haptic fires, and from then on letting go refreshes. It sits well short of
+ * the system control's own trigger (about 130 to 160pt on iOS 26), which used
+ * to fire only after the dive, so the user had to keep pulling.
+ */
+export const PULL_TRIGGER = 88;
+
+/**
+ * Whether a pull is primed to refresh on release. It primes once a drag the
+ * user started crosses the trigger, and stays primed (letting go anywhere after
+ * that refreshes) until the refresh it starts is under way or the pull ends.
+ * The trigger is an argument, not a default: a worklet does not capture a
+ * module constant used only in a default parameter, so on the UI thread it
+ * would not exist.
+ */
+export function nextPrimed(primed: boolean, armed: boolean, dragging: boolean, pull: number, trigger: number): boolean {
+  "worklet";
+  if (primed) return true;
+  return armed && dragging && pull >= trigger;
+}
+
+/**
+ * Whether a release (or the system control's own trigger, on a very long pull)
+ * starts a refresh: only a primed pull, and never a second time while one is
+ * already under way, so there is one refresh and one haptic per pull.
+ */
+export function shouldFire(primed: boolean, inFlight: boolean): boolean {
+  return primed && !inFlight;
+}
+
 /** How opaque the pull mascot is. Leaving, it fades out on its own clock, whatever the content's position. */
 export function mascotOpacity(phase: number, pull: number, exit: number, rest: number, armed = true): number {
   "worklet";

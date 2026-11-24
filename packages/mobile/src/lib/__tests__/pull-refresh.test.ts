@@ -1,4 +1,4 @@
-import { AFTER_RELEASE_MS, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, MIN_REFRESH_MS, nextArmed, pullStretch, refreshLook, resetGreetingIntro, takeGreetingIntro } from "../pull-refresh";
+import { AFTER_RELEASE_MS, holdRemaining, MASCOT_PHASE, mascotOpacity, mascotRearms, MIN_REFRESH_MS, nextArmed, nextPrimed, PULL_TRIGGER, pullStretch, refreshLook, resetGreetingIntro, shouldFire, takeGreetingIntro } from "../pull-refresh";
 
 test("each theme's skin draws its own indicator", () => {
   expect(refreshLook("mascot", { reduceMotion: false, hasMascot: true })).toBe("mascot");
@@ -93,5 +93,33 @@ describe("poolScale", () => {
   });
   test("a settle that no drag started forms no pool", () => {
     expect(poolScale(MASCOT_PHASE.follow, 30, 6, false, 80, 0)).toBe(0);
+  });
+});
+
+describe("the single refresh trigger", () => {
+  test("a user's pull primes as it crosses the trigger, not before", () => {
+    expect(nextPrimed(false, true, true, PULL_TRIGGER - 1, PULL_TRIGGER)).toBe(false);
+    expect(nextPrimed(false, true, true, PULL_TRIGGER, PULL_TRIGGER)).toBe(true);
+  });
+
+  test("only a drag the user started primes (a tab settling past rest never does)", () => {
+    expect(nextPrimed(false, false, true, PULL_TRIGGER + 20, PULL_TRIGGER)).toBe(false);
+    expect(nextPrimed(false, true, false, PULL_TRIGGER + 20, PULL_TRIGGER)).toBe(false);
+  });
+
+  test("once primed it stays primed, so letting go anywhere after the dive refreshes", () => {
+    expect(nextPrimed(true, true, true, 10, PULL_TRIGGER)).toBe(true);
+    expect(nextPrimed(true, false, false, 0, PULL_TRIGGER)).toBe(true);
+  });
+
+  test("a release refreshes only a primed pull, and only once", () => {
+    expect(shouldFire(false, false)).toBe(false);
+    expect(shouldFire(true, false)).toBe(true);
+    expect(shouldFire(true, true)).toBe(false);
+  });
+
+  test("the trigger sits well short of the system control's own (about 130pt)", () => {
+    expect(PULL_TRIGGER).toBeGreaterThanOrEqual(80);
+    expect(PULL_TRIGGER).toBeLessThanOrEqual(100);
   });
 });

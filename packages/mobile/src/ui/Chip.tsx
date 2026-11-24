@@ -34,6 +34,7 @@ export function Chip({
   wrap,
   uncapped,
   tint,
+  dense,
 }: {
   label: string;
   onPress: () => void;
@@ -49,6 +50,8 @@ export function Chip({
   uncapped?: boolean;
   /** The role a selected chip wears (Money in: income). */
   tint?: TintRole;
+  /** A page-top row of short labels beside a control: 10pt a side, so the row fits one line on a 390pt phone. */
+  dense?: boolean;
 }) {
   const d = useTheme();
   const c = d.color;
@@ -81,6 +84,7 @@ export function Chip({
         // A border in its own fill, so a selected pill is exactly as tall as the bordered ones beside it.
         raised && selected && { boxShadow: `0 2px 0 ${on.edge}`, borderWidth: 1, borderColor: on.fill },
         !icon && { paddingRight: 12 },
+        dense && styles.dense,
         wrap && styles.wrap,
         uncapped && styles.uncapped,
       ]}
@@ -123,6 +127,7 @@ const styles = StyleSheet.create({
   label: { flexShrink: 1 },
   wrap: { maxWidth: "100%", paddingVertical: 6 },
   uncapped: { maxWidth: undefined },
+  dense: { paddingLeft: 10, paddingRight: 10 },
 });
 
 /** A filled chip on a card: the inset fill, unless the card itself is that fill (then the plain surface). */

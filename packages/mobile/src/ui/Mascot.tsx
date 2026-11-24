@@ -2,7 +2,7 @@ import { StyleSheet, View } from "react-native";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import { SvgXml } from "react-native-svg";
 import { useTheme } from "@/design";
-import { ARM_BOX, ARM_SHOULDER, splitWavingArm } from "@/lib/mascot-arm";
+import { ARM_BOX, ARM_SHOULDER, splitWavingArm } from "@lasagna/design";
 
 // The artwork is 140 by 124 (packages/design/src/mascot/*.svg).
 const ASPECT = 124 / 140;

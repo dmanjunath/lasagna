@@ -22,10 +22,11 @@ const KINDS: Array<{ value: TxnFilters["kind"]; label: string; tint?: TintRole }
  * with the row's trailing control (the Filters pill) at the end. A choice
  * that means money in or out wears that role's color when it is chosen.
  * `onCard` for a row inside a card (a chart's range): the pills take the
- * surface so they stand off the card's fill. At large text the pills stay on
- * one line that scrolls sideways, each label whole, with a soft fade where the
- * row runs on: a row never breaks into one pill per line. `scroll` rows (a long
- * set) scroll edge to edge at every size.
+ * surface so they stand off the card's fill. The pills always stay on one
+ * line, each label whole: where they fit it reads as a plain row, and where
+ * they don't (a narrow phone, large text) it scrolls sideways with a soft fade
+ * where it runs on. A row never wraps a pill onto a line of its own. `scroll`
+ * rows (a long set) run edge to edge.
  */
 export function ScopePills<T extends string>({
   value,
@@ -42,11 +43,14 @@ export function ScopePills<T extends string>({
   accessibilityLabel: string;
   trailing?: ReactNode;
   onCard?: boolean;
-  /** A long set (the Actions page's areas): one line that scrolls sideways, edge to edge. At large text it wraps like every other pill row, so no pill is cut off at the edge. */
+  /** A long set (the Actions page's areas): its one line runs edge to edge, past the page's gutter on both sides. */
   scroll?: boolean;
 }) {
   const large = useWindowDimensions().fontScale > 1.3;
-  const scrolls = scroll || large;
+  // Whether the line runs past its box, so the fade shows only where there is more to scroll to.
+  const [boxWidth, setBoxWidth] = useState(0);
+  const [lineWidth, setLineWidth] = useState(0);
+  const overflows = lineWidth > boxWidth + 1;
   const t = useTheme();
   const d = useDesign();
   const hero = useHeroRole();
@@ -57,7 +61,7 @@ export function ScopePills<T extends string>({
   const [pillHeight, setPillHeight] = useState<number | null>(null);
   // At large text a chip may take the whole row (and a second line) rather than its usual cap, so a long label is never cut.
   const pills = options.map((o, i) => {
-    const chip = <Chip key={o.value} label={o.label} selected={o.value === value} tint={o.tint} onCard={onCard} uncapped={large} onPress={() => onChange(o.value)} />;
+    const chip = <Chip key={o.value} label={o.label} selected={o.value === value} tint={o.tint} onCard={onCard} uncapped={large} dense={!!trailing} onPress={() => onChange(o.value)} />;
     return i === 0 ? (
       <View key={o.value} onLayout={(e) => setPillHeight(Math.round(e.nativeEvent.layout.height * 10) / 10)}>
         {chip}
@@ -68,25 +72,21 @@ export function ScopePills<T extends string>({
   });
   return (
     <View style={styles.row}>
-      {scrolls ? (
-        <View style={trailing ? styles.scrollBox : styles.edge}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.line, trailing ? styles.tailLine : styles.edgeLine]}
-            accessibilityRole="radiogroup"
-            accessibilityLabel={accessibilityLabel}
-          >
-            {pills}
-          </ScrollView>
-          {/* Where the row runs on past the edge, it fades into what is behind it, so it reads as more to scroll, not as cut. */}
-          <EdgeFade color={behind} />
-        </View>
-      ) : (
-        <View style={styles.pills} accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel}>
+      <View style={trailing || !scroll ? styles.scrollBox : styles.edge} onLayout={(e) => setBoxWidth(e.nativeEvent.layout.width)}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={overflows}
+          onContentSizeChange={(w) => setLineWidth(w)}
+          contentContainerStyle={[styles.line, trailing ? styles.tailLine : scroll ? styles.edgeLine : styles.plainLine, trailing ? styles.denseLine : null]}
+          accessibilityRole="radiogroup"
+          accessibilityLabel={accessibilityLabel}
+        >
           {pills}
-        </View>
-      )}
+        </ScrollView>
+        {/* Where the row runs on past the edge, it fades into what is behind it, so it reads as more to scroll, not as cut. */}
+        {overflows ? <EdgeFade color={behind} /> : null}
+      </View>
       {trailing ? (
         <PillHeightContext.Provider value={pillHeight}>
           <View style={[styles.trailing, pillHeight ? { height: pillHeight } : null]}>{trailing}</View>
@@ -190,14 +190,17 @@ const styles = themedStyles(() =>
     // Top-aligned: when the pills wrap, the trailing control stays beside the first line, not centered on the block.
     row: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
     trailing: { flexDirection: "row", alignItems: "center", gap: 8 },
-    pills: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 8 },
     line: { flexDirection: "row", gap: 8 },
     // Runs to the screen's edges, past the page's gutter.
     edge: { flex: 1, marginHorizontal: -space.screen, flexGrow: 1 },
     edgeLine: { paddingHorizontal: space.screen },
     // Beside a trailing control: runs from the page's left edge up to the control.
     scrollBox: { flex: 1, marginLeft: -space.screen },
-    tailLine: { paddingLeft: space.screen, paddingRight: 16 },
+    tailLine: { paddingLeft: space.screen, paddingRight: 8 },
+    // Beside a trailing control: a little tighter, so the page-top row fits one line on a 390pt phone.
+    denseLine: { gap: 6 },
+    // No trailing control and not a long set: the row's own width, nothing past the gutter on the right.
+    plainLine: { paddingLeft: space.screen },
     fade: { position: "absolute", top: 0, bottom: 0, right: 0, width: 20 },
     filters: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   }),

@@ -133,9 +133,11 @@ export function useCollapsingHeader({
       onScrollEndDrag: () => {
         dragging.value = false;
         setReleasedAt(Date.now());
+        // A pull that crossed the trigger refreshes as the finger lifts.
+        refresh.release();
       },
     }),
-    [dragging],
+    [dragging, refresh.release],
   );
 
   const surfaceStyle = useAnimatedStyle(() => {

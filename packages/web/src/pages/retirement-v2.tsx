@@ -1517,7 +1517,7 @@ export function RetirementV2() {
     if (!el) return;
     const obs = new IntersectionObserver(
       ([entry]) => setHeroNumVisible(entry.isIntersecting),
-      { rootMargin: '-120px 0px 0px 0px' },
+      { rootMargin: '-110px 0px 0px 0px' },
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -2129,11 +2129,12 @@ export function RetirementV2() {
         @media (max-width: 900px) {
           .rv2-checks { grid-template-columns: 1fr; }
         }
-        /* Pinned outcome header. A zero-height sticky anchor placed just above
-           the verdict band, so it never takes layout space. Its absolutely
-           positioned bar sticks under the mobile top bar (document scroll) or
-           at the top of the desktop scroll container. Hidden while the hero's
-           success number is on screen (it would double-print the figure). */
+        /* Pinned outcome. A zero-height sticky anchor above the verdict band, so it
+           never takes layout space. Once the band scrolls away, one compact pill
+           floats under the top bar with just the outcome, so the result of an
+           input edit further down stays in sight. Not a second header: no
+           full-width strip, no repeated figures (the band and "Checked against"
+           carry those). */
         .ret-pin {
           position: sticky;
           top: 0;
@@ -2142,62 +2143,41 @@ export function RetirementV2() {
         }
         .ret-pin__bar {
           position: absolute;
-          top: 0;
-          left: -44px;
-          right: -44px;
+          top: 12px;
+          left: 0;
+          right: 0;
+          margin-inline: auto;
+          width: max-content;
+          max-width: calc(100% - 24px);
           display: flex;
           align-items: baseline;
-          flex-wrap: wrap;
-          gap: 6px 28px;
-          padding: 10px 44px;
+          gap: 8px;
+          padding: 7px 16px;
+          border-radius: 999px;
           background: rgb(var(--ui-panel));
-          border-bottom: 1px solid var(--ui-line);
-          box-shadow: var(--ui-shadow-sm);
-          transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0s;
+          border: 1px solid var(--ui-line);
+          box-shadow: var(--ui-shadow-md);
+          white-space: nowrap;
+          transition: opacity 0.2s ease, translate 0.2s ease, visibility 0s linear 0s;
         }
         .ret-pin[data-hidden='true'] .ret-pin__bar {
           opacity: 0;
-          transform: translateY(-6px);
+          translate: 0 -4px;
           visibility: hidden;
           pointer-events: none;
-          transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0.2s;
+          transition: opacity 0.2s ease, translate 0.2s ease, visibility 0s linear 0.2s;
         }
-        .ret-pin__metric { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; white-space: nowrap; }
-        .ret-pin__label {
-          font-size: 12px;
-          font-weight: 600;
-          color: rgb(var(--ui-content-muted));
+        @media (prefers-reduced-motion: reduce) {
+          .ret-pin__bar, .ret-pin[data-hidden='true'] .ret-pin__bar { transition: none; translate: none; }
         }
-        .ret-pin__pct {
-          font-size: 16px;
-          font-weight: 800;
-          line-height: 1.1;
-          letter-spacing: -0.01em;
-          color: rgb(var(--ui-content));
-        }
-        /* The corroborating figures: same row, demoted weight. */
-        .ret-pin__pct--check {
-          font-size: 13.5px;
-          font-weight: 700;
-          letter-spacing: 0;
-          color: rgb(var(--ui-content-secondary));
-        }
-        @media (max-width: 639px) {
-          .ret-pin__bar { left: -12px; right: -12px; padding: 8px 16px; }
-        }
+        .ret-pin__verdict { font-size: 15px; font-weight: 800; line-height: 1.2; }
+        .ret-pin__chance { font-size: 14px; font-weight: 600; color: rgb(var(--ui-content-secondary)); }
         @media (max-width: 767px) {
-          /* Clear the fixed mobile top bar (shell's --mobile-header-h + notch). */
+          /* Clear the fixed mobile top bar (shell's --mobile-header-h + notch). In the
+             native app's web view that bar is hidden and the variable is 0, so the pill
+             floats just under the native navigation bar. */
           .ret-pin { top: calc(env(safe-area-inset-top) + var(--mobile-header-h)); }
-          .ret-pin__bar {
-            display: grid;
-            grid-template-columns: auto auto;
-            justify-content: space-between;
-            gap: 4px 12px;
-          }
-          .ret-pin__metric { gap: 5px; }
-          .ret-pin__label { font-size: 11.5px; }
-          .ret-pin__pct { font-size: 15px; }
-          .ret-pin__pct--check { font-size: 13px; }
+          .ret-pin__bar { top: 8px; }
         }
       `}</style>
 
@@ -2269,24 +2249,8 @@ export function RetirementV2() {
         aria-hidden={heroNumVisible}
       >
         <div className="ret-pin__bar">
-          <span className="ret-pin__metric">
-            <span className="ret-pin__label">Outlook</span>
-            <span className="ret-pin__pct font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>
-          </span>
-          <span className="ret-pin__metric">
-            <span className="ret-pin__label">Monte Carlo</span>
-            <span className="ret-pin__pct font-editorial ui-tnum">{shownMcChance}</span>
-          </span>
-          <span className="ret-pin__metric">
-            <span className="ret-pin__label">Historical backtest</span>
-            <span className="ret-pin__pct ret-pin__pct--check ui-tnum">{histRate !== null ? `${histRate}%` : '…'}</span>
-          </span>
-          {!inputsFailed && (
-            <span className="ret-pin__metric">
-              <span className="ret-pin__label">Sustainable draw</span>
-              <span className="ret-pin__pct ret-pin__pct--check ui-tnum"><MaskedText text={formatMoney(sustainableDraw, true)} />/mo</span>
-            </span>
-          )}
+          <span className="ret-pin__verdict font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>
+          <span className="ret-pin__chance ui-tnum">{shownMcChance} chance</span>
         </div>
       </div>
 
