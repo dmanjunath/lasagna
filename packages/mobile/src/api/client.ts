@@ -40,9 +40,8 @@ export function onUnauthorized(cb: () => void) {
 /** Mirrors request() in packages/web/src/lib/api.ts, authenticated by Bearer token. */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
-  let res: Response;
-  try {
-    res = await fetch(`${API_URL}/api${path}`, {
+  const send = () =>
+    fetch(`${API_URL}/api${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -51,8 +50,20 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ...((init?.headers as Record<string, string> | undefined) ?? {}),
       },
     });
+  let res: Response;
+  try {
+    res = await send();
   } catch {
-    throw new ApiError("Cannot reach the server. Please check your connection.", 0);
+    // iOS hands back a connection the system already dropped when the app
+    // returns from the background ("network connection was lost"). The
+    // request never reached the server, so one immediate retry on a fresh
+    // connection is safe, and it is what usually succeeds.
+    try {
+      await new Promise((r) => setTimeout(r, 250));
+      res = await send();
+    } catch {
+      throw new ApiError("Cannot reach the server. Please check your connection.", 0);
+    }
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -69,3 +80,19 @@ export const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 export const patch = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+
+/**
+ * Whether a failed query should try again: a dropped connection or a server
+ * error is worth up to three more tries, a request the server refused (4xx)
+ * never is, since the answer would not change.
+ */
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (failureCount >= 3) return false;
+  if (error instanceof ApiError) return error.status === 0 || error.status >= 500;
+  return true;
+}
+
+/** 0.4s, 1.2s, 2.4s between tries. */
+export function retryDelay(attempt: number): number {
+  return [400, 1200, 2400][Math.min(attempt, 2)];
+}

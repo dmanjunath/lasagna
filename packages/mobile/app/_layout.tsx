@@ -1,5 +1,5 @@
-import { useColorScheme } from "react-native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AppState, useColorScheme } from "react-native";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -7,6 +7,7 @@ import { Fragment, useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppCover } from "@/auth/AppCover";
 import { AuthProvider, useAuth } from "@/auth/AuthProvider";
+import { retryDelay, shouldRetry } from "@/api/client";
 import { loadDesign, ThemeProvider, useTheme as useDesign } from "@/design";
 import { RUNTIME_FACES } from "@/design/fonts";
 import { loadAppearance } from "@/lib/appearance";
@@ -18,7 +19,14 @@ import { ToastHost } from "@/ui/Toast";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
+  defaultOptions: { queries: { staleTime: 30_000, retry: shouldRetry, retryDelay } },
+});
+
+// React Native has no window focus: tell the query cache when the app comes
+// back to the foreground, so stale screens refetch on return.
+focusManager.setEventListener((handleFocus) => {
+  const sub = AppState.addEventListener("change", (state) => handleFocus(state === "active"));
+  return () => sub.remove();
 });
 
 // Set at build time, as VITE_DEMO_MODE is for the web.
