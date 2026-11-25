@@ -399,7 +399,7 @@ const RETURN_MS = 220;
  * hello with its raised arm alone, three times, while Home is the screen in
  * view; never on a tab switch. Reduce Motion: no wave.
  */
-export function RefreshMascot({ children, width }: { children?: ReactNode; /** The mascot's width: given, the wrapper draws it itself with a waving arm. */ width?: number }) {
+export function RefreshMascot({ children, width, blink }: { children?: ReactNode; /** The mascot's width: given, the wrapper draws it itself with a waving arm. */ width?: number; /** Blink every few seconds (Home). */ blink?: boolean }) {
   const ctx = useContext(PullRefreshContext);
   const reduceMotion = useReducedMotion();
   const arm = useSharedValue(0);
@@ -435,7 +435,7 @@ export function RefreshMascot({ children, width }: { children?: ReactNode; /** T
     },
   );
   const style = useAnimatedStyle(() => ({ opacity: present.value }));
-  const content = width ? <Mascot name="happy" width={width} arm={arm} /> : children;
+  const content = width ? <Mascot name="happy" width={width} arm={arm} blink={blink} /> : children;
   return <Animated.View style={[styles.feet, style]}>{content}</Animated.View>;
 }
 

@@ -1,20 +1,42 @@
 ---
 import { GITHUB_URL } from "../config";
-import WaveMark from "./WaveMark.astro";
+import Logo from "./Logo.astro";
 ---
 
-<footer>
+<footer class="footer">
   <div class="wrap foot-in">
-    <span class="brand" style="font-size:16px"><WaveMark size={18} /><span>LasagnaFi</span></span>
-    <div class="links">
-      <a href="/#how">How it works</a>
-      <a href="/features">Features</a>
-      <a href="/data-privacy">Data Privacy</a>
-      <a href="/#pricing">Pricing</a>
-      <a href="/support">Support</a>
-      <a href="/privacy">Privacy Policy</a>
-      <a href="/terms">Terms</a>
-      <a href={GITHUB_URL}>GitHub</a>
+    <div class="foot-brand">
+      <Logo size={30} />
+      <p>Your accounts, spending and options in one place.</p>
+      <button class="mode-toggle" type="button" data-mode-toggle>
+        <span class="t-to-dark"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>Dark mode</span><span class="t-to-light"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></g></svg>Light mode</span>
+      </button>
     </div>
+    <nav class="foot-links" aria-label="Footer">
+      <div>
+        <h2>Product</h2>
+        <a href="/#how">How it works</a>
+        <a href="/features">Features</a>
+        <a href="/#pricing">Pricing</a>
+        <a href={GITHUB_URL}>Source code</a>
+      </div>
+      <div>
+        <h2>Policies</h2>
+        <a href="/data-privacy">Data privacy</a>
+        <a href="/privacy">Privacy policy</a>
+        <a href="/terms">Terms of service</a>
+        <a href="/support">Support</a>
+      </div>
+    </nav>
+  </div>
+  <div class="wrap foot-base">
+    <p>LasagnaFi is not a registered investment advisor, broker, or financial planner, and nothing on this site or in the app is financial, investment, tax, or legal advice. Everything it shows is for information and education only.</p>
   </div>
 </footer>
+
+<script>
+  const root = document.documentElement;
+  document.querySelector("[data-mode-toggle]")?.addEventListener("click", () => {
+    (window as unknown as { lfSetMode: (m: string) => void }).lfSetMode(root.classList.contains("dark") ? "light" : "dark");
+  });
+</script>

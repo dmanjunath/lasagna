@@ -1,75 +1,80 @@
 ---
 import { SIGNUP_URL, GITHUB_URL } from "../config";
 import Icon from "./Icon.astro";
+
+const tiers = [
+  {
+    name: "Open source",
+    tag: "Run it yourself",
+    amt: "$0",
+    per: "self-hosted",
+    sub: "Run the whole app on your own server.",
+    items: [
+      "The same code that runs the hosted app",
+      "No subscription and no account with us",
+      "You supply your own Plaid and AI keys",
+      "Your accounts and transactions stay in your own database",
+      "MIT licensed, runs on Docker",
+    ],
+    cta: { label: "See the source code", href: GITHUB_URL, icon: "github" as const, kind: "btn-secondary" },
+  },
+  {
+    name: "Free",
+    tag: "Hosted by us",
+    amt: "$0",
+    per: "a month",
+    sub: "We run the app for you.",
+    items: [
+      "Up to 2 institutions, no account limit per institution",
+      "Your accounts refresh once a day",
+      "Full chat on the standard AI model",
+      "Every planning tool, including tax",
+      "The same privacy rules as Pro",
+    ],
+    cta: { label: "Create a free account", href: SIGNUP_URL, icon: "arrow" as const, kind: "btn-secondary" },
+  },
+  {
+    name: "Pro",
+    tag: "Hosted by us",
+    amt: "$11.99",
+    per: "a month",
+    sub: "More institutions, and sync whenever you want.",
+    items: [
+      "Up to 50 institutions, no account limit per institution",
+      "Sync now to refresh whenever you want",
+      "The larger AI models, Sonnet and Opus",
+      "Your requests run first",
+      "Everything in Free",
+    ],
+    cta: { label: "Sign up for Pro", href: SIGNUP_URL, icon: "arrow" as const, kind: "btn-primary" },
+    featured: true,
+  },
+];
 ---
 
-<!-- PRICING -->
-<section class="band pricing-band" id="pricing">
+<section class="section band" id="pricing">
   <div class="wrap">
-    <div class="sec-head center rv">
-      <h2 class="display">Free to self-host. Free to try.</h2>
-      <p>
-        LasagnaFi is open source, so you can self-host the whole thing for free.
-        If you would rather not run a server, use our hosted app: free to start,
-        with Pro for more connected institutions and the flagship AI models.
-      </p>
+    <div class="sec-head center" data-reveal>
+      <h2>Pricing</h2>
+      <p class="lead">LasagnaFi is open source, so you can run it on your own server for free. If you'd rather not run a server, use the hosted app. It's free to start, and Pro adds more institutions and the larger AI models.</p>
     </div>
-
     <div class="tiers">
-      <!-- Open source · self-hosted -->
-      <div class="tier rv">
-        <div class="tier-head">
-          <span class="tier-name display">Open source</span>
-          <span class="tier-badge">Self-host</span>
+      {tiers.map((t) => (
+        <div class:list={["card tier", { featured: t.featured }]} data-reveal>
+          <div class="tier-name">{t.name}</div>
+          <div class="tier-tag">{t.tag}</div>
+          <div class="price"><span class="amt">{t.amt}</span><span class="per">{t.per}</span></div>
+          <p class="sub">{t.sub}</p>
+          <ul>
+            {t.items.map((i) => <li><Icon name="check" size={16} /><span>{i}</span></li>)}
+          </ul>
+          <a class:list={["btn", t.cta.kind]} href={t.cta.href}>
+            {t.cta.icon === "github" && <Icon name="github" />}
+            {t.cta.label}
+            {t.cta.icon === "arrow" && <Icon name="arrow" />}
+          </a>
         </div>
-        <div class="price"><span class="amt display">$0</span><span class="per">self-hosted</span></div>
-        <p class="tier-sub">Run the whole thing on your own server.</p>
-        <ul class="feat">
-          <li>The same code that runs the hosted app</li>
-          <li>No subscription and no account with us</li>
-          <li>You supply your own Plaid and AI keys</li>
-          <li>Your accounts and transactions stay in your own database</li>
-          <li>MIT licensed. Runs on Docker.</li>
-        </ul>
-        <a class="btn btn-ghost full" href={GITHUB_URL}><Icon name="github" size={17} /> See the source code</a>
-      </div>
-
-      <!-- Free · hosted -->
-      <div class="tier rv" style="animation-delay:.06s">
-        <div class="tier-head">
-          <span class="tier-name display">Free</span>
-          <span class="tier-badge">Hosted</span>
-        </div>
-        <div class="price"><span class="amt display">$0</span><span class="per">a month</span></div>
-        <p class="tier-sub">Our hosted app. No setup and no card.</p>
-        <ul class="feat">
-          <li>Up to <b>2</b> institutions (every&nbsp;account&nbsp;at&nbsp;each)</li>
-          <li>Your accounts refresh once a day</li>
-          <li>Full chat on the standard AI model</li>
-          <li>Every planning tool, including tax</li>
-          <li>The same privacy rules as Pro</li>
-        </ul>
-        <a class="btn btn-ghost full" href={SIGNUP_URL}>Get started <Icon name="arrow" size={17} /></a>
-      </div>
-
-      <!-- Pro · hosted -->
-      <div class="tier featured rv" style="animation-delay:.12s">
-        <span class="ribbon">Best value</span>
-        <div class="tier-head">
-          <span class="tier-name display">Pro</span>
-          <span class="tier-badge accent">Faster</span>
-        </div>
-        <div class="price"><span class="amt display">$11.99</span><span class="per">a month</span></div>
-        <p class="tier-sub">For more institutions and answers on demand.</p>
-        <ul class="feat accent-feat">
-          <li>Up to <b>50</b> institutions (every&nbsp;account&nbsp;at&nbsp;each)</li>
-          <li><b>Sync now</b> to refresh whenever you want</li>
-          <li>The larger AI models, Sonnet and Opus</li>
-          <li>Your requests run first</li>
-          <li>Everything in Free</li>
-        </ul>
-        <a class="btn btn-primary full" href={SIGNUP_URL}>Upgrade to Pro <Icon name="arrow" size={17} /></a>
-      </div>
+      ))}
     </div>
   </div>
 </section>

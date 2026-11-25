@@ -1,0 +1,29 @@
+---
+// The journey as a path that climbs through its steps. Two are done (basil),
+// the current one is yellow, the rest wait.
+const nodes = [
+  { x: 40, y: 300, label: "Starter fund", done: true },
+  { x: 130, y: 256, label: "Card balance", done: true },
+  { x: 220, y: 204, current: true },
+  { x: 310, y: 150 },
+  { x: 392, y: 92, label: "Financial freedom" },
+];
+const path = nodes.map((n, i) => `${i ? "L" : "M"}${n.x} ${n.y}`).join(" ");
+---
+
+<svg class="illus" data-illus="a-journey" viewBox="0 0 440 360" aria-hidden="true">
+  <path d={path} class="il-track" />
+  <path d={`M${nodes[0].x} ${nodes[0].y} L${nodes[1].x} ${nodes[1].y} L${nodes[2].x} ${nodes[2].y}`} pathLength="1" class="il-track-done" data-fx="draw" data-step="0" />
+  {nodes.map((n, i) => (
+    <g data-fx="pop" data-step={n.done ? 1 : 2}>
+      <rect x={n.x - 18} y={n.y - 18} width="36" height="36" rx="10" class:list={["il-lift", n.done ? "il-node-done" : n.current ? "il-node-now" : "il-node"]} />
+      {n.done && <path d={`M${n.x - 8} ${n.y} l6 6 l11 -12`} class="il-check" />}
+    </g>
+  ))}
+  <text x="20" y="346" class="il-label">Starter fund</text>
+  <text x="110" y="300" class="il-label">Card balance</text>
+  <g data-fx="up" data-step="2">
+    <rect x="276" y="34" width="156" height="30" rx="15" class="il-lift" style="fill:var(--ui-tint-income)" />
+    <text x="354" y="54" text-anchor="middle" class="il-tag" style="fill:var(--ui-tint-income-ink)">Financial freedom</text>
+  </g>
+</svg>

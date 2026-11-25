@@ -1,0 +1,18 @@
+---
+import { mascot } from "../lib/design";
+
+// The Noodle mascot with its raised arm in its own layer, turned at the
+// shoulder for the hello wave: three waves, then rest, the same arc and timing
+// the app uses (packages/design mascot-arm). The body never moves.
+export interface Props {
+  width?: number;
+  wave?: boolean;
+  label?: string;
+}
+const { width = 160, wave = true, label = "Noodle, a lasagna slice, waving hello" } = Astro.props;
+---
+
+<span class:list={["mascot", { wave }]} style={`--w:${width}px`} role="img" aria-label={label}>
+  <span class="m-body" aria-hidden="true" set:html={mascot.body} />
+  {mascot.arm && <span class="m-arm" aria-hidden="true" set:html={mascot.arm} />}
+</span>

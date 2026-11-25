@@ -97,7 +97,7 @@ export function BriefingCard({
       />
       {bubble ? (
         <header className="relative px-4 sm:px-6 pt-6 sm:pt-7 pb-5 flex items-end gap-2">
-          <Mascot theme={bubble} wave className="block h-[64px] w-[72px] sm:h-[78px] sm:w-[88px] shrink-0 -mb-1 text-content" />
+          <Mascot theme={bubble} wave blink className="block h-[64px] w-[72px] sm:h-[78px] sm:w-[88px] shrink-0 -mb-1 text-content" />
           <div data-hero="income" className="min-w-0 flex-1 flex flex-col gap-1.5 rounded-[22px] rounded-bl-[6px] px-4 sm:px-5 py-3.5 sm:py-4">
             <h1 className="font-editorial text-[20px] sm:text-[24px] font-bold leading-[1.15] text-content">{greeting}</h1>
             {summary}

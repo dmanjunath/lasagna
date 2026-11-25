@@ -1,0 +1,89 @@
+---
+import { designCss, fonts } from "../lib/design";
+import Analytics from "../components/Analytics.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import "../styles/site.css";
+
+export interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "LasagnaFi | See where your finances stand",
+  description = "LasagnaFi connects to your bank, card and investment accounts and shows where your finances stand, with options and estimates for you to weigh. Free to start and open source.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-design="noodle">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#F6EFE3" />
+    <!-- Light unless the visitor picked dark, applied before the first paint. -->
+    <script is:inline>
+      (function () {
+        var d = document.documentElement;
+        d.classList.add("js");
+        var saved = function () {
+          try { return localStorage.getItem("lf-mode"); } catch (e) { return null; }
+        };
+        var apply = function (dark) {
+          d.classList.toggle("dark", dark);
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (t) {
+            t.setAttribute("content", dark ? "#171513" : "#F6EFE3");
+          });
+        };
+        window.lfSetMode = function (mode) {
+          try { localStorage.setItem("lf-mode", mode); } catch (e) {}
+          apply(mode === "dark");
+        };
+        apply(saved() === "dark");
+      })();
+    </script>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href={fonts} rel="stylesheet" />
+    <style is:inline set:html={designCss}></style>
+    <Analytics />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <Nav />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+    <script>
+      // Sections ease in once as they scroll into view. Nothing moves for a
+      // visitor who asked for reduced motion, and without JS everything shows.
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const items = document.querySelectorAll<HTMLElement>("[data-reveal]");
+      if (reduce || !("IntersectionObserver" in window)) {
+        items.forEach((el) => el.classList.add("in"));
+      } else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (e.isIntersecting) {
+                e.target.classList.add("in");
+                io.unobserve(e.target);
+              }
+            }
+          },
+          { rootMargin: "0px 0px -8% 0px" },
+        );
+        items.forEach((el) => io.observe(el));
+      }
+    </script>
+  </body>
+</html>

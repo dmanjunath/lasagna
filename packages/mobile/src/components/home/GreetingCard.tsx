@@ -114,7 +114,7 @@ export function GreetingCard({
       {speaks ? (
         <View style={[styles.mascot, stacked && { alignSelf: "flex-start", marginBottom: 0 }]}>
           {/* Home's refresh indicator where the refresh skin is the mascot. */}
-          <RefreshMascot width={84} />
+          <RefreshMascot width={84} blink />
         </View>
       ) : null}
       <View

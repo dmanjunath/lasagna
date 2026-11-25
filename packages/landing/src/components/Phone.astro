@@ -1,0 +1,15 @@
+---
+// A screenshot of the app in a simple phone frame. The shots are the seeded
+// demo household, never a real one.
+export interface Props {
+  src: string;
+  alt: string;
+  tilt?: "left" | "right" | "none";
+  eager?: boolean;
+}
+const { src, alt, tilt = "none", eager = false } = Astro.props;
+---
+
+<figure class:list={["phone", `tilt-${tilt}`]}>
+  <img src={src} alt={alt} width="414" height="900" loading={eager ? "eager" : "lazy"} decoding="async" />
+</figure>

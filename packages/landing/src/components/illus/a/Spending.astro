@@ -1,0 +1,34 @@
+---
+// Category bars fill to this month's spend. Each has a mark at its usual
+// level. Food runs past its mark in sauce and gets the yellow note.
+const rows = [
+  { label: "Housing", fill: 0.62, usual: 0.7 },
+  { label: "Food", fill: 0.8, usual: 0.5, hot: true },
+  { label: "Bills", fill: 0.36, usual: 0.42 },
+  { label: "Fun", fill: 0.24, usual: 0.3 },
+];
+const x0 = 120;
+const W = 280;
+---
+
+<svg class="illus" data-illus="a-spending" viewBox="0 0 440 380" aria-hidden="true">
+  <rect x="16" y="16" width="408" height="348" rx="24" class="il-card il-raised" />
+  <text x="44" y="62" class="il-title">Spending</text>
+  {rows.map((r, i) => {
+    const y = 96 + i * 54;
+    return (
+      <g>
+        <text x="44" y={y + 21} class="il-label">{r.label}</text>
+        <rect x={x0} y={y + 4} width={W} height="22" rx="11" class="il-chip" />
+        <rect x={x0} y={y + 4} width={W * r.fill} height="22" rx="11" class:list={[r.hot ? "il-hot" : "il-cool"]} data-fx="growx" data-step="0" />
+        <line x1={x0 + W * r.usual} y1={y - 2} x2={x0 + W * r.usual} y2={y + 32} class="il-usual" />
+      </g>
+    );
+  })}
+  <g data-fx="up" data-step="1">
+    <rect x="44" y="318" width="164" height="28" rx="14" style="fill:var(--ui-tint-goal)" />
+    <text x="126" y="337" text-anchor="middle" class="il-tag" style="fill:var(--ui-tint-goal-ink)">Food: above usual</text>
+  </g>
+  <line x1="330" y1="322" x2="330" y2="344" class="il-usual" />
+  <text x="340" y="338" class="il-label">usual</text>
+</svg>

@@ -1,0 +1,34 @@
+---
+// A question in chat, the balance and the rate from your accounts, and the
+// sentence AI writes from them, including the estimate. The question is a
+// bubble, the figures are chips, the answer a card with its estimate in yellow.
+const figures = [
+  { text: "$2,879 balance", x: 16, w: 198 },
+  { text: "24.99% rate", x: 226, w: 198 },
+];
+---
+
+<svg class="illus" data-illus="a-ai" viewBox="0 0 440 340" aria-hidden="true">
+  <g data-fx="up" data-step="0">
+    <rect x="110" y="4" width="314" height="50" rx="20" class="il-lift" style="fill:var(--ui-brand-soft)" />
+    <text x="267" y="35" text-anchor="middle" class="il-label il-b" style="fill:rgb(var(--ui-brand-ink))">Which card costs me the most?</text>
+  </g>
+  <text x="16" y="94" class="il-label">From your accounts</text>
+  {figures.map((f) => (
+    <g data-fx="pop" data-step="1">
+      <rect x={f.x} y="108" width={f.w} height="46" rx="14" class="il-chip il-lift" />
+      <text x={f.x + f.w / 2} y="137" text-anchor="middle" class="il-label il-b">{f.text}</text>
+    </g>
+  ))}
+  {figures.map((f) => (
+    <path d={`M${f.x + f.w / 2} 160 C${f.x + f.w / 2} 186 220 180 220 204`} pathLength="1" class="il-flow il-flow-ai" data-fx="draw" data-step="2" />
+  ))}
+  <text x="16" y="228" class="il-label">Written by AI</text>
+  <rect x="16" y="240" width="408" height="92" rx="18" class="il-card il-raised" />
+  <text x="36" y="276" class="il-label il-b il-lg" data-fx="up" data-step="3">Your 24.99% card costs about</text>
+  <g data-fx="up" data-step="3">
+    <rect x="30" y="286" width="110" height="30" rx="10" class="il-tag-hi" />
+    <text x="40" y="307" class="il-label il-b il-lg il-tag-text-hi">$719 a year</text>
+    <text x="150" y="307" class="il-label il-b il-lg">in interest.</text>
+  </g>
+</svg>

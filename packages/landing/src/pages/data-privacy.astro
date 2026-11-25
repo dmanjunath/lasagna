@@ -1,241 +1,183 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import "../styles/landing.css";
-import Nav from "../components/Nav.astro";
-import Footer from "../components/Footer.astro";
-import Motion from "../components/Motion.astro";
-import Demo from "../components/Demo.astro";
-import FinalCTA from "../components/FinalCTA.astro";
+import Base from "../layouts/Base.astro";
 import Icon from "../components/Icon.astro";
+import FinalCta from "../components/FinalCta.astro";
 import { GITHUB_URL } from "../config";
-import Redaction from "../components/Redaction.astro";
 
-const CODE = [
-  {
-    tab: "scrub.ts",
-    note: "Identifying fields are swapped for codes, and swapped back on the way out.",
-    lines: [
-      { s: "export function scrub(input: Facts) {", t: "kw" },
-      { s: "  return {", t: "" },
-      { s: "    ...input,", t: "" },
-      { s: "    holder: token(input.holder),", t: "hi" },
-      { s: "    bank:   token(input.bank),", t: "hi" },
-      { s: "    acct:   token(input.acct),", t: "hi" },
-      { s: "    balance: input.balance,   // untouched", t: "cm" },
-      { s: "  };", t: "" },
-      { s: "}", t: "kw" },
-    ],
-  },
-  {
-    tab: "llm-boundary.test.ts",
-    note: "A test in the repo checks that no other file calls the model directly.",
-    lines: [
-      { s: "it(\"never imports the model directly\", () => {", t: "kw" },
-      { s: "  const direct = sourceFiles()", t: "" },
-      { s: "    .filter(f => f.imports(\"ai\"))", t: "" },
-      { s: "    .filter(f => f !== \"lib/llm.ts\");", t: "" },
-      { s: "", t: "" },
-      { s: "  expect(direct).toEqual([]);", t: "hi" },
-      { s: "});", t: "kw" },
-      { s: "", t: "" },
-      { s: "PASS  1 test, 0 failures", t: "ok" },
-    ],
-  },
+const connection = [
+  { what: "Read balances, holdings and transactions", why: "So your net worth and your actions stay current.", ok: true },
+  { what: "Move money, pay a bill or open an account", why: "The connection has no write access.", ok: false },
+  { what: "See your bank password", why: "You sign in to your bank, not to us.", ok: false },
 ];
 
-
-const WIPE = [
-  { name: "Connected accounts", sub: "Balances, holdings, transactions", gone: "Deleted" },
-  { name: "Chat history", sub: "Every question and answer", gone: "Deleted" },
-  { name: "Uploaded documents", sub: "Tax forms and statements", gone: "Deleted" },
-  { name: "Bank connections", sub: "The Plaid link itself", gone: "Cut" },
+const deletion = [
+  { what: "Connected accounts", why: "Balances, holdings and transactions", verdict: "Deleted" },
+  { what: "Chat history", why: "Every question and answer", verdict: "Deleted" },
+  { what: "Document figures", why: "What was read from your tax forms", verdict: "Deleted" },
+  { what: "Bank connections", why: "The link at Plaid", verdict: "Removed" },
 ];
 ---
 
-<Layout
+<Base
   title="Data Privacy | LasagnaFi"
-  description="How LasagnaFi protects your data: read-only account connections, your identity tokenized before anything reaches the AI, and the whole app open source so you can check it yourself."
+  description="What LasagnaFi stores, what it sends to the AI, and what happens when you delete your account. The code is open source."
 >
-  <Nav />
-
-  <section class="wrap">
-    <div class="page-head rv">
-      <h1 class="display">Data Privacy</h1>
-      <p>
-        What LasagnaFi stores, what actually reaches the AI, and how you can
-        verify every part of it yourself.
+  <header class="page-head">
+    <div class="wrap">
+      <h1>Data privacy</h1>
+      <p class="lead">
+        What LasagnaFi stores and what it sends to the AI. The code is open
+        source if you want to check.
       </p>
     </div>
-  </section>
+  </header>
 
-  <section class="band">
+  <section class="section-tight">
     <div class="wrap">
-
-      <!-- 1 · THE SCRUB -->
-      <div class="feat-row rv">
-        <div class="copy">
-          <h3 class="display">Your private information redacted</h3>
-          <p>
-            Your name, institution and account numbers are tokenized before any
-            prompt leaves your account, so the model never receives anything that
-            identifies you. Balances, rates and dates pass through unchanged,
-            because the answer depends on those numbers, and the tokens are
-            resolved before the answer reaches your screen.
-          </p>
-          <ul class="pts">
-            <li>Names, banks and account numbers are replaced with codes</li>
-            <li>Balances, rates and dates are sent unchanged</li>
-            <li>The AI provider receives nothing that identifies you</li>
-          </ul>
-        </div>
-        <Redaction title="What leaves your device" />
+      <div class="ai-use" id="ai" data-reveal>
+        <h2>How LasagnaFi uses AI</h2>
+        <p>
+          Balances, totals, spending categories, debt payoff dates and the
+          retirement simulation are worked out without AI. AI writes the items in
+          Actions and their estimates, answers chat, orders and describes some
+          journey steps, reads uploaded tax documents, writes the explanation in
+          a retirement plan, fills in your profile from setup text, and sorts
+          holdings the app doesn't recognize. It can get things wrong, so check
+          a figure against your account before you rely on it.
+        </p>
       </div>
 
-      <!-- 2 · READ ONLY -->
-      <div class="feat-row flip rv">
-        <div class="copy">
-          <h3 class="display">Account connections are read only</h3>
+      <div class="feature" id="redaction" data-reveal>
+        <div class="f-copy">
+          <h2>What the AI sees</h2>
           <p>
-            Your accounts connect through Plaid with read-only scope, which
-            covers balances, holdings and transactions. No payment, transfer or
-            account change is possible through that connection, and your bank
-            password is never shared with us.
+            Before anything goes to the AI, your name, banks and account numbers
+            are replaced with codes. Balances, rates and dates are sent as they
+            are, since the answers depend on them. The codes are swapped back
+            before the answer shows up on your screen.
           </p>
-          <ul class="pts">
-            <li>You sign in at your bank, so LasagnaFi never sees the password</li>
-            <li>Any institution can be disconnected from settings</li>
-            <li>Disconnecting stops the sync immediately</li>
+          <ul class="points">
+            <li><span class="tick denim"><Icon name="check" size={14} /></span> Names, banks and account numbers become codes</li>
+            <li><span class="tick denim"><Icon name="check" size={14} /></span> Tax documents you upload are the exception, below</li>
+            <li><span class="tick denim"><Icon name="check" size={14} /></span> What you type into setup goes as you wrote it</li>
           </ul>
         </div>
-        <div class="card">
-          <div class="card-head">
-            <div class="card-title">What the connection allows</div>
-          </div>
-          <div class="rows">
-            <div class="row bar c-save">
-              <span class="row-icon c-save"><Icon name="check" /></span>
-              <div class="row-body">
-                <b>Read balances, holdings and transactions</b>
-                <em>So your net worth and your actions stay current.</em>
-              </div>
-            </div>
-            <div class="row bar c-debt">
-              <span class="row-icon c-debt"><Icon name="close" /></span>
-              <div class="row-body">
-                <b>Move money, pay a bill, open an account</b>
-                <em>Not possible. The connection has no write access.</em>
-              </div>
-            </div>
-            <div class="row bar c-debt">
-              <span class="row-icon c-debt"><Icon name="close" /></span>
-              <div class="row-body">
-                <b>See your bank password</b>
-                <em>Not possible. You sign in to your bank, not to us.</em>
-              </div>
-            </div>
+        <div class="f-art">
+          <div class="card redact" aria-label="An example of what is sent to the AI">
+            <p class="redact-title">What the AI receives</p>
+            <dl>
+              <div><dt>Your name</dt><dd><s>Alex Rivera</s> <code>Person A</code></dd></div>
+              <div><dt>Account</dt><dd><s>First Bank Checking</s> <code>Account 1</code></dd></div>
+              <div><dt>Account number</dt><dd><s>ending 0183</s> <code>removed</code></dd></div>
+              <div><dt>Balance</dt><dd>$14,753</dd></div>
+              <div><dt>Card rate</dt><dd>24.99%</dd></div>
+            </dl>
+            <p class="redact-note">Sample data. Each struck value is replaced by what follows it.</p>
           </div>
         </div>
       </div>
 
-      <!-- 3 · OPEN SOURCE -->
-      <div class="feat-row rv">
-        <div class="copy">
-          <h3 class="display">All of it is open source</h3>
+      <div class="feature flip" id="tax-documents" data-reveal>
+        <div class="f-copy">
+          <h2>Tax documents</h2>
           <p>
-            All of LasagnaFi is open source, scrub layer included, so you can
-            read exactly what happens to your data. Chat, insights and the
-            planning tools all go through that one layer, and a test in the repo
-            checks that nothing else calls the model directly.
+            When you upload a tax document, the AI reads the page exactly as it
+            is printed, so it sees everything on it, including your name and
+            your Social Security number. LasagnaFi keeps the figures it needs
+            and deletes the file.
           </p>
-          <ul class="pts">
-            <li>MIT licensed, on GitHub</li>
-            <li>A test in the repo checks for any call that skips the scrub layer</li>
-            <li>The whole app can be run on your own server</li>
-          </ul>
-          <div class="hero-cta" style="margin-top:24px">
-            <a class="btn btn-ghost" href={GITHUB_URL}><Icon name="github" size={17} /> See the source code</a>
-          </div>
         </div>
-        <div class="card" data-demo data-demo-hold="3000" data-demo-labels="The scrub layer|The test that checks it">
-          <div class="card-head">
-            <div class="card-title">lasagna</div>
-            <span class="chip-meta" data-demo-label>The scrub layer</span>
-          </div>
-          <div class="demo-stage" data-demo-stage>
-            {CODE.map((file, n) => {
-              const next = CODE[(n + 1) % CODE.length].tab;
-              return (
-                <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
-                  <div class="segrow">
-                    {CODE.map((o) => (
-                      <span
-                        class:list={["seg-chip", { on: o.tab === file.tab }]}
-                        {...(o.tab === next ? { "data-demo-target": true } : {})}
-                      >{o.tab}</span>
-                    ))}
-                  </div>
-                  <pre class="code mt"><code>{file.lines.map((l) => (
-                    <span class:list={["cl", l.t]}>{l.s}</span>
-                  ))}</code></pre>
-                  <p class="code-note">{file.note}</p>
-                </article>
-              );
-            })}
+        <div class="f-art">
+          <div class="card note-card">
+            <span class="pi"><Icon name="eye" /></span>
+            <p>Uploading a tax document is optional. If you would rather the AI never see a full page, skip it.</p>
           </div>
         </div>
       </div>
 
-      <!-- 4 · DELETION -->
-      <div class="feat-row flip rv">
-        <div class="copy">
-          <h3 class="display">Deleting your account</h3>
+      <div class="feature" id="connections" data-reveal>
+        <div class="f-copy">
+          <h2>Account connections are read only</h2>
           <p>
-            You can delete your account yourself from settings. It removes your
-            connected accounts, balances, chat history and uploaded documents,
-            and cuts the Plaid connection at the same time.
+            Your accounts connect through Plaid with read-only access to
+            balances, holdings and transactions. LasagnaFi can't make a payment,
+            a transfer or any change to an account through it.
           </p>
-          <ul class="pts">
-            <li>Available in settings, no support request needed</li>
-            <li>Bank connections are cut at the same time</li>
-            <li>Your data is not sold or shared with advertisers</li>
+          <ul class="points">
+            <li><span class="tick basil"><Icon name="check" size={14} /></span> Disconnect any institution from settings</li>
+            <li><span class="tick basil"><Icon name="check" size={14} /></span> Disconnecting stops the sync right away</li>
           </ul>
         </div>
-        <div class="card" data-demo data-demo-hold="3000" data-demo-labels="4 things stored|Nothing left">
-          <div class="card-head">
-            <div class="card-title">What deletion removes</div>
-            <span class="chip-meta" data-demo-label>4 things stored</span>
-          </div>
-          <div class="demo-stage" data-demo-stage>
-            {[false, true].map((wiped, n) => (
-              <article class:list={["demo-item", { "is-active": n === 0 }]} data-demo-frame>
-                <div class="acct-rows">
-                  {WIPE.map((w) => (
-                    <div class:list={["acct-row", { wiped }]}>
-                      <div><b>{w.name}</b><em>{w.sub}</em></div>
-                      <div class="right">
-                        {wiped
-                          ? <span class="chip-meta c-debt">{w.gone}</span>
-                          : <span class="chip-meta">Stored</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <span
-                  class:list={["btn", "btn-sm", "full", "mt", wiped ? "btn-ghost" : "btn-danger"]}
-                  data-demo-target
-                >{wiped ? "Start again" : "Delete my account"}</span>
-              </article>
+        <div class="f-art">
+          <div class="card facts-table">
+            <h3 class="facts-title">What the connection allows</h3>
+            {connection.map((r) => (
+              <div class="row">
+                <div><b>{r.what}</b><span>{r.why}</span></div>
+                <span class:list={["verdict", r.ok ? "yes" : "no"]}>{r.ok ? "Yes" : "No"}</span>
+              </div>
             ))}
           </div>
         </div>
       </div>
 
+      <div class="feature flip" id="open-source" data-reveal>
+        <div class="f-copy">
+          <h2>The code is open source</h2>
+          <p>
+            Chat, actions and the planning tools all send data to the AI through
+            one file, the one that swaps in the codes. A test fails if any other
+            file calls the AI directly, apart from the two that read setup text
+            and tax documents.
+          </p>
+          <ul class="points">
+            <li><span class="tick pasta"><Icon name="check" size={14} /></span> MIT licensed, on GitHub</li>
+            <li><span class="tick pasta"><Icon name="check" size={14} /></span> Run the whole app on your own server if you prefer</li>
+          </ul>
+          <p style="margin-top:24px"><a class="btn btn-secondary" href={GITHUB_URL}><Icon name="github" /> See the source code</a></p>
+        </div>
+        <div class="f-art">
+          <div class="card code-card">
+            <p class="code-file">llm-boundary.test.ts</p>
+            <pre><code>it("never imports the model directly", () =&gt; {'{'}
+  const direct = sourceFiles()
+    .filter((f) =&gt; f.imports("ai"))
+    .filter((f) =&gt; f !== "lib/llm.ts");
+
+  expect(direct).toEqual([]);
+{'}'});</code></pre>
+            <p class="redact-note">A simplified version of the test in the repository.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature" id="deletion" data-reveal>
+        <div class="f-copy">
+          <h2>Deleting your account</h2>
+          <p>
+            You can delete your account from Settings without contacting us. It
+            removes your connected accounts, balances, chat history and the
+            figures read from your documents, and disconnects your banks at
+            Plaid.
+          </p>
+          <ul class="points">
+            <li><span class="tick sauce"><Icon name="check" size={14} /></span> Your data is not sold or shared with advertisers</li>
+          </ul>
+        </div>
+        <div class="f-art">
+          <div class="card facts-table">
+            <h3 class="facts-title">What deletion removes</h3>
+            {deletion.map((r) => (
+              <div class="row">
+                <div><b>{r.what}</b><span>{r.why}</span></div>
+                <span class="verdict no">{r.verdict}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
-  <FinalCTA />
-  <Footer />
-  <Motion />
-  <Demo />
-</Layout>
-
+  <FinalCta />
+</Base>

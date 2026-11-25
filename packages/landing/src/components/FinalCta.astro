@@ -1,0 +1,19 @@
+---
+import { SIGNUP_URL, GITHUB_URL } from "../config";
+import Mascot from "./Mascot.astro";
+import Icon from "./Icon.astro";
+---
+
+<section class="section-tight band">
+  <div class="wrap">
+    <div class="card final" data-reveal>
+      <Mascot width={112} wave={false} label="Noodle, the LasagnaFi mascot" />
+      <h2>Try it for free today</h2>
+      <p class="lead">Your Actions list fills in about five minutes after you connect an account. The hosted app is free to start, or you can run it yourself.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href={SIGNUP_URL}>Create a free account <Icon name="arrow" /></a>
+        <a class="btn btn-secondary" href={GITHUB_URL}><Icon name="github" /> See the source code</a>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,63 +1,62 @@
 ---
+// The answers state exactly what the app does today. Change one only when the
+// app changes.
+const faqs: Array<{ q: string; a: string }> = [
+  {
+    q: "What do I need to get started?",
+    a: "An email address. You fill in a short profile with your name, your income and how much risk you are comfortable with, then connect your accounts.",
+  },
+  {
+    q: "Which accounts can I connect?",
+    a: "Banks, credit cards, brokerages, retirement accounts and loans at US institutions, through Plaid. For a house, enter the address and LasagnaFi looks up a value estimate, or enter your own figure and it keeps that instead. Anything Plaid does not reach, you can add by hand, and it counts towards your net worth like any other account.",
+  },
+  {
+    q: "Can LasagnaFi move my money?",
+    a: "No. The connection Plaid opens is read only, so LasagnaFi can see your accounts but cannot make a payment or a transfer. Moving money is something you do at your own bank.",
+  },
+  {
+    q: "Do you see my bank password?",
+    a: "No. You sign in to your bank through a window that Plaid opens, so your password goes to your bank and not to LasagnaFi.",
+  },
+  {
+    q: "How does LasagnaFi use AI?",
+    a: "AI writes the items in Actions and their estimates, answers your questions in chat, reads tax documents you upload, orders and describes some journey steps, writes the explanation in a retirement plan, fills in your profile from setup text and sorts holdings the app doesn't recognize. Balances, totals, spending categories, debt payoff dates and the retirement simulation are worked out without AI.",
+  },
+  {
+    q: "What about a tax document I upload?",
+    a: "LasagnaFi uses AI to read the document and pull out the figures it needs, then deletes the file and keeps those figures. The AI reads the page exactly as it is printed, so it sees everything on it, including your name and your Social Security number.",
+  },
+  {
+    q: "Who else gets my data?",
+    a: "We have no advertisers and we do not sell your data. We share it only with the services LasagnaFi needs to work, like Plaid for connecting your accounts and Stripe for payment. The privacy policy has the full list.",
+  },
+  {
+    q: "What happens when I delete my account?",
+    a: "The account owner can delete it from Settings. That cancels any subscription, disconnects your banks at Plaid, and removes your accounts, transactions, chat history and the figures from anything you uploaded. Backups roll off after that, and Plaid and Stripe keep their own records under their own policies.",
+  },
+  {
+    q: "Does the free plan run out?",
+    a: "No, it isn't a trial. If you connect more institutions than your plan covers, the ones past the limit keep their last known balance and start updating again when you upgrade. Accounts you enter by hand do not use a slot.",
+  },
+  {
+    q: "Is this financial advice?",
+    a: "No. LasagnaFi is not a registered investment advisor, broker, or financial planner, and nothing in it is financial, investment, tax, or legal advice. It shows your numbers and estimates, and the decisions are yours. Talk to a licensed professional before making a financial decision.",
+  },
+];
 ---
 
-<!-- FAQ -->
-<section class="band faq-band" id="faq">
+<section class="section" id="faq">
   <div class="wrap">
-    <div class="sec-head center rv">
-      <h2 class="display">Common questions</h2>
+    <div class="sec-head center" data-reveal>
+      <h2>Common questions</h2>
     </div>
-
-    <div class="faq rv">
-      <details class="faq-item" open>
-        <summary>What do I need to do to get started?</summary>
-        <p>Sign up with your email, fill in a short profile with your name, your income and how much risk you are comfortable with, then connect your accounts.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>Which accounts can I connect?</summary>
-        <p>You can connect banks, credit cards, brokerages, retirement accounts and loans at US institutions through Plaid. For a house, enter the address and LasagnaFi looks up a value estimate for you, or you can enter your own figure and it will keep that instead. Anything Plaid does not reach, and any estimate that does not come back, you can add by hand, and it counts towards your net worth like any other account.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>Can LasagnaFi move my money?</summary>
-        <p>No. The connection that Plaid opens is read only, so LasagnaFi can see your accounts but cannot make a payment or a transfer. Moving money is something you do at your own bank.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>Do you see my bank password?</summary>
-        <p>No. You sign in to your bank through a window that Plaid opens, so your password goes to your bank and not to LasagnaFi.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>How does LasagnaFi use AI?</summary>
-        <p>LasagnaFi uses AI to help create the insights you see in your actions, as well as the chat responses to any questions you have. The data behind both is anonymized before it is sent, so it carries no information about who you are.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>What about a tax document I upload?</summary>
-        <p>LasagnaFi uses AI to read the document and pull out the figures it needs, then deletes the file and keeps those figures. The AI reads the page exactly as it is printed, so it sees everything on it, including your name and your Social Security number.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>Who else gets my data?</summary>
-        <p>We don't have advertisers, and we don't sell your data. We only share it with the platforms required to make LasagnaFi work, like Plaid for connecting your accounts and Stripe for payment. See our <a href="/privacy">Privacy Policy</a> for the full list.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>What happens when I delete my account?</summary>
-        <p>The account owner will find a Delete account button in Settings. Using it cancels any subscription, disconnects your banks at Plaid, and removes your accounts, transactions, chat history and the figures from anything you uploaded. Backups roll off after that, and Plaid and Stripe keep their own records under their own policies.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>Is this financial advice?</summary>
-        <p>No. LasagnaFi is not a registered investment advisor, and nothing in it is financial, investment, tax or legal advice. Before taking action, talk to a licensed professional.</p>
-      </details>
-
-      <details class="faq-item">
-        <summary>Does the free plan run out?</summary>
-        <p>No, the free plan is not a trial. If you connect more institutions than your plan covers, the ones past the limit keep their last known balance instead of disappearing, and they start updating again when you upgrade. Accounts you enter by hand do not use up a slot.</p>
-      </details>
+    <div class="faq" data-reveal>
+      {faqs.map((f, i) => (
+        <details open={i === 0}>
+          <summary>{f.q}</summary>
+          <p>{f.a}</p>
+        </details>
+      ))}
     </div>
   </div>
 </section>

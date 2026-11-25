@@ -1,0 +1,31 @@
+---
+// The Actions list: what LasagnaFi found, each with its estimate. Colour says
+// which way the money goes: sauce for a cost, basil for money in, denim for
+// savings. The estimates are yellow, the thing to look at.
+const rows = [
+  { text: "Your 24.99% card costs the most", tag: "$719/yr interest", bar: "var(--ui-tint-spend-accent)" },
+  { text: "Unclaimed 401(k) match", tag: "$3,400/yr match", bar: "var(--ui-tint-income-accent)" },
+  { text: "Idle cash in checking", tag: "$178/yr unearned", bar: "var(--ui-tint-wealth-accent)" },
+];
+---
+
+<svg class="illus" data-illus="a-actions" viewBox="0 0 440 360" aria-hidden="true">
+  <rect x="16" y="16" width="408" height="328" rx="24" class="il-card il-raised" />
+  <text x="44" y="64" class="il-title">Actions</text>
+  {rows.map((r, i) => {
+    const y = 92 + i * 80;
+    return (
+      <g>
+        <g data-fx="left" data-step="0">
+          <rect x="40" y={y} width="360" height="66" rx="14" class="il-chip" />
+          <rect x="40" y={y} width="8" height="66" rx="4" style={`fill:${r.bar}`} />
+          <text x="64" y={y + 27} class="il-label il-b">{r.text}</text>
+        </g>
+        <g data-fx="pop" data-step="1">
+          <rect x="64" y={y + 37} width={r.tag.length * 8.6 + 20} height="22" rx="11" style="fill:var(--ui-tint-goal)" />
+          <text x={64 + (r.tag.length * 8.6 + 20) / 2} y={y + 53} text-anchor="middle" class="il-tag" style="fill:var(--ui-tint-goal-ink)">{r.tag}</text>
+        </g>
+      </g>
+    );
+  })}
+</svg>

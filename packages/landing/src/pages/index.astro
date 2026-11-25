@@ -1,26 +1,217 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import "../styles/landing.css";
-import Nav from "../components/Nav.astro";
-import Hero from "../components/Hero.astro";
-import HowItWorks from "../components/HowItWorks.astro";
+import Base from "../layouts/Base.astro";
+import AHero from "../components/illus/a/Hero.astro";
+import AActions from "../components/illus/a/Actions.astro";
+import AJourney from "../components/illus/a/Journey.astro";
+import ASpending from "../components/illus/a/Spending.astro";
+import ANetWorth from "../components/illus/a/NetWorth.astro";
+import APrivacy from "../components/illus/a/Privacy.astro";
+import AStep from "../components/illus/a/Step.astro";
+import AAi from "../components/illus/a/Ai.astro";
+import Icon from "../components/Icon.astro";
 import Pricing from "../components/Pricing.astro";
 import Faq from "../components/Faq.astro";
-import FinalCTA from "../components/FinalCTA.astro";
-import Footer from "../components/Footer.astro";
-import Motion from "../components/Motion.astro";
-import Demo from "../components/Demo.astro";
+import FinalCta from "../components/FinalCta.astro";
+import { SIGNUP_URL, GITHUB_URL } from "../config";
+
+const steps = [
+  {
+    art: "connect",
+    title: "Connect accounts",
+    body: "Banks, cards, brokerages, retirement accounts and loans connect through Plaid. The connection is read only, and balances and transactions refresh once a day.",
+  },
+  {
+    art: "actions",
+    title: "See your options",
+    body: "LasagnaFi looks at all your accounts together and lists what it finds, like the card costing you the most in interest or an employer match you aren't collecting.",
+  },
+  {
+    art: "chat",
+    title: "Ask questions in chat",
+    body: "Answers use your actual balances, rates and tax bracket, and show the math.",
+  },
+  {
+    art: "decide",
+    title: "You decide",
+    body: "You make any changes yourself. The list updates after the next daily sync.",
+  },
+];
 ---
 
-<Layout title="LasagnaFi | Personal Finance for the rest of us">
-  <Nav />
-  <Hero />
-  <HowItWorks />
+<Base>
+  <section class="hero">
+    <div class="wrap hero-in">
+      <div data-reveal>
+        <h1>See where your finances stand and what your options are.</h1>
+        <p class="lead">
+          LasagnaFi connects to your bank, card and investment accounts and lists
+          the options it finds, like which card costs you the most in interest.
+          Each one comes with an estimate of what it's worth.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href={SIGNUP_URL}>Create a free account <Icon name="arrow" /></a>
+          <a class="btn btn-secondary" href={GITHUB_URL}><Icon name="github" /> See the source code</a>
+        </div>
+        <p class="hero-note">The app is open source (MIT license).</p>
+      </div>
+      <div class="hero-art" data-reveal>
+        <AHero />
+      </div>
+    </div>
+  </section>
+
+  <section class="section band" id="how">
+    <div class="wrap">
+      <div class="sec-head center" data-reveal>
+        <h2>How it works</h2>
+        <p class="lead">What happens after you sign up.</p>
+      </div>
+      <ol class="steps" style="list-style:none;padding:0;margin:0">
+        {steps.map((s, i) => (
+          <li class="card step" data-reveal>
+            <AStep kind={s.art as "connect" | "actions" | "chat" | "decide"} />
+            <span class="step-num" aria-hidden="true">{i + 1}</span>
+            <h3>{s.title}</h3>
+            <p>{s.body}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap">
+      <div class="feature" data-reveal>
+        <div class="f-copy">
+          <h3>Actions</h3>
+          <p>
+            Actions lists what LasagnaFi found in your accounts, grouped into now
+            and the next month, with an estimate for each. For example, a $2,879
+            balance on a 24.99% card costs about $719 a year in interest. Open one
+            to see the account and the numbers behind it.
+          </p>
+          <ul class="points">
+            <li><span class="tick pasta"><Icon name="check" size={14} /></span> Covers spending, taxes, retirement, debt and savings</li>
+          </ul>
+        </div>
+        <div class="f-art home-art"><AActions /></div>
+      </div>
+
+      <div class="feature flip" data-reveal>
+        <div class="f-copy">
+          <h3>Your financial journey</h3>
+          <p>
+            A set of steps from a starter emergency fund to retirement.
+            LasagnaFi uses your balances to show which steps they already cover,
+            and estimates whether you're on track to retire at the age you
+            picked.
+          </p>
+          <ul class="points">
+            <li><span class="tick basil"><Icon name="check" size={14} /></span> Each step shows the dollar amount that finishes it</li>
+            <li><span class="tick basil"><Icon name="check" size={14} /></span> Work on the steps in any order</li>
+          </ul>
+        </div>
+        <div class="f-art home-art"><AJourney /></div>
+      </div>
+
+      <div class="feature" data-reveal>
+        <div class="f-copy">
+          <h3>Spending</h3>
+          <p>
+            Transactions are categorized automatically. Each month shows money
+            in, money out and your savings rate, and a category spending faster
+            than usual gets marked. Moving money between your own accounts,
+            including paying a card, doesn't count as spending or income.
+          </p>
+          <ul class="points">
+            <li><span class="tick sauce"><Icon name="check" size={14} /></span> Switch between a month and a year</li>
+            <li><span class="tick sauce"><Icon name="check" size={14} /></span> Tap a category to see its transactions</li>
+          </ul>
+        </div>
+        <div class="f-art home-art"><ASpending /></div>
+      </div>
+
+      <div class="feature flip" data-reveal>
+        <div class="f-copy">
+          <h3>Net worth</h3>
+          <p>
+            Cash, investments and property minus cards and loans, tracked over
+            time. You can add anything Plaid can't connect by hand. For a house,
+            enter the address to get a value estimate, or type in your own
+            number.
+          </p>
+          <ul class="points">
+            <li><span class="tick denim"><Icon name="check" size={14} /></span> Group accounts by type or by institution</li>
+            <li><span class="tick denim"><Icon name="check" size={14} /></span> The debt, portfolio and tax pages use the same accounts</li>
+          </ul>
+        </div>
+        <div class="f-art home-art"><ANetWorth /></div>
+      </div>
+
+      <p style="text-align:center;margin-top:24px" data-reveal>
+        <a class="btn btn-secondary" href="/features">All features <Icon name="arrow" /></a>
+      </p>
+      <p class="disclaimer" data-reveal>LasagnaFi is not a registered investment advisor, broker, or financial planner, and nothing in the app is financial, investment, tax, or legal advice. Everything you see is for information and education only. <a href="/terms">Terms of service</a></p>
+    </div>
+  </section>
+
+  <section class="section band" id="ai">
+    <div class="wrap">
+      <div class="feature" data-reveal>
+        <div class="f-copy">
+          <h2 class="ai-h2">How LasagnaFi uses AI</h2>
+          <p>
+            A person designed and built LasagnaFi, with help from AI. In the app,
+            AI makes the experience better, but it is not the product.
+          </p>
+          <p>
+            Your balances, totals, spending categories, debt payoff dates and the
+            retirement simulation are worked out without AI. AI does the reading
+            and the writing.
+          </p>
+          <ul class="ai-list">
+            <li><b>Actions:</b> once a day, AI reads a summary of your accounts and writes the items, with the estimate on each. Spending items are found and priced without AI.</li>
+            <li><b>Chat:</b> when you send a message, AI answers from your balances, rates and tax bracket.</li>
+            <li><b>Your financial journey:</b> the app picks the steps and works out every amount without AI. AI puts some of them in order and writes a line on each.</li>
+            <li><b>Tax documents:</b> when you upload one, AI reads the figures off the page and writes a short summary.</li>
+            <li><b>Plans, setup and investments:</b> AI writes the explanation in a retirement plan you create, fills in your profile if you describe yourself in words during setup, and sorts a holding into an asset class when the app doesn't recognize it.</li>
+          </ul>
+          <p class="ai-note">AI explains and estimates. It can get things wrong, so check a figure against your account before you rely on it.</p>
+        </div>
+        <div class="f-art home-art"><AAi /></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="privacy-band" data-reveal>
+        <div>
+          <h2>What the AI sees</h2>
+          <p class="lead">
+            Before anything goes to the AI, your name, banks and account numbers
+            are replaced with codes. Balances, rates and dates are sent as they
+            are, since the answers depend on them. Tax documents you upload, and
+            anything you type into setup, go as they are.
+          </p>
+          <p style="margin-top:22px"><a href="/data-privacy">How your data is handled</a></p>
+        </div>
+        <div class="privacy-art"><APrivacy /></div>
+        <div class="privacy-facts">
+          <div class="pfact"><span class="pi"><Icon name="lock" /></span><div><b>Read-only connections</b><span>LasagnaFi can see your accounts. It can't move money.</span></div></div>
+          <div class="pfact"><span class="pi"><Icon name="eye" /></span><div><b>You sign in to your bank through Plaid</b><span>Your bank password never reaches us.</span></div></div>
+          <div class="pfact"><span class="pi"><Icon name="github" /></span><div><b>Open source</b><span>The code that replaces your details with codes is public, so you can check it.</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <Pricing />
   <Faq />
-  <FinalCTA />
-  <Footer />
-  <Motion />
-  <Demo />
-</Layout>
+  <FinalCta />
 
+</Base>
+
+<script>
+  import "../scripts/illus";
+</script>

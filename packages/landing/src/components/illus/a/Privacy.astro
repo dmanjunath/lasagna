@@ -1,0 +1,29 @@
+---
+// In the app, your name and bank. Sent to the AI, codes in their place. The
+// balance goes as it is.
+const rows = [
+  { from: "Alex Rivera", to: "Person A", swap: true },
+  { from: "First Bank Checking", to: "Account 1", swap: true },
+  { from: "$14,753", to: "$14,753", swap: false },
+];
+---
+
+<svg class="illus il-privacy" data-illus="a-privacy" viewBox="0 0 384 236" aria-hidden="true">
+  <text x="2" y="18" class="il-label">In the app</text>
+  <text x="218" y="18" class="il-label">Sent to the AI</text>
+  {rows.map((r, i) => {
+    const y = 36 + i * 66;
+    return (
+      <g>
+        <rect x="0" y={y} width="178" height="46" rx="12" class="il-chip il-lift" />
+        <text x="14" y={y + 29} class:list={["il-label", "il-b", { "il-struck": r.swap }]}>{r.from}</text>
+        {r.swap && <line x1="12" y1={y + 24} x2={14 + r.from.length * 7.6} y2={y + 24} pathLength="1" class="il-strike" data-fx="draw" data-step={i} />}
+        <path d={`M186 ${y + 23} h18 m-6 -6 l6 6 l-6 6`} class="il-arrow" />
+        <g data-fx="pop" data-step={i}>
+          <rect x="216" y={y} width="166" height="46" rx="12" class:list={["il-lift", r.swap ? "il-code-chip" : "il-chip"]} />
+          <text x="232" y={y + 29} class:list={["il-label", "il-b", { "il-code": r.swap }]}>{r.to}</text>
+        </g>
+      </g>
+    );
+  })}
+</svg>

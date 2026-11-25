@@ -1,0 +1,15 @@
+---
+import { tileSvg } from "../lib/design";
+
+// The app's lockup: the mascot on its basil tile, then the wordmark with "Fi"
+// in the brand ink, as BrandMark draws it in the app.
+export interface Props {
+  size?: number;
+}
+const { size = 32 } = Astro.props;
+---
+
+<span class="lockup" style={`--tile:${size}px`}>
+  <span class="tile" aria-hidden="true" set:html={tileSvg} />
+  <span class="wordmark">Lasagna<span class="fi">Fi</span></span>
+</span>

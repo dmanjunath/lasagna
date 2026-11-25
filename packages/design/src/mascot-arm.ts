@@ -49,3 +49,21 @@ export function waveHand(deg: number): { x: number; y: number } {
   const dy = -20;
   return { x: 122 + dx * Math.cos(r) - dy * Math.sin(r), y: 70 + dx * Math.sin(r) + dy * Math.cos(r) };
 }
+
+// The happy artwork's eyes are at (48, 73) and (74, 73) on the ricotta layer.
+// A blink lays a ricotta lid with a closed-eye curve over each one and drops it
+// from the top for a moment. Shared so the web and the native app blink alike.
+
+/** One lid's box in artwork units. */
+export const LID_BOX = { w: 12, h: 11.6 } as const;
+/** Where each lid's box sits (its top left) in the 140 by 124 artwork. */
+export const BLINK_LIDS = [{ x: 42, y: 67.4 }, { x: 68, y: 67.4 }] as const;
+/** A lid: the ricotta covering the eye, with the closed eye drawn across it. */
+export const LID_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 11.6"><ellipse cx="6" cy="5.8" rx="5.8" ry="5.6" fill="#FFF6E0"/><path d="M1.5 5.8 q4.5 2.6 9 0" fill="none" stroke="#2A2420" stroke-width="2.6" stroke-linecap="round"/></svg>';
+/** Time from one blink to the next, in ms. */
+export const BLINK_EVERY = 4200;
+/** One blink, closing and opening, in ms. */
+export const BLINK_MS = 180;
+/** The first blink waits for the hello wave to finish. */
+export const BLINK_START = INTRO_DELAY + HELLO_WAVE.length * WAVE_HALF + 600;

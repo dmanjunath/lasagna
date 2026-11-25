@@ -1,0 +1,38 @@
+---
+import Noodle from "../Noodle.astro";
+
+// Accounts flow into one net worth card whose line draws in. Noodle rises from
+// behind the card's top edge, waves, then blinks. Cash is basil, the card is sauce, investing denim.
+const accounts = [
+  { label: "Checking", y: 78, ink: "var(--ui-tint-income-ink)", bg: "var(--ui-tint-income)", line: "var(--ui-tint-income-accent)" },
+  { label: "Credit card", y: 160, ink: "var(--ui-tint-spend-ink)", bg: "var(--ui-tint-spend)", line: "var(--ui-tint-spend-accent)" },
+  { label: "401(k)", y: 242, ink: "var(--ui-tint-wealth-ink)", bg: "var(--ui-tint-wealth)", line: "var(--ui-tint-wealth-accent)" },
+];
+const pts = [[198, 252], [236, 244], [274, 248], [312, 226], [350, 218], [392, 196]];
+const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ");
+---
+
+<svg class="illus" data-illus="a-hero" viewBox="0 0 420 380" aria-hidden="true">
+  {accounts.map((a) => (
+    <path d={`M132 ${a.y + 22} C158 ${a.y + 22} 154 200 182 200`} pathLength="1" class="il-flow" style={`stroke:${a.line}`} data-fx="draw" data-step="1" />
+  ))}
+  {accounts.map((a) => (
+    <g data-fx="left" data-step="0">
+      <rect x="4" y={a.y} width="128" height="44" rx="12" class="il-lift" style={`fill:${a.bg}`} />
+      <text x="20" y={a.y + 28} class="il-label" style={`fill:${a.ink}`}>{a.label}</text>
+    </g>
+  ))}
+  <Noodle x={324} y={92 - 108 * 0.6} scale={0.6} fx="rise" step={3} blink />
+  <g data-fx="fade" data-step="1">
+    <rect x="182" y="92" width="232" height="270" rx="22" class="il-card il-raised" />
+    <text x="198" y="128" class="il-label">Net worth</text>
+  </g>
+  <text x="198" y="164" class="il-big" data-fx="count" data-to="98468" data-step="2">$98,468</text>
+  <path d={`${line} L392 268 L198 268 Z`} class="il-area" data-fx="fade" data-step="2" />
+  <path d={line} pathLength="1" class="il-line" data-fx="draw" data-step="2" />
+  <g data-fx="up" data-step="3">
+    <rect x="198" y="284" width="200" height="62" rx="14" style="fill:var(--ui-tint-goal)" />
+    <text x="214" y="310" class="il-label il-b" style="fill:var(--ui-tint-goal-ink)">Your 24.99% card</text>
+    <text x="214" y="332" class="il-label il-b" style="fill:var(--ui-tint-goal-ink)">costs $719/yr</text>
+  </g>
+</svg>

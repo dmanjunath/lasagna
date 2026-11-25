@@ -1,0 +1,31 @@
+---
+import { mascotParts } from "../../lib/design";
+
+// Noodle inside an illustration's SVG, in the artwork's own 140 by 124 units,
+// placed at (x, y) and scaled. The raised arm is its own group so a script can
+// turn it at the shoulder (122, 70) for a wave. The outer group carries no
+// transform attribute, so the script can move it without losing the placement.
+export interface Props {
+  x: number;
+  y: number;
+  scale?: number;
+  fx?: string;
+  step?: number;
+  /** Eyelids that close every few seconds once the intro has played. */
+  blink?: boolean;
+}
+const { x, y, scale = 1, fx, step, blink } = Astro.props;
+---
+
+<g class="il-noodle" data-fx={fx} data-step={step}>
+  <g transform={`translate(${x} ${y}) scale(${scale})`}>
+    <g set:html={mascotParts.body} />
+    {mascotParts.arm && <g class="il-arm" set:html={mascotParts.arm} />}
+    {blink && [48, 74].map((cx) => (
+      <g class="il-lid">
+        <ellipse cx={cx} cy="73" rx="5.8" ry="5.6" fill="#FFF6E0" />
+        <path d={`M${cx - 4.5} 73 q4.5 2.6 9 0`} fill="none" stroke="#2A2420" stroke-width="2.6" stroke-linecap="round" />
+      </g>
+    ))}
+  </g>
+</g>

@@ -1,0 +1,30 @@
+---
+// The net worth card: the line climbs, what you own stacks above the line
+// (home and investing in denim, cash in basil) and the card sits below it.
+const pts = [[40, 180], [100, 170], [160, 174], [220, 150], [280, 140], [340, 116], [400, 100]];
+const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ");
+const assets = [
+  { label: "Home", x: 40, w: 128, fill: "var(--ui-tint-wealth)", ink: "var(--ui-tint-wealth-ink)" },
+  { label: "Investing", x: 172, w: 128, fill: "var(--ui-tint-wealth)", ink: "var(--ui-tint-wealth-ink)" },
+  { label: "Cash", x: 304, w: 96, fill: "var(--ui-tint-income)", ink: "var(--ui-tint-income-ink)" },
+];
+---
+
+<svg class="illus" data-illus="a-networth" viewBox="0 0 440 400" aria-hidden="true">
+  <rect x="16" y="20" width="408" height="364" rx="24" class="il-card il-raised" />
+  <text x="40" y="62" class="il-label">Net worth</text>
+  <text x="40" y="98" class="il-big" data-fx="count" data-to="98468">$98,468</text>
+  <path d={`${line} L400 204 L40 204 Z`} class="il-area" data-fx="fade" />
+  <path d={line} pathLength="1" class="il-line" data-fx="draw" />
+  {assets.map((a) => (
+    <g data-fx="up" data-step="1">
+      <rect x={a.x} y="228" width={a.w} height="56" rx="14" style={`fill:${a.fill}`} />
+      <text x={a.x + a.w / 2} y="262" text-anchor="middle" class="il-label il-b" style={`fill:${a.ink}`}>{a.label}</text>
+    </g>
+  ))}
+  <line x1="32" y1="296" x2="408" y2="296" class="il-rule" />
+  <g data-fx="down" data-step="2">
+    <rect x="304" y="308" width="96" height="52" rx="14" style="fill:var(--ui-tint-spend)" />
+    <text x="352" y="340" text-anchor="middle" class="il-label il-b" style="fill:var(--ui-tint-spend-ink)">−Card</text>
+  </g>
+</svg>
