@@ -24,6 +24,7 @@ import { ScreenScroll } from "@/ui/ScreenScroll";
 import { Skeleton } from "@/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/ui/State";
 import { pressFeedback } from "@/ui/press";
+import { errorText } from "@/api/client";
 
 /** A step's own screen, pushed in the current tab. */
 export const openStep = (id: string) => pushInTab(`/financial-level/${encodeURIComponent(id)}`);
@@ -76,7 +77,7 @@ export default function JourneyScreen({ step: asked }: { step?: string }) {
       return (
         <ErrorState
           title="We couldn't load your path"
-          body="Your steps and everything you have marked are safe. This is on our side, so trying again usually works."
+          body={`Your steps and everything you have marked are safe. ${errorText(path.error)}`}
           onRetry={() => void path.refetch()}
         />
       );

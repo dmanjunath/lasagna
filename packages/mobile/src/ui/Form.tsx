@@ -80,7 +80,56 @@ export function Group({ children }: { children: React.ReactNode }) {
   const d = useDesign();
   const skin = d.skin.row;
   const fill = skin === "inset" ? d.color.surface : skin === "carded" ? d.color.surfaceMuted : "transparent";
-  return <View style={[styles.group, { backgroundColor: fill, borderRadius: skin === "carded" ? d.radius.lg : skin === "inset" ? d.radius.md : 0 }]}>{children}</View>;
+  // A carded group is a card like every other: the same fill, warm edge and soft lift.
+  const edge = skin === "carded" ? { borderWidth: 1, borderColor: d.color.hairline, boxShadow: d.shadow.sm } : null;
+  return <View style={[styles.group, { backgroundColor: fill, borderRadius: skin === "carded" ? d.radius.lg : skin === "inset" ? d.radius.md : 0 }, edge]}>{children}</View>;
+}
+
+/**
+ * The top of a detail sheet: what it's about, read at a glance. An optional
+ * icon tile, the subject as a title, its key figure large in the numeric face
+ * (in a meaning color when it has one, money in green), a muted line of
+ * context, and an optional status badge. Centered, as Wallet's card details.
+ */
+export function SheetHero({
+  leading,
+  title,
+  figure,
+  figureColor,
+  meta,
+  badge,
+}: {
+  leading?: React.ReactNode;
+  title: string;
+  figure?: string;
+  figureColor?: string;
+  meta?: string[];
+  badge?: string;
+}) {
+  const t = useTheme();
+  return (
+    <View style={styles.hero}>
+      {leading ? <View style={styles.heroLeading}>{leading}</View> : null}
+      <Text style={[styles.heroTitle, { color: t.content }]} accessibilityRole="header" numberOfLines={2}>
+        {title}
+      </Text>
+      {figure ? (
+        <Text style={[styles.heroFigure, { color: figureColor ?? t.content }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          {figure}
+        </Text>
+      ) : null}
+      {meta?.filter(Boolean).map((line) => (
+        <Text key={line} style={[styles.heroMeta, { color: t.contentMuted }]}>
+          {line}
+        </Text>
+      ))}
+      {badge ? (
+        <View style={[styles.heroBadge, { backgroundColor: t.canvasSunken }]}>
+          <Text style={[styles.heroBadgeText, { color: t.contentSecondary }]}>{badge}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export function Divider({ inset = space.rowInset }: { inset?: number }) {
@@ -98,7 +147,7 @@ export function FieldRow({ label, children }: { label: string; children: React.R
   const stacked = useStackedRows();
   return (
     <View style={[styles.row, stacked && styles.rowStacked]}>
-      <Text style={[styles.label, { color: t.content }]}>{label}</Text>
+      <Text style={[styles.label, { color: t.contentSecondary }]}>{label}</Text>
       <View style={[styles.rowValue, stacked && styles.rowValueStacked]}>{children}</View>
     </View>
   );
@@ -116,7 +165,7 @@ export function NavRow({ label, value, onPress, accessibilityLabel, highlight }:
       style={({ pressed }) => [pressFeedback(t, pressed)]}
     >
       <FieldRow label={label}>
-        <Text style={[styles.value, stacked && styles.valueStacked, highlight && weight.semibold, { color: highlight ? t.brandInk : t.contentSecondary }]} numberOfLines={1}>
+        <Text style={[styles.value, stacked && styles.valueStacked, highlight ? weight.semibold : weight.medium, { color: highlight ? t.brandInk : t.content }]} numberOfLines={1}>
           {value}
         </Text>
         <SymbolView name="chevron.right" size={icon.sm} weight="semibold" tintColor={t.contentFaint} accessibilityElementsHidden importantForAccessibility="no" />
@@ -250,13 +299,14 @@ export function Segmented<T extends string>({
 
 export const formStyles = themedStyles(() => StyleSheet.create({
   // A form sheet's scroll view runs under the home indicator at the large detent.
-  body: { padding: space.screen, gap: 22, paddingBottom: 96 },
+  body: { paddingHorizontal: space.lg, paddingTop: space.lg, gap: 22, paddingBottom: 96 },
   section: { gap: 6 },
   footnote: { ...type.footnote, paddingHorizontal: space.card },
   /** A form's own error, inline under the fields. */
   error: { ...type.subhead, ...weight.medium, paddingHorizontal: 4 },
   lead: { ...type.subhead, paddingHorizontal: 4 },
-  input: { ...inputType, flex: 1, textAlign: "right", minHeight: 44 },
+  // A value reads stronger than its muted label, as in every detail sheet.
+  input: { ...inputType, ...weight.medium, flex: 1, textAlign: "right", minHeight: 44 },
   /** An input under its label at large text sizes: starts where the label starts. */
   inputStacked: { textAlign: "left" },
 }));
@@ -270,6 +320,14 @@ const styles = themedStyles(() => StyleSheet.create({
   barTitle: { ...type.headline, flexShrink: 1, textAlign: "center" },
   barBtn: { ...type.body },
   group: { overflow: "hidden" },
+  hero: { alignItems: "center", gap: 4, paddingTop: space.sm, paddingBottom: space.xs },
+  // A row-sized icon tile, drawn larger as the sheet's emblem.
+  heroLeading: { transform: [{ scale: 1.5 }], marginVertical: space.md },
+  heroTitle: { ...type.title2, textAlign: "center" },
+  heroFigure: { ...type.amountXL, ...figures, textAlign: "center", marginTop: 2 },
+  heroMeta: { ...type.subhead, textAlign: "center" },
+  heroBadge: { marginTop: space.xs, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  heroBadgeText: { ...type.footnote, ...weight.semibold },
   row: { flexDirection: "row", alignItems: "center", minHeight: 48, paddingHorizontal: space.rowInset, gap: 12 },
   rowValue: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   rowStacked: { flexDirection: "column", alignItems: "stretch", gap: 2, paddingVertical: 8 },

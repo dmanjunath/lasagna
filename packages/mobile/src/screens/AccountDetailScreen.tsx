@@ -34,6 +34,7 @@ import { Divider } from "@/ui/Form";
 import { ScreenScroll } from "@/ui/ScreenScroll";
 import { Skeleton } from "@/ui/Skeleton";
 import { EmptyState } from "@/ui/State";
+import { errorText } from "@/api/client";
 
 const RECENT = 5;
 
@@ -134,7 +135,7 @@ export default function AccountDetailScreen({ id, edit }: { id: string; edit: bo
           gutter
           icon="questionmark.folder"
           title="This account isn't available"
-          body={items.isError ? "Check your connection and try again." : "It may have been deleted."}
+          body={items.isError ? errorText(items.error) : "It may have been deleted."}
           action={items.isError ? { title: "Try again", onPress: () => void items.refetch() } : { title: "Back to accounts", onPress: () => (router.canGoBack() ? router.back() : openPath("/accounts", "tab")) }}
         />
       </>

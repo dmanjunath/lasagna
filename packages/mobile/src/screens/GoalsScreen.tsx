@@ -117,7 +117,7 @@ export default function GoalsScreen({ root }: { root: boolean }) {
             <CardSkeleton lines={3} />
           </>
         ) : goals.isError && !list ? (
-          <ErrorState title="Couldn't load your goals" body="Check your connection and try again." onRetry={() => void goals.refetch()} />
+          <ErrorState title="Couldn't load your goals" error={goals.error} onRetry={() => void goals.refetch()} />
         ) : nothingYet ? (
           // The approved empty state: the sleeping mascot where the theme has one, and the screen's one note.
           <EmptyState

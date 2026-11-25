@@ -337,15 +337,19 @@ function Panel({
         ) : null}
 
         {has("sort") || has("date") ? (
-          <Group>
-            {has("sort") ? <NavRow label="Sort" value={sort.value} highlight={sort.set} onPress={() => setPage("sort")} /> : null}
-            {has("sort") && has("date") ? <Divider /> : null}
-            {has("date") ? <NavRow label="Date" value={date.value} highlight={date.set} onPress={() => setPage("date")} /> : null}
-          </Group>
+          <View style={formStyles.section}>
+            <SectionHeader>{has("sort") && has("date") ? "Order and dates" : has("sort") ? "Order" : "Dates"}</SectionHeader>
+            <Group>
+              {has("sort") ? <NavRow label="Sort" value={sort.value} highlight={sort.set} onPress={() => setPage("sort")} /> : null}
+              {has("sort") && has("date") ? <Divider /> : null}
+              {has("date") ? <NavRow label="Date" value={date.value} highlight={date.set} onPress={() => setPage("date")} /> : null}
+            </Group>
+          </View>
         ) : null}
 
         {filterRows.length > 0 ? (
           <View style={formStyles.section}>
+            <SectionHeader>Show only</SectionHeader>
             <Group>
               {filterRows.map((r, i) => (
                 <View key={r.key}>

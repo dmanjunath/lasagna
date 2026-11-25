@@ -80,7 +80,7 @@ export default function ActionsScreen() {
             <ActionGroupSkeleton rows={3} />
           </>
         ) : q.isError ? (
-          <ErrorState title="Couldn't load your actions" body="Check your connection and try again." onRetry={() => void q.refetch()} />
+          <ErrorState title="Couldn't load your actions" error={q.error} onRetry={() => void q.refetch()} />
         ) : total === 0 && verbs.done.length === 0 ? (
           lastGenerated ? (
             <CaughtUpCard celebrate title="You're all caught up" body="New actions show up here as your accounts, spending and goals change." />

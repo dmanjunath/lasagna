@@ -21,6 +21,9 @@ const HIDE_CSS = [
   // content and sticky bars clear its own header. That header is hidden here,
   // so zero it everywhere: !important in a sheet beats the inline value.
   "*{--mobile-header-h:0px!important}",
+  // The web sets overscroll-behavior:none so a browser never rubber-bands. In
+  // the app the document is the screen's scroller, so it bounces like a native one.
+  "html,body{overscroll-behavior:auto!important}",
 ].join("");
 
 // packages/web/src/lib/hide-amounts.ts reads this key once, at boot.

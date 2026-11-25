@@ -8,9 +8,10 @@ import { formatCurrencyExact, formatStoredDate } from "@/lib/format";
 import { useAmountsHidden } from "@/lib/hide-amounts";
 import { useCategoryDisplay } from "@/lib/taxonomy";
 import { heldTransaction, updateHeldTransaction } from "@/lib/txn-store";
-import { radius, space, themedStyles, type, useTheme, weight } from "@/theme";
+import { space, themedStyles, type, useTheme } from "@/theme";
 import { committed, failed } from "@/ui/feedback";
-import { Divider, FieldRow, formStyles, Group, NavRow, SheetBar } from "@/ui/Form";
+import { Divider, FieldRow, formStyles, Group, NavRow, SectionHeader, SheetBar, SheetHero } from "@/ui/Form";
+import { CategoryMedallion } from "@/components/CategoryMedallion";
 import { useDiscardGuard } from "@/ui/sheet";
 import { CategoryPickerPage } from "@/components/transactions/CategoryList";
 import { EmptyState } from "@/ui/State";
@@ -111,60 +112,67 @@ function Detail({ tx }: { tx: NonNullable<ReturnType<typeof heldTransaction>> })
         left={{ title: "Cancel", onPress: () => router.back(), disabled: saving }}
         right={{ title: "Save", onPress: () => void save(), busy: saving, strong: true }}
       />
-      <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
-        <View style={{ gap: 4 }}>
-          <View style={styles.amountRow}>
-            <Text style={[styles.amount, { color: income && !hidden ? t.positive : t.content }]}>
-              {`${income && !hidden ? "+" : ""}${formatCurrencyExact(Math.abs(amount))}`}
-            </Text>
-            {tx.pending === 1 ? (
-              <View style={[styles.badge, { backgroundColor: t.canvasSunken }]}>
-                <Text style={[styles.badgeText, { color: t.contentSecondary }]}>Pending</Text>
-              </View>
+      <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={formStyles.body} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
+        <SheetHero
+          leading={<CategoryMedallion display={displayOf(category)} income={income} />}
+          title={trimmed || tx.merchantName || tx.name}
+          figure={`${income && !hidden ? "+" : ""}${formatCurrencyExact(Math.abs(amount))}`}
+          figureColor={income && !hidden ? t.positive : undefined}
+          meta={[formatStoredDate(tx.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" }), tx.accountName ?? ""]}
+          badge={tx.pending === 1 ? "Pending" : undefined}
+        />
+
+        <View style={formStyles.section}>
+          <SectionHeader>Details</SectionHeader>
+          <Group>
+            <FieldRow label="Merchant">
+              <TextInput
+                value={merchant}
+                onChangeText={setMerchant}
+                keyboardAppearance={t.keyboard}
+                selectionColor={t.brandInk}
+                accessibilityLabel="Merchant"
+                returnKeyType="done"
+                clearButtonMode="while-editing"
+                style={[formStyles.input, { color: t.content }]}
+              />
+            </FieldRow>
+            <Divider />
+            <NavRow label="Category" value={displayOf(category).label} onPress={() => setPicking(true)} />
+            {/* The bank's own wording, only when it says something the name above doesn't. */}
+            {tx.name.trim().toLowerCase() !== (trimmed || tx.merchantName || "").trim().toLowerCase() ? (
+              <>
+                <Divider />
+                <FieldRow label="Bank description">
+                  <Text style={[styles.readonly, { color: t.contentSecondary }]} numberOfLines={2}>
+                    {tx.name}
+                  </Text>
+                </FieldRow>
+              </>
             ) : null}
-          </View>
-          <Text style={[styles.meta, { color: t.contentMuted }]}>
-            {formatStoredDate(tx.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-            {tx.accountName ? `, ${tx.accountName}` : ""}
-          </Text>
-          <Text style={[styles.meta, { color: t.contentMuted }]}>
-            Original description: <Text style={{ color: t.contentSecondary }}>{tx.name}</Text>
-          </Text>
+          </Group>
         </View>
 
-        <Group>
-          <FieldRow label="Merchant">
+        <View style={formStyles.section}>
+          <SectionHeader>Note</SectionHeader>
+          <Group>
             <TextInput
-              value={merchant}
-              onChangeText={setMerchant}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Add a note"
+              placeholderTextColor={t.contentFaint}
               keyboardAppearance={t.keyboard}
               selectionColor={t.brandInk}
-              accessibilityLabel="Merchant"
-              returnKeyType="done"
-              clearButtonMode="while-editing"
-              style={[formStyles.input, { color: t.content }]}
+              multiline
+              maxLength={2000}
+              accessibilityLabel="Notes"
+              style={[styles.notes, { color: t.content }]}
             />
-          </FieldRow>
-          <Divider />
-          <NavRow label="Category" value={displayOf(category).label} onPress={() => setPicking(true)} />
-        </Group>
+          </Group>
+        </View>
 
-        <Group>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Add a note…"
-            placeholderTextColor={t.contentFaint}
-            keyboardAppearance={t.keyboard}
-            selectionColor={t.brandInk}
-            multiline
-            maxLength={2000}
-            accessibilityLabel="Notes"
-            style={[styles.notes, { color: t.content }]}
-          />
-        </Group>
-
-        <View>
+        <View style={formStyles.section}>
+          <SectionHeader>Totals</SectionHeader>
           <Group>
             <FieldRow label="Exclude from spending">
               <Switch
@@ -175,7 +183,7 @@ function Detail({ tx }: { tx: NonNullable<ReturnType<typeof heldTransaction>> })
               />
             </FieldRow>
           </Group>
-          <Text style={[formStyles.footnote, { marginTop: 6, color: t.contentMuted }]}>Excluded transactions don't count toward spending, income, or charts.</Text>
+          <Text style={[formStyles.footnote, { color: t.contentMuted }]}>Excluded transactions don't count toward spending, income, or charts.</Text>
         </View>
 
         {error ? <Text style={[formStyles.error, { color: t.negative }]}>{error}</Text> : null}
@@ -195,11 +203,6 @@ function rowPatch(body: TxnPatch) {
 }
 
 const styles = themedStyles(() => StyleSheet.create({
-  body: { padding: space.screen, gap: 22, paddingBottom: 48 },
-  amountRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  amount: { ...type.display },
-  badge: { borderRadius: radius.xs, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { ...type.footnote, ...weight.semibold },
-  meta: { ...type.subhead },
+  readonly: { ...type.body, flexShrink: 1, textAlign: "right" },
   notes: { ...type.body, minHeight: 96, paddingHorizontal: space.rowInset, paddingTop: 12, paddingBottom: 12, textAlignVertical: "top" },
 }));

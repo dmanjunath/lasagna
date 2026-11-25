@@ -148,7 +148,7 @@ export default function AccountsScreen({ query, root }: { query?: string; root: 
             <CardSkeleton lines={4} />
           </>
         ) : items.isError && !list ? (
-          <ErrorState title="Couldn't load your accounts" body="Check your connection and try again." onRetry={() => void items.refetch()} />
+          <ErrorState title="Couldn't load your accounts" error={items.error} onRetry={() => void items.refetch()} />
         ) : !hasAccounts ? (
           <EmptyState
             icon="wallet.bifold"

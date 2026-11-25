@@ -6,6 +6,7 @@ import { Button } from "./Button";
 import { Card } from "./Card";
 import { Mascot } from "./Mascot";
 import { Note } from "./Note";
+import { errorText } from "@/api/client";
 
 /**
  * Nothing to show yet: an optional icon, a title, a line of body and at most
@@ -74,8 +75,10 @@ export function EmptyState({
 }
 
 /** A load that failed: a title, an optional line of body, and Try again (or `retryLabel` when the way out is something else). */
-export function ErrorState({ title, body, onRetry, compact, retryLabel = "Try again" }: { title: string; body?: string; onRetry: () => void; compact?: boolean; retryLabel?: string }) {
+export function ErrorState({ title, body, error, onRetry, compact, retryLabel = "Try again" }: { title: string; body?: string; error?: unknown; onRetry: () => void; compact?: boolean; retryLabel?: string }) {
   const t = useTheme();
+  // The failure itself picks the words: no connection, or our side (errorText).
+  if (body === undefined && error !== undefined) body = errorText(error);
   return (
     <View style={compact ? styles.compact : styles.error} accessibilityLiveRegion="polite">
       <View style={[styles.icon, styles.errorIcon, { backgroundColor: t.negativeSoft }]}>

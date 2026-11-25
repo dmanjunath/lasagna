@@ -110,7 +110,7 @@ export default function HouseholdScreen() {
       {members.isPending ? (
         <CardSkeleton lines={3} />
       ) : members.isError && !members.data ? (
-        <ErrorState compact title="Couldn't load your household" body="Check your connection and try again." onRetry={() => void members.refetch()} />
+        <ErrorState compact title="Couldn't load your household" error={members.error} onRetry={() => void members.refetch()} />
       ) : (
         <View style={styles.section}>
           <SectionHeader trailing={{ text: String(list.length), color: t.contentMuted }}>Members</SectionHeader>

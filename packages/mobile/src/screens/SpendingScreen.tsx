@@ -144,15 +144,9 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
     enabled: restored,
     placeholderData: keepPreviousData,
   });
-  // A year's chart shows its months (one bar for the year would say nothing).
-  const yearMonths = useQuery({
-    queryKey: ["transactions", "monthly-trend", "year-months", period.year, scope],
-    enabled: restored && period.granularity === "year",
-    queryFn: async () =>
-      (await spendingApi.trend({ granularity: "month", limit: monthsBackTo(period.year), scope })).filter((p) => p.period.startsWith(`${period.year}-`)),
-    placeholderData: keepPreviousData,
-  });
-  const chart = period.granularity === "year" ? yearMonths : trend;
+  // The chart's columns are the period's own unit: months in Month, one bar per year in Year,
+  // with the selected one highlighted in place.
+  const chart = trend;
   // Every year, unfiltered: the stepper's floor is the first year with money in or out.
   const years = useQuery({ queryKey: ["transactions", "monthly-trend", "years"], queryFn: () => spendingApi.trend({ granularity: "year" }) });
   const facts = useQuery({ queryKey: ["facts"], queryFn: homeApi.facts });
@@ -246,7 +240,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
   const onPull = async () => {
     setPulling(true);
     try {
-      await Promise.all([summary.refetch(), trend.refetch(), ...(period.granularity === "year" ? [yearMonths.refetch()] : []), years.refetch(), recent.refetch(), insights.refetch(), facts.refetch()]);
+      await Promise.all([summary.refetch(), trend.refetch(), years.refetch(), recent.refetch(), insights.refetch(), facts.refetch()]);
     } finally {
       setPulling(false);
     }
@@ -305,7 +299,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
           </>
         ) : summary.isError && !summary.data ? (
           <Card>
-            <ErrorState compact title="Couldn't load your spending" body="Check your connection and try again." onRetry={() => void summary.refetch()} />
+            <ErrorState compact title="Couldn't load your spending" error={summary.error} onRetry={() => void summary.refetch()} />
           </Card>
         ) : noData && !emptyPeriod ? (
           facts.data && facts.data.accountsConnected > 0 ? (
@@ -325,7 +319,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
           )
         ) : (
           <>
-            {/* 2. Hero: what went out, the change in words, then income, net and savings rate, over the cash flow chart (a year's as its months). */}
+            {/* 2. Hero: what went out, the change in words, then income, net and savings rate, over the cash flow chart (months in Month, years in Year). */}
             <Card hero={heroRole} style={{ gap: 14 }}>
               <View style={{ gap: 2, opacity: stale && !instant ? 0.5 : 1 }}>
                 <Text style={[styles.caption, { color: spendInk }]}>Spent</Text>
@@ -357,7 +351,7 @@ export default function SpendingScreen({ query, root }: { query?: string; root: 
                 <View style={{ opacity: chart.isPlaceholderData ? 0.5 : 1 }}>
                   <CashflowChart
                     periods={chart.data}
-                    selected={period.granularity === "year" ? "" : key}
+                    selected={key}
                     hidden={hidden}
                     spendingOnly={narrowsFlow}
                     onSelect={(k) =>

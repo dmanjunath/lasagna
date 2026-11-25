@@ -103,7 +103,7 @@ export default function DebtScreen() {
     }
     // A failed refresh keeps what is on screen: only a first load that failed shows the error.
     if (!page) {
-      return <ErrorState title="Couldn't load your debt" body="Check your connection and try again." onRetry={() => void debts.refetch()} />;
+      return <ErrorState title="Couldn't load your debt" error={debts.error} onRetry={() => void debts.refetch()} />;
     }
     if ((balances.data?.balances.length ?? 0) === 0) {
       return (

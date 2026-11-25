@@ -13,7 +13,7 @@ import { space, themedStyles, type, useTheme } from "@/theme";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { committed, failed } from "@/ui/feedback";
-import { Divider, formStyles, SectionHeader, SheetBar } from "@/ui/Form";
+import { Divider, formStyles, SectionHeader, SheetBar, SheetHero } from "@/ui/Form";
 import { Skeleton } from "@/ui/Skeleton";
 import { ErrorState } from "@/ui/State";
 
@@ -67,18 +67,27 @@ export default function TaxDocumentSheet({ id }: { id: string }) {
             <Skeleton width="80%" height={12} />
           </Card>
         ) : q.isError || !doc ? (
-          <ErrorState compact title="Couldn't load this document" body="Check your connection and try again." onRetry={() => void q.refetch()} />
+          <ErrorState compact title="Couldn't load this document" error={q.error} onRetry={() => void q.refetch()} />
         ) : (
           <>
-            <View style={styles.meta}>
-              {hasRealFile(doc) ? (
-                <Text style={[styles.line, { color: t.contentSecondary }]} numberOfLines={1} ellipsizeMode="middle">
-                  {doc.fileName}
-                </Text>
-              ) : null}
-              {doc.createdAt ? <Text style={[styles.line, { color: t.contentMuted }]}>{`Added ${formatStoredDay(doc.createdAt, { year: "numeric" })}`}</Text> : null}
-              <Text style={[styles.line, { color: t.contentMuted }]}>The original file was not stored.</Text>
-            </View>
+            {(() => {
+              // The return's own refund or amount owed, when it states one, is the figure to read first.
+              const key = hidden ? undefined : Object.entries(doc.llmFields ?? {}).find(([k, v]) => typeof v === "number" && returnFieldVerdict(doc.llmFields, k, v));
+              const verdict = key ? returnFieldVerdict(doc.llmFields, key[0], key[1]) : null;
+              return (
+                <SheetHero
+                  title={label}
+                  figure={key ? formatFieldValue(key[1], key[0]) : undefined}
+                  figureColor={verdict ? verdictInk(d.color, verdict) : undefined}
+                  meta={[
+                    key ? formatFieldKey(key[0]) : "",
+                    hasRealFile(doc) ? doc.fileName : "",
+                    doc.createdAt ? `Added ${formatStoredDay(doc.createdAt, { year: "numeric" })}` : "",
+                  ]}
+                />
+              );
+            })()}
+            <Text style={[styles.line, styles.meta, { color: t.contentMuted }]}>The original file was not stored.</Text>
             {fieldGroups(doc.llmFields).length === 0 ? (
               <Text style={[styles.line, styles.meta, { color: t.contentMuted }]}>No extracted fields available.</Text>
             ) : (

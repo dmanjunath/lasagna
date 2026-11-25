@@ -157,7 +157,7 @@ export default function PortfolioScreen() {
       );
     }
     if (!composition.data) {
-      return <ErrorState title="Couldn't load your portfolio" body="Check your connection and try again." onRetry={() => void composition.refetch()} />;
+      return <ErrorState title="Couldn't load your portfolio" error={composition.error} onRetry={() => void composition.refetch()} />;
     }
     if (classes.length === 0) {
       // No holdings. With accounts, the split across them, then the way to holdings.

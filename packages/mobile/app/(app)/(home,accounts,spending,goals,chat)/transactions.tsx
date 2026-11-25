@@ -465,7 +465,7 @@ export default function Transactions() {
         onRetry={() => setFilters(EMPTY_FILTERS)}
       />
     ) : (
-      <ErrorState title="Transactions didn't load" body="Check your connection and try again." onRetry={() => void q.refetch()} />
+      <ErrorState title="Transactions didn't load" error={q.error} onRetry={() => void q.refetch()} />
     )
   ) : hasActiveFilters(filters) ? (
     // The chip row above already offers Clear all once there are two chips: say it once.

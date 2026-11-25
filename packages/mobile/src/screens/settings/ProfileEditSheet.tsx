@@ -41,7 +41,7 @@ export default function ProfileEditSheet({ section }: { section: ProfileSection 
     return (
       <>
         <SheetBar title={SECTION_TITLE[section]} left={{ title: "Cancel", onPress: () => router.back() }} />
-        <ErrorState title="Couldn't load your profile" body="Check your connection and try again." onRetry={() => void profile.refetch()} />
+        <ErrorState title="Couldn't load your profile" error={profile.error} onRetry={() => void profile.refetch()} />
       </>
     );
   }

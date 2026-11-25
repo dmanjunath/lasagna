@@ -43,6 +43,9 @@ export function PullToRefresh({
   useEffect(() => () => setPullState({ pull: 0, phase: 'idle' }), []);
 
   useEffect(() => {
+    // Inside the iOS app the native screen owns pull to refresh. Taking the
+    // gesture here as well would cancel the native bounce and its refresh control.
+    if (document.documentElement.dataset.shell === 'native') return;
     const onStart = (e: TouchEvent) => {
       // An open drawer or sheet pins scrollY at 0, which otherwise looks exactly
       // like sitting at the top of the page and arms a refresh behind the overlay.

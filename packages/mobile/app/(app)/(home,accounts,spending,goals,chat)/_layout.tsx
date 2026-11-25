@@ -32,6 +32,9 @@ export default function TabStack({ segment }: { segment: string }) {
           headerBackButtonDisplayMode: "minimal",
           // The bar (and its search field's keyboard) follows the scheme, not the navigation theme's default light.
           headerUserInterfaceStyle: dark ? "dark" : "light",
+          // The clock and battery follow the app's own scheme. iOS's default reads the phone's, which
+          // differs when Settings > Preferences pins light or dark, and left white icons on a light page.
+          statusBarStyle: dark ? "light" : "dark",
         }}
       >
         {/* Native screens draw their own title in their content and drive a slim bar (ui/ScreenScroll). A web page keeps a plain inline bar. */}
@@ -62,6 +65,7 @@ export default function TabStack({ segment }: { segment: string }) {
             sheetGrabberVisible: true,
             sheetCornerRadius: SHEET_RADIUS,
             contentStyle: { backgroundColor: t.canvas },
+            statusBarStyle: dark ? "light" : "dark",
           }}
         />
         {SHEET_ROUTES.map((name) => (
@@ -84,6 +88,7 @@ export default function TabStack({ segment }: { segment: string }) {
               sheetGrabberVisible: true,
               sheetCornerRadius: SHEET_RADIUS,
               contentStyle: { backgroundColor: t.canvas },
+              statusBarStyle: dark ? "light" : "dark",
             })}
           />
         ))}

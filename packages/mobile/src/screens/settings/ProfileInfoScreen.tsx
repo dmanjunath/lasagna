@@ -39,7 +39,7 @@ export default function ProfileInfoScreen({ section }: { section: ProfileSection
       <ScreenScroll title={SECTION_TITLE[section]} refreshing={pulling} onRefresh={() => void onPull()}>
         <ScreenLead>Powers your tax, retirement, and cash-flow insights.</ScreenLead>
         {failed ? (
-          <ErrorState compact title="Couldn't load your profile" body="Check your connection and try again." onRetry={() => void profile.refetch()} />
+          <ErrorState compact title="Couldn't load your profile" error={profile.error} onRetry={() => void profile.refetch()} />
         ) : (
           <DetailRows rows={rows} loading={profile.isPending} />
         )}

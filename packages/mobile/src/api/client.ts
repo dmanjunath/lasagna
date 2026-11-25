@@ -18,6 +18,18 @@ export function saveErrorText(e: unknown, refused: string): string {
   return refused;
 }
 
+/**
+ * What a "couldn't load" screen says, from the actual failure. A phone that
+ * can't reach the server is told so, never that the fault is on our side.
+ */
+export function errorText(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 0) return "Can't reach LasagnaFi. Check your connection and try again.";
+    if (e.status >= 500) return "This is on our side, so trying again usually works.";
+  }
+  return "Something went wrong. Try again in a moment.";
+}
+
 // Listeners for a rejected session, so the auth layer can sign out once.
 const unauthorized = new Set<() => void>();
 export function onUnauthorized(cb: () => void) {

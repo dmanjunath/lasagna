@@ -184,6 +184,7 @@ export default function Home() {
             <OnboardingResumeCard />
             <HomeEmptyState
               kind={state}
+              error={d.facts.error}
               onAction={() => (state === "empty" ? openPath("/accounts?autoLink=true") : void d.facts.refetch())}
             />
           </>

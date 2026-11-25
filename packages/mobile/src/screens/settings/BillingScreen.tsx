@@ -72,7 +72,7 @@ export default function BillingScreen() {
       {billing.isPending ? (
         <CardSkeleton lines={5} />
       ) : billing.isError && !s ? (
-        <ErrorState compact title="Couldn't load your plan" body="Check your connection and try again." onRetry={() => void billing.refetch()} />
+        <ErrorState compact title="Couldn't load your plan" error={billing.error} onRetry={() => void billing.refetch()} />
       ) : s ? (
         <Card style={{ gap: 16 }}>
           <View style={styles.head}>

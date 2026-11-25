@@ -42,3 +42,9 @@ test("the web app's hide-amounts flag follows the native one", () => {
   expect(amountsScript(false)).toContain("localStorage.removeItem('lf-hide-amounts')");
   expect(injectedScript({ amountsHidden: true })).toContain("setItem('lf-hide-amounts','1')");
 });
+
+test("the page bounces at its ends like a native screen", () => {
+  // The web sets overscroll-behavior:none for browsers. In the app the document is the screen's scroller.
+  const js = injectedScript({ hideChrome: true, amountsHidden: false, authHint: null });
+  expect(js).toContain("html,body{overscroll-behavior:auto!important}");
+});

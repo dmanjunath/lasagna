@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { niceTicks } from '../components/ds/TrendChart';
 import { useLocation } from 'wouter';
 import { api, type SimResult, type RetirementSimOverrides, type RetirementSimInputs, type RetirementInputCheck, type BacktestSummary } from '../lib/api';
@@ -1441,9 +1441,20 @@ export function RetirementV2() {
   const [inputsOpen, setInputsOpen] = useState(false);
   const [inputsTab, setInputsTab] = useState<'you' | 'portfolio'>('you');
   const inputsRef = useRef<HTMLDivElement>(null);
-  // Hero success number visibility — drives the pinned chance-of-success strip.
+  // Hero success number visibility, which drives the pinned chance-of-success strip.
+  // Tracked outside React state: the observers below fire while the page scrolls,
+  // and a state change here would re-render the whole page (charts included)
+  // mid-fling. They flip the pill's own attributes instead (syncPin).
   const heroNumRef = useRef<HTMLElement>(null);
-  const [heroNumVisible, setHeroNumVisible] = useState(true);
+  const pinRef = useRef<HTMLDivElement>(null);
+  const pinCovered = useRef({ hero: true, years: false });
+  const syncPin = useCallback(() => {
+    const el = pinRef.current;
+    if (!el) return;
+    const hidden = pinCovered.current.hero || pinCovered.current.years;
+    el.setAttribute('data-hidden', hidden ? 'true' : 'false');
+    el.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+  }, []);
   const [baseReturn, setBaseReturn] = useState(6.5);
   const [returnTouched, setReturnTouched] = useState(false);
   // Composition switch: 'current' = the real portfolio (derivedEquity /
@@ -1645,25 +1656,24 @@ export function RetirementV2() {
     const el = heroNumRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([entry]) => setHeroNumVisible(entry.isIntersecting),
+      ([entry]) => { pinCovered.current.hero = entry.isIntersecting; syncPin(); },
       { rootMargin: '-110px 0px 0px 0px' },
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [loading, hasAccounts]);
+  }, [loading, hasAccounts, syncPin]);
 
   // The year-by-year card carries the outcome row by row and its own phase
   // headers, so the pinned pill steps aside while the card is on screen
   // instead of floating over its titles.
   const yearsRef = useRef<HTMLDivElement>(null);
-  const [yearsVisible, setYearsVisible] = useState(false);
   useEffect(() => {
     const el = yearsRef.current;
     if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => setYearsVisible(entry.isIntersecting), { rootMargin: '-60px 0px 0px 0px' });
+    const obs = new IntersectionObserver(([entry]) => { pinCovered.current.years = entry.isIntersecting; syncPin(); }, { rootMargin: '-60px 0px 0px 0px' });
     obs.observe(el);
     return () => obs.disconnect();
-  }, [loading, hasAccounts]);
+  }, [loading, hasAccounts, syncPin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2385,10 +2395,12 @@ export function RetirementV2() {
       {/* Pinned outcome header: sticks to the top once the hero's success
           number scrolls away. Mirrors the currently selected method. */}
       <div
+        ref={pinRef}
         className="ret-pin"
         data-testid="rv2-pinned-chance"
-        data-hidden={heroNumVisible || yearsVisible ? 'true' : 'false'}
-        aria-hidden={heroNumVisible || yearsVisible}
+        // Starts hidden; the observers above flip these as the page scrolls, without a render.
+        data-hidden="true"
+        aria-hidden="true"
       >
         <div className="ret-pin__bar">
           <span className="ret-pin__verdict font-editorial" style={{ color: shownVerdictColor }}>{shownVerdict}</span>

@@ -264,7 +264,7 @@ export const noodle: Theme = {
   skin: {
     card: "soft",
     button: "chunky",
-    row: "plain",
+    row: "carded",
     chip: "filled",
     pill: "raised",
     breakdown: "ranked",

@@ -123,7 +123,7 @@ function ThreadList({
             </Card>
           </View>
         ) : threads.isError ? (
-          <ErrorState title="Couldn't load your conversations" body="Check your connection and try again." onRetry={() => void threads.refetch()} />
+          <ErrorState title="Couldn't load your conversations" error={threads.error} onRetry={() => void threads.refetch()} />
         ) : (
           <RowSkeletons />
         )}

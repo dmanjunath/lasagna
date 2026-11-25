@@ -144,6 +144,10 @@ export const SignedInWebView = forwardRef<WebViewHandle, Props>(
             onContentProcessDidTerminate={() => web.current?.reload()}
             style={{ backgroundColor: t.canvas }}
             contentInsetAdjustmentBehavior="never"
+            // A WKWebView decelerates "fast" by default (Safari's feel); native screens use "normal",
+            // so the page flings and coasts like every other screen in the app.
+            decelerationRate="normal"
+            bounces
             allowsBackForwardNavigationGestures={false}
             // The native pull-to-refresh, in place of the web shell's own.
             pullToRefreshEnabled={hideChrome}

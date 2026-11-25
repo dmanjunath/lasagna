@@ -9,9 +9,9 @@ import { formatMoney } from "@/lib/format";
 import { useAmountsHidden } from "@/lib/hide-amounts";
 import { openPath } from "@/lib/navigation";
 import { accountIdFor, cleanAccountLabel, fmtPct, formatShares } from "@/lib/portfolio";
-import { figures, icon, space, themedStyles, type, useTheme, weight } from "@/theme";
+import { icon, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { Card } from "@/ui/Card";
-import { Divider, formStyles, SheetBar } from "@/ui/Form";
+import { Divider, formStyles, SectionHeader, SheetBar, SheetHero } from "@/ui/Form";
 import { Skeleton } from "@/ui/Skeleton";
 import { ErrorState } from "@/ui/State";
 import { pressFeedback } from "@/ui/press";
@@ -40,11 +40,10 @@ export default function HoldingSheet({ symbol, label, name }: { symbol: string; 
     <>
       <SheetBar title={label} right={{ title: "Done", strong: true, onPress: () => router.back() }} />
       <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={[formStyles.body, { gap: 12 }]}>
-        {name ? (
-          <Text style={[styles.fund, { color: t.content }]} accessibilityRole="header">
-            {name}
-          </Text>
-        ) : null}
+        <SheetHero
+          title={name ?? label}
+          figure={q.data ? formatMoney(q.data.totalValue ?? 0, true) : undefined}
+        />
         {q.isPending ? (
           <Card style={{ gap: 12 }}>
             <Skeleton width="50%" height={16} />
@@ -52,13 +51,10 @@ export default function HoldingSheet({ symbol, label, name }: { symbol: string; 
             <Skeleton width="80%" height={14} />
           </Card>
         ) : q.isError ? (
-          <ErrorState compact title="Couldn't load the accounts" body="Check your connection and try again." onRetry={() => void q.refetch()} />
+          <ErrorState compact title="Couldn't load the accounts" error={q.error} onRetry={() => void q.refetch()} />
         ) : (
           <>
-            <View style={styles.head}>
-              <Text style={[styles.lead, { color: t.contentSecondary }]}>{`Held in ${rows.length} account${rows.length === 1 ? "" : "s"}`}</Text>
-              <Text style={[styles.total, { color: t.content }]}>{formatMoney(q.data?.totalValue ?? 0, true)}</Text>
-            </View>
+            <SectionHeader>{`Held in ${rows.length} account${rows.length === 1 ? "" : "s"}`}</SectionHeader>
             {rows.length === 0 ? (
               <Text style={[styles.lead, { color: t.contentMuted }]}>No account breakdown for this holding.</Text>
             ) : (
@@ -104,10 +100,7 @@ export default function HoldingSheet({ symbol, label, name }: { symbol: string; 
 
 const styles = themedStyles(() =>
   StyleSheet.create({
-    head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, paddingHorizontal: space.card },
-    fund: { ...type.headline, paddingHorizontal: space.card },
     lead: { ...type.subhead, ...weight.semibold },
-    total: { ...type.amountM },
     listCard: { padding: 0 },
     row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: space.rowInset, paddingVertical: 12, minHeight: 60 },
     name: { ...type.callout, ...weight.semibold },

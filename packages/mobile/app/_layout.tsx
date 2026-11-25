@@ -1,3 +1,4 @@
+import { useColorScheme } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -33,6 +34,8 @@ const DEMO = process.env.EXPO_PUBLIC_DEMO_MODE === "true";
 function RootStack() {
   const { status, user } = useAuth();
   const t = useTheme();
+  // The status bar follows the app's scheme, not the phone's (see the tab stack).
+  const dark = useColorScheme() === "dark";
   // A design switch rebuilds the screens from scratch: native views keep
   // measurements and styles from the old theme's faces and sizes otherwise.
   const { id: designId } = useDesign();
@@ -51,9 +54,11 @@ function RootStack() {
   const needsOnboarding = signedIn && !needsConsent && user.onboardingStage !== null && !user.onboardingDeferred && !DEMO;
   return (
     <Fragment key={designId}>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.canvas } }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.canvas }, statusBarStyle: dark ? "light" : "dark" }}>
         <Stack.Protected guard={signedIn && !needsConsent && !needsOnboarding}>
-          <Stack.Screen name="(app)" />
+          {/* The app's own pages cover this. It shows only around the page a full-height sheet pushes
+              back, where iOS draws a white clock: black there, as in iOS's own apps, so the clock reads. */}
+          <Stack.Screen name="(app)" options={{ contentStyle: { backgroundColor: "black" } }} />
         </Stack.Protected>
         <Stack.Protected guard={needsConsent}>
           <Stack.Screen name="welcome" />

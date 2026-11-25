@@ -1,4 +1,4 @@
-import { spendingHeroRole, chartWindowStart, paceVerdict, rowPace, fitColumnLabel, earliestMonthOf,
+import { spendingHeroRole, chartWindowStart, columnTitle, isCurrentKey, paceVerdict, rowPace, fitColumnLabel, earliestMonthOf,
   breakdownRows,
   changeLine,
   chartScale,
@@ -276,5 +276,25 @@ describe("spendingHeroRole", () => {
   });
   it("stays sauce under a filter that narrows the flow to Spent", () => {
     expect(spendingHeroRole(5176, true)).toBe("spend");
+  });
+});
+
+describe("year columns (Spending in Year mode)", () => {
+  it("labels a year column with the year, shortened only when it can't fit", () => {
+    expect(fitColumnLabel("2025", false, 200, 13)).toBe("2025");
+    expect(fitColumnLabel("2025", false, 14, 13)).toBe("’25");
+    expect(columnTitle("2025")).toBe("2025");
+  });
+
+  it("marks the current year as the one still under way", () => {
+    const thisYear = String(new Date().getFullYear());
+    expect(isCurrentKey(thisYear)).toBe(true);
+    expect(isCurrentKey(String(Number(thisYear) - 1))).toBe(false);
+  });
+
+  it("keeps the selected year in view", () => {
+    // Six years, four fit: an older selected year pulls the window back to it.
+    expect(chartWindowStart(null, 5, 6, 4)).toBe(2);
+    expect(chartWindowStart(null, 0, 6, 4)).toBe(0);
   });
 });

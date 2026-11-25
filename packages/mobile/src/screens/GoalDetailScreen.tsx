@@ -29,6 +29,7 @@ import { Sparkle } from "@/ui/Sparkle";
 import { EmptyState, ErrorState } from "@/ui/State";
 import { Track } from "@/ui/Track";
 import { pressFeedback } from "@/ui/press";
+import { errorText } from "@/api/client";
 
 /**
  * One goal (/goals/:id, savings-goal.tsx on the web): the hero (jar or bar,
@@ -92,7 +93,7 @@ export default function GoalDetailScreen({ id, edit }: { id: string; edit: boole
     return (
       <>
         <Stack.Screen options={{ title: "", headerTransparent: false, headerBackground: undefined, headerTitle: undefined }} />
-        <ErrorState title="Couldn't load this goal" body="Your goal is still here. Check your connection and try again." onRetry={() => void goals.refetch()} />
+        <ErrorState title="Couldn't load this goal" body={`Your goal is still here. ${errorText(goals.error)}`} onRetry={() => void goals.refetch()} />
       </>
     );
   }

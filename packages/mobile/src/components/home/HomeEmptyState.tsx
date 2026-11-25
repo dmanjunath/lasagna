@@ -1,9 +1,10 @@
 import { EmptyState, ErrorState } from "@/ui/State";
+import { errorText } from "@/api/client";
 
 /** The whole-screen state when nothing is connected (the theme's sleepy art), or nothing loaded. */
-export function HomeEmptyState({ kind, onAction }: { kind: "empty" | "failed"; onAction: () => void }) {
+export function HomeEmptyState({ kind, error, onAction }: { kind: "empty" | "failed"; error?: unknown; onAction: () => void }) {
   return kind === "failed" ? (
-    <ErrorState title="Couldn't load your accounts" body="Your accounts are safe. This is on our side, so trying again usually works." onRetry={onAction} />
+    <ErrorState title="Couldn't load your accounts" body={`Your accounts are safe. ${errorText(error)}`} onRetry={onAction} />
   ) : (
     <EmptyState
       icon="wallet.bifold"
