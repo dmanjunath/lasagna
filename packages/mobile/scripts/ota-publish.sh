@@ -123,7 +123,12 @@ fi
 # --- Build -------------------------------------------------------------------
 echo "==> Exporting against $VITE_API_URL"
 (cd "$APP_DIR" && npx expo export --platform ios --output-dir "$STAGE/dist" >/dev/null)
-(cd "$APP_DIR" && npx expo config --type public --json) > "$STAGE/config.json"
+# The public config inlines the Firebase config file (ios.googleServicesFile)
+# as base64. A running update never needs it (the build bundles the file), and
+# the bucket is world-readable, so it never goes into a manifest.
+(cd "$APP_DIR" && npx expo config --type public --json) \
+  | node -e 'const c = JSON.parse(require("fs").readFileSync(0, "utf8")); if (c.ios) delete c.ios.googleServicesFile; process.stdout.write(JSON.stringify(c));' \
+  > "$STAGE/config.json"
 
 # The bucket is world-readable, so a leaked key would be public.
 echo "==> Scanning for secrets"

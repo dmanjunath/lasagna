@@ -9,11 +9,23 @@
 #   MOBILE_WEB_URL             the hosted web app the fallback screens load
 #   OTA_CODE_SIGNING_CERT_FILE the public code-signing certificate (optional
 #                              for a build: without it the build has no OTA)
+#   FIREBASE_IOS_PLIST_FILE    GoogleService-Info.plist for push (optional:
+#                              without it the build has no push)
 # shellcheck disable=SC2034
 OTA_APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 
 export EXPO_PUBLIC_API_URL="$VITE_API_URL"
 export EXPO_PUBLIC_WEB_URL="$MOBILE_WEB_URL"
+
+# Push. Its presence changes the app config, so it changes the runtime version
+# too: builds and publishes must agree on it like everything else here.
+PLIST_SRC="${FIREBASE_IOS_PLIST_FILE:-$OTA_APP_DIR/../../../lasagna-infra/ios/GoogleService-Info.plist}"
+if [[ -f "$PLIST_SRC" ]]; then
+  mkdir -p "$OTA_APP_DIR/build"
+  cp "$PLIST_SRC" "$OTA_APP_DIR/build/GoogleService-Info.plist"
+else
+  rm -f "$OTA_APP_DIR/build/GoogleService-Info.plist"
+fi
 
 CERT_SRC="${OTA_CODE_SIGNING_CERT_FILE:-$OTA_APP_DIR/../../../lasagna-infra/ios/ota/certificate.pem}"
 if [[ -f "$CERT_SRC" ]]; then

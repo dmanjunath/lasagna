@@ -16,6 +16,16 @@ const isLocalWeb = !webHost || webHost === "localhost";
 // endpoint, updates stay off and the app runs its embedded bundle only.
 const updatesUrl = process.env.EXPO_UPDATES_URL;
 
+// Push notifications through Firebase Cloud Messaging, as the old app did. The
+// Firebase config (lasagna-infra/ios/GoogleService-Info.plist) is copied to
+// build/ by scripts/ota-env.sh. Without it the app builds with no push, which
+// is what a self-hosted build gets.
+const FIREBASE_PLIST = "./build/GoogleService-Info.plist";
+// Expo's config loader runs this file as CommonJS, so __dirname is set.
+declare const __dirname: string;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const hasPush: boolean = require("node:fs").existsSync(require("node:path").join(__dirname, FIREBASE_PLIST));
+
 const config: ExpoConfig = {
   name: "LasagnaFi",
   slug: "lasagna",
@@ -33,14 +43,26 @@ const config: ExpoConfig = {
     buildNumber: process.env.IOS_BUILD_NUMBER ?? "1",
     supportsTablet: false,
     associatedDomains: isLocalWeb ? [] : [`applinks:${webHost}`, `webcredentials:${webHost}`],
+    // Xcode's App Store export switches this to production.
+    ...(hasPush ? { googleServicesFile: FIREBASE_PLIST, entitlements: { "aps-environment": "development" } } : {}),
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSFaceIDUsageDescription: "Face ID unlocks the app and protects your financial data.",
       // Simulator and dev builds talk to the local API over plain http.
       ...(isLocalWeb ? { NSAppTransportSecurity: { NSAllowsLocalNetworking: true } } : {}),
+      ...(hasPush ? { UIBackgroundModes: ["remote-notification"] } : {}),
     },
   },
   plugins: [
+    ...(hasPush
+      ? [
+          "@react-native-firebase/app",
+          "@react-native-firebase/messaging",
+          // Firebase's Apple SDK ships only through Swift Package Manager, which
+          // needs dynamic frameworks.
+          ["expo-build-properties", { ios: { useFrameworks: "dynamic" } }] as [string, unknown],
+        ]
+      : []),
     "expo-router",
     "./plugins/with-refresh-tint",
     "expo-secure-store",
@@ -96,6 +118,9 @@ const config: ExpoConfig = {
         codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" },
       }
     : { enabled: false },
+  // Read by src/lib/push.ts. Not ios.googleServicesFile: the public config
+  // inlines that whole file, and ota-publish.sh strips it from every update.
+  extra: { push: hasPush },
   experiments: { typedRoutes: true },
 };
 

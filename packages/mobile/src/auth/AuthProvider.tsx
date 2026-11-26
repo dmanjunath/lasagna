@@ -1,4 +1,5 @@
 import CookieManager from "@preeternal/react-native-cookie-manager";
+import { signOutPush } from "@/lib/push";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -93,6 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // Before logout: removing the token needs the session.
+    await signOutPush().catch(() => {});
     await authApi.logout().catch(() => {});
     // Face ID is device-local state tied to being signed in, as on the web: the
     // lock goes off and the one-time offer is re-armed. The passkey hint stays.

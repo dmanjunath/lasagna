@@ -1,7 +1,7 @@
 import { AppState, useColorScheme } from "react-native";
 import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { Fragment, useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -12,7 +12,9 @@ import { loadDesign, ThemeProvider, useTheme as useDesign } from "@/design";
 import { RUNTIME_FACES } from "@/design/fonts";
 import { loadAppearance } from "@/lib/appearance";
 import { loadAmountsHidden } from "@/lib/hide-amounts";
+import { hrefForLink } from "@/lib/deep-links";
 import { useOta } from "@/lib/ota";
+import { listenForNotificationTaps, registerPush } from "@/lib/push";
 import { hideSplashOnce } from "@/lib/splash";
 import { useTheme } from "@/theme";
 import { ToastHost } from "@/ui/Toast";
@@ -49,6 +51,15 @@ function RootStack() {
   // measurements and styles from the old theme's faces and sizes otherwise.
   const { id: designId } = useDesign();
   useOta();
+
+  // Push: this device's token goes to the API once signed in (every launch, as
+  // FCM can rotate it), and a tapped notification opens the page it names, as
+  // a link to that page would.
+  const signedInNow = status === "signedIn";
+  useEffect(() => {
+    if (signedInNow) registerPush().catch(() => {});
+  }, [signedInNow]);
+  useEffect(() => listenForNotificationTaps((path) => router.push(hrefForLink(path) as never)), []);
 
   // The first screen hides the launch screen from its own onLayout
   // (hideSplashOnce). This is the backstop if a screen never does.

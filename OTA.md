@@ -82,6 +82,21 @@ never in one script alone.
   certificate's contents). `OTA_BUCKET` and `VITE_API_URL` too.
 - Secret Manager (wired into the API on deploy): `OTA_BASE_URL` (the bucket's
   public URL) and `OTA_CODE_SIGNING_KEY`.
+- `ios/GoogleService-Info.plist` (local) and the `FIREBASE_IOS_PLIST` secret
+  (CI): the Firebase config for push. Builds bundle it, so it is part of the
+  runtime version: a publish without it would never match a build with push.
+  The public app config inlines this file, so `ota-publish.sh` strips it from
+  every manifest.
+
+### Push notifications
+
+Firebase Cloud Messaging, as the old app used (`src/lib/push.ts`): the app
+asks once, sends its FCM token to `POST /api/push/token`, removes it on sign-out
+or when the Preferences switch is turned off, and a tapped notification opens
+its `data.path` the way a link would. The API sends through FCM
+(`packages/api/src/lib/push.ts`). Push is native code, so adding it needed a
+store build. Changes to what notifications do after that ship over the air.
+Apple-silicon simulators do not register with APNs, so test delivery on a device.
 
 ## The Capacitor shell (deprecated, no longer published)
 
