@@ -709,15 +709,18 @@ export function Transactions() {
             merchantIsFilter={filters.merchants.includes(tx.merchantName || tx.name)}
             // Wider screens: the category is a filter pill, and its pencil
             // recategorizes. Phones show the plain label and edit in the drawer.
-            categoryPill={selecting ? undefined : {
+            // Select mode keeps the pill, inert, and drops the pencil.
+            categoryPill={{
               label: display.label,
               icon: display.icon,
               // No pill for an uncategorized row (nothing to filter to) or for
               // the category already filtered to.
-              onFilter: !tx.categoryId || (filters.categories.length === 1 && filters.categories[0] === tx.categoryId)
-                ? undefined
-                : () => setFilters((f) => ({ ...f, categories: [tx.categoryId as string], excludeCategories: [] })),
-              editor: (
+              ...(!tx.categoryId || (filters.categories.length === 1 && filters.categories[0] === tx.categoryId)
+                ? {}
+                : selecting
+                  ? { inert: true }
+                  : { onFilter: () => setFilters((f) => ({ ...f, categories: [tx.categoryId as string], excludeCategories: [] })) }),
+              editor: selecting ? undefined : (
                 <CategoryPicker
                   variant="pencil"
                   value={tx.categoryId ?? ''}
@@ -854,8 +857,9 @@ export function Transactions() {
 
       {/* Which side of the money, at the top of the page as in the app: one
            row of pills that scrolls sideways before it ever wraps a lone pill.
-           On wide screens the same pills lead the toolbar row instead. */}
-      <div data-kind-pills className="-mx-3 mt-3 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:px-0 lg:hidden [&::-webkit-scrollbar]:hidden">
+           From sm up the same pills ride in the sticky toolbar instead, so they
+           stay in reach down a long list. */}
+      <div data-kind-pills className="-mx-3 mt-3 overflow-x-auto px-3 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden">
         {kindPills}
       </div>
 
@@ -885,29 +889,26 @@ export function Transactions() {
           </div>
         )}
         <div className="mx-auto max-w-[1180px] px-3 sm:px-11">
+        {/* The pills and the filter chips stay while selecting. The bulk bar
+             takes only the search row's place, which is about its height at
+             every width, so the list doesn't move when a row is ticked. */}
+        <div data-kind-pills className="mb-3 hidden sm:block">{kindPills}</div>
         {selecting && (
           <div className="hidden sm:block">
             <BulkEditBar variant="toolbar" {...bulkProps} />
           </div>
         )}
-        <div className={cn(selecting && 'sm:hidden')}>
         <TransactionFilters
+          hideControls={selecting}
           filters={filters}
           onChange={setFilters}
           accounts={accounts}
-          leading={<div data-kind-pills className="hidden shrink-0 lg:block">{kindPills}</div>}
-          filtersOpen={filtersOpen}
-          onFiltersOpenChange={setFiltersOpen}
           trailing={
-            // Desktop sort, inline with search and filters. Mobile sorts via
-            // the list header instead. Selecting on desktop starts from a row's
-            // hover checkbox.
-            <div className="hidden shrink-0 items-center gap-2 sm:flex">
+            // Wider screens sort at the end of the toolbar row. Phones sort
+            // from the top of the list, as in the app.
+            <div className="hidden shrink-0 sm:block">
               <OptionMenu
                 ariaLabel="Sort"
-                // Labelled, so it's clear why this one control sits apart
-                // from the filters on the left.
-                prefix="Sorted by"
                 toolbar={{ count: 0 }}
                 value={sortKey}
                 options={(Object.keys(SORT_LABELS) as SortKey[]).map((k) => ({ value: k, label: SORT_LABELS[k] }))}
@@ -916,8 +917,9 @@ export function Transactions() {
               />
             </div>
           }
+          filtersOpen={filtersOpen}
+          onFiltersOpenChange={setFiltersOpen}
         />
-        </div>
         </div>
       </div>
 
@@ -935,8 +937,7 @@ export function Transactions() {
 
       {/* ════════ List card ════════ */}
       <div data-txn-list className="mt-4 rounded-ui-xl border border-line bg-panel shadow-ui-sm">
-        {/* Mobile sort header — a tappable row on the list itself; the invisible
-             native select on top opens the OS picker (field + order in one). */}
+        {/* Phone sort, a row on the list itself as in the app. */}
         {rows.length > 0 && (
           <div className="flex items-stretch border-b border-line sm:hidden">
           {/* The same sort menu as Spending's on a phone. */}

@@ -68,7 +68,7 @@ const steps = [
       </div>
       <ol class="steps" style="list-style:none;padding:0;margin:0">
         {steps.map((s, i) => (
-          <li class="card step" data-reveal>
+          <li class="card step" data-reveal style={`--i:${i}`}>
             <AStep kind={s.art as "connect" | "actions" | "chat" | "decide"} />
             <span class="step-num" aria-hidden="true">{i + 1}</span>
             <h3>{s.title}</h3>

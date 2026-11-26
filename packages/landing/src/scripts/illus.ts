@@ -70,6 +70,10 @@ async function wave(svg: Element) {
 }
 
 async function play(svg: Element) {
+  // A picture inside a card that waits its turn to come in waits with it.
+  const card = svg.closest<HTMLElement>("[data-reveal]");
+  const delay = card ? (parseFloat(getComputedStyle(card).transitionDelay) || 0) * 1000 : 0;
+  if (delay) await wait(delay);
   const parts = Array.from(svg.querySelectorAll<HTMLElement>("[data-fx]"));
   const steps = [...new Set(parts.map((p) => Number(p.dataset.step ?? 0)))].sort((a, b) => a - b);
   for (const s of steps) {

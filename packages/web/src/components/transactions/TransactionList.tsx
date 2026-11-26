@@ -99,14 +99,26 @@ export const PENCIL_CLASS =
   'ui-focus relative z-[1] grid h-7 w-0 shrink-0 place-items-center overflow-hidden rounded-ui-sm text-content-muted opacity-0 transition-colors hover:bg-canvas-sunken hover:text-content focus:w-7 focus:opacity-100 [@media(hover:hover)]:group-hover/txn:w-7 [@media(hover:hover)]:group-hover/txn:opacity-100 group-focus-within/txn:w-7 group-focus-within/txn:opacity-100 [@media(hover:none)]:hidden';
 
 // One pill for every "show only this" in a row: merchant, category, account.
-// Clicking it filters the list to that value.
+// Clicking it filters the list to that value. Without onClick (select mode) it
+// is the same box, inert, so ticking a row never changes the row's height.
 function FilterPill({ label, icon, strong, onClick }: {
   label: string;
   icon?: React.ReactNode;
   /** The merchant: the row's name, so a size up and bold. */
   strong?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
+  if (!onClick) {
+    return (
+      <span className={cn(
+        'inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-line bg-panel px-2.5 py-[3px]',
+        strong ? 'text-[14px] font-bold text-content' : 'text-[12.5px] font-semibold text-content-secondary',
+      )}>
+        {icon && <span className="grid h-4 w-4 shrink-0 place-items-center overflow-hidden [&>*]:!h-4 [&>*]:!w-4 [&>*]:!text-[9px] [&>svg]:!h-3.5 [&>svg]:!w-3.5" aria-hidden>{icon}</span>}
+        <span className="truncate">{label}</span>
+      </span>
+    );
+  }
   return (
     <button
       type="button"
@@ -166,7 +178,8 @@ export function TxnRow({
    * place of `categoryNode`. Phones get the plain label: there the row only
    * opens the drawer, where editing lives.
    */
-  categoryPill?: { label: string; icon?: React.ReactNode; onFilter?: () => void; editor?: React.ReactNode };
+  /** `inert`: a pill box that does nothing (select mode), so the row keeps its look and height. */
+  categoryPill?: { label: string; icon?: React.ReactNode; onFilter?: () => void; inert?: boolean; editor?: React.ReactNode };
   /** The merchant is already the active filter: plain text, not a pill that does nothing. */
   merchantIsFilter?: boolean;
 }) {
@@ -192,14 +205,14 @@ export function TxnRow({
       <span className="min-w-0 truncate text-content-secondary sm:hidden">{categoryPill.label}</span>
       <span className="hidden min-w-0 items-center gap-0.5 sm:inline-flex">
         {/* No filter to offer (uncategorized, or already the filter): plain label. */}
-        {categoryPill.onFilter
+        {categoryPill.onFilter || categoryPill.inert
           ? <FilterPill label={categoryPill.label} icon={categoryPill.icon} onClick={categoryPill.onFilter} />
           : <span className="min-w-0 truncate px-0.5 text-content-secondary">{categoryPill.label}</span>}
         {categoryPill.editor}
       </span>
     </>
   ) : categoryNode;
-  const accountPill = (withIcon: boolean) => accountName && (onAccountClick ? (
+  const accountPill = (withIcon: boolean) => accountName && (onAccountClick || selecting ? (
     <FilterPill label={accountName} icon={withIcon ? accountIcon : undefined} onClick={onAccountClick} />
   ) : (
     <span className="truncate">{accountName}</span>
@@ -282,9 +295,11 @@ export function TxnRow({
           </button>
         ) : columns ? (
           // Select mode: the badge stays with the merchant and the meta line
-          // keeps its order, as outside select mode.
+          // keeps its order, as outside select mode. Wider screens keep the
+          // merchant's pill box, inert, so the row keeps its height.
           <div className="flex min-w-0 items-center gap-1.5">
-            <div className="truncate text-[14px] font-bold leading-tight" title={merchant}>{merchant}</div>
+            <div className={cn('truncate text-[14px] font-bold leading-tight', selecting && 'sm:hidden')} title={merchant}>{merchant}</div>
+            {selecting && <span className="hidden min-w-0 sm:flex"><FilterPill label={merchant} strong /></span>}
             {excluded && <Badge tone="neutral" className="hidden shrink-0 sm:inline-flex">Excluded</Badge>}
           </div>
         ) : (
@@ -310,7 +325,7 @@ export function TxnRow({
             {categoryCell}
           </div>
           <div className={cn('hidden min-w-0 flex-1 items-center gap-2 text-[13px] text-content-secondary xl:flex', excluded && 'opacity-50')}>
-            {accountName && !onAccountClick && accountIcon && <span className="shrink-0">{accountIcon}</span>}
+            {accountName && !onAccountClick && !selecting && accountIcon && <span className="shrink-0">{accountIcon}</span>}
             {accountPill(true)}
           </div>
           {showDate && (

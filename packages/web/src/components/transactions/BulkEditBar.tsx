@@ -84,10 +84,12 @@ export function BulkEditBar({
         className={variant === 'floating'
           // Phones: above the bottom tab bar, which is fixed under it until md.
           ? 'fixed inset-x-3 bottom-[calc(max(env(safe-area-inset-bottom),0.5rem)+4.5rem)] z-40 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-x-3 gap-y-2 rounded-ui-xl border border-line-strong bg-panel-raised px-3 py-2.5 shadow-ui-lg sm:flex-nowrap sm:gap-4 sm:px-4 md:bottom-4'
-          : 'flex min-h-10 items-center gap-4'}
+          : 'flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2'}
       >
         {/* Phones: the count on the first row, actions on the second. The top
-             bar's Done ends selection there. Toolbar: one row, Done last. */}
+             bar's Done ends selection there. Toolbar: one row, Done last, and
+             below lg the count and Done share the first line with the actions
+             on their own line under them. */}
         <div className="order-1 flex min-w-0 flex-1 items-center gap-3 sm:flex-none sm:shrink-0">
           <span className="whitespace-nowrap text-[13px] font-bold text-content" aria-live="polite">
             {count === 0 ? (variant === 'floating' ? 'Tap transactions to select' : 'Select transactions') : `${count} selected`}
@@ -248,7 +250,7 @@ function ToolbarActions({ actions, busy, onCategory }: {
   );
 
   return (
-    <div ref={areaRef} className="relative order-2 min-w-0 flex-1">
+    <div ref={areaRef} className="relative order-2 min-w-0 flex-1 max-lg:order-4 max-lg:basis-full">
       <div className="flex items-center gap-2 [&>*]:shrink-0">
         <CategoryPicker variant="action" value="" currentLabel="Category" onChange={onCategory} />
         {shown.map((a) => (

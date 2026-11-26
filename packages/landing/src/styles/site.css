@@ -43,6 +43,11 @@ p { margin: 0; }
 /* ── Reveal ─────────────────────────────────────────────────────── */
 .js [data-reveal] { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
 .js [data-reveal].in { opacity: 1; transform: none; }
+.js [data-reveal] { transition-delay: var(--reveal-delay, 0ms); }
+/* The How it works cards come in one after another while they share a row. */
+@media (min-width: 1100px) { .steps [data-reveal] { --reveal-delay: calc(var(--i, 0) * 220ms); } }
+/* Two to a row: each row comes in on its own, so only its second card waits. */
+@media (min-width: 601px) and (max-width: 1099px) { .steps [data-reveal]:nth-child(even) { --reveal-delay: 220ms; } }
 @media (prefers-reduced-motion: reduce) { .js [data-reveal] { opacity: 1; transform: none; transition: none; } }
 
 /* ── Buttons (the app's raised primary, gentle secondary) ───────── */

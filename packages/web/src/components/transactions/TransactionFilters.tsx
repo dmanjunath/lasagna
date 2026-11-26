@@ -438,36 +438,36 @@ export function ChipBadge({
 }
 
 // ---------------------------------------------------------------------------
-// TransactionFilters — one toolbar row: [search] [each filter that fits, then
-// More], plus the active-filter chips row beneath. On phones the filters live
-// in one panel the page opens from its top bar (`filtersOpen`). Debounce ONLY
-// the search input; all other controls call onChange immediately.
+// TransactionFilters — one toolbar row: [search] [Date] [Filters] [trailing],
+// plus the active-filter chips row beneath. On phones the Filters trigger is in
+// the page's top bar (`filtersOpen`) and Date lives in that panel. Debounce ONLY the search
+// input; all other controls call onChange immediately.
 // ---------------------------------------------------------------------------
 
 export function TransactionFilters({
   filters,
   onChange,
   accounts,
-  leading,
   trailing,
+  hideControls,
   filtersOpen,
   onFiltersOpenChange,
 }: {
   filters: TxnFilters;
   onChange: (f: TxnFilters) => void;
   accounts: AccountIndexEntry[];
-  /** Rendered at the start of the toolbar row (e.g. the wide-screen kind pills). */
-  leading?: React.ReactNode;
-  /** Rendered at the end of the toolbar row (e.g. the desktop sort select). */
+  /** Rendered at the end of the toolbar row on wider screens (the page's sort). */
   trailing?: React.ReactNode;
+  /** From sm up, hide the search row and keep only the chips (the page's bulk bar takes its place). */
+  hideControls?: boolean;
   /** The phone's combined panel of every filter. Its trigger is in the top
    *  bar, marked `data-filters-trigger` so a tap on it isn't an outside tap. */
   filtersOpen: boolean;
   onFiltersOpenChange: (open: boolean) => void;
 }) {
   const [searchInput, setSearchInput] = useState(filters.search);
-  // 'all' = the phone's combined Filters panel. 'more' = the wider toolbar's
-  // panel holding just the filters that didn't fit in the row.
+  // 'all' = the phone's Filters panel, every filter. 'more' = the wider
+  // toolbar's, opened from its Filters button: all but Date, which sits beside it.
   const [moreOpen, setMoreOpen] = useState(false);
   const openPanel: 'all' | 'more' | null = filtersOpen ? 'all' : moreOpen ? 'more' : null;
   const setOpenPanel = (v: 'all' | 'more' | null) => {
@@ -581,13 +581,7 @@ export function TransactionFilters({
   };
   const chips: Chip[] = [];
 
-  if (filters.search) {
-    chips.push({
-      key: 'search',
-      label: `"${filters.search}"`,
-      clear: () => { setSearchInput(''); onChange({ ...filters, search: '' }); },
-    });
-  }
+  // No chip for the search: the box above shows it, with its own clear button.
   for (const m of filters.merchants) {
     chips.push({
       key: `merchant-${m}`,
@@ -874,46 +868,9 @@ export function TransactionFilters({
     },
   ];
 
-  // Wide toolbar: as many filters inline as fit, the rest under "More". An
-  // invisible copy of the row measures each trigger at its natural width.
-  const areaRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
-  const [fitCount, setFitCount] = useState(fields.length);
-  useLayoutEffect(() => {
-    const area = areaRef.current;
-    const measure = measureRef.current;
-    if (!area || !measure) return;
-    const GAP = 8;
-    // Room for a count badge on every trigger: picking a merchant adds one, and a
-    // trigger that then no longer fit jumped into More and closed under the pointer.
-    const BADGE = 26;
-    const fit = () => {
-      const kids = Array.from(measure.children) as HTMLElement[];
-      const moreWidth = kids[kids.length - 1]?.offsetWidth ?? 0;
-      const widths = kids.slice(0, -1).map((k) => k.offsetWidth + BADGE);
-      const available = area.clientWidth;
-      const total = widths.reduce((a, w) => a + w + GAP, 0) - GAP;
-      if (total <= available) { setFitCount(widths.length); return; }
-      let used = moreWidth;
-      let n = 0;
-      for (const w of widths) {
-        if (used + GAP + w > available) break;
-        used += GAP + w;
-        n++;
-      }
-      setFitCount(n);
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(area);
-    ro.observe(measure);
-    return () => ro.disconnect();
-  }, [fields.length]);
-
-  const shown = fields.slice(0, fitCount);
-  const overflow = fields.slice(fitCount);
-  const overflowActive = overflow.filter((f) => f.active).length;
-  const inlineWrap = 'max-w-[220px] shrink-0';
+  const dateField = fields.find((f) => f.key === 'date');
+  const panelFields = fields.filter((f) => f.key !== 'date');
+  const activeCount = panelFields.filter((f) => f.active).length;
 
   const stackedPanel = (list: FilterField[], align: 'left' | 'right') => (
     <div
@@ -933,32 +890,16 @@ export function TransactionFilters({
     </div>
   );
 
-  const moreLabel = shown.length === 0 ? 'Filters' : 'More';
-  const moreButton = (ref?: React.Ref<HTMLButtonElement>, count = 0) => (
-    <button
-      ref={ref}
-      type="button"
-      onClick={ref ? () => setOpenPanel(openPanel === 'more' ? null : 'more') : undefined}
-      aria-expanded={ref ? openPanel === 'more' : undefined}
-      aria-haspopup="true"
-      tabIndex={ref ? undefined : -1}
-      className={cn(button({ variant: count > 0 ? 'secondary' : 'neutral', size: 'sm' }), 'shrink-0 px-3')}
-    >
-      <SlidersHorizontal size={14} className="opacity-70" aria-hidden />
-      {moreLabel}
-      {count > 0 && <Badge tone="brand" size="sm">{count}</Badge>}
-    </button>
-  );
 
   return (
     <div className="space-y-2">
       {/* Toolbar row — also the popover anchor so the panel can go full-width
            under the toolbar on mobile. */}
-      <div className="relative">
-        <div className="flex items-center gap-2">
-          {leading}
+      <div className={cn('relative', hideControls && 'sm:hidden')}>
+        {/* Below lg, search takes its own line and the buttons wrap under it. */}
+        <div className="flex flex-wrap items-center gap-2">
           {/* Debounced search */}
-          <div className="relative min-w-0 flex-1 sm:w-[200px] sm:flex-none">
+          <div className="relative w-full min-w-0 lg:w-auto lg:flex-1">
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
             <input
               type="text"
@@ -980,36 +921,24 @@ export function TransactionFilters({
             )}
           </div>
 
-          {/* Wider screens: each filter that fits, then More. */}
-          <div ref={areaRef} className="relative hidden min-w-0 flex-1 sm:block">
-            <div className="flex items-center gap-2">
-              {shown.map((f) => (
-                <div key={f.key} className={inlineWrap}>{f.render(true)}</div>
-              ))}
-              {overflow.length > 0 && (
-                <div className="relative">
-                  {moreButton(moreBtnRef, overflowActive)}
-                  {openPanel === 'more' && stackedPanel(overflow, 'right')}
-                </div>
-              )}
-            </div>
-            {/* Clipped wrapper: the copy is wider than the column on a narrow
-                 window and would otherwise widen the page sideways. */}
-            <div aria-hidden className="pointer-events-none invisible absolute inset-0 overflow-hidden">
-              <div
-                ref={measureRef}
-                // inert: the copies are for measuring only, never for use.
-                inert
-                className="absolute left-0 top-0 flex w-max items-center gap-2"
-              >
-                {fields.map((f) => (
-                  <div key={f.key} className={inlineWrap}>{f.render(true)}</div>
-                ))}
-                {moreButton(undefined, 9)}
-              </div>
-            </div>
+          {/* Wider screens: Date on its own, every other filter behind one button. */}
+          {dateField && <div className="hidden shrink-0 sm:block">{dateField.render(true)}</div>}
+          <div className="relative hidden shrink-0 sm:block">
+            <button
+              ref={moreBtnRef}
+              type="button"
+              onClick={() => setOpenPanel(openPanel === 'more' ? null : 'more')}
+              aria-expanded={openPanel === 'more'}
+              aria-haspopup="true"
+              // Room for the count badge from the start, so search doesn't shrink when it shows.
+              className={cn(button({ variant: activeCount > 0 ? 'secondary' : 'neutral', size: 'sm' }), 'min-w-[112px] shrink-0 px-3')}
+            >
+              <SlidersHorizontal size={14} className="opacity-70" aria-hidden />
+              Filters
+              {activeCount > 0 && <Badge tone="brand" size="sm">{activeCount}</Badge>}
+            </button>
+            {openPanel === 'more' && stackedPanel(panelFields, 'right')}
           </div>
-
           {trailing}
         </div>
 
@@ -1023,12 +952,13 @@ export function TransactionFilters({
         )}
       </div>
 
-      {/* Active filter chips. The row wraps, and each × carries a 44px tall tap
-           zone on phones (max-sm:before:-inset-y-3), so the vertical gap has to
-           clear that zone: at gap-2 the zones of two stacked lines overlapped by
-           6px and a tap in the band deleted the chip on the other line. */}
+      {/* Active filter chips. On phones one row that scrolls sideways, with
+           Clear all at its end. Each × there carries a 44px tall tap zone
+           (max-sm:before:-inset-y-3), so the row pads vertically (and pulls the
+           padding back with margin) to keep those zones inside its scroll box.
+           Wider screens wrap. */}
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-4 sm:gap-y-2">
+        <div className="flex items-center gap-x-2 max-sm:-mx-3 max-sm:-my-3 max-sm:overflow-x-auto max-sm:px-3 max-sm:py-3 max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden max-sm:[&>*]:shrink-0 sm:flex-wrap sm:gap-y-2">
           {chips.map((chip) => (
             <ChipBadge
               key={chip.key}
@@ -1041,7 +971,7 @@ export function TransactionFilters({
           ))}
           {/* One Clear all: everything, search and the Money in / out / Transfers side included.
                It shows once two things are set, a side counting as one. */}
-          {chips.length + (filters.kind !== 'all' ? 1 : 0) >= 2 && (
+          {chips.length + (filters.kind !== 'all' ? 1 : 0) + (filters.search ? 1 : 0) >= 2 && (
             <button
               type="button"
               onClick={() => { setSearchInput(''); onChange(EMPTY_FILTERS); }}
