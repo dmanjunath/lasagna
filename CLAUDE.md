@@ -162,7 +162,7 @@ The boundary, which decides whether a fix reaches users in minutes or weeks:
 | --- | --- |
 | `packages/mobile/app`, `packages/mobile/src`, its images and fonts | **OTA** (React Native app) |
 | A native module, config plugin, permission, `app.config.ts` native setting | **New App Store build** |
-| `packages/web/src` | Web deploy, plus OTA to the old Capacitor shell only |
+| `packages/web/src` | Web deploy only (the old Capacitor shell is deprecated and no longer updated) |
 
 The React Native app's updates are keyed by **runtime version**, a fingerprint
 of its native code and config. An update only reaches builds with the same

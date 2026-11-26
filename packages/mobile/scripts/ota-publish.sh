@@ -74,7 +74,7 @@ else
   }
   put_file() {
     local cache="public, max-age=31536000, immutable"
-    [[ "$2" == */latest.json ]] && cache="no-cache, max-age=0"
+    [[ "$2" == */latest.json || "$2" == */last-publish.json ]] && cache="no-cache, max-age=0"
     gcloud storage cp "$1" "gs://$OTA_BUCKET/$2" --cache-control="$cache"
   }
 fi
@@ -95,6 +95,11 @@ stamp() {
 
 go_live() {
   put_file "$1" "$PREFIX/latest.json"
+  # What was published last, whatever the runtime version, for the cron in
+  # lasagna-infra to compare against main.
+  printf '{"commit":"%s","runtimeVersion":"%s","publishedAt":"%s"}\n' \
+    "$SHA" "$RUNTIME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$STAGE/last-publish.json"
+  put_file "$STAGE/last-publish.json" "rn/ios/last-publish.json"
   echo "==> Live for runtime $RUNTIME: $2"
   echo "    Devices download it on their next launch or return to the app, and"
   echo "    switch to it on their next cold start."

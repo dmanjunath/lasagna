@@ -26,7 +26,7 @@ if [[ ! -f "$FIREBASE_PLIST" ]]; then
 fi
 export LASAGNA_FIREBASE_PLIST="$FIREBASE_PLIST"
 
-# Blank is valid, not fatal, matching ota-publish.sh: it is what a self-hosted
+# Blank is valid, not fatal: it is what a self-hosted
 # build gets, and it fails toward counting nothing. Warned about below so a
 # variable someone forgot to set is visible rather than silent.
 UMAMI_ID="${VITE_UMAMI_WEBSITE_ID:-}"

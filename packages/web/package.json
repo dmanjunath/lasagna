@@ -11,8 +11,7 @@
     "typecheck": "tsc --noEmit",
     "cap:sync": "vite build && cap sync",
     "cap:ios": "vite build && cap sync && cap open ios",
-    "ios:archive": "bash scripts/ios-archive.sh",
-    "ota:publish": "bash scripts/ota-publish.sh"
+    "ios:archive": "bash scripts/ios-archive.sh"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.136",

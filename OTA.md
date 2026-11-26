@@ -1,17 +1,15 @@
 # Over-the-air updates
 
-Installed iOS apps take JavaScript and asset changes without an App Store
-submission. There are two systems, one per kind of app:
+The React Native app (`packages/mobile`) takes JavaScript and asset changes
+without an App Store submission: Expo Updates, served by our own API,
+published by the `Publish OTA bundle` workflow in `lasagna-infra`, keyed by
+commit sha, and rolled back by publishing an earlier sha. Real values (bucket,
+hosts, keys) live in `lasagna-infra`, never in this repo.
 
-- **The React Native app** (`packages/mobile`, the current app): Expo Updates
-  served by our own API. See the next section.
-- **The Capacitor shell** (`packages/web/ios`, the old app): the web bundle,
-  via `@capgo/capacitor-updater`. Described after it, for shells still installed.
-
-Both are published by the same `Publish OTA bundle` workflow in
-`lasagna-infra`, keyed by commit sha, and rolled back by publishing an earlier
-sha. Real values (bucket, hosts, keys) live in `lasagna-infra`, never in this
-repo.
+The old Capacitor shell (`packages/web/ios`) is **deprecated**. Nothing
+publishes its web bundle any more, and installs move to the React Native app,
+which ships under the same bundle ID, through the App Store. Its section is
+kept below for reference only.
 
 ## The React Native app
 
@@ -51,8 +49,9 @@ build time, and the private key is only in Secret Manager
 
 ### Publishing
 
-`Publish OTA bundle` runs `packages/mobile/scripts/ota-publish.sh` in its
-`publish-rn` job, on the 6-hour cron and on dispatch. It needs the commit's
+`Publish OTA bundle` runs `packages/mobile/scripts/ota-publish.sh`, on the
+6-hour cron and on dispatch. The cron publishes when `main` differs from the
+commit in `rn/ios/last-publish.json`, which every publish writes. It needs the commit's
 `Tests` run green (`force` bypasses). Locally:
 `pnpm -F @lasagna/mobile ota:publish [<sha>]`.
 
@@ -66,7 +65,7 @@ never in one script alone.
 
 - **A bad update**: dispatch `Publish OTA bundle` with the last good sha. It is
   reused, so it lands in seconds, and it is stamped as the newest update so
-  devices take it. As with the web bundle, publishing a sha that is not `main`
+  devices take it. Publishing a sha that is not `main`
   disables the cron until you publish `main` again.
 - **Back to what each build shipped with**: dispatch with
   `rollback_to_embedded`. Devices drop every update and run their own bundle.
@@ -80,12 +79,15 @@ never in one script alone.
   `certificate.pem` and `private-key.pem`. Losing the private key means
   installed builds can take no more updates until a new build ships.
 - GitHub variables: `MOBILE_WEB_URL`, and `OTA_CODE_SIGNING_CERT` (the public
-  certificate's contents). `OTA_BUCKET` and `VITE_API_URL` are shared with the
-  web bundle.
+  certificate's contents). `OTA_BUCKET` and `VITE_API_URL` too.
 - Secret Manager (wired into the API on deploy): `OTA_BASE_URL` (the bucket's
   public URL) and `OTA_CODE_SIGNING_KEY`.
 
-## The Capacitor shell (web bundle)
+## The Capacitor shell (deprecated, no longer published)
+
+Everything below describes the retired system. Its publish job and script
+(`packages/web/scripts/ota-publish.sh`) are gone. The live web bundle stays
+where it was, so installed shells keep running it.
 
 ### What can and cannot ship this way
 
