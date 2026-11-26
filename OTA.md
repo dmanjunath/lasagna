@@ -1,13 +1,93 @@
-# Over-the-air updates (SCL-20)
+# Over-the-air updates
 
-Ships web-layer changes to installed iOS apps without an App Store submission.
-Implemented with `@capgo/capacitor-updater` in self-hosted manual mode, with
-bundles on Google Cloud Storage.
+Installed iOS apps take JavaScript and asset changes without an App Store
+submission. There are two systems, one per kind of app:
 
-Real values (bucket, manifest URL, API host) live in `lasagna-infra`, never in
-this repo.
+- **The React Native app** (`packages/mobile`, the current app): Expo Updates
+  served by our own API. See the next section.
+- **The Capacitor shell** (`packages/web/ios`, the old app): the web bundle,
+  via `@capgo/capacitor-updater`. Described after it, for shells still installed.
 
-## What can and cannot ship this way
+Both are published by the same `Publish OTA bundle` workflow in
+`lasagna-infra`, keyed by commit sha, and rolled back by publishing an earlier
+sha. Real values (bucket, hosts, keys) live in `lasagna-infra`, never in this
+repo.
+
+## The React Native app
+
+### What can and cannot ship this way
+
+| Ships over the air | Needs an App Store build |
+| --- | --- |
+| Anything in `packages/mobile/app` and `src` | A new or upgraded native module |
+| Images, fonts and other assets | A config plugin, `app.config.ts` native settings |
+| Copy, layout, client-side fixes | New permissions, Info.plist, the app icon |
+
+No gate is needed to enforce this. Every update is stored under the **runtime
+version**, a fingerprint of the native code and the app config
+(`runtimeVersion: { policy: "fingerprint" }`). A build only asks for updates
+with its own runtime version, so an update that needs different native code
+never reaches it. A native change simply starts a new runtime version, which
+gets updates once a build with it ships.
+
+### How it works
+
+1. On launch, expo-updates asks `GET <API>/updates/manifest` with its runtime
+   version. The app opens on what it already has, without waiting.
+2. The API (`packages/api/src/routes/updates.ts`) reads the live pointer for
+   that runtime version from the bucket (`rn/ios/<runtime>/latest.json`) and
+   answers with the manifest, "no update" when the device already has it, or a
+   roll-back directive. It signs what it sends.
+3. The app downloads the bundle and assets straight from the bucket, checks
+   each file's hash and the signature, and keeps the update.
+4. It switches to it on the next cold start. It also checks again on each
+   return to the foreground (`src/lib/ota.ts`), so a long session still
+   downloads it. Unlike the Capacitor shell it does not switch while in the
+   background: reloading a backgrounded React Native app left a blank screen.
+
+The app only accepts updates signed by our key. Its certificate is embedded at
+build time, and the private key is only in Secret Manager
+(`OTA_CODE_SIGNING_KEY`), so a person with bucket access alone cannot push code.
+
+### Publishing
+
+`Publish OTA bundle` runs `packages/mobile/scripts/ota-publish.sh` in its
+`publish-rn` job, on the 6-hour cron and on dispatch. It needs the commit's
+`Tests` run green (`force` bypasses). Locally:
+`pnpm -F @lasagna/mobile ota:publish [<sha>]`.
+
+The script prints the runtime version it publishes for, and
+`ios-archive.sh` prints the one each build embeds. **An update reaches a build
+only when the two match.** Both scripts take the app config's env from
+`scripts/ota-env.sh`, so they compute it the same way. Change that env there,
+never in one script alone.
+
+### Rolling back
+
+- **A bad update**: dispatch `Publish OTA bundle` with the last good sha. It is
+  reused, so it lands in seconds, and it is stamped as the newest update so
+  devices take it. As with the web bundle, publishing a sha that is not `main`
+  disables the cron until you publish `main` again.
+- **Back to what each build shipped with**: dispatch with
+  `rollback_to_embedded`. Devices drop every update and run their own bundle.
+- **A bundle that crashes on launch** is reverted by expo-updates on the
+  device, which falls back to the previous update.
+- **A bad native change** needs an App Store build, as before.
+
+### Setup in lasagna-infra
+
+- `ios/ota/` (local only, never committed anywhere public): the code-signing
+  `certificate.pem` and `private-key.pem`. Losing the private key means
+  installed builds can take no more updates until a new build ships.
+- GitHub variables: `MOBILE_WEB_URL`, and `OTA_CODE_SIGNING_CERT` (the public
+  certificate's contents). `OTA_BUCKET` and `VITE_API_URL` are shared with the
+  web bundle.
+- Secret Manager (wired into the API on deploy): `OTA_BASE_URL` (the bucket's
+  public URL) and `OTA_CODE_SIGNING_KEY`.
+
+## The Capacitor shell (web bundle)
+
+### What can and cannot ship this way
 
 | Ships over the air | Needs an App Store build |
 | --- | --- |
@@ -21,7 +101,7 @@ plugin list, `Info.plist`, or any `.swift` file. That gate matters because such
 a bundle **boots normally** and only fails when the missing plugin is called, so
 the in-app auto-rollback cannot catch it.
 
-## How it works
+### How it works
 
 The app ships a complete builtin `dist/`. On launch and on resume it fetches a
 static `latest.json`. If the version differs from the one baked into the running
@@ -36,7 +116,7 @@ is builtin plus one OTA bundle.
 The version rule is **different**, not **newer**. Publishing an earlier bundle
 is how a bad release is pulled off devices that already applied it.
 
-## Publishing
+### Publishing
 
 Everything goes through one GitHub Action in `lasagna-infra`, which is the only
 thing that writes to the bucket. Nothing is edited by hand.
@@ -57,7 +137,7 @@ refuses to upload a bundle containing a secret-shaped string or a source map.
 
 Locally: `pnpm -F @lasagna/web ota:publish [<sha>]`.
 
-## Rolling back
+### Rolling back
 
 Three different things get called rollback. They are not interchangeable.
 
@@ -82,7 +162,7 @@ Note that rolling back to a commit from before OTA existed would leave the app
 with no updater, so it could only be recovered through the App Store. The native
 gate blocks that too.
 
-## Checking what a device is running
+### Checking what a device is running
 
 Settings shows the store build, the bundle running on top of it, and the commit
 that bundle was built from:
@@ -104,7 +184,7 @@ tree dirty only with new untracked files still gets a clean sha. The publish
 script's `git status --porcelain` counts those files and refuses. A build with
 no sha set shows no parentheses rather than empty ones.
 
-## Apple compliance
+### Apple compliance
 
 Apple's guidelines allow an app to download and execute interpreted code,
 provided it does not change the app's primary purpose and the code is run by the
@@ -117,7 +197,7 @@ This implementation stays inside that allowance:
 - No new permissions or native capabilities can be introduced, enforced by the
   native-compat gate rather than left to discipline.
 
-## Security
+### Security
 
 The bundle is world-readable by design, so it must never contain a secret. Vite
 bakes `VITE_*` values into `dist`, and only public ones are used (the API URL
@@ -131,7 +211,7 @@ Publishing runs as a service account, not a user credential.
 Every bundle's sha256 is recorded in the manifest and verified natively before
 the bundle can be applied.
 
-## Gotchas worth knowing
+### Gotchas worth knowing
 
 - `getNextBundle()` is typed `BundleInfo | null`, but iOS resolves it with no
   arguments, which the Capacitor bridge delivers as `{}`. Test for an id, not

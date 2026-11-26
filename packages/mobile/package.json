@@ -23,6 +23,7 @@
     "expo-status-bar": "~58.0.5",
     "expo-symbols": "~58.0.5",
     "expo-system-ui": "~58.0.7",
+    "expo-updates": "~58.0.22",
     "expo-web-browser": "~58.1.0",
     "react": "19.3.0",
     "react-native": "0.88.1",
@@ -49,7 +50,8 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "ios:archive": "bash scripts/ios-archive.sh"
+    "ios:archive": "bash scripts/ios-archive.sh",
+    "ota:publish": "bash scripts/ota-publish.sh"
   },
   "private": true,
   "jest": {

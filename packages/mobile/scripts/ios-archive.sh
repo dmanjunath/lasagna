@@ -16,8 +16,13 @@ fi
 : "${VITE_API_URL:?VITE_API_URL not set. It is the API origin, not the web app}"
 : "${MOBILE_WEB_URL:?MOBILE_WEB_URL not set. Add the hosted web app origin to signing.env}"
 
-export EXPO_PUBLIC_API_URL="$VITE_API_URL"
-export EXPO_PUBLIC_WEB_URL="$MOBILE_WEB_URL"
+# The app config's env, shared with ota-publish.sh so both compute the same
+# runtime version.
+# shellcheck disable=SC1091
+source "$APP_DIR/scripts/ota-env.sh"
+if [[ -z "${EXPO_UPDATES_URL:-}" ]]; then
+  echo "WARNING: no OTA code-signing certificate, so this build cannot take over-the-air updates." >&2
+fi
 # Build numbers must only go up, and must clear the Capacitor builds that
 # shipped under the same bundle ID. A timestamp does both.
 export IOS_BUILD_NUMBER="${IOS_BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
@@ -28,6 +33,11 @@ EXPORT_DIR="$BUILD_DIR/export"
 mkdir -p "$BUILD_DIR"
 
 echo "==> Generating the iOS project (build $IOS_BUILD_NUMBER, API $EXPO_PUBLIC_API_URL)"
+# The runtime version this build embeds. A published update reaches it only
+# when ota-publish.sh prints the same value.
+RUNTIME_VERSION=$(cd "$APP_DIR" && npx expo-updates runtimeversion:resolve --platform ios | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).runtimeVersion')
+echo "    Runtime version $RUNTIME_VERSION"
+printf '%s\n' "$RUNTIME_VERSION" > "$BUILD_DIR/runtime-version.txt"
 (cd "$APP_DIR" && npx expo prebuild --platform ios --clean)
 
 # Xcode's "[RNDeps] Replace React Native Dependencies" phase swaps the Debug
@@ -79,5 +89,5 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" \
   -exportOptionsPlist "$BUILD_DIR/exportOptions.plist" \
   -exportPath "$EXPORT_DIR" -allowProvisioningUpdates
 
-echo "==> Done: $EXPORT_DIR/LasagnaFi.ipa"
+echo "==> Done: $EXPORT_DIR/LasagnaFi.ipa (runtime version $RUNTIME_VERSION)"
 echo "Upload via Xcode Organizer or the Transporter app."

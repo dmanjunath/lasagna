@@ -10,6 +10,12 @@ const brand: { canvas: { light: string; dark: string } } = require("./assets/bra
 const webHost = process.env.EXPO_PUBLIC_WEB_URL ? new URL(process.env.EXPO_PUBLIC_WEB_URL).hostname : null;
 const isLocalWeb = !webHost || webHost === "localhost";
 
+// Over-the-air updates (OTA.md). The endpoint and the code-signing certificate
+// come from env at build and publish time (scripts/ios-archive.sh and
+// scripts/ota-publish.sh, which copy the certificate to build/). Without an
+// endpoint, updates stay off and the app runs its embedded bundle only.
+const updatesUrl = process.env.EXPO_UPDATES_URL;
+
 const config: ExpoConfig = {
   name: "LasagnaFi",
   slug: "lasagna",
@@ -74,6 +80,22 @@ const config: ExpoConfig = {
       },
     ],
   ],
+  // An update only reaches builds whose native code matches it: the
+  // fingerprint changes with any native module, plugin or native config.
+  runtimeVersion: { policy: "fingerprint" },
+  updates: updatesUrl
+    ? {
+        url: updatesUrl,
+        enabled: true,
+        // Check on launch without holding it: the app opens on what it has and
+        // a new update applies the next time it starts.
+        checkAutomatically: "ON_LOAD",
+        fallbackToCacheTimeout: 0,
+        // Only updates signed with our key are accepted.
+        codeSigningCertificate: "./build/ota-certificate.pem",
+        codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" },
+      }
+    : { enabled: false },
   experiments: { typedRoutes: true },
 };
 

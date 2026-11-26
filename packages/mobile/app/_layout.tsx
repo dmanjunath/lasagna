@@ -12,6 +12,7 @@ import { loadDesign, ThemeProvider, useTheme as useDesign } from "@/design";
 import { RUNTIME_FACES } from "@/design/fonts";
 import { loadAppearance } from "@/lib/appearance";
 import { loadAmountsHidden } from "@/lib/hide-amounts";
+import { useOta } from "@/lib/ota";
 import { hideSplashOnce } from "@/lib/splash";
 import { useTheme } from "@/theme";
 import { ToastHost } from "@/ui/Toast";
@@ -47,6 +48,7 @@ function RootStack() {
   // A design switch rebuilds the screens from scratch: native views keep
   // measurements and styles from the old theme's faces and sizes otherwise.
   const { id: designId } = useDesign();
+  useOta();
 
   // The first screen hides the launch screen from its own onLayout
   // (hideSplashOnce). This is the backstop if a screen never does.

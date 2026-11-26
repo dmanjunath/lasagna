@@ -152,20 +152,23 @@ When something isn't working, **run the code and inspect actual data** before th
 
 ## Shipping to the iOS app (OTA)
 
-Installed apps take web-layer updates over the air, so most changes need no App
-Store submission. **See [OTA.md](OTA.md)** for how it works and how to roll back.
+Installed apps take JavaScript and asset updates over the air, so most changes
+need no App Store submission. **See [OTA.md](OTA.md)** for how it works and how
+to roll back.
 
 The boundary, which decides whether a fix reaches users in minutes or weeks:
 
 | Change | Ships how |
 | --- | --- |
-| Anything in `packages/web/src` or `packages/web/public` | **OTA** |
-| Anything in `packages/web/ios/` — `Assets.xcassets`, storyboards, `Info.plist`, Swift, plugins | **New App Store build** |
+| `packages/mobile/app`, `packages/mobile/src`, its images and fonts | **OTA** (React Native app) |
+| A native module, config plugin, permission, `app.config.ts` native setting | **New App Store build** |
+| `packages/web/src` | Web deploy, plus OTA to the old Capacitor shell only |
 
-A bundle that needs a native capability the installed shell lacks **boots fine
-and fails when the missing plugin is called**, so the in-app auto-rollback can't
-catch it. The publish workflow refuses across a native-surface change for that
-reason — don't `force` past it without being certain.
+The React Native app's updates are keyed by **runtime version**, a fingerprint
+of its native code and config. An update only reaches builds with the same
+runtime version, so a native change can never be pushed to a build that cannot
+run it: it waits for the next store build instead. `ota-publish.sh` and
+`ios-archive.sh` both print the runtime version, and they must match.
 
 Publishing is a cron in lasagna-infra plus one dispatchable workflow; nothing in
 the bucket is edited by hand. Rolling back means publishing an earlier sha.

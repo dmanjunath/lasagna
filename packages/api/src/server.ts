@@ -40,6 +40,7 @@ import { categoryRoutes } from "./routes/categories.js";
 import { placesRoutes } from "./routes/places.js";
 import { retirementSimRouter } from "./routes/retirement-sim.js";
 import { cronRoutes } from "./routes/cron.js";
+import { updatesRoutes } from "./routes/updates.js";
 
 export const app = new Hono<AuthEnv>();
 
@@ -133,6 +134,8 @@ app.get("/api/health", (c) => {
 // ── Cloud Scheduler jobs: mounted OUTSIDE /api/* so the user-auth and demo
 // guards below never apply. Its own shared-secret guard protects it. ──
 app.route("/cron", cronRoutes);
+// Over-the-air updates for the iOS app: public, outside /api/* like /cron.
+app.route("/updates", updatesRoutes);
 
 // ── Global auth: exempt public routes, require auth everywhere else ──
 app.use("/api/*", async (ctx, next) => {
