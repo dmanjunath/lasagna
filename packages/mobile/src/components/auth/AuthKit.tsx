@@ -1,8 +1,9 @@
 import * as WebBrowser from "expo-web-browser";
 import { SymbolView } from "expo-symbols";
-import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, type ReactNode } from "react";
+import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { icon, radius, space, themedStyles, type, useTheme, weight } from "@/theme";
 import { BrandLockup } from "@/ui/BrandMark";
 import { TextLink } from "@/ui/Card";
@@ -34,9 +35,27 @@ export function AuthLayout({
 }) {
   const t = useTheme();
   const d = useDesign();
+  // Room for the keyboard, moved with it: the keyboard event's own duration,
+  // on a fast-out curve close to the iOS keyboard's. KeyboardAvoidingView
+  // eased on its own and fell behind.
+  const { bottom } = useSafeAreaInsets();
+  // A screen opened with the keyboard already up starts clear of it.
+  const pad = useSharedValue(Math.max(0, (Keyboard.metrics()?.height ?? 0) - bottom));
+  useEffect(() => {
+    const move = (to: number, duration: number) => {
+      pad.value = withTiming(Math.max(0, to - bottom), { duration, easing: Easing.out(Easing.exp) });
+    };
+    const show = Keyboard.addListener("keyboardWillShow", (e) => move(e.endCoordinates.height, e.duration));
+    const hide = Keyboard.addListener("keyboardWillHide", (e) => move(0, e.duration));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [bottom, pad]);
+  const avoid = useAnimatedStyle(() => ({ paddingBottom: pad.value }));
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.canvas }} onLayout={hideSplashOnce}>
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <Animated.View style={[{ flex: 1 }, avoid]}>
         <FitScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
           <View style={styles.head}>
             {mark !== "none" ? <BrandLockup size={40} large /> : null}
@@ -55,7 +74,7 @@ export function AuthLayout({
           <View style={styles.form}>{children}</View>
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </FitScrollView>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
