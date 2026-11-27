@@ -18,7 +18,10 @@ public class WindowCanvasModule: Module {
         let canvas = UIColor { $0.userInterfaceStyle == .dark ? dark : light }
         for scene in UIApplication.shared.connectedScenes {
           guard let windows = (scene as? UIWindowScene)?.windows else { continue }
-          for window in windows {
+          // Only the app's own windows. UIKit adds its own above them once a
+          // keyboard has shown (UITextEffectsWindow); painted, it covered the
+          // whole app in the canvas color.
+          for window in windows where isAppWindow(window) {
             window.backgroundColor = canvas
             window.rootViewController?.view.backgroundColor = canvas
             window.rootViewController.map { paintContainers($0, canvas) }
@@ -27,6 +30,12 @@ public class WindowCanvasModule: Module {
       }
     }
   }
+}
+
+/** Not one of UIKit's private windows (all named UI..., unlike UIWindow itself). */
+private func isAppWindow(_ window: UIWindow) -> Bool {
+  let name = NSStringFromClass(type(of: window))
+  return name == "UIWindow" || !(name.hasPrefix("UI") || name.hasPrefix("_UI"))
 }
 
 /** Every tab or navigation container under `controller`, presented ones included. Pages paint themselves. */
