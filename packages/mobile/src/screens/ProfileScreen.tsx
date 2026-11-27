@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import { useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { billingApi } from "@/api/auth";
@@ -9,6 +10,7 @@ import { RowCard, SettingsRow } from "@/components/profile/SettingsParts";
 import { formatMoney } from "@/lib/format";
 import { useAmountsHidden } from "@/lib/hide-amounts";
 import { openPath, pushInTab } from "@/lib/navigation";
+import { versionLabel } from "@/lib/app-version";
 import { canDeleteAccount, FILING_STATUS_OPTIONS, initialsOf, labelOf, type ProfileSectionId } from "@/lib/profile";
 import { radius, themedStyles, type, useTheme, weight } from "@/theme";
 import { Card } from "@/ui/Card";
@@ -66,6 +68,8 @@ export default function ProfileScreen() {
 
   const version = Constants.expoConfig?.version;
   const build = Constants.expoConfig?.ios?.buildNumber;
+  const commit = (Updates.manifest as { extra?: { commit?: string } } | undefined)?.extra?.commit;
+  const update = { enabled: Updates.isEnabled, embedded: Updates.isEmbeddedLaunch, commit, updateId: Updates.updateId };
 
   return (
     <ScreenScroll
@@ -121,7 +125,7 @@ export default function ProfileScreen() {
         {canDeleteAccount(user, DEMO_BUILD) ? <SettingsRow title="Delete account" tone="negative" chevron={false} onPress={() => confirmDelete(!!user?.hasPassword)} /> : null}
       </RowCard>
 
-      {version ? <Text style={[styles.version, { color: t.contentMuted }]}>{`Version ${version}${build ? ` (${build})` : ""}`}</Text> : null}
+      {version ? <Text style={[styles.version, { color: t.contentMuted }]}>{versionLabel(version, build, update)}</Text> : null}
     </ScreenScroll>
   );
 }
