@@ -38,6 +38,10 @@ echo "==> Generating the iOS project (build $IOS_BUILD_NUMBER, API $EXPO_PUBLIC_
 RUNTIME_VERSION=$(cd "$APP_DIR" && npx expo-updates runtimeversion:resolve --platform ios | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).runtimeVersion')
 echo "    Runtime version $RUNTIME_VERSION"
 printf '%s\n' "$RUNTIME_VERSION" > "$BUILD_DIR/runtime-version.txt"
+# Xcode's build step computes the fingerprint again, and there the app config
+# came out different (its auto-detected platforms left out web), so builds
+# embedded a runtime version nothing was ever published for. Hand it this one.
+export EXPO_UPDATES_FINGERPRINT_OVERRIDE="$RUNTIME_VERSION"
 (cd "$APP_DIR" && npx expo prebuild --platform ios --clean)
 
 # Xcode's "[RNDeps] Replace React Native Dependencies" phase swaps the Debug
@@ -70,6 +74,12 @@ echo "==> Archiving"
 xcodebuild -workspace "$APP_DIR/ios/LasagnaFi.xcworkspace" -scheme LasagnaFi -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" archive \
   DEVELOPMENT_TEAM="$IOS_TEAM_ID" -allowProvisioningUpdates
+
+EMBEDDED=$(cat "$ARCHIVE/Products/Applications/LasagnaFi.app/EXUpdates.bundle/fingerprint")
+if [[ "$EMBEDDED" != "$RUNTIME_VERSION" ]]; then
+  echo "ERROR: the build embeds runtime version $EMBEDDED, not $RUNTIME_VERSION. It would never get an update." >&2
+  exit 1
+fi
 
 cat > "$BUILD_DIR/exportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
